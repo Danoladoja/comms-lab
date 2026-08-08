@@ -4,13 +4,13 @@ import { ArrowRight } from 'lucide-react';
 import { courses, liveSessions } from '@/data/mock';
 import heroImg from '@assets/hero.jpg';
 
-// ─── palette tokens (derived from index.css brand update) ───────────────────
+// ─── palette tokens — africaenergypulse.com ──────────────────────────────────
 const C = {
-  ink:    '#07111E',   // deep navy-black (afrienergytracker bg)
-  green:  '#00D878',   // energy green (afrienergytracker accent)
-  ochre:  '#C8922A',   // sandy ochre (africaenergypulse warmth)
-  paper:  '#F4F0E8',   // warm off-white (light sections)
-  white:  '#FFFFFF',
+  ink:   '#100E0B',   // warm near-black (from AEP's editorial darkness)
+  gold:  '#C49A3C',   // sandy warm gold (from AEP's desert/landscape imagery)
+  brown: '#8B6530',   // deep warm brown (secondary accent)
+  paper: '#F9F7F4',   // pure warm white (AEP's clean light background)
+  white: '#FFFFFF',
 };
 
 // ─── fade-in helper ─────────────────────────────────────────────────────────
@@ -60,7 +60,7 @@ export default function Home() {
             animate="visible"
             custom={0.1}
             className="text-xs uppercase tracking-[0.35em] mb-6"
-            style={{ color: C.green }}
+            style={{ color: C.gold }}
           >
             Afrienergy Comms Lab
           </motion.p>
@@ -97,9 +97,9 @@ export default function Home() {
             <Link href="/register">
               <button
                 className="px-7 py-3 text-sm font-semibold uppercase tracking-widest transition-colors"
-                style={{ backgroundColor: C.green, color: C.ink }}
+                style={{ backgroundColor: C.gold, color: C.ink }}
                 onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#00f58a')}
-                onMouseLeave={e => (e.currentTarget.style.backgroundColor = C.green)}
+                onMouseLeave={e => (e.currentTarget.style.backgroundColor = C.gold)}
               >
                 Register Interest
               </button>
@@ -108,7 +108,7 @@ export default function Home() {
               <button
                 className="px-7 py-3 text-sm font-semibold uppercase tracking-widest border transition-colors"
                 style={{ borderColor: 'rgba(255,255,255,0.35)', color: C.white }}
-                onMouseEnter={e => (e.currentTarget.style.borderColor = C.green)}
+                onMouseEnter={e => (e.currentTarget.style.borderColor = C.gold)}
                 onMouseLeave={e => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.35)')}
               >
                 View Programs
@@ -153,7 +153,7 @@ export default function Home() {
             >
               <span
                 className="font-display font-bold leading-none"
-                style={{ fontSize: 'clamp(2.5rem, 6vw, 4rem)', color: C.green }}
+                style={{ fontSize: 'clamp(2.5rem, 6vw, 4rem)', color: C.gold }}
               >
                 {value}
               </span>
@@ -173,7 +173,7 @@ export default function Home() {
           whileInView="visible"
           viewport={{ once: true }}
           className="text-xs uppercase tracking-[0.35em] mb-16"
-          style={{ color: C.green }}
+          style={{ color: C.gold }}
         >
           What We Teach
         </motion.p>
@@ -194,7 +194,7 @@ export default function Home() {
             >
               <span
                 className="font-mono text-xs"
-                style={{ color: C.green }}
+                style={{ color: C.gold }}
               >
                 {n}
               </span>
@@ -217,7 +217,7 @@ export default function Home() {
         <div className="max-w-6xl mx-auto px-6 py-24 md:py-32">
           <div className="flex items-end justify-between mb-16 gap-6 flex-wrap">
             <div>
-              <p className="text-xs uppercase tracking-[0.35em] mb-3" style={{ color: C.ochre }}>
+              <p className="text-xs uppercase tracking-[0.35em] mb-3" style={{ color: C.brown }}>
                 Upcoming
               </p>
               <h2 className="font-display font-bold" style={{ fontSize: 'clamp(2rem, 5vw, 3.5rem)' }}>
@@ -227,7 +227,7 @@ export default function Home() {
             <Link href="/courses">
               <button
                 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-widest border-b pb-0.5 transition-colors"
-                style={{ borderColor: C.ochre, color: C.ink }}
+                style={{ borderColor: C.brown, color: C.ink }}
               >
                 All Programs <ArrowRight size={14} />
               </button>
@@ -249,7 +249,7 @@ export default function Home() {
                   style={{ borderTop: `2px solid ${C.ink}` }}
                 >
                   <div className="pt-6 pb-8 flex flex-col flex-1">
-                    <p className="text-xs uppercase tracking-widest mb-5" style={{ color: C.ochre }}>
+                    <p className="text-xs uppercase tracking-widest mb-5" style={{ color: C.brown }}>
                       {date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
                     </p>
                     <h3 className="font-display font-semibold text-lg leading-snug mb-3">
@@ -262,7 +262,7 @@ export default function Home() {
                       <button
                         className="mt-auto self-start flex items-center gap-2 text-xs font-bold uppercase tracking-widest transition-colors"
                         style={{ color: C.ink }}
-                        onMouseEnter={e => (e.currentTarget.style.color = C.ochre)}
+                        onMouseEnter={e => (e.currentTarget.style.color = C.brown)}
                         onMouseLeave={e => (e.currentTarget.style.color = C.ink)}
                       >
                         Reserve Spot <ArrowRight size={12} />
@@ -287,7 +287,7 @@ export default function Home() {
           whileInView="visible"
           viewport={{ once: true }}
           className="text-xs uppercase tracking-[0.35em] mb-6"
-          style={{ color: C.green }}
+          style={{ color: C.gold }}
         >
           Join the Lab
         </motion.p>
@@ -312,9 +312,9 @@ export default function Home() {
           <Link href="/register">
             <button
               className="px-10 py-4 text-sm font-bold uppercase tracking-widest transition-colors"
-              style={{ backgroundColor: C.green, color: C.ink }}
+              style={{ backgroundColor: C.gold, color: C.ink }}
               onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#00f58a')}
-              onMouseLeave={e => (e.currentTarget.style.backgroundColor = C.green)}
+              onMouseLeave={e => (e.currentTarget.style.backgroundColor = C.gold)}
             >
               Register Your Interest
             </button>
