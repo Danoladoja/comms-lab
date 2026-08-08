@@ -78,34 +78,34 @@
   --elevate-2: rgba(0, 0, 0, 0.08);
 
   /* Deep Amber, Forest Green, Rich Navy, Warm Off-White */
-  --background: 35 30% 98%;
-  --foreground: 220 50% 15%;
+  --background: 38 25% 96%;
+  --foreground: 218 60% 9%;
 
   --border: 35 20% 90%;
 
   --card: 0 0% 100%;
-  --card-foreground: 220 50% 15%;
+  --card-foreground: 218 60% 9%;
   --card-border: 35 20% 92%;
 
-  --sidebar: 220 50% 15%;
+  --sidebar: 218 60% 9%;
   --sidebar-foreground: 0 0% 100%;
   --sidebar-border: 220 50% 20%;
-  --sidebar-primary: 25 90% 50%;
+  --sidebar-primary: 25 95% 52%;
   --sidebar-primary-foreground: 0 0% 100%;
   --sidebar-accent: 220 50% 25%;
   --sidebar-accent-foreground: 0 0% 100%;
-  --sidebar-ring: 25 90% 50%;
+  --sidebar-ring: 25 95% 52%;
 
   --popover: 0 0% 100%;
-  --popover-foreground: 220 50% 15%;
+  --popover-foreground: 218 60% 9%;
   --popover-border: 35 20% 90%;
 
   /* Deep Amber */
-  --primary: 25 90% 50%;
+  --primary: 25 95% 52%;
   --primary-foreground: 0 0% 100%;
 
   /* Forest Green */
-  --secondary: 160 50% 25%;
+  --secondary: 155 45% 18%;
   --secondary-foreground: 0 0% 100%;
 
   --muted: 35 20% 92%;
