@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "Afrienergy Comms Lab"
+description = "A full-featured learning management platform (LMS) for Afrienergy Comms Lab — supporting course creation, learner enrollment, quiz and assessment tools, progress tracking, certificate generation, and live streaming session integration with Zoom and Google Meet. Designed for educators and institutions in the African context."
+version = "1.0.0"
+id = "artifacts/afrienergy-comms-lab"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 19473
+
+[services.development]
+run = "pnpm --filter @workspace/afrienergy-comms-lab run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/afrienergy-comms-lab", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/afrienergy-comms-lab/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "19473"
+BASE_PATH = "/"
