@@ -33,12 +33,7 @@ export function Footer() {
             <ul className="space-y-3">
               <li><Link href="/courses" className="text-sm text-sidebar-foreground/70 hover:text-primary transition-colors">Programs</Link></li>
               <li><Link href="/live-sessions" className="text-sm text-sidebar-foreground/70 hover:text-primary transition-colors">Live Sessions</Link></li>
-              <li>
-                <Link href="/dashboard" className="text-sm text-sidebar-foreground/70 hover:text-primary transition-colors">Community</Link>
-                <p className="mt-1.5 text-xs text-sidebar-foreground/50 leading-relaxed max-w-[200px]">
-                  A cohort-based space for energy communicators, advocates, and policy strategists — cross-sector, Africa-wide.
-                </p>
-              </li>
+              <li><Link href="/dashboard" className="text-sm text-sidebar-foreground/70 hover:text-primary transition-colors">Community</Link></li>
             </ul>
           </div>
 
