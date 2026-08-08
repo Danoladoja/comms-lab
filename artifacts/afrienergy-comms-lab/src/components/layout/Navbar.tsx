@@ -26,8 +26,9 @@ export function Navbar() {
   }, []);
 
   const navLinks = [
-    { label: 'Courses', href: '/courses' },
+    { label: 'Programs', href: '/courses' },
     { label: 'Live Sessions', href: '/live-sessions' },
+    { label: 'About', href: '#about' },
   ];
 
   return (
@@ -45,7 +46,10 @@ export function Navbar() {
             <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center text-primary-foreground transform transition-transform group-hover:scale-105 group-hover:rotate-3 shadow-sm">
               <Zap size={22} className="fill-current" />
             </div>
-            <span className="font-display font-bold text-xl tracking-tight text-foreground">
+            <span className="font-display font-bold text-xl tracking-tight text-foreground hidden sm:block">
+              Afrienergy Comms Lab
+            </span>
+            <span className="font-display font-bold text-xl tracking-tight text-foreground sm:hidden">
               Afrienergy
             </span>
           </Link>
@@ -85,8 +89,8 @@ export function Navbar() {
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
-              <Button asChild className="rounded-full font-medium shadow-md shadow-primary/20">
-                <Link href="/courses">Explore Catalog</Link>
+              <Button asChild className="rounded-full font-bold px-6 shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30 transition-all">
+                <Link href="/register">Register Interest</Link>
               </Button>
             </div>
           </nav>
@@ -115,6 +119,13 @@ export function Navbar() {
             </Link>
           ))}
           <div className="h-px bg-border my-2" />
+          <Link
+            href="/register"
+            onClick={() => setMobileMenuOpen(false)}
+            className="text-lg font-medium px-4 py-2 bg-primary text-primary-foreground text-center rounded-md"
+          >
+            Register Interest
+          </Link>
           <Link
             href="/dashboard"
             onClick={() => setMobileMenuOpen(false)}

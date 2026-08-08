@@ -1,13 +1,34 @@
 import { Link } from 'wouter';
 import { Button } from '@/components/ui/button';
-import { courses, instructors } from '@/data/mock';
+import { liveSessions, instructors } from '@/data/mock';
 import { motion } from 'framer-motion';
-import { ArrowRight, Star, BookOpen, Users, Award, PlayCircle, BarChart3, Clock } from 'lucide-react';
+import { ArrowRight, Video, Users, BookOpen, Globe2, Lightbulb, Zap, LineChart, FileText } from 'lucide-react';
 import heroImg from '@assets/hero.jpg';
 
 export default function Home() {
-  const featuredCourses = courses.slice(0, 3);
+  const upcomingSessions = liveSessions.filter(s => s.isUpcoming).slice(0, 3);
   
+  const insights = [
+    {
+      title: "The Case for Distributed Solar in Sub-Saharan Policies",
+      author: "Amina Ndlovu",
+      category: "Policy & Strategy",
+      excerpt: "Why the next decade of African energy depends on decentralized grids and bold regulatory reform."
+    },
+    {
+      title: "Financing the Green Transition: Risks and Rewards",
+      author: "Kwame Osei",
+      category: "Economics",
+      excerpt: "Examining the gap between international climate finance pledges and on-the-ground infrastructure reality."
+    },
+    {
+      title: "Narrative Power in Energy Advocacy",
+      author: "Sarah Adeyemi",
+      category: "Communications",
+      excerpt: "How to articulate complex energy realities to stakeholders who matter most."
+    }
+  ];
+
   return (
     <div className="flex flex-col w-full">
       {/* Hero Section */}
@@ -24,44 +45,27 @@ export default function Home() {
               transition={{ duration: 0.6, ease: "easeOut" }}
               className="max-w-2xl"
             >
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 text-primary font-medium text-sm mb-6 border border-primary/20">
-                <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
-                </span>
-                World-class learning built for Africa
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 text-primary font-medium text-sm mb-6 border border-primary/20 tracking-wide uppercase">
+                The Definitive Hub
               </div>
-              <h1 className="text-5xl md:text-6xl lg:text-7xl font-bold leading-[1.1] mb-6 text-foreground">
-                Master the Skills that <span className="text-primary italic font-serif">Power</span> the Future.
+              <h1 className="text-5xl md:text-6xl lg:text-7xl font-bold leading-[1.1] mb-6 text-foreground font-display">
+                Shaping the <span className="text-primary italic font-serif">Minds</span> that Power Africa.
               </h1>
               <p className="text-lg md:text-xl text-muted-foreground mb-8 leading-relaxed max-w-xl">
-                Join the definitive learning platform for African professionals. Whether you're scaling a startup, mastering renewable economics, or leading teams.
+                The intellectual home for Africa's next generation of energy leaders. Advancing knowledge across the energy transition, sustainable infrastructure, policy, and communications.
               </p>
               
               <div className="flex flex-col sm:flex-row gap-4">
-                <Button size="lg" asChild className="rounded-full text-base h-14 px-8 shadow-lg shadow-primary/25 hover:shadow-xl hover:shadow-primary/30 transition-all">
-                  <Link href="/courses">
-                    Explore Catalog <ArrowRight className="ml-2 h-5 w-5" />
+                <Button size="lg" asChild className="rounded-full text-base h-14 px-8 shadow-lg shadow-primary/25 hover:shadow-xl hover:shadow-primary/30 transition-all font-bold">
+                  <Link href="/register">
+                    Register Your Interest <ArrowRight className="ml-2 h-5 w-5" />
                   </Link>
                 </Button>
-                <Button size="lg" variant="outline" asChild className="rounded-full text-base h-14 px-8 bg-background hover:bg-muted">
-                  <Link href="/instructor">
-                    Become an Instructor
+                <Button size="lg" variant="outline" asChild className="rounded-full text-base h-14 px-8 bg-background hover:bg-muted font-bold border-2">
+                  <Link href="/live-sessions">
+                    View Upcoming Programs
                   </Link>
                 </Button>
-              </div>
-              
-              <div className="mt-12 flex items-center gap-6">
-                <div className="flex -space-x-4">
-                  {[1, 2, 3, 4].map((i) => (
-                    <div key={i} className="w-10 h-10 rounded-full border-2 border-background overflow-hidden bg-muted">
-                      <img src={`https://i.pravatar.cc/100?img=${i + 40}`} alt="Student" className="w-full h-full object-cover" />
-                    </div>
-                  ))}
-                </div>
-                <div className="text-sm font-medium">
-                  <span className="text-foreground font-bold">10,000+</span> professionals <br/>are already learning
-                </div>
               </div>
             </motion.div>
             
@@ -72,204 +76,240 @@ export default function Home() {
               className="relative lg:ml-auto w-full max-w-lg aspect-[4/5] rounded-3xl overflow-hidden shadow-2xl shadow-foreground/10 border-4 border-background"
             >
               <img src={heroImg} alt="Afrienergy Comms Lab" className="w-full h-full object-cover" />
-              <div className="absolute inset-0 bg-gradient-to-t from-foreground/80 via-foreground/20 to-transparent" />
-              
-              {/* Floating badges */}
-              <div className="absolute bottom-6 left-6 right-6 flex justify-between items-end">
-                <div className="bg-background/95 backdrop-blur rounded-2xl p-4 shadow-xl border border-border">
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 bg-primary/20 rounded-full flex items-center justify-center text-primary">
-                      <Star className="h-6 w-6 fill-current" />
-                    </div>
-                    <div>
-                      <div className="text-sm text-muted-foreground font-medium">Platform Rating</div>
-                      <div className="text-xl font-bold text-foreground">4.9/5.0</div>
-                    </div>
-                  </div>
-                </div>
-              </div>
+              <div className="absolute inset-0 bg-gradient-to-t from-foreground/90 via-foreground/20 to-transparent mix-blend-multiply" />
             </motion.div>
           </div>
         </div>
       </section>
 
-      {/* Stats Section */}
-      <section className="py-16 bg-sidebar text-sidebar-foreground">
-        <div className="container mx-auto px-4 md:px-6">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center divide-x divide-sidebar-border/50">
-            <div>
-              <div className="text-4xl md:text-5xl font-bold text-primary mb-2">50+</div>
-              <div className="text-sidebar-foreground/70 font-medium">Expert Courses</div>
-            </div>
-            <div>
-              <div className="text-4xl md:text-5xl font-bold text-primary mb-2">12k</div>
-              <div className="text-sidebar-foreground/70 font-medium">Active Learners</div>
-            </div>
-            <div>
-              <div className="text-4xl md:text-5xl font-bold text-primary mb-2">98%</div>
-              <div className="text-sidebar-foreground/70 font-medium">Completion Rate</div>
-            </div>
-            <div>
-              <div className="text-4xl md:text-5xl font-bold text-primary mb-2">24/7</div>
-              <div className="text-sidebar-foreground/70 font-medium">Community Access</div>
-            </div>
+      {/* Mission Statement Strip */}
+      <section id="about" className="py-24 bg-sidebar text-sidebar-foreground relative overflow-hidden">
+        <div className="absolute inset-0 opacity-10 noise-bg mix-blend-overlay pointer-events-none"></div>
+        <div className="container mx-auto px-4 md:px-6 relative z-10">
+          <div className="max-w-4xl mx-auto text-center">
+            <h2 className="text-3xl md:text-5xl font-display font-medium leading-tight md:leading-tight">
+              We exist to build the minds that will drive the continent's energy transition. <span className="text-sidebar-primary italic font-serif">A sanctuary for rigorous thinking, bold policy, and transformative leadership.</span>
+            </h2>
           </div>
         </div>
       </section>
 
-      {/* Featured Courses */}
+      {/* Focus Areas */}
       <section className="py-24 bg-background">
+        <div className="container mx-auto px-4 md:px-6">
+          <div className="text-center max-w-3xl mx-auto mb-16">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-muted text-muted-foreground font-medium text-sm mb-4 uppercase tracking-wider">
+              Pillars of Practice
+            </div>
+            <h2 className="text-4xl md:text-5xl font-bold mb-6 font-display">Core Focus Areas</h2>
+            <p className="text-lg text-muted-foreground">
+              Our initiatives span the critical domains necessary to navigate and lead Africa's complex energy landscape.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            {[
+              { icon: Globe2, title: "Energy Transition & Policy", desc: "Navigating regulatory frameworks, international climate agreements, and the economics of shifting from fossil dependency to renewable adoption." },
+              { icon: Zap, title: "Sustainable Infrastructure", desc: "Building resilient physical and digital systems capable of scaling across diverse geographical realities and overcoming connectivity challenges." },
+              { icon: Users, title: "Energy Communications & Advocacy", desc: "Mastering the narrative power required to align stakeholders, secure financing, and drive public consensus on critical energy projects." },
+              { icon: Lightbulb, title: "Innovation & Technology", desc: "Exploring the frontier of decentralized grids, storage solutions, and data-driven grid management specific to the African context." }
+            ].map((area, i) => (
+              <motion.div 
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, margin: "-100px" }}
+                transition={{ duration: 0.5, delay: i * 0.1 }}
+                key={i}
+                className="group flex flex-col sm:flex-row gap-6 p-8 bg-card rounded-3xl border border-border shadow-sm hover:shadow-md transition-all"
+              >
+                <div className="w-16 h-16 shrink-0 rounded-2xl bg-primary/10 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-colors duration-300">
+                  <area.icon className="w-8 h-8" />
+                </div>
+                <div>
+                  <h3 className="text-2xl font-bold mb-3 font-display">{area.title}</h3>
+                  <p className="text-muted-foreground leading-relaxed mb-6">
+                    {area.desc}
+                  </p>
+                  <Button variant="link" asChild className="p-0 h-auto text-primary font-bold group-hover:text-primary/80">
+                    <Link href="/courses">
+                      Learn More <ArrowRight className="ml-1 h-4 w-4 transition-transform group-hover:translate-x-1" />
+                    </Link>
+                  </Button>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Upcoming Live Programs */}
+      <section className="py-24 bg-muted/30 border-y border-border">
         <div className="container mx-auto px-4 md:px-6">
           <div className="flex flex-col md:flex-row md:items-end justify-between mb-12 gap-6">
             <div className="max-w-2xl">
-              <h2 className="text-3xl md:text-4xl font-bold mb-4">Featured Courses</h2>
-              <p className="text-lg text-muted-foreground">Hand-picked programs designed to accelerate your career in Africa's fastest-growing sectors.</p>
+              <h2 className="text-3xl md:text-4xl font-bold mb-4 font-display">Upcoming Live Programs</h2>
+              <p className="text-lg text-muted-foreground">Join expert-led sessions designed to tackle immediate challenges and explore emerging opportunities.</p>
             </div>
-            <Button variant="ghost" asChild className="group text-primary hover:text-primary hover:bg-primary/5">
-              <Link href="/courses">
-                View all courses <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
-              </Link>
+            <Button variant="outline" asChild className="font-bold border-2 rounded-full">
+              <Link href="/live-sessions">View Calendar</Link>
             </Button>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {featuredCourses.map((course, i) => {
-              const instructor = instructors.find(inst => inst.id === course.instructorId);
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {upcomingSessions.map((session, i) => {
+              const host = instructors.find(inst => inst.id === session.instructorId);
               return (
                 <motion.div 
-                  initial={{ opacity: 0, y: 20 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true, margin: "-100px" }}
-                  transition={{ duration: 0.5, delay: i * 0.1 }}
-                  key={course.id} 
-                  className="group flex flex-col bg-card rounded-2xl overflow-hidden border border-border shadow-sm hover:shadow-xl transition-all duration-300"
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  whileInView={{ opacity: 1, scale: 1 }}
+                  viewport={{ once: true }}
+                  transition={{ duration: 0.4, delay: i * 0.1 }}
+                  key={session.id} 
+                  className="bg-card rounded-2xl p-6 border border-border flex flex-col h-full shadow-sm hover:border-primary/50 transition-colors"
                 >
-                  <div className="relative aspect-video overflow-hidden">
-                    <img src={course.thumbnail} alt={course.title} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
-                    <div className="absolute top-4 left-4">
-                      <span className="px-3 py-1 bg-background/90 backdrop-blur text-foreground text-xs font-semibold rounded-full shadow-sm">
-                        {course.category}
-                      </span>
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-secondary/10 text-secondary text-xs font-bold uppercase tracking-wider rounded-md">
+                      <Video className="w-3 h-3" /> Live Session
                     </div>
-                  </div>
-                  <div className="p-6 flex flex-col flex-1">
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground mb-3 font-medium">
-                      <span className="flex items-center"><Clock className="w-3 h-3 mr-1" /> {course.duration}</span>
-                      <span>•</span>
-                      <span className="flex items-center"><Users className="w-3 h-3 mr-1" /> {course.learnerCount} learners</span>
-                    </div>
-                    <h3 className="text-xl font-bold mb-2 group-hover:text-primary transition-colors line-clamp-2">{course.title}</h3>
-                    
-                    <div className="flex items-center gap-3 mt-auto pt-6">
-                      <img src={instructor?.imageUrl} alt={instructor?.name} className="w-10 h-10 rounded-full object-cover border-2 border-background" />
-                      <div>
-                        <div className="text-sm font-bold text-foreground">{instructor?.name}</div>
-                        <div className="text-xs text-muted-foreground">{instructor?.title}</div>
+                    <div className="text-right">
+                      <div className="text-sm font-bold text-foreground">
+                        {new Date(session.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        {new Date(session.date).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
                       </div>
                     </div>
                   </div>
-                  <div className="px-6 py-4 border-t border-border flex items-center justify-between bg-muted/30">
-                    <div className="font-bold text-lg">${course.price}</div>
-                    <Button variant="ghost" size="sm" asChild className="text-primary hover:text-primary hover:bg-primary/10">
-                      <Link href={`/courses/${course.id}`}>View Details</Link>
-                    </Button>
+                  
+                  <h3 className="text-xl font-bold mb-4 font-display leading-tight">{session.title}</h3>
+                  
+                  <div className="flex items-center gap-3 mt-auto mb-6">
+                    <div className="w-10 h-10 rounded-full overflow-hidden bg-muted">
+                      {host && <img src={host.imageUrl} alt={host.name} className="w-full h-full object-cover" />}
+                    </div>
+                    <div>
+                      <div className="text-sm font-bold">{host?.name || 'Guest Expert'}</div>
+                      <div className="text-xs text-muted-foreground line-clamp-1">{host?.title}</div>
+                    </div>
                   </div>
+                  
+                  <Button asChild className="w-full font-bold rounded-xl shadow-none">
+                    <Link href="/live-sessions">Reserve Your Spot</Link>
+                  </Button>
                 </motion.div>
-              )
+              );
             })}
           </div>
         </div>
       </section>
 
-      {/* Platform Features */}
-      <section className="py-24 bg-muted/30 relative overflow-hidden">
-        <div className="container mx-auto px-4 md:px-6 relative z-10">
-          <div className="text-center max-w-3xl mx-auto mb-16">
-            <h2 className="text-3xl md:text-4xl font-bold mb-4">Everything you need to succeed</h2>
-            <p className="text-lg text-muted-foreground">A platform designed not just for consuming content, but for true skill acquisition and professional networking.</p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            <div className="bg-card p-8 rounded-2xl border border-border shadow-sm">
-              <div className="w-12 h-12 bg-primary/10 text-primary rounded-xl flex items-center justify-center mb-6">
-                <PlayCircle className="w-6 h-6" />
-              </div>
-              <h3 className="text-xl font-bold mb-3">Rich Video Learning</h3>
-              <p className="text-muted-foreground leading-relaxed">High-quality video courses optimized for all bandwidths, with offline viewing capabilities for mobile learners.</p>
-            </div>
-            
-            <div className="bg-card p-8 rounded-2xl border border-border shadow-sm">
-              <div className="w-12 h-12 bg-secondary/10 text-secondary rounded-xl flex items-center justify-center mb-6">
-                <Users className="w-6 h-6" />
-              </div>
-              <h3 className="text-xl font-bold mb-3">Live Interactive Sessions</h3>
-              <p className="text-muted-foreground leading-relaxed">Join instructors via integrated Zoom and Google Meet sessions for real-time Q&A, workshops, and networking.</p>
-            </div>
-
-            <div className="bg-card p-8 rounded-2xl border border-border shadow-sm">
-              <div className="w-12 h-12 bg-accent/20 text-accent-foreground rounded-xl flex items-center justify-center mb-6">
-                <Award className="w-6 h-6" />
-              </div>
-              <h3 className="text-xl font-bold mb-3">Verified Certificates</h3>
-              <p className="text-muted-foreground leading-relaxed">Earn verifiable, beautifully designed certificates upon completion to showcase your skills on LinkedIn.</p>
-            </div>
-
-            <div className="bg-card p-8 rounded-2xl border border-border shadow-sm">
-              <div className="w-12 h-12 bg-destructive/10 text-destructive rounded-xl flex items-center justify-center mb-6">
-                <BookOpen className="w-6 h-6" />
-              </div>
-              <h3 className="text-xl font-bold mb-3">Interactive Assessments</h3>
-              <p className="text-muted-foreground leading-relaxed">Test your knowledge with built-in quizzes and assignments that ensure material retention and mastery.</p>
-            </div>
-
-            <div className="bg-card p-8 rounded-2xl border border-border shadow-sm lg:col-span-2 flex flex-col md:flex-row items-center gap-8">
-              <div className="flex-1">
-                <div className="w-12 h-12 bg-primary/10 text-primary rounded-xl flex items-center justify-center mb-6">
-                  <BarChart3 className="w-6 h-6" />
-                </div>
-                <h3 className="text-xl font-bold mb-3">Powerful Instructor Tools</h3>
-                <p className="text-muted-foreground leading-relaxed mb-6">A complete suite for creators. Build courses with a drag-and-drop builder, track student progress, and monitor your revenue in real-time.</p>
-                <Button variant="outline" asChild>
-                  <Link href="/instructor">Explore Instructor Features</Link>
-                </Button>
-              </div>
-              <div className="flex-1 w-full bg-muted rounded-xl p-4 border border-border">
-                {/* Mock dashboard graphic */}
-                <div className="flex gap-2 mb-4">
-                  <div className="w-full h-24 bg-card rounded-lg border border-border flex items-end p-2 gap-1">
-                    <div className="w-1/4 h-[40%] bg-primary/40 rounded-sm"></div>
-                    <div className="w-1/4 h-[70%] bg-primary/60 rounded-sm"></div>
-                    <div className="w-1/4 h-[50%] bg-primary/80 rounded-sm"></div>
-                    <div className="w-1/4 h-[90%] bg-primary rounded-sm"></div>
+      {/* Who This Is For */}
+      <section className="py-24 bg-background">
+        <div className="container mx-auto px-4 md:px-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
+            <div className="order-2 lg:order-1 relative">
+              <div className="aspect-square max-w-md mx-auto relative">
+                <div className="absolute inset-0 bg-primary/10 rounded-[3rem] transform -rotate-6"></div>
+                <div className="absolute inset-0 bg-secondary/10 rounded-[3rem] transform rotate-3"></div>
+                <div className="absolute inset-0 bg-card border border-border shadow-xl rounded-[3rem] overflow-hidden p-8 flex flex-col justify-center">
+                  <div className="space-y-6">
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 bg-primary/20 text-primary rounded-2xl flex items-center justify-center shrink-0"><LineChart className="w-6 h-6" /></div>
+                      <div>
+                        <div className="font-bold text-lg">Policy Makers</div>
+                        <div className="text-sm text-muted-foreground">Shaping regulatory environments</div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 bg-secondary/20 text-secondary rounded-2xl flex items-center justify-center shrink-0"><Zap className="w-6 h-6" /></div>
+                      <div>
+                        <div className="font-bold text-lg">Engineers & Innovators</div>
+                        <div className="text-sm text-muted-foreground">Building resilient infrastructure</div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 bg-accent/20 text-accent-foreground rounded-2xl flex items-center justify-center shrink-0"><Users className="w-6 h-6" /></div>
+                      <div>
+                        <div className="font-bold text-lg">Communicators</div>
+                        <div className="text-sm text-muted-foreground">Driving narrative & advocacy</div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 bg-muted text-foreground rounded-2xl flex items-center justify-center shrink-0"><BookOpen className="w-6 h-6" /></div>
+                      <div>
+                        <div className="font-bold text-lg">Emerging Leaders</div>
+                        <div className="text-sm text-muted-foreground">Students & early-career professionals</div>
+                      </div>
+                    </div>
                   </div>
                 </div>
-                <div className="space-y-2">
-                  <div className="h-4 bg-card rounded border border-border w-full"></div>
-                  <div className="h-4 bg-card rounded border border-border w-5/6"></div>
-                  <div className="h-4 bg-card rounded border border-border w-4/6"></div>
-                </div>
               </div>
+            </div>
+            <div className="order-1 lg:order-2">
+              <h2 className="text-4xl md:text-5xl font-bold mb-6 font-display">Who is the Lab for?</h2>
+              <p className="text-lg text-muted-foreground mb-8 leading-relaxed">
+                The transition requires a multidisciplinary approach. Afrienergy Comms Lab convenes those who are actively participating in or preparing to enter the energy sector across the continent. 
+                <br /><br />
+                Whether you are drafting policy, engineering decentralized grids, advocating for climate finance, or studying the future of energy economics—this is your community.
+              </p>
+              <ul className="space-y-4 mb-8">
+                {['Rigorous intellectual environment', 'Cross-disciplinary networking', 'Access to leading practitioners', 'Action-oriented discourse'].map((item, i) => (
+                  <li key={i} className="flex items-center gap-3 text-foreground font-medium">
+                    <div className="w-6 h-6 rounded-full bg-primary/20 text-primary flex items-center justify-center shrink-0">
+                      <div className="w-2 h-2 rounded-full bg-primary"></div>
+                    </div>
+                    {item}
+                  </li>
+                ))}
+              </ul>
             </div>
           </div>
         </div>
       </section>
 
-      {/* CTA Section */}
-      <section className="py-24 bg-primary text-primary-foreground relative overflow-hidden">
-        <div className="absolute inset-0 opacity-10 noise-bg mix-blend-overlay"></div>
-        <div className="container mx-auto px-4 md:px-6 relative z-10 text-center max-w-3xl">
-          <h2 className="text-4xl md:text-5xl font-bold mb-6 font-display">Ready to accelerate your growth?</h2>
-          <p className="text-xl text-primary-foreground/80 mb-10 leading-relaxed">
-            Join thousands of professionals building the future of Africa. Start learning today or share your expertise with the world.
-          </p>
-          <div className="flex flex-col sm:flex-row justify-center gap-4">
-            <Button size="lg" variant="secondary" asChild className="rounded-full text-lg h-14 px-8 font-bold hover:scale-105 transition-transform">
-              <Link href="/courses">Browse Catalog</Link>
-            </Button>
-            <Button size="lg" variant="outline" asChild className="rounded-full text-lg h-14 px-8 font-bold border-primary-foreground/30 text-primary-foreground hover:bg-primary-foreground/10 hover:text-primary-foreground">
-              <Link href="/register">Create Free Account</Link>
-            </Button>
+      {/* Insights Preview */}
+      <section className="py-24 bg-sidebar text-sidebar-foreground">
+        <div className="container mx-auto px-4 md:px-6">
+          <div className="flex flex-col md:flex-row md:items-end justify-between mb-16 gap-6">
+            <div className="max-w-2xl">
+              <h2 className="text-3xl md:text-4xl font-bold mb-4 font-display">Lab Insights</h2>
+              <p className="text-lg text-sidebar-foreground/70">Expert perspectives, research summaries, and analytical essays from our community of practitioners.</p>
+            </div>
           </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            {insights.map((insight, i) => (
+              <div key={i} className="group cursor-pointer border-t border-sidebar-border pt-6 flex flex-col">
+                <div className="flex items-center gap-2 mb-4">
+                  <span className="text-sidebar-primary text-xs font-bold uppercase tracking-wider">{insight.category}</span>
+                </div>
+                <h3 className="text-xl font-bold mb-4 font-display group-hover:text-sidebar-primary transition-colors leading-snug">{insight.title}</h3>
+                <p className="text-sidebar-foreground/70 text-sm mb-6 flex-grow">{insight.excerpt}</p>
+                <div className="flex items-center gap-2 text-sm font-medium mt-auto">
+                  <FileText className="w-4 h-4 text-sidebar-foreground/40" />
+                  <span>By {insight.author}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Community CTA */}
+      <section className="py-32 bg-primary text-primary-foreground relative overflow-hidden text-center">
+        <div className="absolute inset-0 opacity-10 noise-bg mix-blend-overlay"></div>
+        {/* Subtle decorative circles */}
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] border border-primary-foreground/10 rounded-full pointer-events-none"></div>
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] border border-primary-foreground/20 rounded-full pointer-events-none"></div>
+        
+        <div className="container mx-auto px-4 md:px-6 relative z-10 max-w-3xl">
+          <h2 className="text-5xl md:text-6xl font-bold mb-6 font-display">Join the Lab</h2>
+          <p className="text-xl text-primary-foreground/90 mb-10 leading-relaxed font-medium">
+            Become part of the growing movement of professionals, policymakers, and innovators shaping Africa's energy future.
+          </p>
+          <Button size="lg" variant="secondary" asChild className="rounded-full text-lg h-16 px-10 font-bold shadow-2xl hover:scale-105 transition-transform text-primary">
+            <Link href="/register">Register Your Interest</Link>
+          </Button>
         </div>
       </section>
     </div>
