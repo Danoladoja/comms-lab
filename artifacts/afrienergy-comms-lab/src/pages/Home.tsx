@@ -54,17 +54,6 @@ export default function Home() {
 
         {/* content */}
         <div className="relative z-10 text-center px-6 max-w-4xl mx-auto">
-          <motion.p
-            variants={fadeUp}
-            initial="hidden"
-            animate="visible"
-            custom={0.1}
-            className="text-xs uppercase tracking-[0.35em] mb-6"
-            style={{ color: C.gold }}
-          >
-            Afrienergy Comms Lab
-          </motion.p>
-
           <motion.h1
             variants={fadeUp}
             initial="hidden"
