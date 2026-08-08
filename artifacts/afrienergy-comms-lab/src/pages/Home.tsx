@@ -13,6 +13,62 @@ const C = {
   white: '#FFFFFF',
 };
 
+// ─── kente overlay ──────────────────────────────────────────────────────────
+// Subtle geometric kente-inspired SVG tile: horizontal strip bands with
+// diamond, cross, and chevron motifs in the site's amber, at low opacity.
+function KenteOverlay({ opacity = 0.07, color = '#F97316' }: { opacity?: number; color?: string }) {
+  return (
+    <svg
+      aria-hidden
+      className="absolute inset-0 w-full h-full pointer-events-none"
+      style={{ opacity }}
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <defs>
+        <pattern id="kente" x="0" y="0" width="48" height="24" patternUnits="userSpaceOnUse">
+          {/* ── band borders ─────────────────────────────────────── */}
+          <line x1="0"  y1="0"  x2="48" y2="0"  stroke={color} strokeWidth="1.5" />
+          <line x1="0"  y1="24" x2="48" y2="24" stroke={color} strokeWidth="1.5" />
+          <line x1="0"  y1="12" x2="48" y2="12" stroke={color} strokeWidth="0.6" />
+
+          {/* ── vertical strip dividers (3 cells × 16px) ─────────── */}
+          <line x1="0"  y1="0" x2="0"  y2="24" stroke={color} strokeWidth="1"   />
+          <line x1="16" y1="0" x2="16" y2="24" stroke={color} strokeWidth="0.8" />
+          <line x1="32" y1="0" x2="32" y2="24" stroke={color} strokeWidth="0.8" />
+          <line x1="48" y1="0" x2="48" y2="24" stroke={color} strokeWidth="1"   />
+
+          {/* ── cell 1 top: diamond ──────────────────────────────── */}
+          <polygon points="8,2 14,6 8,10 2,6" fill="none" stroke={color} strokeWidth="0.8" />
+
+          {/* ── cell 2 top: cross + inner square ─────────────────── */}
+          <line x1="24" y1="2.5" x2="24" y2="9.5" stroke={color} strokeWidth="0.8" />
+          <line x1="20" y1="6"   x2="28" y2="6"   stroke={color} strokeWidth="0.8" />
+          <rect x="21.5" y="3.5" width="5" height="5" fill="none" stroke={color} strokeWidth="0.5" />
+
+          {/* ── cell 3 top: diamond ───────────────────────────────── */}
+          <polygon points="40,2 46,6 40,10 34,6" fill="none" stroke={color} strokeWidth="0.8" />
+
+          {/* ── cell 1 bottom: chevrons ───────────────────────────── */}
+          <polyline points="2,14.5  8,18 14,14.5" fill="none" stroke={color} strokeWidth="0.8" />
+          <polyline points="2,19.5  8,23 14,19.5" fill="none" stroke={color} strokeWidth="0.8" />
+
+          {/* ── cell 2 bottom: dot cluster ────────────────────────── */}
+          <circle cx="20" cy="15.5" r="1"   fill={color} />
+          <circle cx="24" cy="18"   r="1.3" fill={color} />
+          <circle cx="28" cy="15.5" r="1"   fill={color} />
+          <circle cx="20" cy="22"   r="1"   fill={color} />
+          <circle cx="28" cy="22"   r="1"   fill={color} />
+
+          {/* ── cell 3 bottom: inverted chevrons ─────────────────── */}
+          <polyline points="34,18 40,14.5 46,18" fill="none" stroke={color} strokeWidth="0.8" />
+          <polyline points="34,23 40,19.5 46,23" fill="none" stroke={color} strokeWidth="0.8" />
+        </pattern>
+      </defs>
+      <rect width="100%" height="100%" fill="url(#kente)" />
+    </svg>
+  );
+}
+
 // ─── fade-in helper ─────────────────────────────────────────────────────────
 const fadeUp = {
   hidden:  { opacity: 0, y: 24 },
@@ -112,7 +168,7 @@ export default function Home() {
               <button
                 className="px-7 py-3 text-sm font-semibold uppercase tracking-widest transition-colors"
                 style={{ backgroundColor: C.gold, color: C.ink }}
-                onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#00f58a')}
+                onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#EA6D0A')}
                 onMouseLeave={e => (e.currentTarget.style.backgroundColor = C.gold)}
               >
                 Register Interest
@@ -145,10 +201,11 @@ export default function Home() {
 
       {/* ── 2. STATS STRIP ──────────────────────────────────────────────── */}
       <section
-        className="border-t border-b"
+        className="relative border-t border-b overflow-hidden"
         style={{ borderColor: 'rgba(255,255,255,0.07)' }}
       >
-        <div className="max-w-6xl mx-auto px-6 py-14 grid grid-cols-2 md:grid-cols-4 gap-px"
+        <KenteOverlay opacity={0.06} />
+        <div className="relative z-10 max-w-6xl mx-auto px-6 py-14 grid grid-cols-2 md:grid-cols-4 gap-px"
           style={{ background: 'rgba(255,255,255,0.04)' }}>
           {[
             { value: '4',      label: 'Focus Areas' },
@@ -180,7 +237,9 @@ export default function Home() {
       </section>
 
       {/* ── 3. FOCUS AREAS ──────────────────────────────────────────────── */}
-      <section className="max-w-6xl mx-auto px-6 py-24 md:py-32">
+      <section className="relative overflow-hidden" style={{ backgroundColor: C.ink }}>
+        <KenteOverlay opacity={0.055} />
+        <div className="relative z-10 max-w-6xl mx-auto px-6 py-24 md:py-32">
         <motion.p
           variants={fadeUp}
           initial="hidden"
@@ -223,6 +282,7 @@ export default function Home() {
               </p>
             </motion.div>
           ))}
+        </div>
         </div>
       </section>
 
@@ -295,48 +355,51 @@ export default function Home() {
 
       {/* ── 5. CTA ──────────────────────────────────────────────────────── */}
       <section
-        className="text-center px-6 py-28 md:py-36"
+        className="relative overflow-hidden text-center px-6 py-28 md:py-36"
         style={{ backgroundColor: C.ink }}
       >
-        <motion.p
-          variants={fadeUp}
-          initial="hidden"
-          whileInView="visible"
-          viewport={{ once: true }}
-          className="text-xs uppercase tracking-[0.35em] mb-6"
-          style={{ color: C.gold }}
-        >
-          Join the Lab
-        </motion.p>
-        <motion.h2
-          variants={fadeUp}
-          initial="hidden"
-          whileInView="visible"
-          viewport={{ once: true }}
-          custom={0.1}
-          className="font-display font-bold leading-none mb-10"
-          style={{ fontSize: 'clamp(2.5rem, 7vw, 5.5rem)' }}
-        >
-          Ready to shape<br />your signal?
-        </motion.h2>
-        <motion.div
-          variants={fadeUp}
-          initial="hidden"
-          whileInView="visible"
-          viewport={{ once: true }}
-          custom={0.2}
-        >
-          <Link href="/register">
-            <button
-              className="px-10 py-4 text-sm font-bold uppercase tracking-widest transition-colors"
-              style={{ backgroundColor: C.gold, color: C.ink }}
-              onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#00f58a')}
-              onMouseLeave={e => (e.currentTarget.style.backgroundColor = C.gold)}
-            >
-              Register Your Interest
-            </button>
-          </Link>
-        </motion.div>
+        <KenteOverlay opacity={0.08} />
+        <div className="relative z-10">
+          <motion.p
+            variants={fadeUp}
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true }}
+            className="text-xs uppercase tracking-[0.35em] mb-6"
+            style={{ color: C.gold }}
+          >
+            Join the Lab
+          </motion.p>
+          <motion.h2
+            variants={fadeUp}
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true }}
+            custom={0.1}
+            className="font-display font-bold leading-none mb-10"
+            style={{ fontSize: 'clamp(2.5rem, 7vw, 5.5rem)' }}
+          >
+            Ready to shape<br />your signal?
+          </motion.h2>
+          <motion.div
+            variants={fadeUp}
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true }}
+            custom={0.2}
+          >
+            <Link href="/register">
+              <button
+                className="px-10 py-4 text-sm font-bold uppercase tracking-widest transition-colors"
+                style={{ backgroundColor: C.gold, color: C.ink }}
+                onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#EA6D0A')}
+                onMouseLeave={e => (e.currentTarget.style.backgroundColor = C.gold)}
+              >
+                Register Your Interest
+              </button>
+            </Link>
+          </motion.div>
+        </div>
       </section>
 
     </div>
