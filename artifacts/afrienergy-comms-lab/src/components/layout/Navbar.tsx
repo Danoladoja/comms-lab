@@ -28,7 +28,7 @@ export function Navbar() {
   const navLinks = [
     { label: 'Programs', href: '/courses' },
     { label: 'Live Sessions', href: '/live-sessions' },
-    { label: 'About', href: '#about' },
+    { label: 'About', href: '/about' },
   ];
 
   return (

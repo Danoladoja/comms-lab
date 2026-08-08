@@ -17,6 +17,7 @@ import QuizInterface from '@/pages/QuizInterface';
 import CertificatePage from '@/pages/CertificatePage';
 import LiveSessions from '@/pages/LiveSessions';
 import EnrollmentFlow from '@/pages/EnrollmentFlow';
+import About from '@/pages/About';
 import Register from '@/pages/Register';
 import Login from '@/pages/Login';
 import NotFound from '@/pages/not-found';
@@ -55,6 +56,9 @@ function Router() {
         </Route>
         <Route path="/live-sessions">
           <AppLayout><LiveSessions /></AppLayout>
+        </Route>
+        <Route path="/about">
+          <AppLayout><About /></AppLayout>
         </Route>
 
         {/* Catch-all 404 */}
