@@ -165,56 +165,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ── 3. MANIFESTO ────────────────────────────────────────────────── */}
-      <section className="max-w-6xl mx-auto px-6 py-24 md:py-36">
-        <motion.p
-          variants={fadeUp}
-          initial="hidden"
-          whileInView="visible"
-          viewport={{ once: true }}
-          className="text-xs uppercase tracking-[0.35em] mb-10"
-          style={{ color: C.green }}
-        >
-          Our Manifesto
-        </motion.p>
-        <motion.h2
-          variants={fadeUp}
-          initial="hidden"
-          whileInView="visible"
-          viewport={{ once: true }}
-          custom={0.1}
-          className="font-display font-bold leading-tight max-w-4xl"
-          style={{ fontSize: 'clamp(1.8rem, 4vw, 3.2rem)' }}
-        >
-          Africa's energy future will not be decided by data alone.
-          It will be shaped by the communicators, advocates, and
-          strategists who make that data&nbsp;matter.
-        </motion.h2>
-        <motion.div
-          variants={fadeUp}
-          initial="hidden"
-          whileInView="visible"
-          viewport={{ once: true }}
-          custom={0.2}
-          className="mt-10 w-16 h-px"
-          style={{ backgroundColor: C.green }}
-        />
-        <motion.p
-          variants={fadeUp}
-          initial="hidden"
-          whileInView="visible"
-          viewport={{ once: true }}
-          custom={0.3}
-          className="mt-8 text-base max-w-xl leading-relaxed"
-          style={{ color: 'rgba(255,255,255,0.55)' }}
-        >
-          We exist to build that capacity — equipping Africa's next generation of
-          energy leaders with the language, strategy, and confidence to move
-          policy, shift opinion, and drive the transition.
-        </motion.p>
-      </section>
-
-      {/* ── 4. FOCUS AREAS ──────────────────────────────────────────────── */}
+      {/* ── 3. FOCUS AREAS ──────────────────────────────────────────────── */}
       <section className="max-w-6xl mx-auto px-6 py-24 md:py-32">
         <motion.p
           variants={fadeUp}
@@ -261,86 +212,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ── 5. COMMUNITY OF PRACTICE ────────────────────────────────────── */}
-      <section style={{ backgroundColor: C.paper, color: C.ink }}>
-        <div className="max-w-6xl mx-auto px-6 py-24 md:py-32">
-          <div className="grid md:grid-cols-2 gap-16 md:gap-24 items-start">
-            {/* left: headline */}
-            <div>
-              <motion.p
-                variants={fadeUp}
-                initial="hidden"
-                whileInView="visible"
-                viewport={{ once: true }}
-                className="text-xs uppercase tracking-[0.35em] mb-8"
-                style={{ color: C.ochre }}
-              >
-                Community of Practice
-              </motion.p>
-              <motion.h2
-                variants={fadeUp}
-                initial="hidden"
-                whileInView="visible"
-                viewport={{ once: true }}
-                custom={0.1}
-                className="font-display font-bold leading-tight"
-                style={{ fontSize: 'clamp(2rem, 4vw, 3rem)' }}
-              >
-                Learn alongside practitioners, not just instructors.
-              </motion.h2>
-            </div>
-
-            {/* right: description + attributes */}
-            <div>
-              <motion.p
-                variants={fadeUp}
-                initial="hidden"
-                whileInView="visible"
-                viewport={{ once: true }}
-                custom={0.15}
-                className="text-base leading-relaxed mb-12"
-                style={{ color: 'rgba(7,17,30,0.6)' }}
-              >
-                The Comms Lab is built around cohort learning — where energy
-                professionals, communicators, and policy strategists share
-                real challenges, test ideas, and grow together across sectors
-                and borders.
-              </motion.p>
-
-              <div className="flex flex-col gap-6">
-                {[
-                  { label: 'Cohort-based',   detail: 'Learn in small, curated groups of peers.' },
-                  { label: 'Cross-sector',    detail: 'Government, civil society, private sector — one table.' },
-                  { label: 'Africa-wide',     detail: 'Practitioners from across the continent.' },
-                ].map(({ label, detail }, i) => (
-                  <motion.div
-                    key={label}
-                    variants={fadeUp}
-                    initial="hidden"
-                    whileInView="visible"
-                    viewport={{ once: true, margin: '-20px' }}
-                    custom={0.2 + i * 0.08}
-                    className="flex gap-5 items-start pt-6 border-t"
-                    style={{ borderColor: 'rgba(7,17,30,0.1)' }}
-                  >
-                    <span
-                      className="font-display font-bold text-sm shrink-0 pt-0.5"
-                      style={{ color: C.ochre }}
-                    >
-                      {label}
-                    </span>
-                    <span className="text-sm leading-relaxed" style={{ color: 'rgba(7,17,30,0.55)' }}>
-                      {detail}
-                    </span>
-                  </motion.div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ── 6. UPCOMING PROGRAMS ────────────────────────────────────────── */}
+      {/* ── 5. UPCOMING PROGRAMS ────────────────────────────────────────── */}
       <section style={{ backgroundColor: C.paper, color: C.ink }}>
         <div className="max-w-6xl mx-auto px-6 py-24 md:py-32">
           <div className="flex items-end justify-between mb-16 gap-6 flex-wrap">
