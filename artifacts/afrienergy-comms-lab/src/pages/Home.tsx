@@ -163,7 +163,7 @@ export default function Home() {
               initial="hidden"
               whileInView="visible"
               viewport={{ once: true, margin: '-60px' }}
-              className="flex flex-col items-center justify-center py-10 px-4 text-center"
+              className="flex flex-col items-center justify-center py-6 md:py-10 px-4 text-center"
               style={{ backgroundColor: C.ink }}
             >
               <span
@@ -204,7 +204,7 @@ export default function Home() {
               whileInView="visible"
               viewport={{ once: true, margin: '-40px' }}
               custom={i * 0.1}
-              className="group flex flex-col gap-4 p-10 transition-colors"
+              className="group flex flex-col gap-4 p-6 md:p-10 transition-colors"
               style={{ backgroundColor: C.ink }}
               onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#0c1929')}
               onMouseLeave={e => (e.currentTarget.style.backgroundColor = C.ink)}
@@ -251,7 +251,7 @@ export default function Home() {
                 whileInView="visible"
                 viewport={{ once: true, margin: '-40px' }}
                 custom={i * 0.1}
-                className="flex flex-col p-8"
+                className="flex flex-col p-5 md:p-8"
                 style={{ backgroundColor: C.paper }}
               >
                 <p className="text-xs uppercase tracking-widest mb-6" style={{ color: C.brown }}>

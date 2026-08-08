@@ -106,8 +106,8 @@ export default function LiveSessions() {
           </section>
         </div>
 
-        {/* Sidebar Calendar */}
-        <div className="lg:sticky lg:top-24 h-max">
+        {/* Sidebar Calendar — hidden on mobile, shown on large screens */}
+        <div className="hidden lg:block lg:sticky lg:top-24 h-max">
           <div className="bg-card border border-border rounded-2xl p-6 shadow-sm">
             <h3 className="font-bold mb-4 flex items-center gap-2">
               <CalendarIcon className="w-5 h-5 text-primary" /> Calendar View

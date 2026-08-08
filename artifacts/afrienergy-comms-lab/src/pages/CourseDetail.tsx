@@ -32,7 +32,7 @@ export default function CourseDetail() {
   };
 
   return (
-    <div className="pb-24">
+    <div className="pb-24 lg:pb-0">
       {/* Course Banner */}
       <div className="bg-sidebar text-sidebar-foreground pt-12 pb-24 border-b border-sidebar-border relative overflow-hidden">
         <div className="absolute inset-0 opacity-10 mix-blend-overlay noise-bg"></div>
@@ -168,8 +168,8 @@ export default function CourseDetail() {
             </section>
           </div>
 
-          {/* Sidebar Floating Card */}
-          <div className="lg:sticky lg:top-24 space-y-6">
+          {/* Sidebar Floating Card — desktop only */}
+          <div className="hidden lg:block lg:sticky lg:top-24 space-y-6">
             <div className="bg-card rounded-2xl border border-border shadow-2xl overflow-hidden">
               <div className="aspect-video relative">
                 <img src={course.thumbnail} alt={course.title} className="w-full h-full object-cover" />
@@ -213,6 +213,16 @@ export default function CourseDetail() {
             </div>
           </div>
         </div>
+      </div>
+
+      {/* Mobile sticky enroll bar */}
+      <div className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-background/95 backdrop-blur border-t border-border px-4 py-3 flex items-center gap-4">
+        <div className="font-bold text-2xl flex-shrink-0">${course.price}</div>
+        <Link href={`/enroll/${course.id}`} className="flex-1">
+          <button className="w-full py-3 px-6 bg-primary text-primary-foreground font-bold text-sm rounded-lg">
+            Enroll Now
+          </button>
+        </Link>
       </div>
     </div>
   );

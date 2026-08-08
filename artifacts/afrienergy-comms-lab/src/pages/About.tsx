@@ -49,15 +49,15 @@ export default function About() {
     <div style={{ backgroundColor: C.ink, color: C.white }}>
 
       {/* 1. INTRO ─────────────────────────────────────────────────────────── */}
-      <section className="relative overflow-hidden" style={{ paddingTop: 'calc(4rem + 72px)' }}>
+      <section className="relative overflow-hidden">
         <KenteOverlay opacity={0.06} />
-        <div className="relative z-10 max-w-6xl mx-auto px-6 py-24 md:py-32">
+        <div className="relative z-10 max-w-6xl mx-auto px-6 pt-14 pb-20 md:py-32">
           <motion.p
             variants={fadeUp}
             initial="hidden"
             animate="visible"
             custom={0.1}
-            className="text-xs uppercase tracking-[0.35em] mb-10"
+            className="text-xs uppercase tracking-[0.35em] mb-8"
             style={{ color: C.gold }}
           >
             About the Lab
@@ -69,7 +69,7 @@ export default function About() {
             animate="visible"
             custom={0.2}
             className="font-display font-bold leading-tight max-w-4xl"
-            style={{ fontSize: 'clamp(2.4rem, 6vw, 5rem)' }}
+            style={{ fontSize: 'clamp(1.85rem, 6vw, 5rem)' }}
           >
             We exist at the intersection of African energy and the art of communication.
           </motion.h1>
@@ -181,7 +181,7 @@ export default function About() {
                 whileInView="visible"
                 viewport={{ once: true, margin: '-40px' }}
                 custom={i * 0.1}
-                className="flex flex-col gap-4 p-10 transition-colors"
+                className="flex flex-col gap-4 p-6 md:p-10 transition-colors"
                 style={{ backgroundColor: C.ink }}
                 onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#0c1929')}
                 onMouseLeave={e => (e.currentTarget.style.backgroundColor = C.ink)}
@@ -233,7 +233,7 @@ export default function About() {
                 whileInView="visible"
                 viewport={{ once: true, margin: '-40px' }}
                 custom={i * 0.1}
-                className="flex flex-col p-8"
+                className="flex flex-col p-6 md:p-8"
                 style={{ backgroundColor: C.paper }}
               >
                 <img
