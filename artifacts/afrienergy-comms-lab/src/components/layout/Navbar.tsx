@@ -34,43 +34,36 @@ export function Navbar() {
   return (
     <header
       className={cn(
-        'fixed top-0 left-0 right-0 z-50 transition-all duration-500 border-b',
+        'fixed top-0 left-0 right-0 z-50 transition-all duration-300 border-b',
         isScrolled
-          ? 'bg-background/95 backdrop-blur-md border-border py-4 shadow-sm'
-          : 'bg-transparent border-transparent py-6'
+          ? 'bg-background/90 backdrop-blur-md border-border py-3 shadow-sm'
+          : 'bg-background border-transparent py-5'
       )}
     >
-      <div className="container mx-auto px-4 md:px-8">
+      <div className="container mx-auto px-4 md:px-6">
         <div className="flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-3 group">
-            <div className="w-10 h-10 bg-primary flex items-center justify-center text-primary-foreground">
-              <Zap size={20} className="fill-current" />
+          <Link href="/" className="flex items-center gap-2 group">
+            <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center text-primary-foreground transform transition-transform group-hover:scale-105 group-hover:rotate-3 shadow-sm">
+              <Zap size={22} className="fill-current" />
             </div>
-            <span className={cn(
-              "font-serif text-2xl tracking-tight hidden sm:block transition-colors duration-300",
-              isScrolled ? "text-foreground" : "text-white"
-            )}>
+            <span className="font-display font-bold text-xl tracking-tight text-foreground hidden sm:block">
               Afrienergy Comms Lab
             </span>
-            <span className={cn(
-              "font-serif text-2xl tracking-tight sm:hidden transition-colors duration-300",
-              isScrolled ? "text-foreground" : "text-white"
-            )}>
+            <span className="font-display font-bold text-xl tracking-tight text-foreground sm:hidden">
               Afrienergy
             </span>
           </Link>
 
           {/* Desktop Nav */}
           <nav className="hidden md:flex items-center gap-8">
-            <div className="flex items-center gap-8">
+            <div className="flex items-center gap-6">
               {navLinks.map((link) => (
                 <Link
                   key={link.href}
                   href={link.href}
                   className={cn(
-                    "text-sm font-medium transition-colors hover:opacity-70",
-                    isScrolled ? "text-foreground" : "text-white",
-                    location === link.href ? "opacity-100 border-b border-current pb-0.5" : "opacity-80"
+                    "text-sm font-medium transition-colors hover:text-primary",
+                    location === link.href ? "text-primary font-semibold" : "text-muted-foreground"
                   )}
                 >
                   {link.label}
@@ -78,28 +71,25 @@ export function Navbar() {
               ))}
             </div>
 
-            <div className="flex items-center gap-4 border-l border-border/30 pl-8">
+            <div className="flex items-center gap-4 border-l border-border pl-6">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon" className={cn(
-                    "rounded-none transition-colors",
-                    isScrolled ? "text-foreground hover:bg-muted" : "text-white hover:bg-white/10"
-                  )}>
+                  <Button variant="ghost" size="icon" className="rounded-full">
                     <User className="h-5 w-5" />
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-56 rounded-none">
-                  <DropdownMenuLabel className="font-serif">My Account</DropdownMenuLabel>
+                <DropdownMenuContent align="end" className="w-56">
+                  <DropdownMenuLabel>My Account</DropdownMenuLabel>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => setLocation('/dashboard')} className="rounded-none cursor-pointer">
+                  <DropdownMenuItem onClick={() => setLocation('/dashboard')}>
                     Learner Dashboard
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setLocation('/instructor')} className="rounded-none cursor-pointer">
+                  <DropdownMenuItem onClick={() => setLocation('/instructor')}>
                     Instructor Dashboard
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
-              <Button asChild className="rounded-none font-medium px-6 bg-primary text-primary-foreground hover:bg-primary/90 shadow-none border border-transparent">
+              <Button asChild className="rounded-full font-bold px-6 shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30 transition-all">
                 <Link href="/register">Register Interest</Link>
               </Button>
             </div>
@@ -107,10 +97,7 @@ export function Navbar() {
 
           {/* Mobile Menu Toggle */}
           <button
-            className={cn(
-              "md:hidden p-2 transition-colors",
-              isScrolled ? "text-foreground" : "text-white"
-            )}
+            className="md:hidden p-2 text-foreground"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
           >
             {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
@@ -120,13 +107,13 @@ export function Navbar() {
 
       {/* Mobile Nav */}
       {mobileMenuOpen && (
-        <div className="md:hidden absolute top-full left-0 right-0 bg-background border-b border-border shadow-xl py-6 px-6 flex flex-col gap-6 animate-in slide-in-from-top-4">
+        <div className="md:hidden absolute top-full left-0 right-0 bg-background border-b border-border shadow-lg py-4 px-4 flex flex-col gap-4 animate-in slide-in-from-top-4">
           {navLinks.map((link) => (
             <Link
               key={link.href}
               href={link.href}
               onClick={() => setMobileMenuOpen(false)}
-              className="text-lg font-serif px-2 py-2 hover:bg-muted text-foreground"
+              className="text-lg font-medium px-4 py-2 hover:bg-muted rounded-md"
             >
               {link.label}
             </Link>
@@ -135,21 +122,21 @@ export function Navbar() {
           <Link
             href="/register"
             onClick={() => setMobileMenuOpen(false)}
-            className="text-lg font-medium px-4 py-3 bg-primary text-primary-foreground text-center"
+            className="text-lg font-medium px-4 py-2 bg-primary text-primary-foreground text-center rounded-md"
           >
             Register Interest
           </Link>
           <Link
             href="/dashboard"
             onClick={() => setMobileMenuOpen(false)}
-            className="text-lg font-medium px-4 py-3 border border-border text-center text-foreground hover:bg-muted"
+            className="text-lg font-medium px-4 py-2 hover:bg-muted rounded-md"
           >
             Learner Dashboard
           </Link>
           <Link
             href="/instructor"
             onClick={() => setMobileMenuOpen(false)}
-            className="text-lg font-medium px-4 py-3 border border-border text-center text-foreground hover:bg-muted"
+            className="text-lg font-medium px-4 py-2 hover:bg-muted rounded-md"
           >
             Instructor Dashboard
           </Link>
