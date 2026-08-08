@@ -77,61 +77,60 @@
   --elevate-1: rgba(0, 0, 0, 0.03);
   --elevate-2: rgba(0, 0, 0, 0.08);
 
-  /* Deep Amber, Forest Green, Rich Navy, Warm Off-White */
-  --background: 38 25% 96%;
-  --foreground: 218 60% 9%;
+  /* AfriEnergy Comms Lab — Energy Green / Deep Navy / Sandy Ochre */
+  --background: 40 20% 97%;
+  --foreground: 220 45% 8%;
 
-  --border: 35 20% 90%;
+  --border: 38 15% 88%;
 
   --card: 0 0% 100%;
-  --card-foreground: 218 60% 9%;
-  --card-border: 35 20% 92%;
+  --card-foreground: 220 45% 8%;
+  --card-border: 38 15% 90%;
 
-  --sidebar: 218 60% 9%;
+  --sidebar: 220 45% 8%;
   --sidebar-foreground: 0 0% 100%;
-  --sidebar-border: 220 50% 20%;
-  --sidebar-primary: 25 95% 52%;
-  --sidebar-primary-foreground: 0 0% 100%;
-  --sidebar-accent: 220 50% 25%;
+  --sidebar-border: 220 40% 18%;
+  --sidebar-primary: 151 100% 42%;
+  --sidebar-primary-foreground: 220 45% 8%;
+  --sidebar-accent: 220 40% 22%;
   --sidebar-accent-foreground: 0 0% 100%;
-  --sidebar-ring: 25 95% 52%;
+  --sidebar-ring: 151 100% 42%;
 
   --popover: 0 0% 100%;
-  --popover-foreground: 218 60% 9%;
-  --popover-border: 35 20% 90%;
+  --popover-foreground: 220 45% 8%;
+  --popover-border: 38 15% 88%;
 
-  /* Deep Amber */
-  --primary: 25 95% 52%;
-  --primary-foreground: 0 0% 100%;
+  /* Energy Green (afrienergytracker) */
+  --primary: 151 100% 42%;
+  --primary-foreground: 220 45% 8%;
 
-  /* Forest Green */
-  --secondary: 155 45% 18%;
+  /* Sandy Ochre (africaenergypulse) */
+  --secondary: 38 70% 47%;
   --secondary-foreground: 0 0% 100%;
 
-  --muted: 35 20% 92%;
-  --muted-foreground: 220 20% 40%;
+  --muted: 38 15% 92%;
+  --muted-foreground: 220 20% 45%;
 
-  /* Ochre Accent */
-  --accent: 45 90% 50%;
-  --accent-foreground: 220 50% 15%;
+  --accent: 151 80% 35%;
+  --accent-foreground: 0 0% 100%;
 
   --destructive: 0 84% 60%;
   --destructive-foreground: 0 0% 100%;
 
-  --input: 35 20% 85%;
-  --ring: 25 90% 50%;
+  --input: 38 15% 86%;
+  --ring: 151 100% 42%;
   
-  --chart-1: 25 90% 50%; /* Amber */
-  --chart-2: 160 50% 25%; /* Green */
-  --chart-3: 220 50% 15%; /* Navy */
-  --chart-4: 45 90% 50%; /* Ochre */
-  --chart-5: 15 80% 60%; /* Rust */
+  --chart-1: 151 100% 42%; /* Energy Green */
+  --chart-2: 38 70% 47%;   /* Ochre */
+  --chart-3: 220 45% 8%;   /* Deep Navy */
+  --chart-4: 151 60% 55%;  /* Light Green */
+  --chart-5: 200 60% 40%;  /* Teal */
 
   --app-font-sans: 'Plus Jakarta Sans', sans-serif;
   --app-font-display: 'Outfit', sans-serif;
   --app-font-mono: Menlo, monospace;
   
-  --radius: 0.75rem; /* 12px */
+  --radius: 0.5rem; /* 8px — slightly tighter */
   --shadow-2xs: 0px 2px 0px 0px rgba(35, 30, 25, 0.05);
   --shadow-xs: 0px 2px 0px 0px rgba(35, 30, 25, 0.05);
   --shadow-sm:
