@@ -30,22 +30,16 @@ export function Footer() {
 
           <div>
             <h4 className="font-semibold mb-4 text-sidebar-foreground">Hub</h4>
-            <ul className="space-y-3 mb-6">
+            <ul className="space-y-3">
               <li><Link href="/courses" className="text-sm text-sidebar-foreground/70 hover:text-primary transition-colors">Programs</Link></li>
               <li><Link href="/live-sessions" className="text-sm text-sidebar-foreground/70 hover:text-primary transition-colors">Live Sessions</Link></li>
-              <li><Link href="/dashboard" className="text-sm text-sidebar-foreground/70 hover:text-primary transition-colors">Community</Link></li>
+              <li>
+                <Link href="/dashboard" className="text-sm text-sidebar-foreground/70 hover:text-primary transition-colors">Community</Link>
+                <p className="mt-1.5 text-xs text-sidebar-foreground/50 leading-relaxed max-w-[200px]">
+                  A cohort-based space for energy communicators, advocates, and policy strategists — cross-sector, Africa-wide.
+                </p>
+              </li>
             </ul>
-            <div className="pt-5 border-t border-sidebar-border">
-              <p className="text-xs font-semibold uppercase tracking-widest text-sidebar-foreground/50 mb-3">Community of Practice</p>
-              <p className="text-xs text-sidebar-foreground/60 leading-relaxed mb-3">
-                A cohort-based learning community for energy communicators, advocates, and policy strategists — cohort-based, cross-sector, and Africa-wide.
-              </p>
-              <ul className="space-y-1.5">
-                <li className="text-xs text-sidebar-foreground/50">Cohort-based peer learning</li>
-                <li className="text-xs text-sidebar-foreground/50">Government · Civil society · Private sector</li>
-                <li className="text-xs text-sidebar-foreground/50">Open to practitioners across Africa</li>
-              </ul>
-            </div>
           </div>
 
           <div>
