@@ -77,55 +77,54 @@
   --elevate-1: rgba(0, 0, 0, 0.03);
   --elevate-2: rgba(0, 0, 0, 0.08);
 
-  /* AfriEnergy Comms Lab — africaenergypulse.com palette */
-  /* Warm near-black ink / Sandy warm gold / Pure warm white */
-  --background: 36 18% 97%;
-  --foreground: 28 30% 8%;
+  /* AfriEnergy Comms Lab — deep navy + warm amber highlight */
+  --background: 38 25% 96%;
+  --foreground: 218 60% 9%;
 
-  --border: 34 12% 87%;
+  --border: 35 20% 90%;
 
-  --card: 36 18% 99%;
-  --card-foreground: 28 30% 8%;
-  --card-border: 34 12% 89%;
+  --card: 0 0% 100%;
+  --card-foreground: 218 60% 9%;
+  --card-border: 35 20% 92%;
 
-  --sidebar: 28 30% 8%;
-  --sidebar-foreground: 36 18% 97%;
-  --sidebar-border: 28 20% 16%;
-  --sidebar-primary: 38 58% 50%;
-  --sidebar-primary-foreground: 28 30% 8%;
-  --sidebar-accent: 28 20% 18%;
-  --sidebar-accent-foreground: 36 18% 97%;
-  --sidebar-ring: 38 58% 50%;
+  --sidebar: 218 60% 9%;
+  --sidebar-foreground: 0 0% 100%;
+  --sidebar-border: 220 50% 20%;
+  --sidebar-primary: 25 95% 52%;
+  --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-accent: 220 50% 25%;
+  --sidebar-accent-foreground: 0 0% 100%;
+  --sidebar-ring: 25 95% 52%;
 
-  --popover: 36 18% 99%;
-  --popover-foreground: 28 30% 8%;
-  --popover-border: 34 12% 87%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 218 60% 9%;
+  --popover-border: 35 20% 90%;
 
-  /* Sandy warm gold — from africaenergypulse desert imagery */
-  --primary: 38 58% 50%;
-  --primary-foreground: 28 30% 8%;
+  /* Warm amber — highlight (replaces green) */
+  --primary: 25 95% 52%;
+  --primary-foreground: 0 0% 100%;
 
-  /* Deep warm brown — secondary */
-  --secondary: 28 45% 30%;
-  --secondary-foreground: 36 18% 97%;
+  /* Terracotta — secondary */
+  --secondary: 15 75% 40%;
+  --secondary-foreground: 0 0% 100%;
 
-  --muted: 34 12% 92%;
-  --muted-foreground: 28 15% 45%;
+  --muted: 35 20% 92%;
+  --muted-foreground: 220 20% 40%;
 
-  --accent: 38 45% 42%;
-  --accent-foreground: 28 30% 8%;
+  --accent: 45 90% 50%;
+  --accent-foreground: 220 50% 15%;
 
   --destructive: 0 84% 60%;
   --destructive-foreground: 0 0% 100%;
 
-  --input: 34 12% 86%;
-  --ring: 38 58% 50%;
-  
-  --chart-1: 38 58% 50%;  /* Sandy gold */
-  --chart-2: 28 45% 30%;  /* Warm brown */
-  --chart-3: 28 30% 8%;   /* Near-black */
-  --chart-4: 38 40% 65%;  /* Light sand */
-  --chart-5: 20 50% 40%;  /* Terracotta */
+  --input: 35 20% 85%;
+  --ring: 25 95% 52%;
+
+  --chart-1: 25 95% 52%;  /* Amber */
+  --chart-2: 15 75% 40%;  /* Terracotta */
+  --chart-3: 218 60% 9%;  /* Navy */
+  --chart-4: 45 90% 50%;  /* Ochre */
+  --chart-5: 155 45% 25%; /* Forest green */
 
   --app-font-sans: 'Plus Jakarta Sans', sans-serif;
   --app-font-display: 'Outfit', sans-serif;

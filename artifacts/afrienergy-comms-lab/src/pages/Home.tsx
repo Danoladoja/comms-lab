@@ -4,12 +4,12 @@ import { ArrowRight } from 'lucide-react';
 import { courses, liveSessions } from '@/data/mock';
 import heroImg from '@assets/hero.jpg';
 
-// ─── palette tokens — africaenergypulse.com ──────────────────────────────────
+// ─── palette tokens — deep navy + amber highlight ─────────────────────────────
 const C = {
-  ink:   '#100E0B',   // warm near-black (from AEP's editorial darkness)
-  gold:  '#C49A3C',   // sandy warm gold (from AEP's desert/landscape imagery)
-  brown: '#8B6530',   // deep warm brown (secondary accent)
-  paper: '#F9F7F4',   // pure warm white (AEP's clean light background)
+  ink:   '#07111E',   // deep navy-black
+  gold:  '#F97316',   // warm amber (highlight, replaces green)
+  brown: '#C2410C',   // terracotta (secondary accent)
+  paper: '#F4F0E8',   // warm off-white
   white: '#FFFFFF',
 };
 
