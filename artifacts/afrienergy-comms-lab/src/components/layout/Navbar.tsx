@@ -1,6 +1,6 @@
 import { Link, useLocation } from 'wouter';
 import { Button } from '@/components/ui/button';
-import { Zap, Menu, X, User } from 'lucide-react';
+import { Menu, X, User } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 import {
@@ -42,14 +42,11 @@ export function Navbar() {
     >
       <div className="container mx-auto px-4 md:px-6">
         <div className="flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2 group">
-            <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center text-primary-foreground transform transition-transform group-hover:scale-105 group-hover:rotate-3 shadow-sm">
-              <Zap size={22} className="fill-current" />
-            </div>
-            <span className="font-display font-bold text-xl tracking-tight text-foreground hidden sm:block">
+          <Link href="/" className="flex items-center group">
+            <span className="font-display font-bold text-lg tracking-tight text-foreground hidden sm:block">
               Afrienergy Comms Lab
             </span>
-            <span className="font-display font-bold text-xl tracking-tight text-foreground sm:hidden">
+            <span className="font-display font-bold text-lg tracking-tight text-foreground sm:hidden">
               Afrienergy
             </span>
           </Link>
