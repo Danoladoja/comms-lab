@@ -1,7 +1,7 @@
 import { Link } from 'wouter';
 import { motion } from 'framer-motion';
 import { ArrowRight } from 'lucide-react';
-import { courses, liveSessions } from '@/data/mock';
+import { courses } from '@/data/mock';
 import heroImg from '@assets/hero.jpg';
 
 // ─── palette tokens — deep navy + amber highlight ─────────────────────────────
@@ -31,7 +31,32 @@ const focusAreas = [
   { n: '04', title: 'Design Thinking & Innovation',     sub: 'Solve complex problems with human-centred methods.' },
 ];
 
-const upcomingPrograms = liveSessions.filter(s => s.isUpcoming).slice(0, 3);
+const upcomingPrograms = [
+  {
+    id: 'p-1',
+    tag: 'Strategic Energy Communications',
+    title: 'Energy Narrative Lab',
+    description: 'A cohort workshop on building compelling energy stories for policy, media, and public audiences.',
+    date: 'Nov 2026',
+    format: 'Cohort · 4 weeks',
+  },
+  {
+    id: 'p-2',
+    tag: 'Energy Transition & Policy',
+    title: "Africa's Just Transition: Policy Briefing Series",
+    description: "A masterclass series on the regulatory and political landscape shaping Africa's energy transition.",
+    date: 'Jan 2027',
+    format: 'Masterclass · 6 sessions',
+  },
+  {
+    id: 'p-3',
+    tag: 'Advocacy & Stakeholder Influence',
+    title: 'Advocacy by Design',
+    description: 'An intensive on designing advocacy campaigns that move decision-makers and mobilise coalitions.',
+    date: 'Mar 2027',
+    format: 'Intensive · 3 days',
+  },
+];
 
 // ─── component ──────────────────────────────────────────────────────────────
 export default function Home() {
@@ -204,63 +229,66 @@ export default function Home() {
       {/* ── 5. UPCOMING PROGRAMS ────────────────────────────────────────── */}
       <section style={{ backgroundColor: C.paper, color: C.ink }}>
         <div className="max-w-6xl mx-auto px-6 py-24 md:py-32">
-          <div className="flex items-end justify-between mb-16 gap-6 flex-wrap">
-            <div>
-              <p className="text-xs uppercase tracking-[0.35em] mb-3" style={{ color: C.brown }}>
-                Upcoming
-              </p>
-              <h2 className="font-display font-bold" style={{ fontSize: 'clamp(2rem, 5vw, 3.5rem)' }}>
-                Programs
-              </h2>
-            </div>
+          <div className="mb-14">
+            <p className="text-xs uppercase tracking-[0.35em] mb-3" style={{ color: C.brown }}>
+              Upcoming
+            </p>
+            <h2 className="font-display font-bold" style={{ fontSize: 'clamp(2rem, 5vw, 3.5rem)' }}>
+              Programs
+            </h2>
+          </div>
+
+          <div className="grid md:grid-cols-3 gap-px" style={{ background: 'rgba(7,17,30,0.08)' }}>
+            {upcomingPrograms.map((program, i) => (
+              <motion.div
+                key={program.id}
+                variants={fadeUp}
+                initial="hidden"
+                whileInView="visible"
+                viewport={{ once: true, margin: '-40px' }}
+                custom={i * 0.1}
+                className="flex flex-col p-8"
+                style={{ backgroundColor: C.paper }}
+              >
+                <p className="text-xs uppercase tracking-widest mb-6" style={{ color: C.brown }}>
+                  {program.tag}
+                </p>
+                <h3 className="font-display font-semibold text-lg leading-snug mb-4">
+                  {program.title}
+                </h3>
+                <p className="text-sm leading-relaxed mb-8 flex-1" style={{ color: 'rgba(7,17,30,0.55)' }}>
+                  {program.description}
+                </p>
+                <div className="flex items-center justify-between pt-5 border-t" style={{ borderColor: 'rgba(7,17,30,0.12)' }}>
+                  <span className="text-xs" style={{ color: 'rgba(7,17,30,0.45)' }}>
+                    {program.date} · {program.format}
+                  </span>
+                  <Link href="/register">
+                    <button
+                      className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-widest transition-colors"
+                      style={{ color: C.ink }}
+                      onMouseEnter={e => (e.currentTarget.style.color = C.brown)}
+                      onMouseLeave={e => (e.currentTarget.style.color = C.ink)}
+                    >
+                      Reserve <ArrowRight size={11} />
+                    </button>
+                  </Link>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+
+          <div className="mt-10 flex justify-end">
             <Link href="/courses">
               <button
                 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-widest border-b pb-0.5 transition-colors"
                 style={{ borderColor: C.brown, color: C.ink }}
+                onMouseEnter={e => (e.currentTarget.style.color = C.brown)}
+                onMouseLeave={e => (e.currentTarget.style.color = C.ink)}
               >
                 All Programs <ArrowRight size={14} />
               </button>
             </Link>
-          </div>
-
-          <div className="grid md:grid-cols-3 gap-6">
-            {upcomingPrograms.map((session, i) => {
-              const date = new Date(session.date);
-              return (
-                <motion.div
-                  key={session.id}
-                  variants={fadeUp}
-                  initial="hidden"
-                  whileInView="visible"
-                  viewport={{ once: true, margin: '-40px' }}
-                  custom={i * 0.1}
-                  className="flex flex-col group"
-                  style={{ borderTop: `2px solid ${C.ink}` }}
-                >
-                  <div className="pt-6 pb-8 flex flex-col flex-1">
-                    <p className="text-xs uppercase tracking-widest mb-5" style={{ color: C.brown }}>
-                      {date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
-                    </p>
-                    <h3 className="font-display font-semibold text-lg leading-snug mb-3">
-                      {session.title}
-                    </h3>
-                    <p className="text-sm mb-8" style={{ color: 'rgba(7,17,30,0.55)' }}>
-                      {session.instructor}
-                    </p>
-                    <Link href="/live-sessions">
-                      <button
-                        className="mt-auto self-start flex items-center gap-2 text-xs font-bold uppercase tracking-widest transition-colors"
-                        style={{ color: C.ink }}
-                        onMouseEnter={e => (e.currentTarget.style.color = C.brown)}
-                        onMouseLeave={e => (e.currentTarget.style.color = C.ink)}
-                      >
-                        Reserve Spot <ArrowRight size={12} />
-                      </button>
-                    </Link>
-                  </div>
-                </motion.div>
-              );
-            })}
           </div>
         </div>
       </section>
