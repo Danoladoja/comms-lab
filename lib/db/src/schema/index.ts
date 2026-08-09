@@ -5,3 +5,4 @@ export * from "./enrollments";
 export * from "./attendance";
 export * from "./coursework";
 export * from "./forum";
+export * from "./reminders";
