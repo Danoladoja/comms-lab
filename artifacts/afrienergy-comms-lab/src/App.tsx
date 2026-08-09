@@ -19,6 +19,7 @@ import Teach from '@/pages/Teach';
 import QuizInterface from '@/pages/QuizInterface';
 import CertificatePage from '@/pages/CertificatePage';
 import LiveSessions from '@/pages/LiveSessions';
+import LiveClassroomPreview from '@/pages/LiveClassroomPreview';
 import About from '@/pages/About';
 import NotFound from '@/pages/not-found';
 
@@ -177,6 +178,7 @@ function Router() {
         <Route path="/login"><Redirect to="/sign-in" /></Route>
         <Route path="/certificate/:id" component={CertificatePage} />
         <Route path="/quiz/:id" component={QuizInterface} />
+        <Route path="/classroom-preview" component={LiveClassroomPreview} />
 
         {/* Public routes with AppLayout */}
         <Route path="/" component={HomeRedirect} />
