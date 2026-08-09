@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Link, useParams, useLocation } from 'wouter';
 import { useQueryClient } from '@tanstack/react-query';
 import {
@@ -50,6 +51,7 @@ export default function Classroom() {
   const { toast } = useToast();
   const qc = useQueryClient();
 
+  const [courseworkTab, setCourseworkTab] = useState('');
   const { data: sessions = [], isLoading: loadingSessions } = useListMySessions();
   const { data: progress = [] } = useListMyProgress();
   const session = sessions.find(s => s.id === sessionId);
@@ -107,7 +109,6 @@ export default function Classroom() {
       </Link>
 
       <div className="mb-6">
-        <p className="text-xs uppercase tracking-widest text-[#C2410C] font-medium mb-1">{session.programTitle}</p>
         <div className="flex flex-wrap items-center gap-3">
           <h1 className="text-2xl md:text-3xl font-display font-bold">{session.title}</h1>
           {isLive && (
@@ -221,8 +222,8 @@ export default function Classroom() {
             )}
           </div>
 
-          {/* Coursework tabs: quiz and assignment each get their own page */}
-          <Tabs defaultValue="quiz">
+          {/* Coursework tabs: nothing is shown until the learner opens one */}
+          <Tabs value={courseworkTab} onValueChange={setCourseworkTab}>
             <TabsList className="mb-4">
               <TabsTrigger value="quiz">
                 <FileQuestion className="w-4 h-4 mr-1.5" />Module Quiz
