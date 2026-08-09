@@ -249,10 +249,9 @@ export const lessons: Lesson[] = [
 export const liveSessions: LiveSession[] = [
   {
     id: 'ls-1',
-    title: 'Q&A: Micro-grid Financing Models',
-    instructorId: 'inst-1',
-    courseId: 'course-1',
-    date: '2025-10-25T14:00:00Z',
+    title: 'Crafting the Energy Brief: Writing for Policy Audiences',
+    instructorId: 'inst-3',
+    date: '2026-11-08T14:00:00Z',
     duration: '60 min',
     platform: 'Zoom',
     joinUrl: 'https://zoom.us/j/98765432100',
@@ -260,10 +259,9 @@ export const liveSessions: LiveSession[] = [
   },
   {
     id: 'ls-2',
-    title: 'Tech Architecture Review Session',
-    instructorId: 'inst-2',
-    courseId: 'course-2',
-    date: '2025-10-26T16:00:00Z',
+    title: 'Framing the Just Transition: Communicating Policy Change to Communities',
+    instructorId: 'inst-1',
+    date: '2026-11-20T16:00:00Z',
     duration: '90 min',
     platform: 'Google Meet',
     joinUrl: 'https://meet.google.com/abc-defg-hij',
@@ -271,10 +269,10 @@ export const liveSessions: LiveSession[] = [
   },
   {
     id: 'ls-3',
-    title: 'Pitch Deck Tear-down Workshop',
+    title: 'Running an Advocacy Campaign with Limited Resources',
     instructorId: 'inst-3',
-    date: '2025-10-10T10:00:00Z',
-    duration: '120 min',
+    date: '2026-10-15T10:00:00Z',
+    duration: '75 min',
     platform: 'Zoom',
     joinUrl: '#',
     isUpcoming: false
