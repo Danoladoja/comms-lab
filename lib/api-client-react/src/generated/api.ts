@@ -25,6 +25,7 @@ import type {
   EnrollmentDetail,
   EnrollmentUpdate,
   HealthStatus,
+  JoinResult,
   ListAllEnrollmentsParams,
   Program,
   ProgramInput,
@@ -32,6 +33,7 @@ import type {
   Session,
   SessionDetail,
   SessionInput,
+  SessionProgress,
   SessionUpdate,
   User,
   UserRoleUpdate
@@ -807,6 +809,154 @@ export const useDeleteSession = <TError = ErrorType<ApiMessage>,
       > => {
       return useMutation(getDeleteSessionMutationOptions(options));
     }
+
+export const getJoinSessionUrl = (id: number,) => {
+
+
+
+
+  return `/api/sessions/${id}/join`
+}
+
+/**
+ * @summary Record attendance for a live session and return the join link (learners must have unlocked the module)
+ */
+export const joinSession = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<JoinResult> => {
+
+  return customFetch<JoinResult>(getJoinSessionUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getJoinSessionMutationOptions = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof joinSession>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof joinSession>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['joinSession'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof joinSession>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  joinSession(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type JoinSessionMutationResult = NonNullable<Awaited<ReturnType<typeof joinSession>>>
+
+    export type JoinSessionMutationError = ErrorType<ApiMessage>
+
+    /**
+ * @summary Record attendance for a live session and return the join link (learners must have unlocked the module)
+ */
+export const useJoinSession = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof joinSession>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof joinSession>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getJoinSessionMutationOptions(options));
+    }
+
+export const getListMyProgressUrl = () => {
+
+
+
+
+  return `/api/my/progress`
+}
+
+/**
+ * @summary Per-module progress, lock state, and replay rights across the user's enrolled programs
+ */
+export const listMyProgress = async ( options?: Parameters<typeof customFetch>[1]): Promise<SessionProgress[]> => {
+
+  return customFetch<SessionProgress[]>(getListMyProgressUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListMyProgressQueryKey = () => {
+    return [
+    `/api/my/progress`
+    ] as const;
+    }
+
+
+export const getListMyProgressQueryOptions = <TData = Awaited<ReturnType<typeof listMyProgress>>, TError = ErrorType<ApiMessage>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listMyProgress>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListMyProgressQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listMyProgress>>> = ({ signal }) => listMyProgress({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listMyProgress>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListMyProgressQueryResult = NonNullable<Awaited<ReturnType<typeof listMyProgress>>>
+export type ListMyProgressQueryError = ErrorType<ApiMessage>
+
+
+/**
+ * @summary Per-module progress, lock state, and replay rights across the user's enrolled programs
+ */
+
+export function useListMyProgress<TData = Awaited<ReturnType<typeof listMyProgress>>, TError = ErrorType<ApiMessage>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listMyProgress>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListMyProgressQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getEnrollInProgramUrl = (id: number,) => {
 

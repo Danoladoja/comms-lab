@@ -250,6 +250,61 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiMessage"
+  /sessions/{id}/join:
+    post:
+      operationId: joinSession
+      tags: [enrollments]
+      summary: Record attendance for a live session and return the join link (learners must have unlocked the module)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Attendance recorded (or already recorded)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JoinResult"
+        "401":
+          description: Not signed in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "403":
+          description: Locked or not enrolled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+  /my/progress:
+    get:
+      operationId: listMyProgress
+      tags: [enrollments]
+      summary: Per-module progress, lock state, and replay rights across the user's enrolled programs
+      responses:
+        "200":
+          description: Progress entries, one per session
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SessionProgress"
+        "401":
+          description: Not signed in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
   /programs/{id}/enroll:
     post:
       operationId: enrollInProgram
@@ -451,6 +506,23 @@ components:
         email: { type: string }
         name: { type: string }
         role: { type: string, enum: [learner, instructor, admin] }
+    JoinResult:
+      type: object
+      required: [sessionId, joinedAt]
+      properties:
+        sessionId: { type: integer }
+        joinedAt: { type: string }
+        joinUrl: { type: ["string", "null"] }
+    SessionProgress:
+      type: object
+      required: [sessionId, programId, progressPct, attendedLive, completed, locked]
+      properties:
+        sessionId: { type: integer }
+        programId: { type: integer }
+        progressPct: { type: integer }
+        attendedLive: { type: boolean }
+        completed: { type: boolean }
+        locked: { type: boolean }
     UserRoleUpdate:
       type: object
       required: [role]

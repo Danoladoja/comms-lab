@@ -30,6 +30,22 @@ export interface User {
   role: UserRole;
 }
 
+export interface JoinResult {
+  sessionId: number;
+  joinedAt: string;
+  /** @nullable */
+  joinUrl?: string | null;
+}
+
+export interface SessionProgress {
+  sessionId: number;
+  programId: number;
+  progressPct: number;
+  attendedLive: boolean;
+  completed: boolean;
+  locked: boolean;
+}
+
 export type UserRoleUpdateRole = typeof UserRoleUpdateRole[keyof typeof UserRoleUpdateRole];
 
 

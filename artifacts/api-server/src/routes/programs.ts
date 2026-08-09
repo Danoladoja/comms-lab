@@ -7,6 +7,7 @@ import {
   CreateSessionBody,
 } from "@workspace/api-zod";
 import { getCurrentUser, requireRole } from "../lib/auth";
+import { progressForUser } from "./enrollments";
 
 const router: IRouter = Router();
 
@@ -138,13 +139,22 @@ router.get("/programs/:id/sessions", async (req, res) => {
     .from(sessionsTable)
     .leftJoin(usersTable, eq(sessionsTable.instructorId, usersTable.id))
     .where(eq(sessionsTable.programId, programId))
-    .orderBy(asc(sessionsTable.sortOrder), asc(sessionsTable.id));
+    .orderBy(asc(sessionsTable.startsAt), asc(sessionsTable.sortOrder), asc(sessionsTable.id));
+
+  // Learners never get raw meet links (they must use the join endpoint) and only
+  // get replay links for sessions they attended live start to finish.
+  const isStaff = user?.role === "admin" || user?.role === "instructor";
+  let replayable: Set<number> | null = null;
+  if (showLinks && user && !isStaff) {
+    const progress = await progressForUser(user.id, [programId]);
+    replayable = new Set(progress.filter((p) => p.attendedLive).map((p) => p.sessionId));
+  }
 
   res.json(
     rows.map((r) => ({
       ...r,
-      meetUrl: showLinks ? r.meetUrl : null,
-      recordingUrl: showLinks ? r.recordingUrl : null,
+      meetUrl: showLinks && isStaff ? r.meetUrl : null,
+      recordingUrl: showLinks && (replayable === null || replayable.has(r.id)) ? r.recordingUrl : null,
     })),
   );
 });

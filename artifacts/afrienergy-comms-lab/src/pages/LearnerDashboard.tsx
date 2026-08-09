@@ -1,11 +1,16 @@
 import { Link, useLocation } from 'wouter';
-import { useListMyEnrollments, useListMySessions } from '@workspace/api-client-react';
+import { useQueryClient } from '@tanstack/react-query';
+import {
+  useListMyEnrollments, useListMySessions, useListMyProgress, useJoinSession,
+  getListMyProgressQueryKey, getListMySessionsQueryKey,
+} from '@workspace/api-client-react';
 import { useCurrentUser } from '@/lib/useCurrentUser';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useToast } from '@/hooks/use-toast';
 import {
-  Calendar, Video, PlayCircle, GraduationCap, CheckCircle2, Circle,
+  Calendar, Video, PlayCircle, GraduationCap, CheckCircle2, Circle, Lock,
   Radio, MessageSquare, ClipboardList, FileQuestion, ArrowRight, Clock,
 } from 'lucide-react';
 
@@ -58,8 +63,33 @@ function moduleState(s: { startsAt?: unknown; durationMins: number }, now: numbe
 export default function LearnerDashboard() {
   const { user } = useCurrentUser();
   const [, setLocation] = useLocation();
+  const { toast } = useToast();
+  const qc = useQueryClient();
   const { data: enrollments = [], isLoading: loadingEnrollments } = useListMyEnrollments();
   const { data: sessions = [] } = useListMySessions();
+  const { data: progress = [] } = useListMyProgress();
+  const progressBySession = new Map(progress.map(p => [p.sessionId, p]));
+
+  const joinSession = useJoinSession({
+    mutation: {
+      onSuccess: (result) => {
+        qc.invalidateQueries({ queryKey: getListMyProgressQueryKey() });
+        qc.invalidateQueries({ queryKey: getListMySessionsQueryKey() });
+        if (result.joinUrl) {
+          window.open(result.joinUrl, '_blank', 'noreferrer');
+        } else {
+          setLocation('/classroom-preview');
+        }
+      },
+      onError: () => {
+        toast({
+          title: 'Module locked',
+          description: 'Complete the previous module to unlock this one.',
+          variant: 'destructive',
+        });
+      },
+    },
+  });
 
   const now = Date.now();
   const active = enrollments.filter(e => e.status !== 'cancelled');
@@ -78,11 +108,21 @@ export default function LearnerDashboard() {
   const firstName = (user?.name || '').split(' ')[0];
 
   const openModule = (s: SessionRow) => {
+    const entry = progressBySession.get(s.id);
+    if (entry?.locked) {
+      toast({
+        title: 'Module locked',
+        description: 'Complete the previous module to unlock this one.',
+        variant: 'destructive',
+      });
+      return;
+    }
     const state = moduleState(s, now);
-    if (state === 'done' && s.recordingUrl) {
+    if (state === 'done' && s.recordingUrl && entry?.attendedLive) {
       window.open(s.recordingUrl, '_blank', 'noreferrer');
-    } else if (state === 'live' && s.meetUrl) {
-      window.open(s.meetUrl, '_blank', 'noreferrer');
+    } else if (state === 'live') {
+      // Records attendance, then opens the class (or the classroom preview if no link yet).
+      joinSession.mutate({ id: s.id });
     } else {
       setLocation('/classroom-preview');
     }
@@ -122,8 +162,7 @@ export default function LearnerDashboard() {
                 {active.map(e => {
                   const mods = (sessionsByProgram.get(e.programId) ?? [])
                     .sort((a, b) => new Date(a.startsAt as unknown as string || 0).getTime() - new Date(b.startsAt as unknown as string || 0).getTime());
-                  const doneCount = mods.filter(m => moduleState(m, now) === 'done').length;
-                  const pct = mods.length ? Math.round((doneCount / mods.length) * 100) : 0;
+                  const doneCount = mods.filter(m => progressBySession.get(m.id)?.completed).length;
                   return (
                     <section key={e.id} className="bg-card border border-border rounded-2xl p-6">
                       <div className="flex flex-wrap items-center justify-between gap-3 mb-1">
@@ -137,43 +176,60 @@ export default function LearnerDashboard() {
                           <Calendar className="w-3.5 h-3.5" />Starts {e.programStartDate}
                         </p>
                       )}
-                      <div className="flex items-center gap-3 mb-5">
-                        <Progress value={pct} className="h-2 flex-1" />
-                        <span className="text-xs font-semibold text-muted-foreground whitespace-nowrap">
-                          {doneCount}/{mods.length} modules · {pct}%
-                        </span>
-                      </div>
+                      <p className="text-xs font-semibold text-muted-foreground mb-4">
+                        {doneCount} of {mods.length} modules completed
+                      </p>
 
                       {mods.length === 0 ? (
                         <p className="text-sm text-muted-foreground">The module schedule will be published soon.</p>
                       ) : (
                         <ol className="space-y-2">
-                          {mods.map((m, i) => {
+                          {mods.map((m) => {
                             const state = moduleState(m, now);
+                            const entry = progressBySession.get(m.id);
+                            const locked = entry?.locked ?? false;
+                            const pct = entry?.completed ? 100 : entry?.progressPct ?? 0;
                             return (
                               <li key={m.id}>
                                 <button
                                   onClick={() => openModule(m)}
-                                  className="w-full text-left flex items-center gap-3 rounded-xl border border-border px-4 py-3 hover:border-primary/40 hover:bg-primary/5 transition-colors"
+                                  disabled={locked}
+                                  className={`w-full text-left flex items-center gap-3 rounded-xl border border-border px-4 py-3 transition-colors ${
+                                    locked
+                                      ? 'opacity-55 cursor-not-allowed bg-muted/30'
+                                      : 'hover:border-primary/40 hover:bg-primary/5'
+                                  }`}
                                 >
-                                  {state === 'done'
-                                    ? <CheckCircle2 className="w-5 h-5 text-emerald-600 flex-shrink-0" />
-                                    : state === 'live'
-                                      ? <Radio className="w-5 h-5 text-[#C2410C] flex-shrink-0 animate-pulse" />
-                                      : <Circle className="w-5 h-5 text-muted-foreground/40 flex-shrink-0" />}
+                                  {locked
+                                    ? <Lock className="w-5 h-5 text-muted-foreground/60 flex-shrink-0" />
+                                    : entry?.completed
+                                      ? <CheckCircle2 className="w-5 h-5 text-emerald-600 flex-shrink-0" />
+                                      : state === 'live'
+                                        ? <Radio className="w-5 h-5 text-[#C2410C] flex-shrink-0 animate-pulse" />
+                                        : <Circle className="w-5 h-5 text-muted-foreground/40 flex-shrink-0" />}
                                   <div className="flex-1 min-w-0">
-                                    <p className="font-medium truncate">Module {i + 1}: {m.title}</p>
-                                    <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                                    <p className="font-medium truncate">{m.title}</p>
+                                    <p className="text-xs text-muted-foreground flex items-center gap-1.5 mb-1.5">
                                       <Clock className="w-3 h-3" />
                                       {formatSessionDate(m.startsAt as unknown as string)} · {m.durationMins} min
                                     </p>
+                                    <div className="flex items-center gap-2">
+                                      <Progress value={pct} className="h-1.5 flex-1 max-w-[220px]" />
+                                      <span className="text-[11px] font-semibold text-muted-foreground">{pct}%</span>
+                                    </div>
                                   </div>
                                   <span className="text-xs font-semibold flex items-center gap-1.5 flex-shrink-0 text-primary">
-                                    {state === 'done'
-                                      ? (m.recordingUrl ? <><PlayCircle className="w-4 h-4" />Recording</> : 'Completed')
-                                      : state === 'live'
-                                        ? <><Video className="w-4 h-4" />Join live</>
-                                        : <>Open classroom<ArrowRight className="w-3.5 h-3.5" /></>}
+                                    {locked
+                                      ? <span className="text-muted-foreground">Locked</span>
+                                      : entry?.completed
+                                        ? (m.recordingUrl
+                                            ? <><PlayCircle className="w-4 h-4" />Watch replay</>
+                                            : 'Completed')
+                                        : state === 'live'
+                                          ? <><Video className="w-4 h-4" />Join live</>
+                                          : state === 'done'
+                                            ? <span className="text-muted-foreground">Missed live class</span>
+                                            : <>Open classroom<ArrowRight className="w-3.5 h-3.5" /></>}
                                   </span>
                                 </button>
                               </li>
@@ -268,9 +324,14 @@ export default function LearnerDashboard() {
                   <p className="text-xs text-muted-foreground mb-3">
                     {formatSessionDate(s.startsAt as unknown as string)} · {s.durationMins} min
                   </p>
-                  {s.meetUrl ? (
-                    <Button asChild size="sm" className="w-full font-bold">
-                      <a href={s.meetUrl} target="_blank" rel="noreferrer"><Video className="w-4 h-4 mr-1.5" />Join Session</a>
+                  {moduleState(s, now) === 'live' ? (
+                    <Button
+                      size="sm"
+                      className="w-full font-bold"
+                      disabled={joinSession.isPending}
+                      onClick={() => joinSession.mutate({ id: s.id })}
+                    >
+                      <Video className="w-4 h-4 mr-1.5" />Join Session
                     </Button>
                   ) : (
                     <Button asChild size="sm" variant="outline" className="w-full">

@@ -262,6 +262,34 @@ export const DeleteSessionResponse = zod.void()
 
 
 /**
+ * @summary Record attendance for a live session and return the join link (learners must have unlocked the module)
+ */
+export const JoinSessionParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const JoinSessionResponse = zod.object({
+  "sessionId": zod.int(),
+  "joinedAt": zod.string(),
+  "joinUrl": zod.string().nullish()
+})
+
+
+/**
+ * @summary Per-module progress, lock state, and replay rights across the user's enrolled programs
+ */
+export const ListMyProgressResponseItem = zod.object({
+  "sessionId": zod.int(),
+  "programId": zod.int(),
+  "progressPct": zod.int(),
+  "attendedLive": zod.boolean(),
+  "completed": zod.boolean(),
+  "locked": zod.boolean()
+})
+export const ListMyProgressResponse = zod.array(ListMyProgressResponseItem)
+
+
+/**
  * @summary Enroll the current user (waitlisted when at capacity)
  */
 export const EnrollInProgramParams = zod.object({
