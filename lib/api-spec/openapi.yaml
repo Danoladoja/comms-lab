@@ -10,6 +10,14 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: me
+    description: Current user
+  - name: programs
+    description: Programs and sessions
+  - name: enrollments
+    description: Enrollment operations
+  - name: admin
+    description: Admin operations
 paths:
   /healthz:
     get:
@@ -24,6 +32,402 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /me:
+    get:
+      operationId: getMe
+      tags: [me]
+      summary: Get (and JIT-provision) the current user
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401":
+          description: Not signed in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+  /programs:
+    get:
+      operationId: listPrograms
+      tags: [programs]
+      summary: List programs (published only for non-admins)
+      responses:
+        "200":
+          description: Programs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Program"
+    post:
+      operationId: createProgram
+      tags: [admin]
+      summary: Create a program (admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProgramInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Program"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+  /programs/{id}:
+    get:
+      operationId: getProgram
+      tags: [programs]
+      summary: Get a program
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Program
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Program"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+    patch:
+      operationId: updateProgram
+      tags: [admin]
+      summary: Update a program (admin)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProgramUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Program"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+  /programs/{id}/sessions:
+    get:
+      operationId: listProgramSessions
+      tags: [programs]
+      summary: List sessions of a program (join/recording links only when authorized)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Sessions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Session"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+    post:
+      operationId: createSession
+      tags: [admin]
+      summary: Add a session to a program (admin)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SessionInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Session"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+  /sessions/{id}:
+    patch:
+      operationId: updateSession
+      tags: [admin]
+      summary: Update a session (admin or assigned instructor)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SessionUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Session"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+    delete:
+      operationId: deleteSession
+      tags: [admin]
+      summary: Delete a session (admin)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "204":
+          description: Deleted
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+  /programs/{id}/enroll:
+    post:
+      operationId: enrollInProgram
+      tags: [enrollments]
+      summary: Enroll the current user (waitlisted when at capacity)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "201":
+          description: Enrollment created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Enrollment"
+        "401":
+          description: Not signed in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "409":
+          description: Already enrolled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+  /my/enrollments:
+    get:
+      operationId: listMyEnrollments
+      tags: [enrollments]
+      summary: List current user's enrollments with program details
+      responses:
+        "200":
+          description: Enrollments
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/EnrollmentDetail"
+        "401":
+          description: Not signed in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+  /my/sessions:
+    get:
+      operationId: listMySessions
+      tags: [enrollments]
+      summary: Upcoming and past sessions across the user's enrolled programs (or taught programs for instructors)
+      responses:
+        "200":
+          description: Sessions with program titles
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SessionDetail"
+        "401":
+          description: Not signed in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+  /admin/users:
+    get:
+      operationId: listUsers
+      tags: [admin]
+      summary: List users (admin)
+      responses:
+        "200":
+          description: Users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/User"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+  /admin/users/{id}/role:
+    patch:
+      operationId: updateUserRole
+      tags: [admin]
+      summary: Change a user's role (admin)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserRoleUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+  /admin/enrollments:
+    get:
+      operationId: listAllEnrollments
+      tags: [admin]
+      summary: List enrollments with user and program info (admin)
+      parameters:
+        - name: programId
+          in: query
+          required: false
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Enrollments
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/EnrollmentDetail"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+  /admin/enrollments/{id}:
+    patch:
+      operationId: updateEnrollment
+      tags: [admin]
+      summary: Update an enrollment's status (admin)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EnrollmentUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Enrollment"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
 components:
   schemas:
     HealthStatus:
@@ -33,4 +437,141 @@ components:
           type: string
       required:
         - status
-
+    ApiMessage:
+      type: object
+      properties:
+        error: { type: string }
+      required: [error]
+    User:
+      type: object
+      required: [id, clerkUserId, email, name, role]
+      properties:
+        id: { type: integer }
+        clerkUserId: { type: string }
+        email: { type: string }
+        name: { type: string }
+        role: { type: string, enum: [learner, instructor, admin] }
+    UserRoleUpdate:
+      type: object
+      required: [role]
+      properties:
+        role: { type: string, enum: [learner, instructor, admin] }
+    Program:
+      type: object
+      required: [id, tag, title, description, startDate, format, duration, capacity, status, enrolledCount]
+      properties:
+        id: { type: integer }
+        tag: { type: string }
+        title: { type: string }
+        description: { type: string }
+        startDate: { type: string }
+        format: { type: string }
+        duration: { type: string }
+        thumbnailUrl: { type: ["string", "null"] }
+        capacity: { type: integer }
+        status: { type: string, enum: [draft, published, archived] }
+        enrolledCount: { type: integer }
+    ProgramInput:
+      type: object
+      required: [tag, title, description, startDate, format, duration]
+      properties:
+        tag: { type: string, minLength: 1 }
+        title: { type: string, minLength: 1 }
+        description: { type: string, minLength: 1 }
+        startDate: { type: string, minLength: 1 }
+        format: { type: string, minLength: 1 }
+        duration: { type: string, minLength: 1 }
+        thumbnailUrl: { type: string }
+        capacity: { type: integer, minimum: 1 }
+        status: { type: string, enum: [draft, published, archived] }
+    ProgramUpdate:
+      type: object
+      properties:
+        tag: { type: string, minLength: 1 }
+        title: { type: string, minLength: 1 }
+        description: { type: string, minLength: 1 }
+        startDate: { type: string, minLength: 1 }
+        format: { type: string, minLength: 1 }
+        duration: { type: string, minLength: 1 }
+        thumbnailUrl: { type: string }
+        capacity: { type: integer, minimum: 1 }
+        status: { type: string, enum: [draft, published, archived] }
+    Session:
+      type: object
+      required: [id, programId, title, description, sortOrder, durationMins]
+      properties:
+        id: { type: integer }
+        programId: { type: integer }
+        title: { type: string }
+        description: { type: string }
+        sortOrder: { type: integer }
+        startsAt: { type: ["string", "null"], format: date-time }
+        durationMins: { type: integer }
+        meetUrl: { type: ["string", "null"] }
+        recordingUrl: { type: ["string", "null"] }
+        instructorId: { type: ["integer", "null"] }
+        instructorName: { type: ["string", "null"] }
+    SessionDetail:
+      type: object
+      required: [id, programId, programTitle, title, description, sortOrder, durationMins]
+      properties:
+        id: { type: integer }
+        programId: { type: integer }
+        programTitle: { type: string }
+        title: { type: string }
+        description: { type: string }
+        sortOrder: { type: integer }
+        startsAt: { type: ["string", "null"], format: date-time }
+        durationMins: { type: integer }
+        meetUrl: { type: ["string", "null"] }
+        recordingUrl: { type: ["string", "null"] }
+        instructorId: { type: ["integer", "null"] }
+        instructorName: { type: ["string", "null"] }
+    SessionInput:
+      type: object
+      required: [title]
+      properties:
+        title: { type: string, minLength: 1 }
+        description: { type: string }
+        sortOrder: { type: integer }
+        startsAt: { type: ["string", "null"], format: date-time }
+        durationMins: { type: integer, minimum: 5 }
+        meetUrl: { type: string }
+        recordingUrl: { type: string }
+        instructorId: { type: ["integer", "null"] }
+    SessionUpdate:
+      type: object
+      properties:
+        title: { type: string, minLength: 1 }
+        description: { type: string }
+        sortOrder: { type: integer }
+        startsAt: { type: ["string", "null"], format: date-time }
+        durationMins: { type: integer, minimum: 5 }
+        meetUrl: { type: ["string", "null"] }
+        recordingUrl: { type: ["string", "null"] }
+        instructorId: { type: ["integer", "null"] }
+    Enrollment:
+      type: object
+      required: [id, userId, programId, status]
+      properties:
+        id: { type: integer }
+        userId: { type: integer }
+        programId: { type: integer }
+        status: { type: string, enum: [enrolled, waitlisted, cancelled, completed] }
+    EnrollmentDetail:
+      type: object
+      required: [id, userId, programId, status, programTitle, userName, userEmail]
+      properties:
+        id: { type: integer }
+        userId: { type: integer }
+        programId: { type: integer }
+        status: { type: string, enum: [enrolled, waitlisted, cancelled, completed] }
+        programTitle: { type: string }
+        programStartDate: { type: ["string", "null"] }
+        userName: { type: string }
+        userEmail: { type: string }
+    EnrollmentUpdate:
+      type: object
+      required: [status]
+      properties:
+        status: { type: string, enum: [enrolled, waitlisted, cancelled, completed] }

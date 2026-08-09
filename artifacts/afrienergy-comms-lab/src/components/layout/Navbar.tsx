@@ -3,6 +3,8 @@ import { Button } from '@/components/ui/button';
 import { Menu, X, User } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { cn } from '@/lib/utils';
+import { useClerk } from '@clerk/react';
+import { useCurrentUser } from '@/lib/useCurrentUser';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -12,10 +14,14 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
+const basePath = import.meta.env.BASE_URL.replace(/\/$/, '');
+
 export function Navbar() {
   const [location, setLocation] = useLocation();
   const [isScrolled, setIsScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const { signOut } = useClerk();
+  const { isSignedIn, user, role } = useCurrentUser();
 
   useEffect(() => {
     const handleScroll = () => {
@@ -30,6 +36,12 @@ export function Navbar() {
     { label: 'Live Sessions', href: '/live-sessions' },
     { label: 'About', href: '/about' },
   ];
+
+  const accountLinks = [
+    { label: 'My Learning', href: '/dashboard', show: true },
+    { label: 'Teaching', href: '/teach', show: role === 'instructor' || role === 'admin' },
+    { label: 'Admin Console', href: '/admin', show: role === 'admin' },
+  ].filter((l) => l.show);
 
   return (
     <header
@@ -69,26 +81,37 @@ export function Navbar() {
             </div>
 
             <div className="flex items-center gap-4 border-l border-border pl-6">
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon" className="rounded-full">
-                    <User className="h-5 w-5" />
+              {isSignedIn ? (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon" className="rounded-full">
+                      <User className="h-5 w-5" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-56">
+                    <DropdownMenuLabel className="truncate">{user?.name || user?.email || 'My Account'}</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    {accountLinks.map((l) => (
+                      <DropdownMenuItem key={l.href} onClick={() => setLocation(l.href)}>
+                        {l.label}
+                      </DropdownMenuItem>
+                    ))}
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={() => signOut({ redirectUrl: basePath || '/' })}>
+                      Sign out
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              ) : (
+                <>
+                  <Link href="/sign-in" className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors">
+                    Sign in
+                  </Link>
+                  <Button asChild className="rounded-full font-bold px-6 shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30 transition-all">
+                    <Link href="/sign-up">Join the Lab</Link>
                   </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-56">
-                  <DropdownMenuLabel>My Account</DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => setLocation('/dashboard')}>
-                    Learner Dashboard
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setLocation('/instructor')}>
-                    Instructor Dashboard
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-              <Button asChild className="rounded-full font-bold px-6 shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30 transition-all">
-                <Link href="/register">Register Interest</Link>
-              </Button>
+                </>
+              )}
             </div>
           </nav>
 
@@ -116,27 +139,43 @@ export function Navbar() {
             </Link>
           ))}
           <div className="h-px bg-border my-2" />
-          <Link
-            href="/register"
-            onClick={() => setMobileMenuOpen(false)}
-            className="text-lg font-medium px-4 py-2 bg-primary text-primary-foreground text-center rounded-md"
-          >
-            Register Interest
-          </Link>
-          <Link
-            href="/dashboard"
-            onClick={() => setMobileMenuOpen(false)}
-            className="text-lg font-medium px-4 py-2 hover:bg-muted rounded-md"
-          >
-            Learner Dashboard
-          </Link>
-          <Link
-            href="/instructor"
-            onClick={() => setMobileMenuOpen(false)}
-            className="text-lg font-medium px-4 py-2 hover:bg-muted rounded-md"
-          >
-            Instructor Dashboard
-          </Link>
+          {isSignedIn ? (
+            <>
+              {accountLinks.map((l) => (
+                <Link
+                  key={l.href}
+                  href={l.href}
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="text-lg font-medium px-4 py-2 hover:bg-muted rounded-md"
+                >
+                  {l.label}
+                </Link>
+              ))}
+              <button
+                onClick={() => { setMobileMenuOpen(false); signOut({ redirectUrl: basePath || '/' }); }}
+                className="text-lg font-medium px-4 py-2 text-left hover:bg-muted rounded-md"
+              >
+                Sign out
+              </button>
+            </>
+          ) : (
+            <>
+              <Link
+                href="/sign-up"
+                onClick={() => setMobileMenuOpen(false)}
+                className="text-lg font-medium px-4 py-2 bg-primary text-primary-foreground text-center rounded-md"
+              >
+                Join the Lab
+              </Link>
+              <Link
+                href="/sign-in"
+                onClick={() => setMobileMenuOpen(false)}
+                className="text-lg font-medium px-4 py-2 hover:bg-muted rounded-md"
+              >
+                Sign in
+              </Link>
+            </>
+          )}
         </div>
       )}
     </header>
