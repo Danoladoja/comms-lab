@@ -3,6 +3,7 @@ import { db, enrollmentsTable, programsTable, usersTable } from "@workspace/db";
 import { and, asc, eq, sql } from "drizzle-orm";
 import { UpdateUserRoleBody, UpdateEnrollmentBody } from "@workspace/api-zod";
 import { requireRole } from "../lib/auth";
+import { sendWaitlistPromotion } from "../lib/enrollmentEmails";
 
 const router: IRouter = Router();
 
@@ -67,6 +68,8 @@ router.patch("/admin/enrollments/:id", async (req, res) => {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
+  type PromotedLearner = { email: string; name: string; program: { title: string; startDate: string } };
+  let promoted: PromotedLearner | null = null;
   const updated = await db.transaction(async (tx) => {
     const rows = await tx
       .update(enrollmentsTable)
@@ -92,11 +95,23 @@ router.patch("/admin/enrollments/:id", async (req, res) => {
           .limit(1);
         if (waitlisted.length > 0) {
           await tx.update(enrollmentsTable).set({ status: "enrolled" }).where(eq(enrollmentsTable.id, waitlisted[0].id));
+          const [learner] = await tx
+            .select({ email: usersTable.email, name: usersTable.name })
+            .from(usersTable)
+            .where(eq(usersTable.id, waitlisted[0].userId));
+          if (learner) {
+            promoted = { ...learner, program: { title: program.title, startDate: program.startDate } };
+          }
         }
       }
     }
     return rows;
   });
+  // Email only after the promotion has committed; failure only logs.
+  const p = promoted as PromotedLearner | null;
+  if (p) {
+    sendWaitlistPromotion({ email: p.email, name: p.name }, p.program);
+  }
   if (updated.length === 0) {
     res.status(404).json({ error: "Enrollment not found" });
     return;

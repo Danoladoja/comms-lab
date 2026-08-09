@@ -5,6 +5,7 @@ import {
 } from "@workspace/db";
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import { getCurrentUser } from "../lib/auth";
+import { sendEnrollmentConfirmation, sendWaitlistConfirmation } from "../lib/enrollmentEmails";
 
 const router: IRouter = Router();
 
@@ -222,6 +223,12 @@ router.post("/programs/:id/enroll", async (req, res) => {
       .returning();
     return created;
   });
+  // Fire-and-forget: the enrollment is committed; an email failure only logs.
+  if (result.status === "enrolled") {
+    sendEnrollmentConfirmation({ email: user.email, name: user.name }, program[0]);
+  } else if (result.status === "waitlisted") {
+    sendWaitlistConfirmation({ email: user.email, name: user.name }, program[0]);
+  }
   res.status(201).json(result);
 });
 
