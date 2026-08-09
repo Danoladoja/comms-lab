@@ -1,11 +1,15 @@
 import { Router, type IRouter } from "express";
-import { db, attendanceTable, enrollmentsTable, programsTable, sessionsTable, usersTable } from "@workspace/db";
+import {
+  db, attendanceTable, enrollmentsTable, programsTable, sessionsTable, usersTable,
+  quizQuestionsTable, quizAttemptsTable, assignmentsTable, assignmentSubmissionsTable,
+} from "@workspace/db";
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import { getCurrentUser } from "../lib/auth";
 
 const router: IRouter = Router();
 
 const LIVE_GRACE_MS = 5 * 60 * 1000; // join within 5 min of start still counts as "from the start"
+export const QUIZ_PASS_MARK = 70;
 
 type SessionLite = {
   id: number;
@@ -15,6 +19,13 @@ type SessionLite = {
   sortOrder: number;
 };
 
+export type CourseworkStatus = {
+  hasQuiz: boolean;
+  quizBestScore: number | null;
+  hasAssignment: boolean;
+  assignmentSubmitted: boolean;
+};
+
 type ProgressEntry = {
   sessionId: number;
   programId: number;
@@ -22,13 +33,19 @@ type ProgressEntry = {
   attendedLive: boolean;
   completed: boolean;
   locked: boolean;
+  hasQuiz: boolean;
+  quizPassed: boolean;
+  quizBestScore: number | null;
+  hasAssignment: boolean;
+  assignmentSubmitted: boolean;
 };
 
 /**
  * Compute per-module progress and sequential lock state for a learner.
- * - progressPct: share of the session the learner was present for (by join time).
+ * - progressPct: blended across the module's components (live attendance, quiz, assignment).
  * - attendedLive: joined within the grace window of the start and the session has ended.
- * - completed: attendedLive (present start to finish).
+ * - completed: attendedLive AND quiz passed (70%+, when the module has one)
+ *   AND assignment submitted (when the module has one).
  * - locked: a previous module in the same program is not completed yet.
  * A previous module does NOT lock later ones when it is unscheduled, or when it
  * ended before the learner enrolled (late joiners are not locked out forever).
@@ -37,6 +54,7 @@ export function computeProgress(
   sessions: SessionLite[],
   attendance: Map<number, Date>,
   enrolledAtByProgram: Map<number, Date>,
+  coursework: Map<number, CourseworkStatus>,
   now = Date.now(),
 ): ProgressEntry[] {
   const byProgram = new Map<number, SessionLite[]>();
@@ -60,17 +78,28 @@ export function computeProgress(
       const start = s.startsAt?.getTime() ?? null;
       const durationMs = s.durationMins * 60 * 1000;
       const end = start !== null ? start + durationMs : null;
-      let progressPct = 0;
+      let attendancePct = 0;
       let attendedLive = false;
       if (joined && start !== null && end !== null) {
         const effectiveJoin = Math.max(joined.getTime(), start);
         const watchedUntil = Math.min(now, end);
-        progressPct = Math.max(0, Math.min(100, Math.round(((watchedUntil - effectiveJoin) / durationMs) * 100)));
+        attendancePct = Math.max(0, Math.min(100, Math.round(((watchedUntil - effectiveJoin) / durationMs) * 100)));
         attendedLive = joined.getTime() <= start + LIVE_GRACE_MS && now >= end;
-        if (attendedLive) progressPct = 100;
+        if (attendedLive) attendancePct = 100;
       }
-      const completed = attendedLive;
-      entries.push({ sessionId: s.id, programId: s.programId, progressPct, attendedLive, completed, locked: !previousSatisfied });
+      const cw = coursework.get(s.id) ?? { hasQuiz: false, quizBestScore: null, hasAssignment: false, assignmentSubmitted: false };
+      const quizPassed = cw.hasQuiz && (cw.quizBestScore ?? 0) >= QUIZ_PASS_MARK;
+      const completed = attendedLive && (!cw.hasQuiz || quizPassed) && (!cw.hasAssignment || cw.assignmentSubmitted);
+      // Blend the module's components equally: live class, quiz (best score), assignment.
+      const parts = [attendancePct];
+      if (cw.hasQuiz) parts.push(quizPassed ? 100 : Math.min(cw.quizBestScore ?? 0, 99));
+      if (cw.hasAssignment) parts.push(cw.assignmentSubmitted ? 100 : 0);
+      const progressPct = completed ? 100 : Math.round(parts.reduce((a, b) => a + b, 0) / parts.length);
+      entries.push({
+        sessionId: s.id, programId: s.programId, progressPct, attendedLive, completed, locked: !previousSatisfied,
+        hasQuiz: cw.hasQuiz, quizPassed, quizBestScore: cw.quizBestScore,
+        hasAssignment: cw.hasAssignment, assignmentSubmitted: cw.assignmentSubmitted,
+      });
       // Waived prerequisites: unscheduled sessions, or sessions that ended before enrollment.
       const waived = start === null || (end !== null && end < enrolledAt);
       previousSatisfied = completed || waived;
@@ -101,7 +130,44 @@ export async function progressForUser(userId: number, programIds: number[]): Pro
     .from(enrollmentsTable)
     .where(and(eq(enrollmentsTable.userId, userId), inArray(enrollmentsTable.programId, programIds)));
   const enrolledAtByProgram = new Map(enrollRows.map((e) => [e.programId, e.createdAt]));
-  return computeProgress(sessions, attendance, enrolledAtByProgram);
+
+  const sessionIds = sessions.map((s) => s.id).concat(-1);
+  const [quizSessions, bestAttempts, assignments, submissions] = await Promise.all([
+    db
+      .selectDistinct({ sessionId: quizQuestionsTable.sessionId })
+      .from(quizQuestionsTable)
+      .where(inArray(quizQuestionsTable.sessionId, sessionIds)),
+    db
+      .select({ sessionId: quizAttemptsTable.sessionId, best: sql<number>`max(${quizAttemptsTable.scorePct})::int` })
+      .from(quizAttemptsTable)
+      .where(and(eq(quizAttemptsTable.userId, userId), inArray(quizAttemptsTable.sessionId, sessionIds)))
+      .groupBy(quizAttemptsTable.sessionId),
+    db
+      .select({ sessionId: assignmentsTable.sessionId })
+      .from(assignmentsTable)
+      .where(inArray(assignmentsTable.sessionId, sessionIds)),
+    db
+      .select({ sessionId: assignmentSubmissionsTable.sessionId })
+      .from(assignmentSubmissionsTable)
+      .where(and(eq(assignmentSubmissionsTable.userId, userId), inArray(assignmentSubmissionsTable.sessionId, sessionIds))),
+  ]);
+  const quizSet = new Set(quizSessions.map((q) => q.sessionId));
+  const bestBySession = new Map(bestAttempts.map((a) => [a.sessionId, a.best]));
+  const assignmentSet = new Set(assignments.map((a) => a.sessionId));
+  const submittedSet = new Set(submissions.map((s) => s.sessionId));
+  const coursework = new Map<number, CourseworkStatus>(
+    sessions.map((s) => [
+      s.id,
+      {
+        hasQuiz: quizSet.has(s.id),
+        quizBestScore: bestBySession.get(s.id) ?? null,
+        hasAssignment: assignmentSet.has(s.id),
+        assignmentSubmitted: submittedSet.has(s.id),
+      },
+    ]),
+  );
+
+  return computeProgress(sessions, attendance, enrolledAtByProgram, coursework);
 }
 
 async function enrolledProgramIds(userId: number): Promise<number[]> {

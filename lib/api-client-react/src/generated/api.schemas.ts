@@ -44,6 +44,88 @@ export interface SessionProgress {
   attendedLive: boolean;
   completed: boolean;
   locked: boolean;
+  hasQuiz: boolean;
+  quizPassed: boolean;
+  /** @nullable */
+  quizBestScore: number | null;
+  hasAssignment: boolean;
+  assignmentSubmitted: boolean;
+}
+
+export interface QuizQuestionPublic {
+  id: number;
+  prompt: string;
+  options: string[];
+  sortOrder: number;
+  /** @nullable */
+  correctIndex?: number | null;
+}
+
+export interface Quiz {
+  sessionId: number;
+  passMark: number;
+  questions: QuizQuestionPublic[];
+  /** @nullable */
+  bestScore: number | null;
+  passed: boolean;
+}
+
+export type QuizInputQuestionsItem = {
+  /** @minLength 1 */
+  prompt: string;
+  /**
+     * @minItems 2
+     * @items.minLength 1
+     */
+  options: string[];
+  /** @minimum 0 */
+  correctIndex: number;
+};
+
+export interface QuizInput {
+  questions: QuizInputQuestionsItem[];
+}
+
+export type QuizAttemptInputAnswersItem = {
+  questionId: number;
+  answerIndex: number;
+};
+
+export interface QuizAttemptInput {
+  answers: QuizAttemptInputAnswersItem[];
+}
+
+export interface QuizResult {
+  sessionId: number;
+  scorePct: number;
+  passed: boolean;
+  correctCount: number;
+  totalQuestions: number;
+  bestScore: number;
+}
+
+export interface AssignmentSubmission {
+  sessionId: number;
+  body: string;
+  submittedAt: string;
+}
+
+export interface AssignmentDetail {
+  sessionId: number;
+  title: string;
+  instructions: string;
+  mySubmission?: AssignmentSubmission | null;
+}
+
+export interface AssignmentInput {
+  /** @minLength 1 */
+  title: string;
+  instructions?: string;
+}
+
+export interface AssignmentSubmissionInput {
+  /** @minLength 1 */
+  body: string;
 }
 
 export type UserRoleUpdateRole = typeof UserRoleUpdateRole[keyof typeof UserRoleUpdateRole];

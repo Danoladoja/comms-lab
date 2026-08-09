@@ -13,6 +13,8 @@ import {
   Calendar, Video, PlayCircle, GraduationCap, CheckCircle2, Circle, Lock,
   Radio, MessageSquare, ClipboardList, FileQuestion, ArrowRight, Clock,
 } from 'lucide-react';
+import { useState } from 'react';
+import { QuizDialog, AssignmentDialog } from '@/components/CourseworkDialogs';
 
 function formatSessionDate(iso: string | null | undefined) {
   if (!iso) return 'Date to be announced';
@@ -32,23 +34,12 @@ const statusClass: Record<string, string> = {
   cancelled: 'bg-muted text-muted-foreground',
 };
 
-// Preview content until quizzes, discussions, and assignments go live.
-const previewQuizzes = [
-  { id: 1, title: 'Framing Energy Stories: Module 1 Check', questions: 5, duration: '10 min', status: 'Ready' },
-  { id: 2, title: 'Audience Mapping Essentials', questions: 8, duration: '15 min', status: 'Ready' },
-  { id: 3, title: 'Policy Briefing Structures', questions: 6, duration: '12 min', status: 'Locked until Module 3' },
-];
+// Preview content until forum discussions go live.
 const previewThreads = [
   { title: 'How do you explain tariffs to a general audience?', author: 'Zanele M.', replies: 12, last: '2h ago' },
   { title: 'Share your one-line energy story from Module 1', author: 'Ngozi E. (Facilitator)', replies: 23, last: '5h ago', pinned: true },
   { title: 'Examples of great transition storytelling from Senegal', author: 'Fatima D.', replies: 7, last: '1d ago' },
 ];
-const previewAssignments = [
-  { title: 'Draft a 200-word narrative brief for a minister', due: 'Due in 3 days', status: 'In progress' },
-  { title: 'Rewrite a technical press release for radio', due: 'Due in 8 days', status: 'Not started' },
-  { title: 'Peer review: two story spines from your cohort', due: 'Opens after Module 3', status: 'Locked' },
-];
-
 import type { SessionDetail } from '@workspace/api-client-react';
 type SessionRow = SessionDetail;
 
@@ -90,6 +81,9 @@ export default function LearnerDashboard() {
       },
     },
   });
+
+  const [quizFor, setQuizFor] = useState<SessionRow | null>(null);
+  const [assignmentFor, setAssignmentFor] = useState<SessionRow | null>(null);
 
   const now = Date.now();
   const active = enrollments.filter(e => e.status !== 'cancelled');
@@ -190,14 +184,14 @@ export default function LearnerDashboard() {
                             const locked = entry?.locked ?? false;
                             const pct = entry?.completed ? 100 : entry?.progressPct ?? 0;
                             return (
-                              <li key={m.id}>
+                              <li key={m.id} className={`rounded-xl border border-border transition-colors ${
+                                locked ? 'opacity-55 bg-muted/30' : 'hover:border-primary/40'
+                              }`}>
                                 <button
                                   onClick={() => openModule(m)}
                                   disabled={locked}
-                                  className={`w-full text-left flex items-center gap-3 rounded-xl border border-border px-4 py-3 transition-colors ${
-                                    locked
-                                      ? 'opacity-55 cursor-not-allowed bg-muted/30'
-                                      : 'hover:border-primary/40 hover:bg-primary/5'
+                                  className={`w-full text-left flex items-center gap-3 px-4 pt-3 ${locked ? 'cursor-not-allowed' : ''} ${
+                                    entry && (entry.hasQuiz || entry.hasAssignment) ? 'pb-1.5' : 'pb-3'
                                   }`}
                                 >
                                   {locked
@@ -222,16 +216,48 @@ export default function LearnerDashboard() {
                                     {locked
                                       ? <span className="text-muted-foreground">Locked</span>
                                       : entry?.completed
-                                        ? (m.recordingUrl
+                                        ? (m.recordingUrl && entry.attendedLive
                                             ? <><PlayCircle className="w-4 h-4" />Watch replay</>
                                             : 'Completed')
                                         : state === 'live'
                                           ? <><Video className="w-4 h-4" />Join live</>
-                                          : state === 'done'
+                                          : state === 'done' && !entry?.attendedLive
                                             ? <span className="text-muted-foreground">Missed live class</span>
                                             : <>Open classroom<ArrowRight className="w-3.5 h-3.5" /></>}
                                   </span>
                                 </button>
+                                {entry && (entry.hasQuiz || entry.hasAssignment) && !locked && (
+                                  <div className="flex flex-wrap items-center gap-2 px-4 pb-3 pl-12">
+                                    {entry.hasQuiz && (
+                                      <button
+                                        onClick={() => setQuizFor(m)}
+                                        className={`text-[11px] font-semibold rounded-full px-2.5 py-1 border transition-colors ${
+                                          entry.quizPassed
+                                            ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+                                            : 'border-border text-muted-foreground hover:border-primary/50 hover:text-primary'
+                                        }`}
+                                      >
+                                        {entry.quizPassed
+                                          ? `Quiz passed · ${entry.quizBestScore}%`
+                                          : entry.quizBestScore != null
+                                            ? `Retake quiz · best ${entry.quizBestScore}%`
+                                            : 'Take the quiz'}
+                                      </button>
+                                    )}
+                                    {entry.hasAssignment && (
+                                      <button
+                                        onClick={() => setAssignmentFor(m)}
+                                        className={`text-[11px] font-semibold rounded-full px-2.5 py-1 border transition-colors ${
+                                          entry.assignmentSubmitted
+                                            ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+                                            : 'border-border text-muted-foreground hover:border-primary/50 hover:text-primary'
+                                        }`}
+                                      >
+                                        {entry.assignmentSubmitted ? 'Assignment submitted' : 'Submit the assignment'}
+                                      </button>
+                                    )}
+                                  </div>
+                                )}
                               </li>
                             );
                           })}
@@ -242,24 +268,14 @@ export default function LearnerDashboard() {
                 })}
               </TabsContent>
 
-              {/* QUIZZES (preview) */}
+              {/* QUIZZES */}
               <TabsContent value="quizzes">
-                <PreviewNote label="Quizzes" />
-                <div className="space-y-3">
-                  {previewQuizzes.map(q => (
-                    <div key={q.id} className="bg-card border border-border rounded-xl p-5 flex flex-col sm:flex-row sm:items-center gap-3">
-                      <div className="flex-1 min-w-0">
-                        <h3 className="font-semibold">{q.title}</h3>
-                        <p className="text-xs text-muted-foreground">{q.questions} questions · {q.duration}</p>
-                      </div>
-                      {q.status === 'Ready' ? (
-                        <Button asChild size="sm"><Link href={`/quiz/${q.id}`}>Start Quiz</Link></Button>
-                      ) : (
-                        <span className="text-xs font-medium text-muted-foreground">{q.status}</span>
-                      )}
-                    </div>
-                  ))}
-                </div>
+                <CourseworkList
+                  kind="quiz"
+                  sessions={sessions as SessionRow[]}
+                  progressBySession={progressBySession}
+                  onOpen={setQuizFor}
+                />
               </TabsContent>
 
               {/* DISCUSSIONS (preview) */}
@@ -285,24 +301,14 @@ export default function LearnerDashboard() {
                 </div>
               </TabsContent>
 
-              {/* ASSIGNMENTS (preview) */}
+              {/* ASSIGNMENTS */}
               <TabsContent value="assignments">
-                <PreviewNote label="Assignments" />
-                <div className="space-y-3">
-                  {previewAssignments.map((a, i) => (
-                    <div key={i} className="bg-card border border-border rounded-xl p-5 flex flex-col sm:flex-row sm:items-center gap-3">
-                      <div className="flex-1 min-w-0">
-                        <h3 className="font-semibold">{a.title}</h3>
-                        <p className="text-xs text-muted-foreground">{a.due}</p>
-                      </div>
-                      <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${
-                        a.status === 'In progress' ? 'bg-primary/10 text-primary'
-                        : a.status === 'Locked' ? 'bg-muted text-muted-foreground'
-                        : 'bg-amber-100 text-amber-800'
-                      }`}>{a.status}</span>
-                    </div>
-                  ))}
-                </div>
+                <CourseworkList
+                  kind="assignment"
+                  sessions={sessions as SessionRow[]}
+                  progressBySession={progressBySession}
+                  onOpen={setAssignmentFor}
+                />
               </TabsContent>
             </Tabs>
           )}
@@ -344,6 +350,89 @@ export default function LearnerDashboard() {
           )}
         </aside>
       </div>
+
+      {quizFor && (
+        <QuizDialog
+          sessionId={quizFor.id}
+          moduleTitle={quizFor.title}
+          open={!!quizFor}
+          onOpenChange={(v) => { if (!v) setQuizFor(null); }}
+        />
+      )}
+      {assignmentFor && (
+        <AssignmentDialog
+          sessionId={assignmentFor.id}
+          moduleTitle={assignmentFor.title}
+          open={!!assignmentFor}
+          onOpenChange={(v) => { if (!v) setAssignmentFor(null); }}
+        />
+      )}
+    </div>
+  );
+}
+
+type ProgressEntryRow = import('@workspace/api-client-react').SessionProgress;
+
+function CourseworkList({ kind, sessions, progressBySession, onOpen }: {
+  kind: 'quiz' | 'assignment';
+  sessions: SessionRow[];
+  progressBySession: Map<number, ProgressEntryRow>;
+  onOpen: (s: SessionRow) => void;
+}) {
+  const items = sessions.filter(s => {
+    const e = progressBySession.get(s.id);
+    return kind === 'quiz' ? e?.hasQuiz : e?.hasAssignment;
+  });
+  if (items.length === 0) {
+    return (
+      <p className="text-sm text-muted-foreground bg-card border border-border rounded-xl p-6">
+        {kind === 'quiz' ? 'No quizzes have been published for your modules yet.' : 'No assignments have been published for your modules yet.'}
+      </p>
+    );
+  }
+  return (
+    <div className="space-y-3">
+      <p className="text-xs text-muted-foreground bg-[#F4F0E8] border border-border rounded-lg px-3 py-2">
+        {kind === 'quiz'
+          ? 'Each module has a short quiz. Score 70% or more to pass — you can retake it as many times as you need.'
+          : 'Each module has a written assignment. Submitting it counts toward completing the module.'}
+      </p>
+      {items.map(s => {
+        const e = progressBySession.get(s.id)!;
+        const done = kind === 'quiz' ? e.quizPassed : e.assignmentSubmitted;
+        return (
+          <div key={s.id} className="bg-card border border-border rounded-xl p-5 flex flex-col sm:flex-row sm:items-center gap-3">
+            <div className="flex-1 min-w-0">
+              <p className="text-xs uppercase tracking-widest text-[#C2410C] font-medium mb-0.5">{s.programTitle}</p>
+              <h3 className="font-semibold">{s.title}</h3>
+              <p className="text-xs text-muted-foreground">
+                {done
+                  ? kind === 'quiz' ? `Passed with ${e.quizBestScore}%` : 'Submitted'
+                  : e.locked
+                    ? 'Unlocks after the previous module'
+                    : kind === 'quiz' && e.quizBestScore != null
+                      ? `Best score so far ${e.quizBestScore}% — 70% needed`
+                      : 'Not started'}
+              </p>
+            </div>
+            {done ? (
+              <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 flex items-center gap-1">
+                <CheckCircle2 className="w-3.5 h-3.5" />{kind === 'quiz' ? 'Passed' : 'Submitted'}
+              </span>
+            ) : e.locked ? (
+              <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-muted text-muted-foreground flex items-center gap-1">
+                <Lock className="w-3 h-3" />Locked
+              </span>
+            ) : (
+              <Button size="sm" onClick={() => onOpen(s)}>
+                {kind === 'quiz'
+                  ? e.quizBestScore != null ? 'Retake Quiz' : 'Start Quiz'
+                  : 'Open Assignment'}
+              </Button>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }

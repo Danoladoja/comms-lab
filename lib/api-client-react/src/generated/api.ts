@@ -21,6 +21,10 @@ import type {
 
 import type {
   ApiMessage,
+  AssignmentDetail,
+  AssignmentInput,
+  AssignmentSubmission,
+  AssignmentSubmissionInput,
   Enrollment,
   EnrollmentDetail,
   EnrollmentUpdate,
@@ -30,6 +34,10 @@ import type {
   Program,
   ProgramInput,
   ProgramUpdate,
+  Quiz,
+  QuizAttemptInput,
+  QuizInput,
+  QuizResult,
   Session,
   SessionDetail,
   SessionInput,
@@ -879,6 +887,448 @@ export const useJoinSession = <TError = ErrorType<ApiMessage>,
         TContext
       > => {
       return useMutation(getJoinSessionMutationOptions(options));
+    }
+
+export const getGetSessionQuizUrl = (id: number,) => {
+
+
+
+
+  return `/api/sessions/${id}/quiz`
+}
+
+/**
+ * @summary Get the quiz for a module (answers hidden for learners; module must be unlocked)
+ */
+export const getSessionQuiz = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<Quiz> => {
+
+  return customFetch<Quiz>(getGetSessionQuizUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetSessionQuizQueryKey = (id: number,) => {
+    return [
+    `/api/sessions/${id}/quiz`
+    ] as const;
+    }
+
+
+export const getGetSessionQuizQueryOptions = <TData = Awaited<ReturnType<typeof getSessionQuiz>>, TError = ErrorType<ApiMessage>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSessionQuiz>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetSessionQuizQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getSessionQuiz>>> = ({ signal }) => getSessionQuiz(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getSessionQuiz>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetSessionQuizQueryResult = NonNullable<Awaited<ReturnType<typeof getSessionQuiz>>>
+export type GetSessionQuizQueryError = ErrorType<ApiMessage>
+
+
+/**
+ * @summary Get the quiz for a module (answers hidden for learners; module must be unlocked)
+ */
+
+export function useGetSessionQuiz<TData = Awaited<ReturnType<typeof getSessionQuiz>>, TError = ErrorType<ApiMessage>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSessionQuiz>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetSessionQuizQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpsertSessionQuizUrl = (id: number,) => {
+
+
+
+
+  return `/api/sessions/${id}/quiz`
+}
+
+/**
+ * @summary Replace the quiz for a module (admin or assigned instructor)
+ */
+export const upsertSessionQuiz = async (id: number,
+    quizInput: QuizInput, options?: Parameters<typeof customFetch>[1]): Promise<Quiz> => {
+
+  return customFetch<Quiz>(getUpsertSessionQuizUrl(id),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(quizInput)
+  }
+);}
+
+
+
+
+
+export const getUpsertSessionQuizMutationOptions = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof upsertSessionQuiz>>, TError,{id: number;data: BodyType<QuizInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof upsertSessionQuiz>>, TError,{id: number;data: BodyType<QuizInput>}, TContext> => {
+
+const mutationKey = ['upsertSessionQuiz'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof upsertSessionQuiz>>, {id: number;data: BodyType<QuizInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  upsertSessionQuiz(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpsertSessionQuizMutationResult = NonNullable<Awaited<ReturnType<typeof upsertSessionQuiz>>>
+    export type UpsertSessionQuizMutationBody = BodyType<QuizInput>
+    export type UpsertSessionQuizMutationError = ErrorType<ApiMessage>
+
+    /**
+ * @summary Replace the quiz for a module (admin or assigned instructor)
+ */
+export const useUpsertSessionQuiz = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof upsertSessionQuiz>>, TError,{id: number;data: BodyType<QuizInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof upsertSessionQuiz>>,
+        TError,
+        {id: number;data: BodyType<QuizInput>},
+        TContext
+      > => {
+      return useMutation(getUpsertSessionQuizMutationOptions(options));
+    }
+
+export const getSubmitQuizAttemptUrl = (id: number,) => {
+
+
+
+
+  return `/api/sessions/${id}/quiz/attempts`
+}
+
+/**
+ * @summary Submit quiz answers; graded on the server, 70% passes, unlimited retakes
+ */
+export const submitQuizAttempt = async (id: number,
+    quizAttemptInput: QuizAttemptInput, options?: Parameters<typeof customFetch>[1]): Promise<QuizResult> => {
+
+  return customFetch<QuizResult>(getSubmitQuizAttemptUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(quizAttemptInput)
+  }
+);}
+
+
+
+
+
+export const getSubmitQuizAttemptMutationOptions = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitQuizAttempt>>, TError,{id: number;data: BodyType<QuizAttemptInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof submitQuizAttempt>>, TError,{id: number;data: BodyType<QuizAttemptInput>}, TContext> => {
+
+const mutationKey = ['submitQuizAttempt'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof submitQuizAttempt>>, {id: number;data: BodyType<QuizAttemptInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  submitQuizAttempt(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SubmitQuizAttemptMutationResult = NonNullable<Awaited<ReturnType<typeof submitQuizAttempt>>>
+    export type SubmitQuizAttemptMutationBody = BodyType<QuizAttemptInput>
+    export type SubmitQuizAttemptMutationError = ErrorType<ApiMessage>
+
+    /**
+ * @summary Submit quiz answers; graded on the server, 70% passes, unlimited retakes
+ */
+export const useSubmitQuizAttempt = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitQuizAttempt>>, TError,{id: number;data: BodyType<QuizAttemptInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof submitQuizAttempt>>,
+        TError,
+        {id: number;data: BodyType<QuizAttemptInput>},
+        TContext
+      > => {
+      return useMutation(getSubmitQuizAttemptMutationOptions(options));
+    }
+
+export const getGetSessionAssignmentUrl = (id: number,) => {
+
+
+
+
+  return `/api/sessions/${id}/assignment`
+}
+
+/**
+ * @summary Get the assignment for a module with the learner's submission if any
+ */
+export const getSessionAssignment = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<AssignmentDetail> => {
+
+  return customFetch<AssignmentDetail>(getGetSessionAssignmentUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetSessionAssignmentQueryKey = (id: number,) => {
+    return [
+    `/api/sessions/${id}/assignment`
+    ] as const;
+    }
+
+
+export const getGetSessionAssignmentQueryOptions = <TData = Awaited<ReturnType<typeof getSessionAssignment>>, TError = ErrorType<ApiMessage>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSessionAssignment>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetSessionAssignmentQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getSessionAssignment>>> = ({ signal }) => getSessionAssignment(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getSessionAssignment>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetSessionAssignmentQueryResult = NonNullable<Awaited<ReturnType<typeof getSessionAssignment>>>
+export type GetSessionAssignmentQueryError = ErrorType<ApiMessage>
+
+
+/**
+ * @summary Get the assignment for a module with the learner's submission if any
+ */
+
+export function useGetSessionAssignment<TData = Awaited<ReturnType<typeof getSessionAssignment>>, TError = ErrorType<ApiMessage>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSessionAssignment>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetSessionAssignmentQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpsertSessionAssignmentUrl = (id: number,) => {
+
+
+
+
+  return `/api/sessions/${id}/assignment`
+}
+
+/**
+ * @summary Create or replace the assignment for a module (admin or assigned instructor)
+ */
+export const upsertSessionAssignment = async (id: number,
+    assignmentInput: AssignmentInput, options?: Parameters<typeof customFetch>[1]): Promise<AssignmentDetail> => {
+
+  return customFetch<AssignmentDetail>(getUpsertSessionAssignmentUrl(id),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(assignmentInput)
+  }
+);}
+
+
+
+
+
+export const getUpsertSessionAssignmentMutationOptions = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof upsertSessionAssignment>>, TError,{id: number;data: BodyType<AssignmentInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof upsertSessionAssignment>>, TError,{id: number;data: BodyType<AssignmentInput>}, TContext> => {
+
+const mutationKey = ['upsertSessionAssignment'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof upsertSessionAssignment>>, {id: number;data: BodyType<AssignmentInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  upsertSessionAssignment(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpsertSessionAssignmentMutationResult = NonNullable<Awaited<ReturnType<typeof upsertSessionAssignment>>>
+    export type UpsertSessionAssignmentMutationBody = BodyType<AssignmentInput>
+    export type UpsertSessionAssignmentMutationError = ErrorType<ApiMessage>
+
+    /**
+ * @summary Create or replace the assignment for a module (admin or assigned instructor)
+ */
+export const useUpsertSessionAssignment = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof upsertSessionAssignment>>, TError,{id: number;data: BodyType<AssignmentInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof upsertSessionAssignment>>,
+        TError,
+        {id: number;data: BodyType<AssignmentInput>},
+        TContext
+      > => {
+      return useMutation(getUpsertSessionAssignmentMutationOptions(options));
+    }
+
+export const getSubmitAssignmentUrl = (id: number,) => {
+
+
+
+
+  return `/api/sessions/${id}/assignment/submission`
+}
+
+/**
+ * @summary Submit (or update) the written assignment for a module
+ */
+export const submitAssignment = async (id: number,
+    assignmentSubmissionInput: AssignmentSubmissionInput, options?: Parameters<typeof customFetch>[1]): Promise<AssignmentSubmission> => {
+
+  return customFetch<AssignmentSubmission>(getSubmitAssignmentUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(assignmentSubmissionInput)
+  }
+);}
+
+
+
+
+
+export const getSubmitAssignmentMutationOptions = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitAssignment>>, TError,{id: number;data: BodyType<AssignmentSubmissionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof submitAssignment>>, TError,{id: number;data: BodyType<AssignmentSubmissionInput>}, TContext> => {
+
+const mutationKey = ['submitAssignment'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof submitAssignment>>, {id: number;data: BodyType<AssignmentSubmissionInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  submitAssignment(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SubmitAssignmentMutationResult = NonNullable<Awaited<ReturnType<typeof submitAssignment>>>
+    export type SubmitAssignmentMutationBody = BodyType<AssignmentSubmissionInput>
+    export type SubmitAssignmentMutationError = ErrorType<ApiMessage>
+
+    /**
+ * @summary Submit (or update) the written assignment for a module
+ */
+export const useSubmitAssignment = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitAssignment>>, TError,{id: number;data: BodyType<AssignmentSubmissionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof submitAssignment>>,
+        TError,
+        {id: number;data: BodyType<AssignmentSubmissionInput>},
+        TContext
+      > => {
+      return useMutation(getSubmitAssignmentMutationOptions(options));
     }
 
 export const getListMyProgressUrl = () => {

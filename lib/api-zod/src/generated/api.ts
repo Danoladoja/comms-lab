@@ -276,6 +276,157 @@ export const JoinSessionResponse = zod.object({
 
 
 /**
+ * @summary Get the quiz for a module (answers hidden for learners; module must be unlocked)
+ */
+export const GetSessionQuizParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const GetSessionQuizResponse = zod.object({
+  "sessionId": zod.int(),
+  "passMark": zod.int(),
+  "questions": zod.array(zod.object({
+  "id": zod.int(),
+  "prompt": zod.string(),
+  "options": zod.array(zod.string()),
+  "sortOrder": zod.int(),
+  "correctIndex": zod.int().nullish()
+})),
+  "bestScore": zod.int().nullable(),
+  "passed": zod.boolean()
+})
+
+
+/**
+ * @summary Replace the quiz for a module (admin or assigned instructor)
+ */
+export const UpsertSessionQuizParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+
+
+export const upsertSessionQuizBodyQuestionsItemOptionsMin = 2;
+
+export const upsertSessionQuizBodyQuestionsItemCorrectIndexMin = 0;
+
+
+
+export const UpsertSessionQuizBody = zod.object({
+  "questions": zod.array(zod.object({
+  "prompt": zod.string().min(1),
+  "options": zod.array(zod.string().min(1)).min(upsertSessionQuizBodyQuestionsItemOptionsMin),
+  "correctIndex": zod.int().min(upsertSessionQuizBodyQuestionsItemCorrectIndexMin)
+}))
+})
+
+export const UpsertSessionQuizResponse = zod.object({
+  "sessionId": zod.int(),
+  "passMark": zod.int(),
+  "questions": zod.array(zod.object({
+  "id": zod.int(),
+  "prompt": zod.string(),
+  "options": zod.array(zod.string()),
+  "sortOrder": zod.int(),
+  "correctIndex": zod.int().nullish()
+})),
+  "bestScore": zod.int().nullable(),
+  "passed": zod.boolean()
+})
+
+
+/**
+ * @summary Submit quiz answers; graded on the server, 70% passes, unlimited retakes
+ */
+export const SubmitQuizAttemptParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const SubmitQuizAttemptBody = zod.object({
+  "answers": zod.array(zod.object({
+  "questionId": zod.int(),
+  "answerIndex": zod.int()
+}))
+})
+
+export const SubmitQuizAttemptResponse = zod.object({
+  "sessionId": zod.int(),
+  "scorePct": zod.int(),
+  "passed": zod.boolean(),
+  "correctCount": zod.int(),
+  "totalQuestions": zod.int(),
+  "bestScore": zod.int()
+})
+
+
+/**
+ * @summary Get the assignment for a module with the learner's submission if any
+ */
+export const GetSessionAssignmentParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const GetSessionAssignmentResponse = zod.object({
+  "sessionId": zod.int(),
+  "title": zod.string(),
+  "instructions": zod.string(),
+  "mySubmission": zod.union([zod.object({
+  "sessionId": zod.int(),
+  "body": zod.string(),
+  "submittedAt": zod.string()
+}),zod.null()]).optional()
+})
+
+
+/**
+ * @summary Create or replace the assignment for a module (admin or assigned instructor)
+ */
+export const UpsertSessionAssignmentParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+
+
+
+export const UpsertSessionAssignmentBody = zod.object({
+  "title": zod.string().min(1),
+  "instructions": zod.string().optional()
+})
+
+export const UpsertSessionAssignmentResponse = zod.object({
+  "sessionId": zod.int(),
+  "title": zod.string(),
+  "instructions": zod.string(),
+  "mySubmission": zod.union([zod.object({
+  "sessionId": zod.int(),
+  "body": zod.string(),
+  "submittedAt": zod.string()
+}),zod.null()]).optional()
+})
+
+
+/**
+ * @summary Submit (or update) the written assignment for a module
+ */
+export const SubmitAssignmentParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+
+
+
+export const SubmitAssignmentBody = zod.object({
+  "body": zod.string().min(1)
+})
+
+export const SubmitAssignmentResponse = zod.object({
+  "sessionId": zod.int(),
+  "body": zod.string(),
+  "submittedAt": zod.string()
+})
+
+
+/**
  * @summary Per-module progress, lock state, and replay rights across the user's enrolled programs
  */
 export const ListMyProgressResponseItem = zod.object({
@@ -284,7 +435,12 @@ export const ListMyProgressResponseItem = zod.object({
   "progressPct": zod.int(),
   "attendedLive": zod.boolean(),
   "completed": zod.boolean(),
-  "locked": zod.boolean()
+  "locked": zod.boolean(),
+  "hasQuiz": zod.boolean(),
+  "quizPassed": zod.boolean(),
+  "quizBestScore": zod.int().nullable(),
+  "hasAssignment": zod.boolean(),
+  "assignmentSubmitted": zod.boolean()
 })
 export const ListMyProgressResponse = zod.array(ListMyProgressResponseItem)
 

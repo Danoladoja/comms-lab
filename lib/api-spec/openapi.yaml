@@ -285,6 +285,214 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiMessage"
+  /sessions/{id}/quiz:
+    get:
+      operationId: getSessionQuiz
+      tags: [enrollments]
+      summary: Get the quiz for a module (answers hidden for learners; module must be unlocked)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Quiz questions and the learner's best result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Quiz"
+        "401":
+          description: Not signed in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "403":
+          description: Locked or not enrolled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "404":
+          description: No quiz for this module
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+    put:
+      operationId: upsertSessionQuiz
+      tags: [admin]
+      summary: Replace the quiz for a module (admin or assigned instructor)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/QuizInput"
+      responses:
+        "200":
+          description: Saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Quiz"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+  /sessions/{id}/quiz/attempts:
+    post:
+      operationId: submitQuizAttempt
+      tags: [enrollments]
+      summary: Submit quiz answers; graded on the server, 70% passes, unlimited retakes
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/QuizAttemptInput"
+      responses:
+        "200":
+          description: Graded result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QuizResult"
+        "401":
+          description: Not signed in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "403":
+          description: Locked or not enrolled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "404":
+          description: No quiz for this module
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+  /sessions/{id}/assignment:
+    get:
+      operationId: getSessionAssignment
+      tags: [enrollments]
+      summary: Get the assignment for a module with the learner's submission if any
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Assignment
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AssignmentDetail"
+        "401":
+          description: Not signed in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "403":
+          description: Locked or not enrolled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "404":
+          description: No assignment for this module
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+    put:
+      operationId: upsertSessionAssignment
+      tags: [admin]
+      summary: Create or replace the assignment for a module (admin or assigned instructor)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AssignmentInput"
+      responses:
+        "200":
+          description: Saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AssignmentDetail"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+  /sessions/{id}/assignment/submission:
+    post:
+      operationId: submitAssignment
+      tags: [enrollments]
+      summary: Submit (or update) the written assignment for a module
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AssignmentSubmissionInput"
+      responses:
+        "200":
+          description: Submission saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AssignmentSubmission"
+        "401":
+          description: Not signed in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "403":
+          description: Locked or not enrolled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "404":
+          description: No assignment for this module
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
   /my/progress:
     get:
       operationId: listMyProgress
@@ -515,7 +723,7 @@ components:
         joinUrl: { type: ["string", "null"] }
     SessionProgress:
       type: object
-      required: [sessionId, programId, progressPct, attendedLive, completed, locked]
+      required: [sessionId, programId, progressPct, attendedLive, completed, locked, hasQuiz, quizPassed, quizBestScore, hasAssignment, assignmentSubmitted]
       properties:
         sessionId: { type: integer }
         programId: { type: integer }
@@ -523,6 +731,101 @@ components:
         attendedLive: { type: boolean }
         completed: { type: boolean }
         locked: { type: boolean }
+        hasQuiz: { type: boolean }
+        quizPassed: { type: boolean }
+        quizBestScore: { type: ["integer", "null"] }
+        hasAssignment: { type: boolean }
+        assignmentSubmitted: { type: boolean }
+    QuizQuestionPublic:
+      type: object
+      required: [id, prompt, options, sortOrder]
+      properties:
+        id: { type: integer }
+        prompt: { type: string }
+        options:
+          type: array
+          items: { type: string }
+        sortOrder: { type: integer }
+        correctIndex: { type: ["integer", "null"] }
+    Quiz:
+      type: object
+      required: [sessionId, passMark, questions, bestScore, passed]
+      properties:
+        sessionId: { type: integer }
+        passMark: { type: integer }
+        questions:
+          type: array
+          items:
+            $ref: "#/components/schemas/QuizQuestionPublic"
+        bestScore: { type: ["integer", "null"] }
+        passed: { type: boolean }
+    QuizInput:
+      type: object
+      required: [questions]
+      properties:
+        questions:
+          type: array
+          items:
+            type: object
+            required: [prompt, options, correctIndex]
+            properties:
+              prompt: { type: string, minLength: 1 }
+              options:
+                type: array
+                minItems: 2
+                items: { type: string, minLength: 1 }
+              correctIndex: { type: integer, minimum: 0 }
+    QuizAttemptInput:
+      type: object
+      required: [answers]
+      properties:
+        answers:
+          type: array
+          items:
+            type: object
+            required: [questionId, answerIndex]
+            properties:
+              questionId: { type: integer }
+              answerIndex: { type: integer }
+    QuizResult:
+      type: object
+      required: [sessionId, scorePct, passed, correctCount, totalQuestions, bestScore]
+      properties:
+        sessionId: { type: integer }
+        scorePct: { type: integer }
+        passed: { type: boolean }
+        correctCount: { type: integer }
+        totalQuestions: { type: integer }
+        bestScore: { type: integer }
+    AssignmentDetail:
+      type: object
+      required: [sessionId, title, instructions]
+      properties:
+        sessionId: { type: integer }
+        title: { type: string }
+        instructions: { type: string }
+        mySubmission:
+          oneOf:
+            - $ref: "#/components/schemas/AssignmentSubmission"
+            - type: "null"
+    AssignmentInput:
+      type: object
+      required: [title]
+      properties:
+        title: { type: string, minLength: 1 }
+        instructions: { type: string }
+    AssignmentSubmissionInput:
+      type: object
+      required: [body]
+      properties:
+        body: { type: string, minLength: 1 }
+    AssignmentSubmission:
+      type: object
+      required: [sessionId, body, submittedAt]
+      properties:
+        sessionId: { type: integer }
+        body: { type: string }
+        submittedAt: { type: string }
     UserRoleUpdate:
       type: object
       required: [role]

@@ -7,6 +7,10 @@
  */
 
 export * from './apiMessage';
+export * from './assignmentDetail';
+export * from './assignmentInput';
+export * from './assignmentSubmission';
+export * from './assignmentSubmissionInput';
 export * from './enrollment';
 export * from './enrollmentDetail';
 export * from './enrollmentDetailStatus';
@@ -22,6 +26,13 @@ export * from './programInputStatus';
 export * from './programStatus';
 export * from './programUpdate';
 export * from './programUpdateStatus';
+export * from './quiz';
+export * from './quizAttemptInput';
+export * from './quizAttemptInputAnswersItem';
+export * from './quizInput';
+export * from './quizInputQuestionsItem';
+export * from './quizQuestionPublic';
+export * from './quizResult';
 export * from './session';
 export * from './sessionDetail';
 export * from './sessionInput';

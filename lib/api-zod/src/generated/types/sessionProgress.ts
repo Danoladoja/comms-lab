@@ -13,4 +13,10 @@ export interface SessionProgress {
   attendedLive: boolean;
   completed: boolean;
   locked: boolean;
+  hasQuiz: boolean;
+  quizPassed: boolean;
+  /** @nullable */
+  quizBestScore: number | null;
+  hasAssignment: boolean;
+  assignmentSubmitted: boolean;
 }

@@ -25,6 +25,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { ChevronDown, ChevronUp, Plus, Trash2 } from 'lucide-react';
+import { QuizEditor, AssignmentEditor } from '@/components/AdminCourseworkEditor';
 
 const TABS = ['Programs', 'Enrollments', 'People'] as const;
 type Tab = (typeof TABS)[number];
@@ -45,6 +46,7 @@ function SessionRow({ session, instructors, onChanged }: {
   const [meetUrl, setMeetUrl] = useState(session.meetUrl ?? '');
   const [recordingUrl, setRecordingUrl] = useState(session.recordingUrl ?? '');
   const [instructorId, setInstructorId] = useState<string>(session.instructorId ? String(session.instructorId) : '');
+  const [coursework, setCoursework] = useState<'none' | 'quiz' | 'assignment'>('none');
 
   const update = useUpdateSession({
     mutation: {
@@ -85,19 +87,35 @@ function SessionRow({ session, instructors, onChanged }: {
           {instructors.map(i => <option key={i.id} value={i.id}>{i.name || i.email}</option>)}
         </select>
       </div>
-      <Button
-        size="sm" variant="outline" disabled={update.isPending}
-        onClick={() => update.mutate({
-          id: session.id,
-          data: {
-            meetUrl: meetUrl || null,
-            recordingUrl: recordingUrl || null,
-            instructorId: instructorId ? Number(instructorId) : null,
-          },
-        })}
-      >
-        {update.isPending ? 'Saving...' : 'Save'}
-      </Button>
+      <div className="flex flex-wrap items-center gap-2">
+        <Button
+          size="sm" variant="outline" disabled={update.isPending}
+          onClick={() => update.mutate({
+            id: session.id,
+            data: {
+              meetUrl: meetUrl || null,
+              recordingUrl: recordingUrl || null,
+              instructorId: instructorId ? Number(instructorId) : null,
+            },
+          })}
+        >
+          {update.isPending ? 'Saving...' : 'Save'}
+        </Button>
+        <Button
+          size="sm" variant={coursework === 'quiz' ? 'secondary' : 'ghost'}
+          onClick={() => setCoursework(coursework === 'quiz' ? 'none' : 'quiz')}
+        >
+          Quiz
+        </Button>
+        <Button
+          size="sm" variant={coursework === 'assignment' ? 'secondary' : 'ghost'}
+          onClick={() => setCoursework(coursework === 'assignment' ? 'none' : 'assignment')}
+        >
+          Assignment
+        </Button>
+      </div>
+      {coursework === 'quiz' && <QuizEditor sessionId={session.id} />}
+      {coursework === 'assignment' && <AssignmentEditor sessionId={session.id} />}
     </div>
   );
 }
