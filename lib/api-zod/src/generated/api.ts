@@ -477,6 +477,19 @@ export const ListMyEnrollmentsResponse = zod.array(ListMyEnrollmentsResponseItem
 
 
 /**
+ * @summary Certificates for programs the user has fully completed
+ */
+export const ListMyCertificatesResponseItem = zod.object({
+  "programId": zod.int(),
+  "programTitle": zod.string(),
+  "learnerName": zod.string(),
+  "completedAt": zod.coerce.date().nullable(),
+  "certificateId": zod.string()
+})
+export const ListMyCertificatesResponse = zod.array(ListMyCertificatesResponseItem)
+
+
+/**
  * @summary Upcoming and past sessions across the user's enrolled programs (or taught programs for instructors)
  */
 export const ListMySessionsResponseItem = zod.object({

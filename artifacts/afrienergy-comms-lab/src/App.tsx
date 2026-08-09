@@ -21,6 +21,8 @@ import CertificatePage from '@/pages/CertificatePage';
 import LiveSessions from '@/pages/LiveSessions';
 import LiveClassroomPreview from '@/pages/LiveClassroomPreview';
 import Classroom from '@/pages/Classroom';
+import Recordings from '@/pages/Recordings';
+import Certificates from '@/pages/Certificates';
 import About from '@/pages/About';
 import NotFound from '@/pages/not-found';
 
@@ -177,7 +179,9 @@ function Router() {
         <Route path="/sign-up/*?" component={SignUpPage} />
         <Route path="/register"><Redirect to="/sign-up" /></Route>
         <Route path="/login"><Redirect to="/sign-in" /></Route>
-        <Route path="/certificate/:id" component={CertificatePage} />
+        <Route path="/certificate/:id">
+          <Protected><CertificatePage /></Protected>
+        </Route>
         <Route path="/quiz/:id" component={QuizInterface} />
         <Route path="/classroom-preview" component={LiveClassroomPreview} />
 
@@ -204,6 +208,12 @@ function Router() {
         {/* Signed-in routes */}
         <Route path="/dashboard">
           <Protected><AppLayout><LearnerDashboard /></AppLayout></Protected>
+        </Route>
+        <Route path="/recordings">
+          <Protected><AppLayout><Recordings /></AppLayout></Protected>
+        </Route>
+        <Route path="/certificates">
+          <Protected><AppLayout><Certificates /></AppLayout></Protected>
         </Route>
         <Route path="/teach">
           <Protected><AppLayout><Teach /></AppLayout></Protected>

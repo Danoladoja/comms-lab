@@ -562,6 +562,26 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiMessage"
+  /my/certificates:
+    get:
+      operationId: listMyCertificates
+      tags: [enrollments]
+      summary: Certificates for programs the user has fully completed
+      responses:
+        "200":
+          description: One certificate per completed program
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Certificate"
+        "401":
+          description: Not signed in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
   /my/sessions:
     get:
       operationId: listMySessions
@@ -957,6 +977,15 @@ components:
         sessionId: { type: integer }
         joinedAt: { type: string }
         joinUrl: { type: ["string", "null"] }
+    Certificate:
+      type: object
+      required: [programId, programTitle, learnerName, completedAt, certificateId]
+      properties:
+        programId: { type: integer }
+        programTitle: { type: string }
+        learnerName: { type: string }
+        completedAt: { type: ["string", "null"], format: date-time }
+        certificateId: { type: string }
     SessionProgress:
       type: object
       required: [sessionId, programId, progressPct, attendedLive, completed, locked, hasQuiz, quizPassed, quizBestScore, hasAssignment, assignmentSubmitted]

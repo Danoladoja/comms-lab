@@ -316,6 +316,59 @@ router.get("/my/progress", async (req, res) => {
   res.json(await progressForUser(user.id, programIds));
 });
 
+// A certificate exists for each enrolled program where every module is completed.
+// Completion date = the end of the program's last scheduled session.
+router.get("/my/certificates", async (req, res) => {
+  const user = await getCurrentUser(req);
+  if (!user) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  const programIds = await enrolledProgramIds(user.id);
+  if (programIds.length === 0) {
+    res.json([]);
+    return;
+  }
+  const progress = await progressForUser(user.id, programIds);
+  const byProgram = new Map<number, typeof progress>();
+  for (const p of progress) {
+    const list = byProgram.get(p.programId) ?? [];
+    list.push(p);
+    byProgram.set(p.programId, list);
+  }
+  const completedProgramIds = [...byProgram.entries()]
+    .filter(([, entries]) => entries.length > 0 && entries.every((e) => e.completed))
+    .map(([programId]) => programId);
+  if (completedProgramIds.length === 0) {
+    res.json([]);
+    return;
+  }
+  const programs = await db
+    .select({ id: programsTable.id, title: programsTable.title })
+    .from(programsTable)
+    .where(inArray(programsTable.id, completedProgramIds));
+  const lastEnds = await db
+    .select({
+      programId: sessionsTable.programId,
+      lastEnd: sql<string | null>`max(${sessionsTable.startsAt} + make_interval(mins => ${sessionsTable.durationMins}))`,
+    })
+    .from(sessionsTable)
+    .where(inArray(sessionsTable.programId, completedProgramIds))
+    .groupBy(sessionsTable.programId);
+  const lastEndByProgram = new Map(lastEnds.map((r) => [r.programId, r.lastEnd]));
+  res.json(
+    programs.map((p) => ({
+      programId: p.id,
+      programTitle: p.title,
+      learnerName: user.name,
+      completedAt: lastEndByProgram.get(p.id)
+        ? new Date(lastEndByProgram.get(p.id)!).toISOString()
+        : null,
+      certificateId: `AECL-${String(p.id).padStart(3, "0")}-${String(user.id).padStart(4, "0")}`,
+    })),
+  );
+});
+
 router.get("/my/sessions", async (req, res) => {
   const user = await getCurrentUser(req);
   if (!user) {

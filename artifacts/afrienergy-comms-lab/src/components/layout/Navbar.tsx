@@ -39,6 +39,8 @@ export function Navbar() {
 
   const accountLinks = [
     { label: 'My Learning', href: '/dashboard', show: true },
+    { label: 'Recordings', href: '/recordings', show: true },
+    { label: 'My Certificates', href: '/certificates', show: true },
     { label: 'Teaching', href: '/teach', show: role === 'instructor' || role === 'admin' },
     { label: 'Admin Console', href: '/admin', show: role === 'admin' },
   ].filter((l) => l.show);

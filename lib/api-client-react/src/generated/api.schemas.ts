@@ -94,6 +94,15 @@ export interface JoinResult {
   joinUrl?: string | null;
 }
 
+export interface Certificate {
+  programId: number;
+  programTitle: string;
+  learnerName: string;
+  /** @nullable */
+  completedAt: string | null;
+  certificateId: string;
+}
+
 export interface SessionProgress {
   sessionId: number;
   programId: number;

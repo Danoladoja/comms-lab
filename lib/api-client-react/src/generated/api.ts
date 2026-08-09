@@ -25,6 +25,7 @@ import type {
   AssignmentInput,
   AssignmentSubmission,
   AssignmentSubmissionInput,
+  Certificate,
   Enrollment,
   EnrollmentDetail,
   EnrollmentUpdate,
@@ -1551,6 +1552,83 @@ export function useListMyEnrollments<TData = Awaited<ReturnType<typeof listMyEnr
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getListMyEnrollmentsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListMyCertificatesUrl = () => {
+
+
+
+
+  return `/api/my/certificates`
+}
+
+/**
+ * @summary Certificates for programs the user has fully completed
+ */
+export const listMyCertificates = async ( options?: Parameters<typeof customFetch>[1]): Promise<Certificate[]> => {
+
+  return customFetch<Certificate[]>(getListMyCertificatesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListMyCertificatesQueryKey = () => {
+    return [
+    `/api/my/certificates`
+    ] as const;
+    }
+
+
+export const getListMyCertificatesQueryOptions = <TData = Awaited<ReturnType<typeof listMyCertificates>>, TError = ErrorType<ApiMessage>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listMyCertificates>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListMyCertificatesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listMyCertificates>>> = ({ signal }) => listMyCertificates({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listMyCertificates>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListMyCertificatesQueryResult = NonNullable<Awaited<ReturnType<typeof listMyCertificates>>>
+export type ListMyCertificatesQueryError = ErrorType<ApiMessage>
+
+
+/**
+ * @summary Certificates for programs the user has fully completed
+ */
+
+export function useListMyCertificates<TData = Awaited<ReturnType<typeof listMyCertificates>>, TError = ErrorType<ApiMessage>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listMyCertificates>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListMyCertificatesQueryOptions(options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

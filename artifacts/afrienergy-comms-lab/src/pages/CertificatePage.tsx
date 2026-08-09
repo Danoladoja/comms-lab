@@ -1,102 +1,82 @@
+import { Link, useParams } from 'wouter';
+import { useListMyCertificates } from '@workspace/api-client-react';
 import { Button } from '@/components/ui/button';
-import { Download, Linkedin, Link as LinkIcon, Home } from 'lucide-react';
-import { Link } from 'wouter';
-import { useState } from 'react';
-import { useToast } from '@/hooks/use-toast';
+import { Download, Home, Award } from 'lucide-react';
 
+function formatDate(iso: string | null) {
+  if (!iso) return 'Date to be confirmed';
+  return new Date(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' });
+}
+
+/** A single earned certificate, printable via the browser's print-to-PDF. */
 export default function CertificatePage() {
-  const [isDownloading, setIsDownloading] = useState(false);
-  const { toast } = useToast();
+  const params = useParams<{ id: string }>();
+  const programId = Number(params.id);
+  const { data: certificates = [], isLoading } = useListMyCertificates();
+  const cert = certificates.find(c => c.programId === programId);
 
-  const handleDownload = () => {
-    setIsDownloading(true);
-    setTimeout(() => {
-      setIsDownloading(false);
-      toast({
-        title: "Download Started",
-        description: "Your certificate is downloading as a PDF.",
-      });
-    }, 1500);
-  };
+  if (isLoading) {
+    return <div className="min-h-screen bg-[#07111E] p-12"><div className="max-w-4xl mx-auto aspect-[1.414] bg-white/5 rounded-2xl animate-pulse" /></div>;
+  }
+
+  if (!cert) {
+    return (
+      <div className="min-h-screen bg-[#07111E] text-[#F4F0E8] flex flex-col items-center justify-center text-center px-4">
+        <Award className="w-10 h-10 text-[#F4F0E8]/40 mb-3" />
+        <h1 className="text-2xl font-display font-bold mb-2">Certificate not available</h1>
+        <p className="text-sm text-[#F4F0E8]/70 mb-6 max-w-md">
+          This certificate is issued once every module of the program is completed. Keep going, you are closer than you think.
+        </p>
+        <Button asChild variant="outline" className="bg-transparent border-white/20 text-[#F4F0E8] hover:bg-white/10">
+          <Link href="/dashboard"><Home className="w-4 h-4 mr-2" />Back to dashboard</Link>
+        </Button>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-sidebar text-sidebar-foreground py-12 px-4 flex flex-col">
-      <div className="container mx-auto max-w-5xl flex-1 flex flex-col">
-        
-        {/* Header Actions */}
-        <div className="flex justify-between items-center mb-8">
-          <Button variant="ghost" asChild className="text-sidebar-foreground/70 hover:text-white hover:bg-white/10">
-            <Link href="/dashboard"><Home className="w-4 h-4 mr-2" /> Back to Dashboard</Link>
+    <div className="min-h-screen bg-[#07111E] py-10 px-4">
+      <div className="container mx-auto max-w-5xl">
+        <div className="flex justify-between items-center mb-8 print:hidden">
+          <Button variant="ghost" asChild className="text-[#F4F0E8]/70 hover:text-white hover:bg-white/10">
+            <Link href="/certificates"><Home className="w-4 h-4 mr-2" />My certificates</Link>
           </Button>
-          <div className="flex gap-3">
-            <Button variant="outline" className="bg-transparent border-sidebar-border text-sidebar-foreground hover:bg-white/5" onClick={handleDownload} disabled={isDownloading}>
-              <Download className="w-4 h-4 mr-2" /> {isDownloading ? 'Generating...' : 'Download PDF'}
-            </Button>
-            <Button className="bg-[#0077b5] text-white hover:bg-[#0077b5]/90 border-none shadow-none">
-              <Linkedin className="w-4 h-4 mr-2" /> Share
-            </Button>
-          </div>
+          <Button onClick={() => window.print()} className="font-bold">
+            <Download className="w-4 h-4 mr-2" />Download PDF
+          </Button>
         </div>
 
-        {/* Certificate Rendering Area */}
-        <div className="flex-1 flex items-center justify-center p-4 md:p-8 bg-black/20 rounded-3xl border border-sidebar-border overflow-hidden relative">
-          {/* THE CERTIFICATE (Designed for A4 Landscape roughly) */}
-          <div className="w-full max-w-[900px] aspect-[1.414] bg-[#f8f5f0] text-gray-900 rounded-lg shadow-2xl p-8 md:p-16 relative overflow-hidden flex flex-col justify-between" id="certificate-node">
-            
-            {/* Decorative Corners */}
-            <div className="absolute top-0 left-0 w-32 h-32 border-t-8 border-l-8 border-[#d4af37] rounded-tl-lg"></div>
-            <div className="absolute bottom-0 right-0 w-32 h-32 border-b-8 border-r-8 border-[#d4af37] rounded-br-lg"></div>
-            <div className="absolute -right-32 -top-32 w-96 h-96 bg-[#1a362d]/5 rounded-full blur-3xl pointer-events-none"></div>
+        {/* The certificate itself (A4 landscape-ish) */}
+        <div className="w-full max-w-[960px] mx-auto aspect-[1.414] bg-[#F4F0E8] text-[#07111E] rounded-lg shadow-2xl p-8 md:p-14 relative overflow-hidden flex flex-col justify-between print:shadow-none print:rounded-none">
+          <div className="absolute top-0 left-0 w-28 h-28 border-t-8 border-l-8 border-[#F97316] rounded-tl-lg" />
+          <div className="absolute bottom-0 right-0 w-28 h-28 border-b-8 border-r-8 border-[#F97316] rounded-br-lg" />
 
-            {/* Header */}
-            <div className="text-center space-y-4 relative z-10">
-              <div className="flex justify-center mb-6">
-                <div className="flex items-center gap-2">
-                  <div className="w-10 h-10 rounded bg-[#d4af37] flex items-center justify-center text-white font-bold">
-                    A
-                  </div>
-                  <span className="font-display font-bold text-2xl tracking-tight text-[#1a1a1a]">
-                    Afrienergy
-                  </span>
-                </div>
-              </div>
-              <h1 className="text-4xl md:text-5xl font-serif text-[#1a362d] uppercase tracking-widest">Certificate of Completion</h1>
-              <p className="text-gray-500 uppercase tracking-widest text-sm">This is to certify that</p>
+          <div className="text-center space-y-3 relative z-10">
+            <p className="font-display font-bold text-xl tracking-tight">Afrienergy Comms Lab</p>
+            <h1 className="text-3xl md:text-5xl font-display font-bold text-[#C2410C] uppercase tracking-widest">Certificate of Completion</h1>
+            <p className="text-[#5B6470] uppercase tracking-widest text-xs">This is to certify that</p>
+          </div>
+
+          <div className="text-center relative z-10 py-4">
+            <div className="text-4xl md:text-6xl font-display font-bold border-b-2 border-[#07111E]/20 inline-block px-10 pb-3 mb-5">
+              {cert.learnerName}
             </div>
+            <p className="text-[#5B6470]">has successfully completed all modules of</p>
+            <h2 className="text-xl md:text-2xl font-bold mt-3">{cert.programTitle}</h2>
+          </div>
 
-            {/* Recipient */}
-            <div className="text-center relative z-10 py-6">
-              <div className="text-5xl md:text-7xl font-display font-bold text-[#d4af37] border-b-2 border-gray-300 inline-block px-12 pb-4 mb-6">
-                Student Name
-              </div>
-              <p className="text-gray-600 text-lg">has successfully completed the requirements for</p>
-              <h2 className="text-2xl md:text-3xl font-bold mt-4 text-[#1a1a1a]">Strategic Leadership for Scaling Startups</h2>
+          <div className="flex justify-between items-end relative z-10 pt-6">
+            <div className="text-center">
+              <div className="text-sm border-b border-[#07111E]/30 pb-1.5 px-6 mb-1.5 font-semibold">{formatDate(cert.completedAt as unknown as string | null)}</div>
+              <p className="text-[10px] uppercase tracking-wider text-[#5B6470] font-bold">Date of completion</p>
             </div>
-
-            {/* Footer / Signatures */}
-            <div className="flex justify-between items-end relative z-10 pt-8">
-              <div className="text-center">
-                <div className="font-serif italic text-2xl border-b border-gray-400 pb-2 px-8 mb-2">S. Adeyemi</div>
-                <p className="text-xs uppercase tracking-wider text-gray-500 font-bold">Sarah Adeyemi</p>
-                <p className="text-xs text-gray-400">Lead Instructor</p>
-              </div>
-
-              <div className="text-center">
-                <div className="w-24 h-24 rounded-full border-4 border-[#d4af37] flex items-center justify-center mx-auto mb-4 bg-white shadow-sm">
-                  <div className="text-center">
-                    <span className="block text-[10px] font-bold uppercase tracking-widest text-[#1a362d]">Verified</span>
-                    <span className="block text-xl font-bold text-[#d4af37]">2025</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="text-center">
-                <div className="text-lg font-mono border-b border-gray-400 pb-2 px-8 mb-2">October 24, 2025</div>
-                <p className="text-xs uppercase tracking-wider text-gray-500 font-bold">Date of Issuance</p>
-                <p className="text-xs text-gray-400">ID: AE-2025-8X9PQ</p>
-              </div>
+            <div className="w-20 h-20 rounded-full border-4 border-[#F97316] flex items-center justify-center bg-white shadow-sm">
+              <span className="text-[9px] font-bold uppercase tracking-widest text-[#C2410C] text-center leading-tight">Comms<br />Lab<br />Verified</span>
             </div>
-
+            <div className="text-center">
+              <div className="text-sm border-b border-[#07111E]/30 pb-1.5 px-6 mb-1.5 font-mono">{cert.certificateId}</div>
+              <p className="text-[10px] uppercase tracking-wider text-[#5B6470] font-bold">Certificate ID</p>
+            </div>
           </div>
         </div>
       </div>

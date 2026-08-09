@@ -11,6 +11,7 @@ export * from './assignmentDetail';
 export * from './assignmentInput';
 export * from './assignmentSubmission';
 export * from './assignmentSubmissionInput';
+export * from './certificate';
 export * from './enrollment';
 export * from './enrollmentDetail';
 export * from './enrollmentDetailStatus';
