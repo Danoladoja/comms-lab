@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { ArrowRight } from 'lucide-react';
 import heroImg from '@assets/hero.jpg';
 import { KenteOverlay } from '@/components/KenteOverlay';
+import { programs as allPrograms } from '@/data/mock';
 
 // ─── palette tokens ──────────────────────────────────────────────────────────
 const C = {
@@ -31,32 +32,8 @@ const focusAreas = [
   { n: '04', title: 'Design Thinking & Innovation',     sub: 'Solve complex problems with human-centred methods.' },
 ];
 
-const upcomingPrograms = [
-  {
-    id: 'p-1',
-    tag: 'Strategic Energy Communications',
-    title: 'Energy Narrative Lab',
-    description: 'A cohort workshop on building compelling energy stories for policy, media, and public audiences.',
-    date: 'Nov 2026',
-    format: 'Cohort · 4 weeks',
-  },
-  {
-    id: 'p-2',
-    tag: 'Energy Transition & Policy',
-    title: "Africa's Just Transition: Policy Briefing Series",
-    description: "A masterclass series on the regulatory and political landscape shaping Africa's energy transition.",
-    date: 'Jan 2027',
-    format: 'Masterclass · 6 sessions',
-  },
-  {
-    id: 'p-3',
-    tag: 'Advocacy & Stakeholder Influence',
-    title: 'Advocacy by Design',
-    description: 'An intensive on designing advocacy campaigns that move decision-makers and mobilise coalitions.',
-    date: 'Mar 2027',
-    format: 'Intensive · 3 days',
-  },
-];
+// Reuse the canonical programs list from mock.ts (first 3 = upcoming)
+const upcomingPrograms = allPrograms;
 
 // ─── component ──────────────────────────────────────────────────────────────
 export default function Home() {
@@ -265,7 +242,7 @@ export default function Home() {
                 </p>
                 <div className="flex items-center justify-between pt-5 border-t" style={{ borderColor: 'rgba(7,17,30,0.12)' }}>
                   <span className="text-xs" style={{ color: 'rgba(7,17,30,0.45)' }}>
-                    {program.date} · {program.format}
+                    {program.date} · {program.format} · {program.duration}
                   </span>
                   <Link href="/register">
                     <button

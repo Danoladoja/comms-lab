@@ -1,183 +1,235 @@
 import { useState, useMemo } from 'react';
 import { Link } from 'wouter';
-import { courses, instructors } from '@/data/mock';
-import { Button } from '@/components/ui/button';
+import { programs, instructors } from '@/data/mock';
 import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
-import { Search, Filter, Clock, Users, Star, ArrowRight } from 'lucide-react';
+import { Search, Filter, ArrowRight, Calendar, Clock } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-const CATEGORIES = ['All', 'Technology', 'Energy', 'Business', 'Communications'];
-const LEVELS = ['All', 'Beginner', 'Intermediate', 'Advanced'];
+const FOCUS_AREAS = ['All', ...Array.from(new Set(programs.map(p => p.tag)))];
+const FORMATS     = ['All', ...Array.from(new Set(programs.map(p => p.format)))];
+
+// Tag accent colours aligned with the site palette
+const tagColor: Record<string, string> = {
+  'Strategic Energy Communications': '#C2410C',
+  'Energy Transition & Policy':      '#C2410C',
+  'Advocacy & Stakeholder Influence':'#C2410C',
+};
 
 export default function CourseCatalog() {
-  const [searchQuery, setSearchQuery] = useState('');
-  const [activeCategory, setActiveCategory] = useState('All');
-  const [activeLevel, setActiveLevel] = useState('All');
-  const [showFilters, setShowFilters] = useState(false);
+  const [query,        setQuery]        = useState('');
+  const [activeFocus,  setActiveFocus]  = useState('All');
+  const [activeFormat, setActiveFormat] = useState('All');
+  const [showFilters,  setShowFilters]  = useState(false);
 
-  const filteredCourses = useMemo(() => {
-    return courses.filter((course) => {
-      const matchesSearch = course.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                            course.description.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesCategory = activeCategory === 'All' || course.category === activeCategory;
-      const matchesLevel = activeLevel === 'All' || course.level === activeLevel;
-      
-      return matchesSearch && matchesCategory && matchesLevel;
+  const filtered = useMemo(() => {
+    const q = query.toLowerCase();
+    return programs.filter(p => {
+      const matchesSearch  = p.title.toLowerCase().includes(q) ||
+                             p.description.toLowerCase().includes(q);
+      const matchesFocus   = activeFocus  === 'All' || p.tag    === activeFocus;
+      const matchesFormat  = activeFormat === 'All' || p.format === activeFormat;
+      return matchesSearch && matchesFocus && matchesFormat;
     });
-  }, [searchQuery, activeCategory, activeLevel]);
+  }, [query, activeFocus, activeFormat]);
 
   return (
     <div className="container mx-auto px-4 md:px-6 py-12">
+      {/* Header */}
       <div className="mb-12">
-        <h1 className="text-4xl font-display font-bold mb-4">Explore Courses</h1>
+        <h1 className="text-4xl font-display font-bold mb-4">Programs</h1>
         <p className="text-lg text-muted-foreground max-w-2xl">
-          Discover programs taught by leading experts across Africa. Level up your skills in tech, energy, business, and communications.
+          Practitioner-led programs designed for Africa's energy communicators, policy advocates,
+          and strategic storytellers. All programs run in cohorts with limited places.
         </p>
       </div>
 
       <div className="flex flex-col lg:flex-row gap-8">
-        {/* Sidebar Filters (Desktop) / Expandable (Mobile) */}
+
+        {/* Sidebar Filters */}
         <aside className="w-full lg:w-64 flex-shrink-0">
           <div className="flex items-center gap-2 mb-4 lg:hidden">
-            <Button variant="outline" className="w-full" onClick={() => setShowFilters(!showFilters)}>
-              <Filter className="w-4 h-4 mr-2" />
+            <button
+              className="w-full flex items-center justify-center gap-2 border border-border rounded-md px-4 py-2 text-sm font-medium"
+              onClick={() => setShowFilters(!showFilters)}
+            >
+              <Filter className="w-4 h-4" />
               {showFilters ? 'Hide Filters' : 'Show Filters'}
-            </Button>
+            </button>
           </div>
 
           <div className={`space-y-8 ${showFilters ? 'block' : 'hidden lg:block'}`}>
-            <div>
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <Input 
-                  placeholder="Search courses..." 
-                  className="pl-9 bg-card"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                />
-              </div>
+            {/* Search */}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                placeholder="Search programs..."
+                className="pl-9 bg-card"
+                value={query}
+                onChange={e => setQuery(e.target.value)}
+              />
             </div>
 
+            {/* Focus Area */}
             <div>
-              <h3 className="font-bold text-sm uppercase tracking-wider text-muted-foreground mb-4">Category</h3>
-              <div className="flex flex-col gap-2">
-                {CATEGORIES.map(category => (
+              <h3 className="font-bold text-xs uppercase tracking-wider text-muted-foreground mb-4">
+                Focus Area
+              </h3>
+              <div className="flex flex-col gap-1.5">
+                {FOCUS_AREAS.map(f => (
                   <button
-                    key={category}
-                    onClick={() => setActiveCategory(category)}
+                    key={f}
+                    onClick={() => setActiveFocus(f)}
                     className={`text-left px-3 py-2 rounded-md text-sm transition-colors ${
-                      activeCategory === category 
-                        ? 'bg-primary/10 text-primary font-medium' 
+                      activeFocus === f
+                        ? 'bg-primary/10 text-primary font-medium'
                         : 'hover:bg-muted text-foreground'
                     }`}
                   >
-                    {category}
+                    {f}
                   </button>
                 ))}
               </div>
             </div>
 
+            {/* Format */}
             <div>
-              <h3 className="font-bold text-sm uppercase tracking-wider text-muted-foreground mb-4">Level</h3>
-              <div className="flex flex-col gap-2">
-                {LEVELS.map(level => (
+              <h3 className="font-bold text-xs uppercase tracking-wider text-muted-foreground mb-4">
+                Format
+              </h3>
+              <div className="flex flex-col gap-1.5">
+                {FORMATS.map(f => (
                   <button
-                    key={level}
-                    onClick={() => setActiveLevel(level)}
+                    key={f}
+                    onClick={() => setActiveFormat(f)}
                     className={`text-left px-3 py-2 rounded-md text-sm transition-colors ${
-                      activeLevel === level 
-                        ? 'bg-secondary/10 text-secondary font-medium' 
+                      activeFormat === f
+                        ? 'bg-secondary/10 text-secondary font-medium'
                         : 'hover:bg-muted text-foreground'
                     }`}
                   >
-                    {level}
+                    {f}
                   </button>
                 ))}
               </div>
             </div>
+
+            {/* Reset */}
+            {(activeFocus !== 'All' || activeFormat !== 'All' || query) && (
+              <button
+                onClick={() => { setActiveFocus('All'); setActiveFormat('All'); setQuery(''); }}
+                className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground transition-colors"
+              >
+                Clear all filters
+              </button>
+            )}
           </div>
         </aside>
 
-        {/* Course Grid */}
+        {/* Program Grid */}
         <main className="flex-1">
-          <div className="flex justify-between items-center mb-6">
-            <div className="text-sm text-muted-foreground">
-              Showing <span className="font-medium text-foreground">{filteredCourses.length}</span> courses
-            </div>
+          <div className="text-sm text-muted-foreground mb-6">
+            Showing <span className="font-medium text-foreground">{filtered.length}</span>{' '}
+            {filtered.length === 1 ? 'program' : 'programs'}
           </div>
 
-          {filteredCourses.length === 0 ? (
+          {filtered.length === 0 ? (
             <div className="bg-card border border-border rounded-xl p-12 text-center">
               <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto mb-4">
                 <Search className="w-8 h-8 text-muted-foreground" />
               </div>
-              <h3 className="text-xl font-bold mb-2">No courses found</h3>
-              <p className="text-muted-foreground mb-6">Try adjusting your search or filters to find what you're looking for.</p>
-              <Button 
-                variant="outline" 
-                onClick={() => {
-                  setSearchQuery('');
-                  setActiveCategory('All');
-                  setActiveLevel('All');
-                }}
+              <h3 className="text-xl font-bold mb-2">No programs found</h3>
+              <p className="text-muted-foreground mb-6">
+                Try adjusting your search or filters.
+              </p>
+              <button
+                className="border border-border rounded-md px-4 py-2 text-sm font-medium hover:bg-muted transition-colors"
+                onClick={() => { setQuery(''); setActiveFocus('All'); setActiveFormat('All'); }}
               >
                 Clear all filters
-              </Button>
+              </button>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
               <AnimatePresence mode="popLayout">
-                {filteredCourses.map((course) => {
-                  const instructor = instructors.find(i => i.id === course.instructorId);
-                  
+                {filtered.map(program => {
+                  const instructor = instructors.find(i => i.id === program.instructorId);
                   return (
                     <motion.div
                       layout
-                      initial={{ opacity: 0, scale: 0.9 }}
+                      key={program.id}
+                      initial={{ opacity: 0, scale: 0.96 }}
                       animate={{ opacity: 1, scale: 1 }}
-                      exit={{ opacity: 0, scale: 0.9 }}
+                      exit={{ opacity: 0, scale: 0.96 }}
                       transition={{ duration: 0.2 }}
-                      key={course.id}
-                      className="group flex flex-col bg-card rounded-2xl overflow-hidden border border-border shadow-sm hover:shadow-xl transition-all"
+                      className="group flex flex-col bg-card rounded-2xl overflow-hidden border border-border shadow-sm hover:shadow-lg transition-all"
                     >
+                      {/* Thumbnail */}
                       <div className="relative aspect-video overflow-hidden">
-                        <img 
-                          src={course.thumbnail} 
-                          alt={course.title} 
-                          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" 
+                        <img
+                          src={program.thumbnail}
+                          alt={program.title}
+                          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                         />
-                        <div className="absolute top-3 left-3 flex gap-2">
-                          <Badge variant="secondary" className="bg-background/90 text-foreground backdrop-blur-sm border-none pointer-events-none">
-                            {course.category}
-                          </Badge>
-                        </div>
+                        {/* Format badge */}
+                        <span className="absolute top-3 left-3 bg-background/90 backdrop-blur-sm text-foreground text-xs font-semibold px-2.5 py-1 rounded-full border border-border/50">
+                          {program.format}
+                        </span>
                       </div>
-                      
-                      <div className="p-5 flex flex-col flex-1">
-                        <div className="flex items-center gap-3 text-xs text-muted-foreground mb-3 font-medium">
-                          <span className="flex items-center"><Clock className="w-3 h-3 mr-1" /> {course.duration}</span>
-                          <span className="flex items-center"><Star className="w-3 h-3 mr-1 text-accent fill-current" /> {course.rating}</span>
-                          <span className="flex items-center px-2 py-0.5 bg-muted rounded-full">{course.level}</span>
-                        </div>
-                        
-                        <h3 className="text-lg font-bold mb-2 group-hover:text-primary transition-colors leading-tight line-clamp-2">
-                          {course.title}
+
+                      {/* Body */}
+                      <div className="flex flex-col flex-1 p-5">
+                        {/* Focus area tag */}
+                        <p
+                          className="text-xs uppercase tracking-widest mb-3 font-medium"
+                          style={{ color: tagColor[program.tag] ?? '#C2410C' }}
+                        >
+                          {program.tag}
+                        </p>
+
+                        {/* Title */}
+                        <h3 className="font-display font-semibold text-base leading-snug mb-3 group-hover:text-primary transition-colors line-clamp-2">
+                          {program.title}
                         </h3>
-                        
-                        <div className="flex items-center gap-3 mt-auto pt-4">
-                          <img src={instructor?.imageUrl} alt={instructor?.name} className="w-8 h-8 rounded-full object-cover" />
-                          <div className="text-sm font-medium text-foreground">{instructor?.name}</div>
+
+                        {/* Description */}
+                        <p className="text-sm text-muted-foreground leading-relaxed line-clamp-2 mb-4 flex-1">
+                          {program.description}
+                        </p>
+
+                        {/* Date + Duration */}
+                        <div className="flex items-center gap-4 text-xs text-muted-foreground mb-4">
+                          <span className="flex items-center gap-1.5">
+                            <Calendar className="w-3.5 h-3.5" />
+                            {program.date}
+                          </span>
+                          <span className="flex items-center gap-1.5">
+                            <Clock className="w-3.5 h-3.5" />
+                            {program.duration}
+                          </span>
                         </div>
+
+                        {/* Instructor */}
+                        {instructor && (
+                          <div className="flex items-center gap-2.5 mb-4">
+                            <img
+                              src={instructor.imageUrl}
+                              alt={instructor.name}
+                              className="w-7 h-7 rounded-full object-cover"
+                            />
+                            <span className="text-xs font-medium text-foreground">{instructor.name}</span>
+                          </div>
+                        )}
                       </div>
-                      
+
+                      {/* Footer CTA */}
                       <div className="px-5 py-4 border-t border-border flex items-center justify-between bg-muted/20">
-                        <div className="font-bold text-lg">${course.price}</div>
-                        <Button variant="ghost" size="sm" asChild className="group-hover:bg-primary/10 group-hover:text-primary transition-colors">
-                          <Link href={`/courses/${course.id}`}>
-                            Details <ArrowRight className="w-4 h-4 ml-1 opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all" />
-                          </Link>
-                        </Button>
+                        <span className="text-xs text-muted-foreground">Limited places</span>
+                        <Link href="/register">
+                          <button className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-widest text-foreground hover:text-primary transition-colors group-hover:text-primary">
+                            Reserve a Place
+                            <ArrowRight className="w-3.5 h-3.5 opacity-0 -translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 transition-all" />
+                          </button>
+                        </Link>
                       </div>
                     </motion.div>
                   );

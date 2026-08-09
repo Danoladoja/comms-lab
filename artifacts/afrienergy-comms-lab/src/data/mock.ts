@@ -73,6 +73,54 @@ import courseTech from '@assets/course-tech.jpg';
 import courseBusiness from '@assets/course-business.jpg';
 import courseComms from '@assets/course-comms.jpg';
 
+export interface Program {
+  id: string;
+  tag: string;       // focus area label
+  title: string;
+  description: string;
+  date: string;      // e.g. 'Nov 2026'
+  format: string;    // e.g. 'Cohort' | 'Masterclass' | 'Intensive'
+  duration: string;  // e.g. '4 weeks'
+  thumbnail: string;
+  instructorId: string;
+}
+
+export const programs: Program[] = [
+  {
+    id: 'prog-1',
+    tag: 'Strategic Energy Communications',
+    title: 'Energy Narrative Lab',
+    description: 'A cohort workshop on building compelling energy stories for policy, media, and public audiences.',
+    date: 'Nov 2026',
+    format: 'Cohort',
+    duration: '4 weeks',
+    thumbnail: courseComms,
+    instructorId: 'inst-3',
+  },
+  {
+    id: 'prog-2',
+    tag: 'Energy Transition & Policy',
+    title: "Africa's Just Transition: Policy Briefing Series",
+    description: "A masterclass series on the regulatory and political landscape shaping Africa's energy transition.",
+    date: 'Jan 2027',
+    format: 'Masterclass',
+    duration: '6 sessions',
+    thumbnail: courseEnergy,
+    instructorId: 'inst-1',
+  },
+  {
+    id: 'prog-3',
+    tag: 'Advocacy & Stakeholder Influence',
+    title: 'Advocacy by Design',
+    description: 'An intensive on designing advocacy campaigns that move decision-makers and mobilise coalitions.',
+    date: 'Mar 2027',
+    format: 'Intensive',
+    duration: '3 days',
+    thumbnail: courseBusiness,
+    instructorId: 'inst-3',
+  },
+];
+
 export const instructors: Instructor[] = [
   {
     id: 'inst-1',
