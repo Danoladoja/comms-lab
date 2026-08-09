@@ -1641,6 +1641,83 @@ export function useListMyCertificates<TData = Awaited<ReturnType<typeof listMyCe
 
 
 
+export const getVerifyCertificateUrl = (certificateId: string,) => {
+
+
+
+
+  return `/api/certificates/${certificateId}/verify`
+}
+
+/**
+ * @summary Publicly verify a certificate by its ID (no authentication required)
+ */
+export const verifyCertificate = async (certificateId: string, options?: Parameters<typeof customFetch>[1]): Promise<Certificate> => {
+
+  return customFetch<Certificate>(getVerifyCertificateUrl(certificateId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getVerifyCertificateQueryKey = (certificateId: string,) => {
+    return [
+    `/api/certificates/${certificateId}/verify`
+    ] as const;
+    }
+
+
+export const getVerifyCertificateQueryOptions = <TData = Awaited<ReturnType<typeof verifyCertificate>>, TError = ErrorType<ApiMessage>>(certificateId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof verifyCertificate>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getVerifyCertificateQueryKey(certificateId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof verifyCertificate>>> = ({ signal }) => verifyCertificate(certificateId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: certificateId !== null && certificateId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof verifyCertificate>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type VerifyCertificateQueryResult = NonNullable<Awaited<ReturnType<typeof verifyCertificate>>>
+export type VerifyCertificateQueryError = ErrorType<ApiMessage>
+
+
+/**
+ * @summary Publicly verify a certificate by its ID (no authentication required)
+ */
+
+export function useVerifyCertificate<TData = Awaited<ReturnType<typeof verifyCertificate>>, TError = ErrorType<ApiMessage>>(
+ certificateId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof verifyCertificate>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getVerifyCertificateQueryOptions(certificateId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
 export const getListMySessionsUrl = () => {
 
 

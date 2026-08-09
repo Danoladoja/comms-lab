@@ -369,6 +369,67 @@ router.get("/my/certificates", async (req, res) => {
   );
 });
 
+// Public verification of a certificate ID (AECL-<programId>-<userId>).
+// No auth: returns only the learner's name, program title, and completion date,
+// and only when the learner has genuinely completed every module.
+router.get("/certificates/:certificateId/verify", async (req, res) => {
+  const certificateId = String(req.params.certificateId).trim().toUpperCase();
+  const match = /^AECL-(\d{3,})-(\d{4,})$/.exec(certificateId);
+  if (!match) {
+    res.status(404).json({ error: "Certificate not found" });
+    return;
+  }
+  const programId = Number(match[1]);
+  const userId = Number(match[2]);
+
+  const [enrollment] = await db
+    .select({ id: enrollmentsTable.id })
+    .from(enrollmentsTable)
+    .where(and(
+      eq(enrollmentsTable.userId, userId),
+      eq(enrollmentsTable.programId, programId),
+      sql`${enrollmentsTable.status} in ('enrolled', 'completed')`,
+    ));
+  if (!enrollment) {
+    res.status(404).json({ error: "Certificate not found" });
+    return;
+  }
+
+  const progress = await progressForUser(userId, [programId]);
+  const entries = progress.filter((p) => p.programId === programId);
+  if (entries.length === 0 || !entries.every((e) => e.completed)) {
+    res.status(404).json({ error: "Certificate not found" });
+    return;
+  }
+
+  const [program] = await db
+    .select({ id: programsTable.id, title: programsTable.title })
+    .from(programsTable)
+    .where(eq(programsTable.id, programId));
+  const [learner] = await db
+    .select({ name: usersTable.name })
+    .from(usersTable)
+    .where(eq(usersTable.id, userId));
+  if (!program || !learner) {
+    res.status(404).json({ error: "Certificate not found" });
+    return;
+  }
+  const [lastEnd] = await db
+    .select({
+      lastEnd: sql<string | null>`max(${sessionsTable.startsAt} + make_interval(mins => ${sessionsTable.durationMins}))`,
+    })
+    .from(sessionsTable)
+    .where(eq(sessionsTable.programId, programId));
+
+  res.json({
+    programId,
+    programTitle: program.title,
+    learnerName: learner.name,
+    completedAt: lastEnd?.lastEnd ? new Date(lastEnd.lastEnd).toISOString() : null,
+    certificateId: `AECL-${String(programId).padStart(3, "0")}-${String(userId).padStart(4, "0")}`,
+  });
+});
+
 router.get("/my/sessions", async (req, res) => {
   const user = await getCurrentUser(req);
   if (!user) {

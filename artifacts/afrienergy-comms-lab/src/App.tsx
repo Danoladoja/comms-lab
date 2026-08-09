@@ -18,6 +18,7 @@ import AdminConsole from '@/pages/AdminConsole';
 import Teach from '@/pages/Teach';
 import QuizInterface from '@/pages/QuizInterface';
 import CertificatePage from '@/pages/CertificatePage';
+import VerifyCertificatePage from '@/pages/VerifyCertificatePage';
 import LiveSessions from '@/pages/LiveSessions';
 import LiveClassroomPreview from '@/pages/LiveClassroomPreview';
 import Classroom from '@/pages/Classroom';
@@ -182,6 +183,8 @@ function Router() {
         <Route path="/certificate/:id">
           <Protected><CertificatePage /></Protected>
         </Route>
+        {/* Public certificate verification — shareable on LinkedIn, no sign-in */}
+        <Route path="/verify/:certificateId" component={VerifyCertificatePage} />
         <Route path="/quiz/:id" component={QuizInterface} />
         <Route path="/classroom-preview" component={LiveClassroomPreview} />
 

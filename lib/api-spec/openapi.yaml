@@ -582,6 +582,29 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiMessage"
+  /certificates/{certificateId}/verify:
+    get:
+      operationId: verifyCertificate
+      tags: [enrollments]
+      summary: Publicly verify a certificate by its ID (no authentication required)
+      parameters:
+        - name: certificateId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: The certificate is valid
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Certificate"
+        "404":
+          description: Certificate not found or not (yet) earned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
   /my/sessions:
     get:
       operationId: listMySessions

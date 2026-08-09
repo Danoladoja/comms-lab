@@ -490,6 +490,22 @@ export const ListMyCertificatesResponse = zod.array(ListMyCertificatesResponseIt
 
 
 /**
+ * @summary Publicly verify a certificate by its ID (no authentication required)
+ */
+export const VerifyCertificateParams = zod.object({
+  "certificateId": zod.coerce.string()
+})
+
+export const VerifyCertificateResponse = zod.object({
+  "programId": zod.int(),
+  "programTitle": zod.string(),
+  "learnerName": zod.string(),
+  "completedAt": zod.coerce.date().nullable(),
+  "certificateId": zod.string()
+})
+
+
+/**
  * @summary Upcoming and past sessions across the user's enrolled programs (or taught programs for instructors)
  */
 export const ListMySessionsResponseItem = zod.object({
