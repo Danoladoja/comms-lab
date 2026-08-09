@@ -178,9 +178,7 @@ export default function LearnerDashboard() {
                                 <button
                                   onClick={() => openModule(m)}
                                   disabled={locked}
-                                  className={`w-full text-left flex items-center gap-3 px-4 pt-3 ${locked ? 'cursor-not-allowed' : ''} ${
-                                    entry && (entry.hasQuiz || entry.hasAssignment) ? 'pb-1.5' : 'pb-3'
-                                  }`}
+                                  className={`w-full text-left flex items-center gap-3 px-4 py-3 ${locked ? 'cursor-not-allowed' : ''}`}
                                 >
                                   {locked
                                     ? <Lock className="w-5 h-5 text-muted-foreground/60 flex-shrink-0" />
@@ -214,38 +212,6 @@ export default function LearnerDashboard() {
                                             : <>Open classroom<ArrowRight className="w-3.5 h-3.5" /></>}
                                   </span>
                                 </button>
-                                {entry && (entry.hasQuiz || entry.hasAssignment) && !locked && (
-                                  <div className="flex flex-wrap items-center gap-2 px-4 pb-3 pl-12">
-                                    {entry.hasQuiz && (
-                                      <button
-                                        onClick={() => setQuizFor(m)}
-                                        className={`text-[11px] font-semibold rounded-full px-2.5 py-1 border transition-colors ${
-                                          entry.quizPassed
-                                            ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
-                                            : 'border-border text-muted-foreground hover:border-primary/50 hover:text-primary'
-                                        }`}
-                                      >
-                                        {entry.quizPassed
-                                          ? `Quiz passed · ${entry.quizBestScore}%`
-                                          : entry.quizBestScore != null
-                                            ? `Retake quiz · best ${entry.quizBestScore}%`
-                                            : 'Take the quiz'}
-                                      </button>
-                                    )}
-                                    {entry.hasAssignment && (
-                                      <button
-                                        onClick={() => setAssignmentFor(m)}
-                                        className={`text-[11px] font-semibold rounded-full px-2.5 py-1 border transition-colors ${
-                                          entry.assignmentSubmitted
-                                            ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
-                                            : 'border-border text-muted-foreground hover:border-primary/50 hover:text-primary'
-                                        }`}
-                                      >
-                                        {entry.assignmentSubmitted ? 'Assignment submitted' : 'Submit the assignment'}
-                                      </button>
-                                    )}
-                                  </div>
-                                )}
                               </li>
                             );
                           })}

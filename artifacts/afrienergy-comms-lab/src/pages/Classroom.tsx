@@ -5,6 +5,7 @@ import {
   getListMyProgressQueryKey, getListMySessionsQueryKey,
 } from '@workspace/api-client-react';
 import { Button } from '@/components/ui/button';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { QuizPanel, AssignmentPanel } from '@/components/CourseworkDialogs';
 import {
@@ -133,9 +134,9 @@ export default function Classroom() {
           <Button asChild variant="outline"><Link href="/dashboard">Back to dashboard</Link></Button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="max-w-4xl space-y-8">
           {/* Video stage */}
-          <div className="lg:col-span-2">
+          <div>
             <div className="rounded-2xl overflow-hidden border border-border bg-[#07111E] text-[#F4F0E8]">
               {canWatchReplay && embed ? (
                 embed.kind === 'iframe' ? (
@@ -220,40 +221,51 @@ export default function Classroom() {
             )}
           </div>
 
-          {/* Coursework */}
-          <aside className="space-y-6">
-            <section className="bg-card border border-border rounded-2xl p-5">
-              <div className="flex items-center justify-between gap-2 mb-3">
-                <h2 className="font-display font-bold flex items-center gap-2">
-                  <FileQuestion className="w-4 h-4 text-[#C2410C]" />Module quiz
-                </h2>
-                {entry?.quizPassed && (
-                  <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
-                    Passed · {entry.quizBestScore}%
-                  </span>
-                )}
-              </div>
-              {entry?.hasQuiz === false
-                ? <p className="text-sm text-muted-foreground">No quiz has been published for this module.</p>
-                : <QuizPanel sessionId={session.id} />}
-            </section>
+          {/* Coursework tabs: quiz and assignment each get their own page */}
+          <Tabs defaultValue="quiz">
+            <TabsList className="mb-4">
+              <TabsTrigger value="quiz">
+                <FileQuestion className="w-4 h-4 mr-1.5" />Module Quiz
+                {entry?.quizPassed && <CheckCircle2 className="w-3.5 h-3.5 ml-1.5 text-emerald-600" />}
+              </TabsTrigger>
+              <TabsTrigger value="assignment">
+                <ClipboardList className="w-4 h-4 mr-1.5" />Assignment
+                {entry?.assignmentSubmitted && <CheckCircle2 className="w-3.5 h-3.5 ml-1.5 text-emerald-600" />}
+              </TabsTrigger>
+            </TabsList>
 
-            <section className="bg-card border border-border rounded-2xl p-5">
-              <div className="flex items-center justify-between gap-2 mb-3">
-                <h2 className="font-display font-bold flex items-center gap-2">
-                  <ClipboardList className="w-4 h-4 text-[#C2410C]" />Assignment
-                </h2>
-                {entry?.assignmentSubmitted && (
-                  <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
-                    Submitted
-                  </span>
-                )}
-              </div>
-              {entry?.hasAssignment === false
-                ? <p className="text-sm text-muted-foreground">No assignment has been published for this module.</p>
-                : <AssignmentPanel sessionId={session.id} />}
-            </section>
-          </aside>
+            <TabsContent value="quiz">
+              <section className="bg-card border border-border rounded-2xl p-6">
+                <div className="flex items-center justify-between gap-2 mb-4">
+                  <h2 className="font-display font-bold">Module quiz</h2>
+                  {entry?.quizPassed && (
+                    <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
+                      Passed · {entry.quizBestScore}%
+                    </span>
+                  )}
+                </div>
+                {entry?.hasQuiz === false
+                  ? <p className="text-sm text-muted-foreground">No quiz has been published for this module.</p>
+                  : <QuizPanel sessionId={session.id} />}
+              </section>
+            </TabsContent>
+
+            <TabsContent value="assignment">
+              <section className="bg-card border border-border rounded-2xl p-6">
+                <div className="flex items-center justify-between gap-2 mb-4">
+                  <h2 className="font-display font-bold">Assignment</h2>
+                  {entry?.assignmentSubmitted && (
+                    <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
+                      Submitted
+                    </span>
+                  )}
+                </div>
+                {entry?.hasAssignment === false
+                  ? <p className="text-sm text-muted-foreground">No assignment has been published for this module.</p>
+                  : <AssignmentPanel sessionId={session.id} />}
+              </section>
+            </TabsContent>
+          </Tabs>
         </div>
       )}
     </div>
