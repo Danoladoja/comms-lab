@@ -691,8 +691,244 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiMessage"
+  /programs/{id}/threads:
+    get:
+      operationId: listProgramThreads
+      tags: [forum]
+      summary: List forum threads for a program (enrolled learners and staff)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Threads, pinned first then most recent activity
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ThreadList"
+        "401":
+          description: Not signed in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "403":
+          description: Not enrolled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+    post:
+      operationId: createProgramThread
+      tags: [forum]
+      summary: Start a new discussion thread
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ThreadInput"
+      responses:
+        "200":
+          description: Created thread
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ForumThread"
+        "401":
+          description: Not signed in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "403":
+          description: Not enrolled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+  /threads/{id}:
+    get:
+      operationId: getThread
+      tags: [forum]
+      summary: A thread with all its replies
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Thread detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ThreadDetail"
+        "401":
+          description: Not signed in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "403":
+          description: Not enrolled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "404":
+          description: Thread not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+  /threads/{id}/posts:
+    post:
+      operationId: createThreadPost
+      tags: [forum]
+      summary: Reply to a thread
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PostInput"
+      responses:
+        "200":
+          description: Created reply
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ForumPost"
+        "401":
+          description: Not signed in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "403":
+          description: Not enrolled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "404":
+          description: Thread not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+  /threads/{id}/pin:
+    post:
+      operationId: setThreadPinned
+      tags: [forum]
+      summary: Pin or unpin a thread (admin or program facilitator)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PinInput"
+      responses:
+        "200":
+          description: Updated thread
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ForumThread"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "404":
+          description: Thread not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
 components:
   schemas:
+    ForumThread:
+      type: object
+      required: [id, programId, title, body, pinned, authorName, authorRole, replyCount, lastActivityAt, createdAt, mine]
+      properties:
+        id: { type: integer }
+        programId: { type: integer }
+        title: { type: string }
+        body: { type: string }
+        pinned: { type: boolean }
+        authorName: { type: string }
+        authorRole: { type: string }
+        replyCount: { type: integer }
+        lastActivityAt: { type: string }
+        createdAt: { type: string }
+        mine: { type: boolean }
+    ThreadList:
+      type: object
+      required: [canModerate, threads]
+      properties:
+        canModerate: { type: boolean }
+        threads:
+          type: array
+          items:
+            $ref: "#/components/schemas/ForumThread"
+    ForumPost:
+      type: object
+      required: [id, threadId, body, authorName, authorRole, createdAt, mine]
+      properties:
+        id: { type: integer }
+        threadId: { type: integer }
+        body: { type: string }
+        authorName: { type: string }
+        authorRole: { type: string }
+        createdAt: { type: string }
+        mine: { type: boolean }
+    ThreadDetail:
+      type: object
+      required: [thread, posts, canModerate]
+      properties:
+        thread:
+          $ref: "#/components/schemas/ForumThread"
+        posts:
+          type: array
+          items:
+            $ref: "#/components/schemas/ForumPost"
+        canModerate: { type: boolean }
+    ThreadInput:
+      type: object
+      required: [title]
+      properties:
+        title: { type: string, minLength: 1, maxLength: 200 }
+        body: { type: string, maxLength: 5000 }
+    PostInput:
+      type: object
+      required: [body]
+      properties:
+        body: { type: string, minLength: 1, maxLength: 5000 }
+    PinInput:
+      type: object
+      required: [pinned]
+      properties:
+        pinned: { type: boolean }
     HealthStatus:
       type: object
       properties:

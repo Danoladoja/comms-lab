@@ -28,9 +28,13 @@ import type {
   Enrollment,
   EnrollmentDetail,
   EnrollmentUpdate,
+  ForumPost,
+  ForumThread,
   HealthStatus,
   JoinResult,
   ListAllEnrollmentsParams,
+  PinInput,
+  PostInput,
   Program,
   ProgramInput,
   ProgramUpdate,
@@ -43,6 +47,9 @@ import type {
   SessionInput,
   SessionProgress,
   SessionUpdate,
+  ThreadDetail,
+  ThreadInput,
+  ThreadList,
   User,
   UserRoleUpdate
 } from './api.schemas';
@@ -1936,5 +1943,375 @@ export const useUpdateEnrollment = <TError = ErrorType<ApiMessage>,
         TContext
       > => {
       return useMutation(getUpdateEnrollmentMutationOptions(options));
+    }
+
+export const getListProgramThreadsUrl = (id: number,) => {
+
+
+
+
+  return `/api/programs/${id}/threads`
+}
+
+/**
+ * @summary List forum threads for a program (enrolled learners and staff)
+ */
+export const listProgramThreads = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<ThreadList> => {
+
+  return customFetch<ThreadList>(getListProgramThreadsUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListProgramThreadsQueryKey = (id: number,) => {
+    return [
+    `/api/programs/${id}/threads`
+    ] as const;
+    }
+
+
+export const getListProgramThreadsQueryOptions = <TData = Awaited<ReturnType<typeof listProgramThreads>>, TError = ErrorType<ApiMessage>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listProgramThreads>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListProgramThreadsQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listProgramThreads>>> = ({ signal }) => listProgramThreads(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listProgramThreads>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListProgramThreadsQueryResult = NonNullable<Awaited<ReturnType<typeof listProgramThreads>>>
+export type ListProgramThreadsQueryError = ErrorType<ApiMessage>
+
+
+/**
+ * @summary List forum threads for a program (enrolled learners and staff)
+ */
+
+export function useListProgramThreads<TData = Awaited<ReturnType<typeof listProgramThreads>>, TError = ErrorType<ApiMessage>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listProgramThreads>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListProgramThreadsQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateProgramThreadUrl = (id: number,) => {
+
+
+
+
+  return `/api/programs/${id}/threads`
+}
+
+/**
+ * @summary Start a new discussion thread
+ */
+export const createProgramThread = async (id: number,
+    threadInput: ThreadInput, options?: Parameters<typeof customFetch>[1]): Promise<ForumThread> => {
+
+  return customFetch<ForumThread>(getCreateProgramThreadUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(threadInput)
+  }
+);}
+
+
+
+
+
+export const getCreateProgramThreadMutationOptions = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createProgramThread>>, TError,{id: number;data: BodyType<ThreadInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createProgramThread>>, TError,{id: number;data: BodyType<ThreadInput>}, TContext> => {
+
+const mutationKey = ['createProgramThread'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createProgramThread>>, {id: number;data: BodyType<ThreadInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  createProgramThread(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateProgramThreadMutationResult = NonNullable<Awaited<ReturnType<typeof createProgramThread>>>
+    export type CreateProgramThreadMutationBody = BodyType<ThreadInput>
+    export type CreateProgramThreadMutationError = ErrorType<ApiMessage>
+
+    /**
+ * @summary Start a new discussion thread
+ */
+export const useCreateProgramThread = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createProgramThread>>, TError,{id: number;data: BodyType<ThreadInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createProgramThread>>,
+        TError,
+        {id: number;data: BodyType<ThreadInput>},
+        TContext
+      > => {
+      return useMutation(getCreateProgramThreadMutationOptions(options));
+    }
+
+export const getGetThreadUrl = (id: number,) => {
+
+
+
+
+  return `/api/threads/${id}`
+}
+
+/**
+ * @summary A thread with all its replies
+ */
+export const getThread = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<ThreadDetail> => {
+
+  return customFetch<ThreadDetail>(getGetThreadUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetThreadQueryKey = (id: number,) => {
+    return [
+    `/api/threads/${id}`
+    ] as const;
+    }
+
+
+export const getGetThreadQueryOptions = <TData = Awaited<ReturnType<typeof getThread>>, TError = ErrorType<ApiMessage>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getThread>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetThreadQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getThread>>> = ({ signal }) => getThread(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getThread>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetThreadQueryResult = NonNullable<Awaited<ReturnType<typeof getThread>>>
+export type GetThreadQueryError = ErrorType<ApiMessage>
+
+
+/**
+ * @summary A thread with all its replies
+ */
+
+export function useGetThread<TData = Awaited<ReturnType<typeof getThread>>, TError = ErrorType<ApiMessage>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getThread>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetThreadQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateThreadPostUrl = (id: number,) => {
+
+
+
+
+  return `/api/threads/${id}/posts`
+}
+
+/**
+ * @summary Reply to a thread
+ */
+export const createThreadPost = async (id: number,
+    postInput: PostInput, options?: Parameters<typeof customFetch>[1]): Promise<ForumPost> => {
+
+  return customFetch<ForumPost>(getCreateThreadPostUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(postInput)
+  }
+);}
+
+
+
+
+
+export const getCreateThreadPostMutationOptions = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createThreadPost>>, TError,{id: number;data: BodyType<PostInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createThreadPost>>, TError,{id: number;data: BodyType<PostInput>}, TContext> => {
+
+const mutationKey = ['createThreadPost'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createThreadPost>>, {id: number;data: BodyType<PostInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  createThreadPost(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateThreadPostMutationResult = NonNullable<Awaited<ReturnType<typeof createThreadPost>>>
+    export type CreateThreadPostMutationBody = BodyType<PostInput>
+    export type CreateThreadPostMutationError = ErrorType<ApiMessage>
+
+    /**
+ * @summary Reply to a thread
+ */
+export const useCreateThreadPost = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createThreadPost>>, TError,{id: number;data: BodyType<PostInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createThreadPost>>,
+        TError,
+        {id: number;data: BodyType<PostInput>},
+        TContext
+      > => {
+      return useMutation(getCreateThreadPostMutationOptions(options));
+    }
+
+export const getSetThreadPinnedUrl = (id: number,) => {
+
+
+
+
+  return `/api/threads/${id}/pin`
+}
+
+/**
+ * @summary Pin or unpin a thread (admin or program facilitator)
+ */
+export const setThreadPinned = async (id: number,
+    pinInput: PinInput, options?: Parameters<typeof customFetch>[1]): Promise<ForumThread> => {
+
+  return customFetch<ForumThread>(getSetThreadPinnedUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(pinInput)
+  }
+);}
+
+
+
+
+
+export const getSetThreadPinnedMutationOptions = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setThreadPinned>>, TError,{id: number;data: BodyType<PinInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof setThreadPinned>>, TError,{id: number;data: BodyType<PinInput>}, TContext> => {
+
+const mutationKey = ['setThreadPinned'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof setThreadPinned>>, {id: number;data: BodyType<PinInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  setThreadPinned(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SetThreadPinnedMutationResult = NonNullable<Awaited<ReturnType<typeof setThreadPinned>>>
+    export type SetThreadPinnedMutationBody = BodyType<PinInput>
+    export type SetThreadPinnedMutationError = ErrorType<ApiMessage>
+
+    /**
+ * @summary Pin or unpin a thread (admin or program facilitator)
+ */
+export const useSetThreadPinned = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setThreadPinned>>, TError,{id: number;data: BodyType<PinInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof setThreadPinned>>,
+        TError,
+        {id: number;data: BodyType<PinInput>},
+        TContext
+      > => {
+      return useMutation(getSetThreadPinnedMutationOptions(options));
     }
 

@@ -568,3 +568,147 @@ export const UpdateEnrollmentResponse = zod.object({
 })
 
 
+/**
+ * @summary List forum threads for a program (enrolled learners and staff)
+ */
+export const ListProgramThreadsParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const ListProgramThreadsResponse = zod.object({
+  "canModerate": zod.boolean(),
+  "threads": zod.array(zod.object({
+  "id": zod.int(),
+  "programId": zod.int(),
+  "title": zod.string(),
+  "body": zod.string(),
+  "pinned": zod.boolean(),
+  "authorName": zod.string(),
+  "authorRole": zod.string(),
+  "replyCount": zod.int(),
+  "lastActivityAt": zod.string(),
+  "createdAt": zod.string(),
+  "mine": zod.boolean()
+}))
+})
+
+
+/**
+ * @summary Start a new discussion thread
+ */
+export const CreateProgramThreadParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const createProgramThreadBodyTitleMax = 200;
+
+export const createProgramThreadBodyBodyMax = 5000;
+
+
+
+export const CreateProgramThreadBody = zod.object({
+  "title": zod.string().min(1).max(createProgramThreadBodyTitleMax),
+  "body": zod.string().max(createProgramThreadBodyBodyMax).optional()
+})
+
+export const CreateProgramThreadResponse = zod.object({
+  "id": zod.int(),
+  "programId": zod.int(),
+  "title": zod.string(),
+  "body": zod.string(),
+  "pinned": zod.boolean(),
+  "authorName": zod.string(),
+  "authorRole": zod.string(),
+  "replyCount": zod.int(),
+  "lastActivityAt": zod.string(),
+  "createdAt": zod.string(),
+  "mine": zod.boolean()
+})
+
+
+/**
+ * @summary A thread with all its replies
+ */
+export const GetThreadParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const GetThreadResponse = zod.object({
+  "thread": zod.object({
+  "id": zod.int(),
+  "programId": zod.int(),
+  "title": zod.string(),
+  "body": zod.string(),
+  "pinned": zod.boolean(),
+  "authorName": zod.string(),
+  "authorRole": zod.string(),
+  "replyCount": zod.int(),
+  "lastActivityAt": zod.string(),
+  "createdAt": zod.string(),
+  "mine": zod.boolean()
+}),
+  "posts": zod.array(zod.object({
+  "id": zod.int(),
+  "threadId": zod.int(),
+  "body": zod.string(),
+  "authorName": zod.string(),
+  "authorRole": zod.string(),
+  "createdAt": zod.string(),
+  "mine": zod.boolean()
+})),
+  "canModerate": zod.boolean()
+})
+
+
+/**
+ * @summary Reply to a thread
+ */
+export const CreateThreadPostParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const createThreadPostBodyBodyMax = 5000;
+
+
+
+export const CreateThreadPostBody = zod.object({
+  "body": zod.string().min(1).max(createThreadPostBodyBodyMax)
+})
+
+export const CreateThreadPostResponse = zod.object({
+  "id": zod.int(),
+  "threadId": zod.int(),
+  "body": zod.string(),
+  "authorName": zod.string(),
+  "authorRole": zod.string(),
+  "createdAt": zod.string(),
+  "mine": zod.boolean()
+})
+
+
+/**
+ * @summary Pin or unpin a thread (admin or program facilitator)
+ */
+export const SetThreadPinnedParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const SetThreadPinnedBody = zod.object({
+  "pinned": zod.boolean()
+})
+
+export const SetThreadPinnedResponse = zod.object({
+  "id": zod.int(),
+  "programId": zod.int(),
+  "title": zod.string(),
+  "body": zod.string(),
+  "pinned": zod.boolean(),
+  "authorName": zod.string(),
+  "authorRole": zod.string(),
+  "replyCount": zod.int(),
+  "lastActivityAt": zod.string(),
+  "createdAt": zod.string(),
+  "mine": zod.boolean()
+})
+
+

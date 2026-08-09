@@ -5,6 +5,63 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+export interface ForumThread {
+  id: number;
+  programId: number;
+  title: string;
+  body: string;
+  pinned: boolean;
+  authorName: string;
+  authorRole: string;
+  replyCount: number;
+  lastActivityAt: string;
+  createdAt: string;
+  mine: boolean;
+}
+
+export interface ThreadList {
+  canModerate: boolean;
+  threads: ForumThread[];
+}
+
+export interface ForumPost {
+  id: number;
+  threadId: number;
+  body: string;
+  authorName: string;
+  authorRole: string;
+  createdAt: string;
+  mine: boolean;
+}
+
+export interface ThreadDetail {
+  thread: ForumThread;
+  posts: ForumPost[];
+  canModerate: boolean;
+}
+
+export interface ThreadInput {
+  /**
+     * @minLength 1
+     * @maxLength 200
+     */
+  title: string;
+  /** @maxLength 5000 */
+  body?: string;
+}
+
+export interface PostInput {
+  /**
+     * @minLength 1
+     * @maxLength 5000
+     */
+  body: string;
+}
+
+export interface PinInput {
+  pinned: boolean;
+}
+
 export interface HealthStatus {
   status: string;
 }
