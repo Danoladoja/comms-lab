@@ -1,183 +1,21 @@
 import { Router, type IRouter } from "express";
 import {
   db, attendanceTable, enrollmentsTable, programsTable, sessionsTable, usersTable,
-  quizQuestionsTable, quizAttemptsTable, assignmentsTable, assignmentSubmissionsTable,
+  assignmentsTable, assignmentSubmissionsTable,
 } from "@workspace/db";
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
+import {
+  liveWindow,
+  generateCertificateCode,
+  normaliseCertificateCode,
+  type ProgressEntry,
+} from "@workspace/domain";
+import { SetPortfolioVisibilityBody } from "@workspace/api-zod";
 import { getCurrentUser } from "../lib/auth";
+import { progressForUser, enrolledProgramIds } from "../lib/progress";
 import { sendEnrollmentConfirmation, sendWaitlistConfirmation } from "../lib/enrollmentEmails";
 
 const router: IRouter = Router();
-
-const LIVE_GRACE_MS = 5 * 60 * 1000; // join within 5 min of start still counts as "from the start"
-export const QUIZ_PASS_MARK = 70;
-
-type SessionLite = {
-  id: number;
-  programId: number;
-  startsAt: Date | null;
-  durationMins: number;
-  sortOrder: number;
-};
-
-export type CourseworkStatus = {
-  hasQuiz: boolean;
-  quizBestScore: number | null;
-  hasAssignment: boolean;
-  assignmentSubmitted: boolean;
-};
-
-type ProgressEntry = {
-  sessionId: number;
-  programId: number;
-  progressPct: number;
-  attendedLive: boolean;
-  completed: boolean;
-  locked: boolean;
-  hasQuiz: boolean;
-  quizPassed: boolean;
-  quizBestScore: number | null;
-  hasAssignment: boolean;
-  assignmentSubmitted: boolean;
-};
-
-/**
- * Compute per-module progress and sequential lock state for a learner.
- * - progressPct: blended across the module's components (live attendance, quiz, assignment).
- * - attendedLive: joined within the grace window of the start and the session has ended.
- * - completed: attendedLive AND quiz passed (70%+, when the module has one)
- *   AND assignment submitted (when the module has one).
- * - locked: a previous module in the same program is not completed yet.
- * A previous module does NOT lock later ones when it is unscheduled, or when it
- * ended before the learner enrolled (late joiners are not locked out forever).
- */
-export function computeProgress(
-  sessions: SessionLite[],
-  attendance: Map<number, Date>,
-  enrolledAtByProgram: Map<number, Date>,
-  coursework: Map<number, CourseworkStatus>,
-  now = Date.now(),
-): ProgressEntry[] {
-  const byProgram = new Map<number, SessionLite[]>();
-  for (const s of sessions) {
-    const list = byProgram.get(s.programId) ?? [];
-    list.push(s);
-    byProgram.set(s.programId, list);
-  }
-  const entries: ProgressEntry[] = [];
-  for (const [programId, list] of byProgram.entries()) {
-    // Canonical deterministic order: startsAt, sortOrder, id.
-    list.sort((a, b) => {
-      const at = a.startsAt?.getTime() ?? Infinity;
-      const bt = b.startsAt?.getTime() ?? Infinity;
-      return at - bt || a.sortOrder - b.sortOrder || a.id - b.id;
-    });
-    const enrolledAt = enrolledAtByProgram.get(programId)?.getTime() ?? 0;
-    let previousSatisfied = true; // first module is always unlocked
-    for (const s of list) {
-      const joined = attendance.get(s.id);
-      const start = s.startsAt?.getTime() ?? null;
-      const durationMs = s.durationMins * 60 * 1000;
-      const end = start !== null ? start + durationMs : null;
-      let attendancePct = 0;
-      let attendedLive = false;
-      if (joined && start !== null && end !== null) {
-        const effectiveJoin = Math.max(joined.getTime(), start);
-        const watchedUntil = Math.min(now, end);
-        attendancePct = Math.max(0, Math.min(100, Math.round(((watchedUntil - effectiveJoin) / durationMs) * 100)));
-        attendedLive = joined.getTime() <= start + LIVE_GRACE_MS && now >= end;
-        if (attendedLive) attendancePct = 100;
-      }
-      const cw = coursework.get(s.id) ?? { hasQuiz: false, quizBestScore: null, hasAssignment: false, assignmentSubmitted: false };
-      const quizPassed = cw.hasQuiz && (cw.quizBestScore ?? 0) >= QUIZ_PASS_MARK;
-      const completed = attendedLive && (!cw.hasQuiz || quizPassed) && (!cw.hasAssignment || cw.assignmentSubmitted);
-      // Blend the module's components equally: live class, quiz (best score), assignment.
-      const parts = [attendancePct];
-      if (cw.hasQuiz) parts.push(quizPassed ? 100 : Math.min(cw.quizBestScore ?? 0, 99));
-      if (cw.hasAssignment) parts.push(cw.assignmentSubmitted ? 100 : 0);
-      const progressPct = completed ? 100 : Math.round(parts.reduce((a, b) => a + b, 0) / parts.length);
-      entries.push({
-        sessionId: s.id, programId: s.programId, progressPct, attendedLive, completed, locked: !previousSatisfied,
-        hasQuiz: cw.hasQuiz, quizPassed, quizBestScore: cw.quizBestScore,
-        hasAssignment: cw.hasAssignment, assignmentSubmitted: cw.assignmentSubmitted,
-      });
-      // Waived prerequisites: unscheduled sessions, or sessions that ended before enrollment.
-      const waived = start === null || (end !== null && end < enrolledAt);
-      previousSatisfied = completed || waived;
-    }
-  }
-  return entries;
-}
-
-export async function progressForUser(userId: number, programIds: number[]): Promise<ProgressEntry[]> {
-  if (programIds.length === 0) return [];
-  const sessions = await db
-    .select({
-      id: sessionsTable.id,
-      programId: sessionsTable.programId,
-      startsAt: sessionsTable.startsAt,
-      durationMins: sessionsTable.durationMins,
-      sortOrder: sessionsTable.sortOrder,
-    })
-    .from(sessionsTable)
-    .where(inArray(sessionsTable.programId, programIds));
-  const att = await db
-    .select()
-    .from(attendanceTable)
-    .where(and(eq(attendanceTable.userId, userId), inArray(attendanceTable.sessionId, sessions.map((s) => s.id).concat(-1))));
-  const attendance = new Map(att.map((a) => [a.sessionId, a.joinedAt]));
-  const enrollRows = await db
-    .select({ programId: enrollmentsTable.programId, createdAt: enrollmentsTable.createdAt })
-    .from(enrollmentsTable)
-    .where(and(eq(enrollmentsTable.userId, userId), inArray(enrollmentsTable.programId, programIds)));
-  const enrolledAtByProgram = new Map(enrollRows.map((e) => [e.programId, e.createdAt]));
-
-  const sessionIds = sessions.map((s) => s.id).concat(-1);
-  const [quizSessions, bestAttempts, assignments, submissions] = await Promise.all([
-    db
-      .selectDistinct({ sessionId: quizQuestionsTable.sessionId })
-      .from(quizQuestionsTable)
-      .where(inArray(quizQuestionsTable.sessionId, sessionIds)),
-    db
-      .select({ sessionId: quizAttemptsTable.sessionId, best: sql<number>`max(${quizAttemptsTable.scorePct})::int` })
-      .from(quizAttemptsTable)
-      .where(and(eq(quizAttemptsTable.userId, userId), inArray(quizAttemptsTable.sessionId, sessionIds)))
-      .groupBy(quizAttemptsTable.sessionId),
-    db
-      .select({ sessionId: assignmentsTable.sessionId })
-      .from(assignmentsTable)
-      .where(inArray(assignmentsTable.sessionId, sessionIds)),
-    db
-      .select({ sessionId: assignmentSubmissionsTable.sessionId })
-      .from(assignmentSubmissionsTable)
-      .where(and(eq(assignmentSubmissionsTable.userId, userId), inArray(assignmentSubmissionsTable.sessionId, sessionIds))),
-  ]);
-  const quizSet = new Set(quizSessions.map((q) => q.sessionId));
-  const bestBySession = new Map(bestAttempts.map((a) => [a.sessionId, a.best]));
-  const assignmentSet = new Set(assignments.map((a) => a.sessionId));
-  const submittedSet = new Set(submissions.map((s) => s.sessionId));
-  const coursework = new Map<number, CourseworkStatus>(
-    sessions.map((s) => [
-      s.id,
-      {
-        hasQuiz: quizSet.has(s.id),
-        quizBestScore: bestBySession.get(s.id) ?? null,
-        hasAssignment: assignmentSet.has(s.id),
-        assignmentSubmitted: submittedSet.has(s.id),
-      },
-    ]),
-  );
-
-  return computeProgress(sessions, attendance, enrolledAtByProgram, coursework);
-}
-
-async function enrolledProgramIds(userId: number): Promise<number[]> {
-  const enrolled = await db
-    .select({ programId: enrollmentsTable.programId })
-    .from(enrollmentsTable)
-    .where(and(eq(enrollmentsTable.userId, userId), sql`${enrollmentsTable.status} in ('enrolled', 'completed')`));
-  return enrolled.map((e) => e.programId);
-}
 
 router.post("/programs/:id/enroll", async (req, res) => {
   const user = await getCurrentUser(req);
@@ -219,10 +57,11 @@ router.post("/programs/:id/enroll", async (req, res) => {
     }
     const [created] = await tx
       .insert(enrollmentsTable)
-      .values({ userId: user.id, programId, status })
+      .values({ userId: user.id, programId, status, certificateCode: generateCertificateCode() })
       .returning();
     return created;
   });
+
   // Fire-and-forget: the enrollment is committed; an email failure only logs.
   if (result.status === "enrolled") {
     sendEnrollmentConfirmation({ email: user.email, name: user.name }, program[0]);
@@ -268,6 +107,8 @@ router.post("/sessions/:id/join", async (req, res) => {
   }
 
   const isStaff = user.role === "admin" || (user.role === "instructor" && session.instructorId === user.id);
+  const window = liveWindow(session);
+
   if (!isStaff) {
     const programIds = await enrolledProgramIds(user.id);
     if (!programIds.includes(session.programId)) {
@@ -277,23 +118,21 @@ router.post("/sessions/:id/join", async (req, res) => {
     const progress = await progressForUser(user.id, [session.programId]);
     const entry = progress.find((p) => p.sessionId === sessionId);
     if (entry?.locked) {
-      res.status(403).json({ error: "Complete the previous module to unlock this one" });
+      res.status(403).json({ error: "Finish the previous module's work to unlock this one" });
       return;
     }
-    // Only allow joining during the live window (small grace before the start).
-    if (!session.startsAt) {
+    // The join window comes from @workspace/domain, which is also what the web
+    // client reads to decide when to show the button. They cannot drift apart
+    // again: the old client offered "Join" at T-15 while this rejected it
+    // until T-5.
+    if (window.state === "unscheduled") {
       res.status(403).json({ error: "This session is not scheduled yet" });
       return;
     }
-    const start = session.startsAt.getTime();
-    const end = start + session.durationMins * 60 * 1000;
-    const now = Date.now();
-    if (now < start - LIVE_GRACE_MS) {
-      res.status(403).json({ error: "The class has not started yet" });
-      return;
-    }
-    if (now > end) {
-      res.status(403).json({ error: "This class has already ended" });
+    if (!window.canJoin) {
+      res.status(403).json({
+        error: window.state === "ended" ? "This class has already ended" : "The room is not open yet",
+      });
       return;
     }
   }
@@ -310,7 +149,16 @@ router.post("/sessions/:id/join", async (req, res) => {
       .from(attendanceTable)
       .where(and(eq(attendanceTable.userId, user.id), eq(attendanceTable.sessionId, sessionId))))[0].joinedAt;
 
-  res.json({ sessionId, joinedAt: joinedAt.toISOString(), joinUrl: session.meetUrl ?? null });
+  // Attendance is recognition, never a gate — but the learner is told plainly
+  // whether this join earned it, instead of finding out never.
+  const countedAsOnTime = liveWindow(session, joinedAt.getTime()).countsAsOnTime;
+
+  res.json({
+    sessionId,
+    joinedAt: joinedAt.toISOString(),
+    joinUrl: session.meetUrl ?? null,
+    countedAsOnTime,
+  });
 });
 
 router.get("/my/progress", async (req, res) => {
@@ -323,8 +171,33 @@ router.get("/my/progress", async (req, res) => {
   res.json(await progressForUser(user.id, programIds));
 });
 
-// A certificate exists for each enrolled program where every module is completed.
-// Completion date = the end of the program's last scheduled session.
+/* ---------- Certificates ---------- */
+
+function completedProgramIdsFrom(progress: ProgressEntry[]): number[] {
+  const byProgram = new Map<number, ProgressEntry[]>();
+  for (const p of progress) {
+    const list = byProgram.get(p.programId) ?? [];
+    list.push(p);
+    byProgram.set(p.programId, list);
+  }
+  return [...byProgram.entries()]
+    .filter(([, entries]) => entries.length > 0 && entries.every((e) => e.completed))
+    .map(([programId]) => programId);
+}
+
+async function lastEndByProgram(programIds: number[]): Promise<Map<number, string | null>> {
+  if (programIds.length === 0) return new Map();
+  const rows = await db
+    .select({
+      programId: sessionsTable.programId,
+      lastEnd: sql<string | null>`max(${sessionsTable.startsAt} + make_interval(mins => ${sessionsTable.durationMins}))`,
+    })
+    .from(sessionsTable)
+    .where(inArray(sessionsTable.programId, programIds))
+    .groupBy(sessionsTable.programId);
+  return new Map(rows.map((r) => [r.programId, r.lastEnd]));
+}
+
 router.get("/my/certificates", async (req, res) => {
   const user = await getCurrentUser(req);
   if (!user) {
@@ -337,64 +210,122 @@ router.get("/my/certificates", async (req, res) => {
     return;
   }
   const progress = await progressForUser(user.id, programIds);
-  const byProgram = new Map<number, typeof progress>();
-  for (const p of progress) {
-    const list = byProgram.get(p.programId) ?? [];
-    list.push(p);
-    byProgram.set(p.programId, list);
-  }
-  const completedProgramIds = [...byProgram.entries()]
-    .filter(([, entries]) => entries.length > 0 && entries.every((e) => e.completed))
-    .map(([programId]) => programId);
+  const completedProgramIds = completedProgramIdsFrom(progress);
   if (completedProgramIds.length === 0) {
     res.json([]);
     return;
   }
-  const programs = await db
-    .select({ id: programsTable.id, title: programsTable.title })
-    .from(programsTable)
-    .where(inArray(programsTable.id, completedProgramIds));
-  const lastEnds = await db
-    .select({
-      programId: sessionsTable.programId,
-      lastEnd: sql<string | null>`max(${sessionsTable.startsAt} + make_interval(mins => ${sessionsTable.durationMins}))`,
-    })
-    .from(sessionsTable)
-    .where(inArray(sessionsTable.programId, completedProgramIds))
-    .groupBy(sessionsTable.programId);
-  const lastEndByProgram = new Map(lastEnds.map((r) => [r.programId, r.lastEnd]));
+
+  const [programs, enrollments, lastEnds] = await Promise.all([
+    db
+      .select({ id: programsTable.id, title: programsTable.title })
+      .from(programsTable)
+      .where(inArray(programsTable.id, completedProgramIds)),
+    db
+      .select({
+        programId: enrollmentsTable.programId,
+        certificateCode: enrollmentsTable.certificateCode,
+        portfolioPublic: enrollmentsTable.portfolioPublic,
+      })
+      .from(enrollmentsTable)
+      .where(and(eq(enrollmentsTable.userId, user.id), inArray(enrollmentsTable.programId, completedProgramIds))),
+    lastEndByProgram(completedProgramIds),
+  ]);
+  const enrollmentByProgram = new Map(enrollments.map((e) => [e.programId, e]));
+
   res.json(
-    programs.map((p) => ({
-      programId: p.id,
-      programTitle: p.title,
-      learnerName: user.name,
-      completedAt: lastEndByProgram.get(p.id)
-        ? new Date(lastEndByProgram.get(p.id)!).toISOString()
-        : null,
-      certificateId: `AECL-${String(p.id).padStart(3, "0")}-${String(user.id).padStart(4, "0")}`,
-    })),
+    programs.flatMap((p) => {
+      const enrollment = enrollmentByProgram.get(p.id);
+      if (!enrollment) return [];
+      const entries = progress.filter((e) => e.programId === p.id);
+      return [{
+        programId: p.id,
+        programTitle: p.title,
+        learnerName: user.name,
+        completedAt: lastEnds.get(p.id) ? new Date(lastEnds.get(p.id)!).toISOString() : null,
+        certificateId: enrollment.certificateCode,
+        portfolioPublic: enrollment.portfolioPublic,
+        modulesCompleted: entries.length,
+        reviewsWritten: entries.reduce((sum, e) => sum + e.reviewsGiven, 0),
+      }];
+    }),
   );
 });
 
-// Public verification of a certificate ID (AECL-<programId>-<userId>).
-// No auth: returns only the learner's name, program title, and completion date,
-// and only when the learner has genuinely completed every module.
+router.patch("/my/certificates/:programId/portfolio", async (req, res) => {
+  const user = await getCurrentUser(req);
+  if (!user) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  const programId = Number(req.params.programId);
+  const parsed = SetPortfolioVisibilityBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+
+  const progress = await progressForUser(user.id, [programId]);
+  if (!completedProgramIdsFrom(progress).includes(programId)) {
+    res.status(404).json({ error: "No completed enrollment for that program" });
+    return;
+  }
+
+  const [updated] = await db
+    .update(enrollmentsTable)
+    .set({ portfolioPublic: parsed.data.portfolioPublic })
+    .where(and(eq(enrollmentsTable.userId, user.id), eq(enrollmentsTable.programId, programId)))
+    .returning();
+  if (!updated) {
+    res.status(404).json({ error: "No completed enrollment for that program" });
+    return;
+  }
+
+  const [program] = await db
+    .select({ title: programsTable.title })
+    .from(programsTable)
+    .where(eq(programsTable.id, programId));
+  const lastEnds = await lastEndByProgram([programId]);
+  const entries = progress.filter((e) => e.programId === programId);
+
+  res.json({
+    programId,
+    programTitle: program?.title ?? "",
+    learnerName: user.name,
+    completedAt: lastEnds.get(programId) ? new Date(lastEnds.get(programId)!).toISOString() : null,
+    certificateId: updated.certificateCode,
+    portfolioPublic: updated.portfolioPublic,
+    modulesCompleted: entries.length,
+    reviewsWritten: entries.reduce((sum, e) => sum + e.reviewsGiven, 0),
+  });
+});
+
+/**
+ * Public verification. No auth.
+ *
+ * The code is opaque and looked up, never parsed — the old
+ * AECL-{programId}-{userId} format let anyone walk the range and harvest every
+ * graduate's name. Completion is recomputed here rather than trusted from a
+ * stored flag, and the learner's actual work is included only when they have
+ * explicitly published their portfolio.
+ */
 router.get("/certificates/:certificateId/verify", async (req, res) => {
-  const certificateId = String(req.params.certificateId).trim().toUpperCase();
-  const match = /^AECL-(\d{3,})-(\d{4,})$/.exec(certificateId);
-  if (!match) {
+  const code = normaliseCertificateCode(String(req.params.certificateId));
+  if (!code) {
     res.status(404).json({ error: "Certificate not found" });
     return;
   }
-  const programId = Number(match[1]);
-  const userId = Number(match[2]);
 
   const [enrollment] = await db
-    .select({ id: enrollmentsTable.id })
+    .select({
+      userId: enrollmentsTable.userId,
+      programId: enrollmentsTable.programId,
+      portfolioPublic: enrollmentsTable.portfolioPublic,
+      certificateCode: enrollmentsTable.certificateCode,
+    })
     .from(enrollmentsTable)
     .where(and(
-      eq(enrollmentsTable.userId, userId),
-      eq(enrollmentsTable.programId, programId),
+      eq(enrollmentsTable.certificateCode, code),
       sql`${enrollmentsTable.status} in ('enrolled', 'completed')`,
     ));
   if (!enrollment) {
@@ -402,38 +333,61 @@ router.get("/certificates/:certificateId/verify", async (req, res) => {
     return;
   }
 
-  const progress = await progressForUser(userId, [programId]);
-  const entries = progress.filter((p) => p.programId === programId);
+  const progress = await progressForUser(enrollment.userId, [enrollment.programId]);
+  const entries = progress.filter((p) => p.programId === enrollment.programId);
   if (entries.length === 0 || !entries.every((e) => e.completed)) {
     res.status(404).json({ error: "Certificate not found" });
     return;
   }
 
-  const [program] = await db
-    .select({ id: programsTable.id, title: programsTable.title })
-    .from(programsTable)
-    .where(eq(programsTable.id, programId));
-  const [learner] = await db
-    .select({ name: usersTable.name })
-    .from(usersTable)
-    .where(eq(usersTable.id, userId));
+  const [programRows, learnerRows, lastEnds] = await Promise.all([
+    db.select({ title: programsTable.title }).from(programsTable).where(eq(programsTable.id, enrollment.programId)),
+    db.select({ name: usersTable.name }).from(usersTable).where(eq(usersTable.id, enrollment.userId)),
+    lastEndByProgram([enrollment.programId]),
+  ]);
+  const program = programRows[0];
+  const learner = learnerRows[0];
   if (!program || !learner) {
     res.status(404).json({ error: "Certificate not found" });
     return;
   }
-  const [lastEnd] = await db
-    .select({
-      lastEnd: sql<string | null>`max(${sessionsTable.startsAt} + make_interval(mins => ${sessionsTable.durationMins}))`,
-    })
-    .from(sessionsTable)
-    .where(eq(sessionsTable.programId, programId));
+
+  // The portfolio is what actually gets someone commissioned — but only if the
+  // learner chose to publish it.
+  let works: { title: string; body: string; submittedAt: string }[] = [];
+  if (enrollment.portfolioPublic) {
+    const rows = await db
+      .select({
+        title: assignmentsTable.title,
+        body: assignmentSubmissionsTable.body,
+        submittedAt: assignmentSubmissionsTable.submittedAt,
+      })
+      .from(assignmentSubmissionsTable)
+      .innerJoin(sessionsTable, eq(assignmentSubmissionsTable.sessionId, sessionsTable.id))
+      .innerJoin(assignmentsTable, eq(assignmentsTable.sessionId, sessionsTable.id))
+      .where(and(
+        eq(assignmentSubmissionsTable.userId, enrollment.userId),
+        eq(sessionsTable.programId, enrollment.programId),
+      ))
+      .orderBy(asc(sessionsTable.startsAt), asc(sessionsTable.sortOrder));
+    works = rows.map((r) => ({
+      title: r.title,
+      body: r.body,
+      submittedAt: r.submittedAt.toISOString(),
+    }));
+  }
 
   res.json({
-    programId,
     programTitle: program.title,
     learnerName: learner.name,
-    completedAt: lastEnd?.lastEnd ? new Date(lastEnd.lastEnd).toISOString() : null,
-    certificateId: `AECL-${String(programId).padStart(3, "0")}-${String(userId).padStart(4, "0")}`,
+    completedAt: lastEnds.get(enrollment.programId)
+      ? new Date(lastEnds.get(enrollment.programId)!).toISOString()
+      : null,
+    certificateId: enrollment.certificateCode,
+    portfolioPublic: enrollment.portfolioPublic,
+    modulesCompleted: entries.length,
+    reviewsWritten: entries.reduce((sum, e) => sum + e.reviewsGiven, 0),
+    works,
   });
 });
 
@@ -452,11 +406,7 @@ router.get("/my/sessions", async (req, res) => {
       .where(eq(sessionsTable.instructorId, user.id));
     programIds = taught.map((t) => t.programId);
   } else {
-    const enrolled = await db
-      .select({ programId: enrollmentsTable.programId })
-      .from(enrollmentsTable)
-      .where(and(eq(enrollmentsTable.userId, user.id), sql`${enrollmentsTable.status} in ('enrolled', 'completed')`));
-    programIds = enrolled.map((e) => e.programId);
+    programIds = await enrolledProgramIds(user.id);
   }
   if (programIds.length === 0) {
     res.json([]);
@@ -494,12 +444,12 @@ router.get("/my/sessions", async (req, res) => {
     return;
   }
 
-  // Learners never get raw meet links (they must go through the join endpoint,
-  // which enforces the lock and the live window) and only get replay links for
-  // sessions they attended live start to finish.
-  const progress = await progressForUser(user.id, programIds);
-  const replayable = new Set(progress.filter((p) => p.attendedLive).map((p) => p.sessionId));
-  res.json(rows.map((r) => ({ ...r, meetUrl: null, recordingUrl: replayable.has(r.id) ? r.recordingUrl : null })));
+  // Learners still never receive the raw meet link — joining has to go through
+  // the join endpoint so attendance is recorded and the lock is enforced. But
+  // every enrolled learner now gets the recording, full stop. Withholding
+  // replays from people who missed a live class punished load-shedding and
+  // breaking news, not effort.
+  res.json(rows.map((r) => ({ ...r, meetUrl: null })));
 });
 
 export default router;

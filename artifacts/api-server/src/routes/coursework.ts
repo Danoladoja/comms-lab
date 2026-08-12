@@ -5,8 +5,9 @@ import {
 } from "@workspace/db";
 import { and, asc, eq, sql } from "drizzle-orm";
 import { UpsertSessionQuizBody, SubmitQuizAttemptBody, UpsertSessionAssignmentBody, SubmitAssignmentBody } from "@workspace/api-zod";
+import { QUIZ_PASS_MARK, DEFAULT_RUBRIC, DEFAULT_REVIEWS_REQUIRED, isValidRubric } from "@workspace/domain";
 import { getCurrentUser } from "../lib/auth";
-import { progressForUser, QUIZ_PASS_MARK } from "./enrollments";
+import { progressForUser } from "../lib/progress";
 
 const router: IRouter = Router();
 
@@ -39,7 +40,7 @@ async function learnerAccessError(user: User, session: { id: number; programId: 
   if (!enrollment) return "You are not enrolled in this program";
   const progress = await progressForUser(user.id, [session.programId]);
   const entry = progress.find((p) => p.sessionId === session.id);
-  if (entry?.locked) return "Complete the previous module to unlock this one";
+  if (entry?.locked) return "Finish the previous module's work to unlock this one";
   return null;
 }
 
@@ -174,6 +175,10 @@ router.get("/sessions/:id/assignment", async (req, res) => {
     sessionId,
     title: assignment.title,
     instructions: assignment.instructions,
+    // Assignments written before rubrics existed fall back to the house rubric
+    // rather than silently becoming un-critiquable.
+    rubric: assignment.rubric.length > 0 ? assignment.rubric : DEFAULT_RUBRIC,
+    reviewsRequired: assignment.reviewsRequired,
     mySubmission: submission
       ? { sessionId, body: submission.body, submittedAt: submission.submittedAt.toISOString() }
       : null,
@@ -191,15 +196,32 @@ router.put("/sessions/:id/assignment", async (req, res) => {
   const parsed = UpsertSessionAssignmentBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
+  const rubric = parsed.data.rubric ?? DEFAULT_RUBRIC;
+  if (!isValidRubric(rubric)) {
+    res.status(400).json({ error: "Rubric must have at least one criterion, each scored 2-10" });
+    return;
+  }
+  const reviewsRequired = parsed.data.reviewsRequired ?? DEFAULT_REVIEWS_REQUIRED;
+
+  const values = {
+    title: parsed.data.title,
+    instructions: parsed.data.instructions ?? "",
+    rubric,
+    reviewsRequired,
+  };
   const [saved] = await db
     .insert(assignmentsTable)
-    .values({ sessionId, title: parsed.data.title, instructions: parsed.data.instructions ?? "" })
-    .onConflictDoUpdate({
-      target: assignmentsTable.sessionId,
-      set: { title: parsed.data.title, instructions: parsed.data.instructions ?? "" },
-    })
+    .values({ sessionId, ...values })
+    .onConflictDoUpdate({ target: assignmentsTable.sessionId, set: values })
     .returning();
-  res.json({ sessionId, title: saved.title, instructions: saved.instructions, mySubmission: null });
+  res.json({
+    sessionId,
+    title: saved.title,
+    instructions: saved.instructions,
+    rubric: saved.rubric,
+    reviewsRequired: saved.reviewsRequired,
+    mySubmission: null,
+  });
 });
 
 router.post("/sessions/:id/assignment/submission", async (req, res) => {

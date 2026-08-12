@@ -7,7 +7,7 @@ import {
   CreateSessionBody,
 } from "@workspace/api-zod";
 import { getCurrentUser, requireRole } from "../lib/auth";
-import { progressForUser } from "./enrollments";
+import { progressForUser } from "../lib/progress";
 
 const router: IRouter = Router();
 
@@ -141,20 +141,18 @@ router.get("/programs/:id/sessions", async (req, res) => {
     .where(eq(sessionsTable.programId, programId))
     .orderBy(asc(sessionsTable.startsAt), asc(sessionsTable.sortOrder), asc(sessionsTable.id));
 
-  // Learners never get raw meet links (they must use the join endpoint) and only
-  // get replay links for sessions they attended live start to finish.
+  // Learners never get raw meet links — joining has to go through the join
+  // endpoint so attendance is recorded and the module lock is enforced.
+  // Recordings, by contrast, go to every enrolled learner: replays used to be
+  // withheld from anyone who missed the live class, which punished load-shedding
+  // and breaking news rather than effort.
   const isStaff = user?.role === "admin" || user?.role === "instructor";
-  let replayable: Set<number> | null = null;
-  if (showLinks && user && !isStaff) {
-    const progress = await progressForUser(user.id, [programId]);
-    replayable = new Set(progress.filter((p) => p.attendedLive).map((p) => p.sessionId));
-  }
 
   res.json(
     rows.map((r) => ({
       ...r,
       meetUrl: showLinks && isStaff ? r.meetUrl : null,
-      recordingUrl: showLinks && (replayable === null || replayable.has(r.id)) ? r.recordingUrl : null,
+      recordingUrl: showLinks ? r.recordingUrl : null,
     })),
   );
 });
