@@ -5,14 +5,15 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
-import type { AssignmentSubmission } from './assignmentSubmission';
+import type { ReviewTarget } from './reviewTarget';
 import type { RubricCriterion } from './rubricCriterion';
 
-export interface AssignmentDetail {
+export interface ReviewQueue {
   sessionId: number;
-  title: string;
-  instructions: string;
   rubric: RubricCriterion[];
   reviewsRequired: number;
-  mySubmission?: AssignmentSubmission | null;
+  reviewsGiven: number;
+  canReview: boolean;
+  reason: string;
+  targets: ReviewTarget[];
 }

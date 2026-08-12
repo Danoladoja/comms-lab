@@ -34,15 +34,21 @@ import type {
   HealthStatus,
   JoinResult,
   ListAllEnrollmentsParams,
+  MyFeedback,
   PinInput,
+  PortfolioVisibilityInput,
   PostInput,
   Program,
   ProgramInput,
   ProgramUpdate,
+  PublicCertificate,
   Quiz,
   QuizAttemptInput,
   QuizInput,
   QuizResult,
+  ReceivedReview,
+  ReviewInput,
+  ReviewQueue,
   Session,
   SessionDetail,
   SessionInput,
@@ -1339,6 +1345,234 @@ export const useSubmitAssignment = <TError = ErrorType<ApiMessage>,
       return useMutation(getSubmitAssignmentMutationOptions(options));
     }
 
+export const getGetReviewQueueUrl = (id: number,) => {
+
+
+
+
+  return `/api/sessions/${id}/reviews/queue`
+}
+
+/**
+ * Least-reviewed work first so nobody's submission goes unseen. The queue is empty until the learner has submitted their own make — otherwise it would be a way to read everyone else's answer first.
+ * @summary The peer submissions this learner should critique next for a module
+ */
+export const getReviewQueue = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<ReviewQueue> => {
+
+  return customFetch<ReviewQueue>(getGetReviewQueueUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetReviewQueueQueryKey = (id: number,) => {
+    return [
+    `/api/sessions/${id}/reviews/queue`
+    ] as const;
+    }
+
+
+export const getGetReviewQueueQueryOptions = <TData = Awaited<ReturnType<typeof getReviewQueue>>, TError = ErrorType<ApiMessage>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getReviewQueue>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetReviewQueueQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getReviewQueue>>> = ({ signal }) => getReviewQueue(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getReviewQueue>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetReviewQueueQueryResult = NonNullable<Awaited<ReturnType<typeof getReviewQueue>>>
+export type GetReviewQueueQueryError = ErrorType<ApiMessage>
+
+
+/**
+ * @summary The peer submissions this learner should critique next for a module
+ */
+
+export function useGetReviewQueue<TData = Awaited<ReturnType<typeof getReviewQueue>>, TError = ErrorType<ApiMessage>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getReviewQueue>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetReviewQueueQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getSubmitReviewUrl = (submissionId: number,) => {
+
+
+
+
+  return `/api/submissions/${submissionId}/reviews`
+}
+
+/**
+ * @summary Write a peer critique of another learner's submission
+ */
+export const submitReview = async (submissionId: number,
+    reviewInput: ReviewInput, options?: Parameters<typeof customFetch>[1]): Promise<ReceivedReview> => {
+
+  return customFetch<ReceivedReview>(getSubmitReviewUrl(submissionId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(reviewInput)
+  }
+);}
+
+
+
+
+
+export const getSubmitReviewMutationOptions = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitReview>>, TError,{submissionId: number;data: BodyType<ReviewInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof submitReview>>, TError,{submissionId: number;data: BodyType<ReviewInput>}, TContext> => {
+
+const mutationKey = ['submitReview'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof submitReview>>, {submissionId: number;data: BodyType<ReviewInput>}> = (props) => {
+          const {submissionId,data} = props ?? {};
+
+          return  submitReview(submissionId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SubmitReviewMutationResult = NonNullable<Awaited<ReturnType<typeof submitReview>>>
+    export type SubmitReviewMutationBody = BodyType<ReviewInput>
+    export type SubmitReviewMutationError = ErrorType<ApiMessage>
+
+    /**
+ * @summary Write a peer critique of another learner's submission
+ */
+export const useSubmitReview = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitReview>>, TError,{submissionId: number;data: BodyType<ReviewInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof submitReview>>,
+        TError,
+        {submissionId: number;data: BodyType<ReviewInput>},
+        TContext
+      > => {
+      return useMutation(getSubmitReviewMutationOptions(options));
+    }
+
+export const getGetMyFeedbackUrl = (id: number,) => {
+
+
+
+
+  return `/api/sessions/${id}/feedback`
+}
+
+/**
+ * Locked until the learner has written the critiques they owe. This is what keeps the loop from starving.
+ * @summary The critiques this learner's own submission has received
+ */
+export const getMyFeedback = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<MyFeedback> => {
+
+  return customFetch<MyFeedback>(getGetMyFeedbackUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMyFeedbackQueryKey = (id: number,) => {
+    return [
+    `/api/sessions/${id}/feedback`
+    ] as const;
+    }
+
+
+export const getGetMyFeedbackQueryOptions = <TData = Awaited<ReturnType<typeof getMyFeedback>>, TError = ErrorType<ApiMessage>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMyFeedback>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMyFeedbackQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMyFeedback>>> = ({ signal }) => getMyFeedback(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMyFeedback>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetMyFeedbackQueryResult = NonNullable<Awaited<ReturnType<typeof getMyFeedback>>>
+export type GetMyFeedbackQueryError = ErrorType<ApiMessage>
+
+
+/**
+ * @summary The critiques this learner's own submission has received
+ */
+
+export function useGetMyFeedback<TData = Awaited<ReturnType<typeof getMyFeedback>>, TError = ErrorType<ApiMessage>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMyFeedback>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetMyFeedbackQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
 export const getListMyProgressUrl = () => {
 
 
@@ -1652,9 +1886,9 @@ export const getVerifyCertificateUrl = (certificateId: string,) => {
 /**
  * @summary Publicly verify a certificate by its ID (no authentication required)
  */
-export const verifyCertificate = async (certificateId: string, options?: Parameters<typeof customFetch>[1]): Promise<Certificate> => {
+export const verifyCertificate = async (certificateId: string, options?: Parameters<typeof customFetch>[1]): Promise<PublicCertificate> => {
 
-  return customFetch<Certificate>(getVerifyCertificateUrl(certificateId),
+  return customFetch<PublicCertificate>(getVerifyCertificateUrl(certificateId),
   {
     ...options,
     method: 'GET'
@@ -1717,6 +1951,78 @@ export function useVerifyCertificate<TData = Awaited<ReturnType<typeof verifyCer
 
 
 
+
+export const getSetPortfolioVisibilityUrl = (programId: number,) => {
+
+
+
+
+  return `/api/my/certificates/${programId}/portfolio`
+}
+
+/**
+ * @summary Publish or unpublish the learner's work on their verification page
+ */
+export const setPortfolioVisibility = async (programId: number,
+    portfolioVisibilityInput: PortfolioVisibilityInput, options?: Parameters<typeof customFetch>[1]): Promise<Certificate> => {
+
+  return customFetch<Certificate>(getSetPortfolioVisibilityUrl(programId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(portfolioVisibilityInput)
+  }
+);}
+
+
+
+
+
+export const getSetPortfolioVisibilityMutationOptions = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setPortfolioVisibility>>, TError,{programId: number;data: BodyType<PortfolioVisibilityInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof setPortfolioVisibility>>, TError,{programId: number;data: BodyType<PortfolioVisibilityInput>}, TContext> => {
+
+const mutationKey = ['setPortfolioVisibility'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof setPortfolioVisibility>>, {programId: number;data: BodyType<PortfolioVisibilityInput>}> = (props) => {
+          const {programId,data} = props ?? {};
+
+          return  setPortfolioVisibility(programId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SetPortfolioVisibilityMutationResult = NonNullable<Awaited<ReturnType<typeof setPortfolioVisibility>>>
+    export type SetPortfolioVisibilityMutationBody = BodyType<PortfolioVisibilityInput>
+    export type SetPortfolioVisibilityMutationError = ErrorType<ApiMessage>
+
+    /**
+ * @summary Publish or unpublish the learner's work on their verification page
+ */
+export const useSetPortfolioVisibility = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setPortfolioVisibility>>, TError,{programId: number;data: BodyType<PortfolioVisibilityInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof setPortfolioVisibility>>,
+        TError,
+        {programId: number;data: BodyType<PortfolioVisibilityInput>},
+        TContext
+      > => {
+      return useMutation(getSetPortfolioVisibilityMutationOptions(options));
+    }
 
 export const getListMySessionsUrl = () => {
 

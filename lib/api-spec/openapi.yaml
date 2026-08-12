@@ -493,6 +493,130 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiMessage"
+  /sessions/{id}/reviews/queue:
+    get:
+      operationId: getReviewQueue
+      tags: [enrollments]
+      summary: The peer submissions this learner should critique next for a module
+      description: >
+        Least-reviewed work first so nobody's submission goes unseen. The queue
+        is empty until the learner has submitted their own make — otherwise it
+        would be a way to read everyone else's answer first.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Review queue
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReviewQueue"
+        "401":
+          description: Not signed in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "403":
+          description: Locked or not enrolled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "404":
+          description: No assignment for this module
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+  /submissions/{submissionId}/reviews:
+    post:
+      operationId: submitReview
+      tags: [enrollments]
+      summary: Write a peer critique of another learner's submission
+      parameters:
+        - name: submissionId
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReviewInput"
+      responses:
+        "201":
+          description: Critique recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReceivedReview"
+        "400":
+          description: Incomplete critique
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "401":
+          description: Not signed in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "403":
+          description: Not allowed to review this submission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "409":
+          description: Already reviewed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+  /sessions/{id}/feedback:
+    get:
+      operationId: getMyFeedback
+      tags: [enrollments]
+      summary: The critiques this learner's own submission has received
+      description: >
+        Locked until the learner has written the critiques they owe. This is
+        what keeps the loop from starving.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Feedback
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MyFeedback"
+        "401":
+          description: Not signed in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "403":
+          description: Locked or not enrolled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "404":
+          description: No assignment for this module
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
   /my/progress:
     get:
       operationId: listMyProgress
@@ -598,9 +722,44 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Certificate"
+                $ref: "#/components/schemas/PublicCertificate"
         "404":
           description: Certificate not found or not (yet) earned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+  /my/certificates/{programId}/portfolio:
+    patch:
+      operationId: setPortfolioVisibility
+      tags: [enrollments]
+      summary: Publish or unpublish the learner's work on their verification page
+      parameters:
+        - name: programId
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PortfolioVisibilityInput"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Certificate"
+        "401":
+          description: Not signed in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "404":
+          description: No completed enrollment for that program
           content:
             application/json:
               schema:
@@ -995,28 +1154,66 @@ components:
         role: { type: string, enum: [learner, instructor, admin] }
     JoinResult:
       type: object
-      required: [sessionId, joinedAt]
+      required: [sessionId, joinedAt, countedAsOnTime]
       properties:
         sessionId: { type: integer }
         joinedAt: { type: string }
         joinUrl: { type: ["string", "null"] }
+        # False when the learner joined after the on-time grace window. The UI
+        # says so out loud instead of failing silently.
+        countedAsOnTime: { type: boolean }
     Certificate:
       type: object
-      required: [programId, programTitle, learnerName, completedAt, certificateId]
+      required: [programId, programTitle, learnerName, completedAt, certificateId, portfolioPublic, modulesCompleted, reviewsWritten]
       properties:
         programId: { type: integer }
         programTitle: { type: string }
         learnerName: { type: string }
         completedAt: { type: ["string", "null"], format: date-time }
+        # Opaque random code (AECL-XXXX-XXXX-XXXX), not derived from any id.
         certificateId: { type: string }
+        portfolioPublic: { type: boolean }
+        modulesCompleted: { type: integer }
+        reviewsWritten: { type: integer }
+    PublicCertificate:
+      type: object
+      required: [programTitle, learnerName, completedAt, certificateId, portfolioPublic, modulesCompleted, reviewsWritten, works]
+      properties:
+        programTitle: { type: string }
+        learnerName: { type: string }
+        completedAt: { type: ["string", "null"], format: date-time }
+        certificateId: { type: string }
+        portfolioPublic: { type: boolean }
+        modulesCompleted: { type: integer }
+        reviewsWritten: { type: integer }
+        # Only populated when the learner has opted their portfolio public.
+        works:
+          type: array
+          items:
+            $ref: "#/components/schemas/PortfolioWork"
+    PortfolioWork:
+      type: object
+      required: [title, body, submittedAt]
+      properties:
+        title: { type: string }
+        body: { type: string }
+        submittedAt: { type: string }
+    PortfolioVisibilityInput:
+      type: object
+      required: [portfolioPublic]
+      properties:
+        portfolioPublic: { type: boolean }
     SessionProgress:
       type: object
-      required: [sessionId, programId, progressPct, attendedLive, completed, locked, hasQuiz, quizPassed, quizBestScore, hasAssignment, assignmentSubmitted]
+      required: [sessionId, programId, progressPct, attendedLive, attended, completed, locked, hasQuiz, quizPassed, quizBestScore, hasAssignment, assignmentSubmitted, reviewsRequired, reviewsGiven, reviewsReceived, feedbackUnlocked]
       properties:
         sessionId: { type: integer }
         programId: { type: integer }
         progressPct: { type: integer }
+        # attendedLive is recognition (streaks, priority in the live queue).
+        # It never gates completion and never locks the next module.
         attendedLive: { type: boolean }
+        attended: { type: boolean }
         completed: { type: boolean }
         locked: { type: boolean }
         hasQuiz: { type: boolean }
@@ -1024,6 +1221,10 @@ components:
         quizBestScore: { type: ["integer", "null"] }
         hasAssignment: { type: boolean }
         assignmentSubmitted: { type: boolean }
+        reviewsRequired: { type: integer }
+        reviewsGiven: { type: integer }
+        reviewsReceived: { type: integer }
+        feedbackUnlocked: { type: boolean }
     QuizQuestionPublic:
       type: object
       required: [id, prompt, options, sortOrder]
@@ -1085,13 +1286,26 @@ components:
         correctCount: { type: integer }
         totalQuestions: { type: integer }
         bestScore: { type: integer }
+    RubricCriterion:
+      type: object
+      required: [id, label, description, maxScore]
+      properties:
+        id: { type: string, minLength: 1 }
+        label: { type: string, minLength: 1 }
+        description: { type: string }
+        maxScore: { type: integer, minimum: 2, maximum: 10 }
     AssignmentDetail:
       type: object
-      required: [sessionId, title, instructions]
+      required: [sessionId, title, instructions, rubric, reviewsRequired]
       properties:
         sessionId: { type: integer }
         title: { type: string }
         instructions: { type: string }
+        rubric:
+          type: array
+          items:
+            $ref: "#/components/schemas/RubricCriterion"
+        reviewsRequired: { type: integer }
         mySubmission:
           oneOf:
             - $ref: "#/components/schemas/AssignmentSubmission"
@@ -1102,6 +1316,11 @@ components:
       properties:
         title: { type: string, minLength: 1 }
         instructions: { type: string }
+        rubric:
+          type: array
+          items:
+            $ref: "#/components/schemas/RubricCriterion"
+        reviewsRequired: { type: integer, minimum: 0, maximum: 5 }
     AssignmentSubmissionInput:
       type: object
       required: [body]
@@ -1114,6 +1333,70 @@ components:
         sessionId: { type: integer }
         body: { type: string }
         submittedAt: { type: string }
+    ReviewTarget:
+      type: object
+      required: [submissionId, body, submittedAt]
+      properties:
+        submissionId: { type: integer }
+        # The author is deliberately absent: critique is blind in both
+        # directions so the work is judged, not the person.
+        body: { type: string }
+        submittedAt: { type: string }
+    ReviewQueue:
+      type: object
+      required: [sessionId, rubric, reviewsRequired, reviewsGiven, canReview, reason, targets]
+      properties:
+        sessionId: { type: integer }
+        rubric:
+          type: array
+          items:
+            $ref: "#/components/schemas/RubricCriterion"
+        reviewsRequired: { type: integer }
+        reviewsGiven: { type: integer }
+        canReview: { type: boolean }
+        # Why the queue is closed, when it is: "not-submitted", "none-available",
+        # "done", or "" when the learner can review right now.
+        reason: { type: string }
+        targets:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReviewTarget"
+    ReviewInput:
+      type: object
+      required: [scores, comment]
+      properties:
+        scores:
+          type: object
+          additionalProperties: { type: integer }
+        comment: { type: string, minLength: 1, maxLength: 5000 }
+    ReceivedReview:
+      type: object
+      required: [id, scores, comment, createdAt, scorePct]
+      properties:
+        id: { type: integer }
+        scores:
+          type: object
+          additionalProperties: { type: integer }
+        comment: { type: string }
+        createdAt: { type: string }
+        scorePct: { type: integer }
+    MyFeedback:
+      type: object
+      required: [sessionId, unlocked, reviewsRequired, reviewsGiven, rubric, reviews]
+      properties:
+        sessionId: { type: integer }
+        # Feedback unlocks once the learner has written the critiques they owe.
+        unlocked: { type: boolean }
+        reviewsRequired: { type: integer }
+        reviewsGiven: { type: integer }
+        rubric:
+          type: array
+          items:
+            $ref: "#/components/schemas/RubricCriterion"
+        reviews:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReceivedReview"
     UserRoleUpdate:
       type: object
       required: [role]

@@ -11,6 +11,7 @@ export interface SessionProgress {
   programId: number;
   progressPct: number;
   attendedLive: boolean;
+  attended: boolean;
   completed: boolean;
   locked: boolean;
   hasQuiz: boolean;
@@ -19,4 +20,8 @@ export interface SessionProgress {
   quizBestScore: number | null;
   hasAssignment: boolean;
   assignmentSubmitted: boolean;
+  reviewsRequired: number;
+  reviewsGiven: number;
+  reviewsReceived: number;
+  feedbackUnlocked: boolean;
 }

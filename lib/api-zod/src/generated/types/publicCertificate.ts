@@ -5,9 +5,9 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { PortfolioWork } from './portfolioWork';
 
-export interface Certificate {
-  programId: number;
+export interface PublicCertificate {
   programTitle: string;
   learnerName: string;
   /** @nullable */
@@ -16,4 +16,5 @@ export interface Certificate {
   portfolioPublic: boolean;
   modulesCompleted: number;
   reviewsWritten: number;
+  works: PortfolioWork[];
 }

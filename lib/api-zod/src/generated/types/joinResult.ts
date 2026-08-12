@@ -11,4 +11,5 @@ export interface JoinResult {
   joinedAt: string;
   /** @nullable */
   joinUrl?: string | null;
+  countedAsOnTime: boolean;
 }
