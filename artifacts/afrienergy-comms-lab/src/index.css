@@ -314,3 +314,102 @@
     inset: -1px;
   }
 }
+/* ============================================================================
+   Brand tokens + editorial utilities
+   ----------------------------------------------------------------------------
+   The marketing pages used to carry their own hardcoded hex palette (a `C`
+   object in Home.tsx and About.tsx) alongside this token system, so the site
+   and the app were free to drift apart. These are the one source of truth.
+   ========================================================================= */
+@layer base {
+  :root {
+    --brand-ink: #07111e;
+    --brand-ink-raised: #0c1929;
+    --brand-gold: #f97316;
+    --brand-gold-hover: #ea6d0a;
+    --brand-brown: #c2410c;
+    --brand-paper: #f4f0e8;
+    --brand-hairline: rgba(255, 255, 255, 0.08);
+    /* Meets WCAG AA on the dimmed hero photo; the old 0.65 white did not. */
+    --brand-on-ink-muted: rgba(255, 255, 255, 0.82);
+  }
+}
+
+@layer components {
+  .surface-ink { background-color: var(--brand-ink); color: #fff; }
+  .surface-paper { background-color: var(--brand-paper); color: var(--brand-ink); }
+  .text-ink { color: var(--brand-ink); }
+  .text-gold { color: var(--brand-gold); }
+  .text-brown { color: var(--brand-brown); }
+  .text-on-ink-muted { color: var(--brand-on-ink-muted); }
+  .hairline { border-color: var(--brand-hairline); }
+
+  .eyebrow {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.35em;
+    color: var(--brand-gold);
+  }
+
+  /*
+   * Editorial buttons. These replace inline onMouseEnter/onMouseLeave handlers,
+   * which styled hover only — keyboard users got no visible focus at all on the
+   * primary calls to action.
+   */
+  .btn-editorial {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1.75rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    transition: background-color 150ms ease, color 150ms ease, border-color 150ms ease;
+  }
+  .btn-editorial:focus-visible {
+    outline: 2px solid var(--brand-gold);
+    outline-offset: 3px;
+  }
+
+  .btn-editorial-solid { background-color: var(--brand-gold); color: var(--brand-ink); }
+  .btn-editorial-solid:hover { background-color: var(--brand-gold-hover); }
+
+  .btn-editorial-ghost { border: 1px solid rgba(255, 255, 255, 0.35); color: #fff; }
+  .btn-editorial-ghost:hover { border-color: var(--brand-gold); }
+
+  .link-editorial {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--brand-ink);
+    transition: color 150ms ease;
+  }
+  .link-editorial:hover { color: var(--brand-brown); }
+  .link-editorial:focus-visible {
+    outline: 2px solid var(--brand-brown);
+    outline-offset: 3px;
+  }
+
+  .panel-ink { background-color: var(--brand-ink); transition: background-color 150ms ease; }
+  .panel-ink:hover, .panel-ink:focus-within { background-color: var(--brand-ink-raised); }
+}
+
+/*
+ * Respect the OS "reduce motion" setting. Framer Motion's whileInView reveals
+ * and the pulsing live dot are decorative; vestibular disorders are not.
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}

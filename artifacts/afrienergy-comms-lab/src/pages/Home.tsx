@@ -3,18 +3,10 @@ import { motion } from 'framer-motion';
 import { ArrowRight } from 'lucide-react';
 import heroImg from '@assets/hero.jpg';
 import { KenteOverlay } from '@/components/KenteOverlay';
-import { programs as allPrograms } from '@/data/mock';
-
-// ─── palette tokens ──────────────────────────────────────────────────────────
-const C = {
-  ink:   '#07111E',
-  gold:  '#F97316',
-  brown: '#C2410C',
-  paper: '#F4F0E8',
-  white: '#FFFFFF',
-};
+import { useListPrograms, getListProgramsQueryKey } from '@workspace/api-client-react';
 
 // ─── fade-in helper ─────────────────────────────────────────────────────────
+// The CSS in index.css neutralises these durations under prefers-reduced-motion.
 const fadeUp = {
   hidden:  { opacity: 0, y: 24 },
   visible: (delay = 0) => ({
@@ -32,13 +24,33 @@ const focusAreas = [
   { n: '04', title: 'Design Thinking & Innovation',     sub: 'Solve complex problems with human-centred methods.' },
 ];
 
-// Reuse the canonical programs list from mock.ts (first 3 = upcoming)
-const upcomingPrograms = allPrograms;
-
 // ─── component ──────────────────────────────────────────────────────────────
 export default function Home() {
+  const { data: programs = [] } = useListPrograms({ query: { queryKey: getListProgramsQueryKey() } });
+  const published = programs.filter(p => p.status === 'published');
+  const upcomingPrograms = published.slice(0, 3);
+
+  /**
+   * What we count, publicly.
+   *
+   * These used to be "4 Focus Areas / 12+ Programs / 3 Cohorts per Year" —
+   * vanity numbers, and small ones. Two of the four are now read from the real
+   * catalogue. The outcome metric is the one that matters and the one sponsors
+   * buy: fill BYLINES_PUBLISHED in once you are tracking it, and show it here.
+   */
+  const BYLINES_PUBLISHED: number | null = null;
+  const stats = [
+    { value: String(focusAreas.length), label: 'Focus Areas' },
+    { value: published.length > 0 ? String(published.length) : '—', label: 'Live Programs' },
+    {
+      value: BYLINES_PUBLISHED === null ? 'Soon' : String(BYLINES_PUBLISHED),
+      label: 'Bylines Published',
+    },
+    { value: 'Africa', label: 'Wide Reach' },
+  ];
+
   return (
-    <div style={{ backgroundColor: C.ink, color: C.white }}>
+    <div className="surface-ink">
 
       {/* ── 1. HERO ─────────────────────────────────────────────────────── */}
       <section
@@ -51,7 +63,14 @@ export default function Home() {
           alt=""
           aria-hidden
           className="absolute inset-0 w-full h-full object-cover"
-          style={{ filter: 'brightness(0.38)' }}
+          style={{ filter: 'brightness(0.32)' }}
+        />
+        {/* A scrim under the copy: the photo alone left the subhead below the
+            WCAG AA contrast floor on lighter frames. */}
+        <div
+          aria-hidden
+          className="absolute inset-0"
+          style={{ background: 'linear-gradient(180deg, rgba(7,17,30,0.35) 0%, rgba(7,17,30,0.55) 60%, rgba(7,17,30,0.8) 100%)' }}
         />
 
         {/* content */}
@@ -72,8 +91,7 @@ export default function Home() {
             initial="hidden"
             animate="visible"
             custom={0.45}
-            className="mt-6 text-base md:text-lg max-w-md mx-auto leading-relaxed"
-            style={{ color: 'rgba(255,255,255,0.65)' }}
+            className="mt-6 text-base md:text-lg max-w-md mx-auto leading-relaxed text-on-ink-muted"
           >
             Africa's learning hub for energy communicators, advocates, and policy strategists.
           </motion.p>
@@ -85,25 +103,11 @@ export default function Home() {
             custom={0.6}
             className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4"
           >
-            <Link href="/register">
-              <button
-                className="px-7 py-3 text-sm font-semibold uppercase tracking-widest transition-colors"
-                style={{ backgroundColor: C.gold, color: C.ink }}
-                onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#EA6D0A')}
-                onMouseLeave={e => (e.currentTarget.style.backgroundColor = C.gold)}
-              >
-                Register Interest
-              </button>
+            <Link href="/sign-up" className="btn-editorial btn-editorial-solid">
+              Register Interest
             </Link>
-            <Link href="/courses">
-              <button
-                className="px-7 py-3 text-sm font-semibold uppercase tracking-widest border transition-colors"
-                style={{ borderColor: 'rgba(255,255,255,0.35)', color: C.white }}
-                onMouseEnter={e => (e.currentTarget.style.borderColor = C.gold)}
-                onMouseLeave={e => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.35)')}
-              >
-                View Programs
-              </button>
+            <Link href="/courses" className="btn-editorial btn-editorial-ghost">
+              View Programs
             </Link>
           </motion.div>
         </div>
@@ -115,7 +119,7 @@ export default function Home() {
           transition={{ delay: 1.2, duration: 0.8 }}
           className="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2"
         >
-          <span className="text-[10px] uppercase tracking-[0.4em]" style={{ color: 'rgba(255,255,255,0.4)' }}>Scroll</span>
+          <span className="text-[10px] uppercase tracking-[0.4em]" style={{ color: 'var(--brand-on-ink-muted)' }}>Scroll</span>
           <div className="w-px h-10 origin-top" style={{ background: `linear-gradient(to bottom, rgba(255,255,255,0.3), transparent)` }} />
         </motion.div>
       </section>
@@ -128,12 +132,7 @@ export default function Home() {
         <KenteOverlay opacity={0.06} />
         <div className="relative z-10 max-w-6xl mx-auto px-6 py-14 grid grid-cols-2 md:grid-cols-4 gap-px"
           style={{ background: 'rgba(255,255,255,0.04)' }}>
-          {[
-            { value: '4',      label: 'Focus Areas' },
-            { value: '12+',    label: 'Programs' },
-            { value: '3',      label: 'Cohorts per Year' },
-            { value: 'Africa', label: 'Wide Reach' },
-          ].map(({ value, label }) => (
+          {stats.map(({ value, label }) => (
             <motion.div
               key={label}
               variants={fadeUp}
@@ -141,15 +140,15 @@ export default function Home() {
               whileInView="visible"
               viewport={{ once: true, margin: '-60px' }}
               className="flex flex-col items-center justify-center py-6 md:py-10 px-4 text-center"
-              style={{ backgroundColor: C.ink }}
+              
             >
               <span
                 className="font-display font-bold leading-none"
-                style={{ fontSize: 'clamp(2.5rem, 6vw, 4rem)', color: C.gold }}
+                style={{ fontSize: 'clamp(2.5rem, 6vw, 4rem)', color: "var(--brand-gold)" }}
               >
                 {value}
               </span>
-              <span className="mt-2 text-xs uppercase tracking-widest" style={{ color: 'rgba(255,255,255,0.45)' }}>
+              <span className="mt-2 text-xs uppercase tracking-widest" style={{ color: 'var(--brand-on-ink-muted)' }}>
                 {label}
               </span>
             </motion.div>
@@ -158,7 +157,7 @@ export default function Home() {
       </section>
 
       {/* ── 3. FOCUS AREAS ──────────────────────────────────────────────── */}
-      <section className="relative overflow-hidden" style={{ backgroundColor: C.ink }}>
+      <section className="relative overflow-hidden" >
         <KenteOverlay opacity={0.055} />
         <div className="relative z-10 max-w-6xl mx-auto px-6 py-24 md:py-32">
         <motion.p
@@ -167,7 +166,7 @@ export default function Home() {
           whileInView="visible"
           viewport={{ once: true }}
           className="text-xs uppercase tracking-[0.35em] mb-16"
-          style={{ color: C.gold }}
+          style={{ color: "var(--brand-gold)" }}
         >
           What We Teach
         </motion.p>
@@ -181,14 +180,11 @@ export default function Home() {
               whileInView="visible"
               viewport={{ once: true, margin: '-40px' }}
               custom={i * 0.1}
-              className="group flex flex-col gap-4 p-6 md:p-10 transition-colors"
-              style={{ backgroundColor: C.ink }}
-              onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#0c1929')}
-              onMouseLeave={e => (e.currentTarget.style.backgroundColor = C.ink)}
+              className="group panel-ink flex flex-col gap-4 p-6 md:p-10"
             >
               <span
                 className="font-mono text-xs"
-                style={{ color: C.gold }}
+                style={{ color: "var(--brand-gold)" }}
               >
                 {n}
               </span>
@@ -208,10 +204,10 @@ export default function Home() {
       </section>
 
       {/* ── 5. UPCOMING PROGRAMS ────────────────────────────────────────── */}
-      <section style={{ backgroundColor: C.paper, color: C.ink }}>
+      <section className="surface-paper">
         <div className="max-w-6xl mx-auto px-6 py-24 md:py-32">
           <div className="mb-14">
-            <p className="text-xs uppercase tracking-[0.35em] mb-3" style={{ color: C.brown }}>
+            <p className="text-xs uppercase tracking-[0.35em] mb-3" style={{ color: "var(--brand-brown)" }}>
               Upcoming
             </p>
             <h2 className="font-display font-bold" style={{ fontSize: 'clamp(2rem, 5vw, 3.5rem)' }}>
@@ -229,9 +225,9 @@ export default function Home() {
                 viewport={{ once: true, margin: '-40px' }}
                 custom={i * 0.1}
                 className="flex flex-col p-5 md:p-8"
-                style={{ backgroundColor: C.paper }}
+                style={{ backgroundColor: "var(--brand-paper)" }}
               >
-                <p className="text-xs uppercase tracking-widest mb-6" style={{ color: C.brown }}>
+                <p className="text-xs uppercase tracking-widest mb-6" style={{ color: "var(--brand-brown)" }}>
                   {program.tag}
                 </p>
                 <h3 className="font-display font-semibold text-lg leading-snug mb-4">
@@ -242,17 +238,10 @@ export default function Home() {
                 </p>
                 <div className="flex items-center justify-between pt-5 border-t" style={{ borderColor: 'rgba(7,17,30,0.12)' }}>
                   <span className="text-xs" style={{ color: 'rgba(7,17,30,0.45)' }}>
-                    {program.date} · {program.format} · {program.duration}
+                    {program.startDate} · {program.format} · {program.duration}
                   </span>
-                  <Link href="/register">
-                    <button
-                      className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-widest transition-colors"
-                      style={{ color: C.ink }}
-                      onMouseEnter={e => (e.currentTarget.style.color = C.brown)}
-                      onMouseLeave={e => (e.currentTarget.style.color = C.ink)}
-                    >
-                      Reserve <ArrowRight size={11} />
-                    </button>
+                  <Link href={`/programs/${program.id}`} className="link-editorial text-xs">
+                    Reserve <ArrowRight size={11} aria-hidden />
                   </Link>
                 </div>
               </motion.div>
@@ -260,15 +249,8 @@ export default function Home() {
           </div>
 
           <div className="mt-10 flex justify-end">
-            <Link href="/courses">
-              <button
-                className="flex items-center gap-2 text-sm font-semibold uppercase tracking-widest border-b pb-0.5 transition-colors"
-                style={{ borderColor: C.brown, color: C.ink }}
-                onMouseEnter={e => (e.currentTarget.style.color = C.brown)}
-                onMouseLeave={e => (e.currentTarget.style.color = C.ink)}
-              >
-                All Programs <ArrowRight size={14} />
-              </button>
+            <Link href="/courses" className="link-editorial text-sm border-b border-[color:var(--brand-brown)] pb-0.5">
+              All Programs <ArrowRight size={14} aria-hidden />
             </Link>
           </div>
         </div>
@@ -277,7 +259,7 @@ export default function Home() {
       {/* ── 5. CTA ──────────────────────────────────────────────────────── */}
       <section
         className="relative overflow-hidden text-center px-6 py-28 md:py-36"
-        style={{ backgroundColor: C.ink }}
+        
       >
         <KenteOverlay opacity={0.08} />
         <div className="relative z-10">
@@ -287,7 +269,7 @@ export default function Home() {
             whileInView="visible"
             viewport={{ once: true }}
             className="text-xs uppercase tracking-[0.35em] mb-6"
-            style={{ color: C.gold }}
+            style={{ color: "var(--brand-gold)" }}
           >
             Join the Lab
           </motion.p>
@@ -309,15 +291,8 @@ export default function Home() {
             viewport={{ once: true }}
             custom={0.2}
           >
-            <Link href="/register">
-              <button
-                className="px-10 py-4 text-sm font-bold uppercase tracking-widest transition-colors"
-                style={{ backgroundColor: C.gold, color: C.ink }}
-                onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#EA6D0A')}
-                onMouseLeave={e => (e.currentTarget.style.backgroundColor = C.gold)}
-              >
-                Register Your Interest
-              </button>
+            <Link href="/sign-up" className="btn-editorial btn-editorial-solid px-10 py-4">
+              Register Your Interest
             </Link>
           </motion.div>
         </div>
