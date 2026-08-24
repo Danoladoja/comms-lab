@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm run typecheck
+
+      # The learning rules — progress, locking, review pairing, certificate
+      # codes — are pure functions in @workspace/domain. A bug here silently
+      # denies someone a certificate, so this gate is not optional.
+      - name: Test domain rules
+        run: pnpm --filter @workspace/domain run test
+
+      - name: Check the API spec still generates the committed client
+        run: |
+          pnpm --filter @workspace/api-spec run codegen
+          git diff --exit-code -- lib/api-zod/src/generated lib/api-client-react/src/generated \
+            || (echo "::error::openapi.yaml changed but generated clients were not committed. Run: pnpm --filter @workspace/api-spec run codegen" && exit 1)
+
+      - name: Build
+        env:
+          PORT: 5173
+          BASE_PATH: /afrienergy-comms-lab
+          VITE_CLERK_PUBLISHABLE_KEY: pk_test_ci_placeholder
+        run: |
+          pnpm --filter @workspace/api-server run build
+          pnpm --filter @workspace/afrienergy-comms-lab run build
