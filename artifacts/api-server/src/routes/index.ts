@@ -9,6 +9,7 @@ import reviewsRouter from "./reviews";
 import presenceRouter from "./presence";
 import forumRouter from "./forum";
 import adminRouter from "./admin";
+import googleRecordingsRouter from "./googleRecordings";
 
 const router: IRouter = Router();
 
@@ -22,5 +23,6 @@ router.use(reviewsRouter);
 router.use(presenceRouter);
 router.use(forumRouter);
 router.use(adminRouter);
+router.use(googleRecordingsRouter);
 
 export default router;

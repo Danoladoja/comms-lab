@@ -19,6 +19,7 @@ import {
   type Program,
   type Session,
 } from '@workspace/api-client-react';
+import RecordingsAdmin from '@/components/RecordingsAdmin';
 import { useCurrentUser } from '@/lib/useCurrentUser';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -27,7 +28,7 @@ import { useToast } from '@/hooks/use-toast';
 import { ChevronDown, ChevronUp, Plus, Trash2 } from 'lucide-react';
 import { QuizEditor, AssignmentEditor } from '@/components/AdminCourseworkEditor';
 
-const TABS = ['Programs', 'Enrollments', 'People'] as const;
+const TABS = ['Programs', 'Enrollments', 'People', 'Recordings'] as const;
 type Tab = (typeof TABS)[number];
 
 function formatSessionDate(iso: string | null | undefined) {
@@ -411,7 +412,7 @@ export default function AdminConsole() {
     <div className="container mx-auto px-4 md:px-6 py-12">
       <div className="mb-8">
         <h1 className="text-3xl md:text-4xl font-display font-bold mb-2">Admin Console</h1>
-        <p className="text-muted-foreground">Manage programs, sessions, enrollments, and people.</p>
+        <p className="text-muted-foreground">Manage programs, sessions, enrollments, people, and class recordings.</p>
       </div>
 
       <div className="flex gap-1 border-b border-border mb-8">
@@ -431,6 +432,7 @@ export default function AdminConsole() {
       {tab === 'Programs' && <ProgramsTab instructors={instructors} />}
       {tab === 'Enrollments' && <EnrollmentsTab />}
       {tab === 'People' && <PeopleTab selfId={user?.id} />}
+      {tab === 'Recordings' && <RecordingsAdmin />}
     </div>
   );
 }

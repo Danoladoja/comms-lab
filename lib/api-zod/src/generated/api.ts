@@ -769,6 +769,60 @@ export const ListMySessionsResponse = zod.array(ListMySessionsResponseItem)
 
 
 /**
+ * @summary Whether a Google account is connected for recording transfers
+ */
+export const GetGoogleConnectionResponse = zod.object({
+  "connected": zod.boolean(),
+  "configured": zod.boolean(),
+  "secretConfigured": zod.boolean(),
+  "googleEmail": zod.string().nullish(),
+  "connectedAt": zod.string().nullish(),
+  "lastError": zod.string().nullish(),
+  "authorizeUrl": zod.string().nullish()
+})
+
+
+/**
+ * @summary Disconnect the Google account
+ */
+export const DisconnectGoogleResponse = zod.object({
+  "connected": zod.boolean(),
+  "configured": zod.boolean(),
+  "secretConfigured": zod.boolean(),
+  "googleEmail": zod.string().nullish(),
+  "connectedAt": zod.string().nullish(),
+  "lastError": zod.string().nullish(),
+  "authorizeUrl": zod.string().nullish()
+})
+
+
+/**
+ * @summary Where each past class stands in the Meet-to-YouTube transfer
+ */
+export const ListRecordingStatusResponseItem = zod.object({
+  "sessionId": zod.int(),
+  "sessionTitle": zod.string(),
+  "programTitle": zod.string(),
+  "startsAt": zod.coerce.date().nullish(),
+  "status": zod.string(),
+  "attempts": zod.int(),
+  "hasMeetUrl": zod.boolean(),
+  "recordingUrl": zod.string().nullish(),
+  "error": zod.string().nullish(),
+  "checkedAt": zod.coerce.date().nullish()
+})
+export const ListRecordingStatusResponse = zod.array(ListRecordingStatusResponseItem)
+
+
+/**
+ * @summary Run the recording transfer immediately instead of waiting
+ */
+export const SyncRecordingsNowResponse = zod.object({
+  "error": zod.string()
+})
+
+
+/**
  * @summary List users (admin)
  */
 export const ListUsersResponseItem = zod.object({

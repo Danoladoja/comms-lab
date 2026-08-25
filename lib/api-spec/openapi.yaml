@@ -863,6 +863,79 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiMessage"
+  /admin/google:
+    get:
+      operationId: getGoogleConnection
+      tags: [admin]
+      summary: Whether a Google account is connected for recording transfers
+      responses:
+        "200":
+          description: Connection status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GoogleConnectionStatus"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+    delete:
+      operationId: disconnectGoogle
+      tags: [admin]
+      summary: Disconnect the Google account
+      responses:
+        "200":
+          description: Disconnected
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GoogleConnectionStatus"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+  /admin/recordings:
+    get:
+      operationId: listRecordingStatus
+      tags: [admin]
+      summary: Where each past class stands in the Meet-to-YouTube transfer
+      responses:
+        "200":
+          description: Recording status per past session
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RecordingStatusRow"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+  /admin/recordings/sync:
+    post:
+      operationId: syncRecordingsNow
+      tags: [admin]
+      summary: Run the recording transfer immediately instead of waiting
+      responses:
+        "202":
+          description: Sync started
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
   /admin/users:
     get:
       operationId: listUsers
@@ -1516,6 +1589,36 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/ReceivedReview"
+    GoogleConnectionStatus:
+      type: object
+      required: [connected, configured, secretConfigured]
+      properties:
+        # A Google account is linked and usable.
+        connected: { type: boolean }
+        # The server has the client id/secret it needs to offer the connect flow.
+        configured: { type: boolean }
+        # GOOGLE_TOKEN_SECRET is set, without which a token cannot be stored.
+        secretConfigured: { type: boolean }
+        googleEmail: { type: ["string", "null"] }
+        connectedAt: { type: ["string", "null"] }
+        lastError: { type: ["string", "null"] }
+        # Where to send the admin to grant access. Null when not configured.
+        authorizeUrl: { type: ["string", "null"] }
+    RecordingStatusRow:
+      type: object
+      required: [sessionId, sessionTitle, programTitle, status, attempts, hasMeetUrl]
+      properties:
+        sessionId: { type: integer }
+        sessionTitle: { type: string }
+        programTitle: { type: string }
+        startsAt: { type: ["string", "null"], format: date-time }
+        # pending | searching | uploading | ready | failed | manual
+        status: { type: string }
+        attempts: { type: integer }
+        hasMeetUrl: { type: boolean }
+        recordingUrl: { type: ["string", "null"] }
+        error: { type: ["string", "null"] }
+        checkedAt: { type: ["string", "null"], format: date-time }
     UserRoleUpdate:
       type: object
       required: [role]

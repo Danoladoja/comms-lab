@@ -335,6 +335,37 @@ export interface MyFeedback {
   reviews: ReceivedReview[];
 }
 
+export interface GoogleConnectionStatus {
+  connected: boolean;
+  configured: boolean;
+  secretConfigured: boolean;
+  /** @nullable */
+  googleEmail?: string | null;
+  /** @nullable */
+  connectedAt?: string | null;
+  /** @nullable */
+  lastError?: string | null;
+  /** @nullable */
+  authorizeUrl?: string | null;
+}
+
+export interface RecordingStatusRow {
+  sessionId: number;
+  sessionTitle: string;
+  programTitle: string;
+  /** @nullable */
+  startsAt?: string | null;
+  status: string;
+  attempts: number;
+  hasMeetUrl: boolean;
+  /** @nullable */
+  recordingUrl?: string | null;
+  /** @nullable */
+  error?: string | null;
+  /** @nullable */
+  checkedAt?: string | null;
+}
+
 export type UserRoleUpdateRole = typeof UserRoleUpdateRole[keyof typeof UserRoleUpdateRole];
 
 
