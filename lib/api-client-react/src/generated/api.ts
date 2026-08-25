@@ -32,6 +32,7 @@ import type {
   ForumPost,
   ForumThread,
   HealthStatus,
+  HeartbeatResult,
   JoinResult,
   ListAllEnrollmentsParams,
   MyFeedback,
@@ -47,6 +48,8 @@ import type {
   QuizInput,
   QuizResult,
   ReceivedReview,
+  ReplayProgressInput,
+  ReplayProgressResult,
   ReviewInput,
   ReviewQueue,
   Session,
@@ -1343,6 +1346,150 @@ export const useSubmitAssignment = <TError = ErrorType<ApiMessage>,
         TContext
       > => {
       return useMutation(getSubmitAssignmentMutationOptions(options));
+    }
+
+export const getRecordHeartbeatUrl = (id: number,) => {
+
+
+
+
+  return `/api/sessions/${id}/presence/heartbeat`
+}
+
+/**
+ * Credits the gap since the previous beat, clamped to the scheduled window and capped per beat. Rejected outside the live window.
+ * @summary Report that the learner still has the classroom open during a live class
+ */
+export const recordHeartbeat = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<HeartbeatResult> => {
+
+  return customFetch<HeartbeatResult>(getRecordHeartbeatUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getRecordHeartbeatMutationOptions = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof recordHeartbeat>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof recordHeartbeat>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['recordHeartbeat'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof recordHeartbeat>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  recordHeartbeat(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RecordHeartbeatMutationResult = NonNullable<Awaited<ReturnType<typeof recordHeartbeat>>>
+
+    export type RecordHeartbeatMutationError = ErrorType<ApiMessage>
+
+    /**
+ * @summary Report that the learner still has the classroom open during a live class
+ */
+export const useRecordHeartbeat = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof recordHeartbeat>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof recordHeartbeat>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getRecordHeartbeatMutationOptions(options));
+    }
+
+export const getRecordReplayProgressUrl = (id: number,) => {
+
+
+
+
+  return `/api/sessions/${id}/replay/progress`
+}
+
+/**
+ * @summary Report which slices of the recording the learner has watched
+ */
+export const recordReplayProgress = async (id: number,
+    replayProgressInput: ReplayProgressInput, options?: Parameters<typeof customFetch>[1]): Promise<ReplayProgressResult> => {
+
+  return customFetch<ReplayProgressResult>(getRecordReplayProgressUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(replayProgressInput)
+  }
+);}
+
+
+
+
+
+export const getRecordReplayProgressMutationOptions = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof recordReplayProgress>>, TError,{id: number;data: BodyType<ReplayProgressInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof recordReplayProgress>>, TError,{id: number;data: BodyType<ReplayProgressInput>}, TContext> => {
+
+const mutationKey = ['recordReplayProgress'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof recordReplayProgress>>, {id: number;data: BodyType<ReplayProgressInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  recordReplayProgress(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RecordReplayProgressMutationResult = NonNullable<Awaited<ReturnType<typeof recordReplayProgress>>>
+    export type RecordReplayProgressMutationBody = BodyType<ReplayProgressInput>
+    export type RecordReplayProgressMutationError = ErrorType<ApiMessage>
+
+    /**
+ * @summary Report which slices of the recording the learner has watched
+ */
+export const useRecordReplayProgress = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof recordReplayProgress>>, TError,{id: number;data: BodyType<ReplayProgressInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof recordReplayProgress>>,
+        TError,
+        {id: number;data: BodyType<ReplayProgressInput>},
+        TContext
+      > => {
+      return useMutation(getRecordReplayProgressMutationOptions(options));
     }
 
 export const getGetReviewQueueUrl = (id: number,) => {

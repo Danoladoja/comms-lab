@@ -6,6 +6,7 @@ import {
   type CourseworkStatus,
   type SessionLite,
 } from "./progress";
+import { EMPTY_PRESENCE, type PresenceInput } from "./presence";
 
 const HOUR = 60 * 60 * 1000;
 const NOW = new Date("2026-09-10T12:00:00Z").getTime();
@@ -25,45 +26,96 @@ function coursework(overrides: Partial<CourseworkStatus> = {}): CourseworkStatus
   return { ...EMPTY_COURSEWORK, ...overrides };
 }
 
-const enrolledLongAgo = new Map([[1, new Date(NOW - 90 * 24 * HOUR)]]);
+/** Attended the whole class live. sessionSeconds is filled in by computeProgress. */
+function attendedInFull(durationMins = 60): PresenceInput {
+  return { ...EMPTY_PRESENCE, liveSeconds: durationMins * 60 };
+}
 
-describe("computeProgress — attendance is never a gate", () => {
-  it("completes a module from the make alone, with no attendance at all", () => {
-    const sessions = [session(1)];
+/** Watched the whole recording instead. */
+function watchedInFull(durationMins = 60): PresenceInput {
+  return {
+    ...EMPTY_PRESENCE,
+    replayWatchedSeconds: durationMins * 60,
+    replayDurationSeconds: durationMins * 60,
+  };
+}
+
+const enrolledLongAgo = new Map([[1, new Date(NOW - 90 * 24 * HOUR)]]);
+const present = new Map([[1, attendedInFull()]]);
+
+describe("computeProgress — attending the class is required", () => {
+  it("does not complete a module on coursework alone", () => {
     const [entry] = computeProgress(
-      sessions,
-      new Map(), // never joined the live room
+      [session(1)],
+      new Map(),
       enrolledLongAgo,
       new Map([[1, coursework({ hasAssignment: true, assignmentSubmitted: true })]]),
+      new Map(), // never turned up, never watched
       NOW,
     );
-    expect(entry.attended).toBe(false);
+    expect(entry.completed).toBe(false);
+    expect(entry.presence.met).toBe(false);
+  });
+
+  it("completes when the class was attended live and the work is done", () => {
+    const [entry] = computeProgress(
+      [session(1)],
+      new Map(),
+      enrolledLongAgo,
+      new Map([[1, coursework({ hasAssignment: true, assignmentSubmitted: true })]]),
+      present,
+      NOW,
+    );
     expect(entry.completed).toBe(true);
+    expect(entry.presence.via).toBe("live");
     expect(entry.progressPct).toBe(100);
   });
 
-  it("does not lock module 2 because the learner missed module 1 live", () => {
+  it("treats watching the full replay as equivalent to being there", () => {
+    const [entry] = computeProgress(
+      [session(1)],
+      new Map(),
+      enrolledLongAgo,
+      new Map([[1, coursework({ hasAssignment: true, assignmentSubmitted: true })]]),
+      new Map([[1, watchedInFull()]]),
+      NOW,
+    );
+    expect(entry.completed).toBe(true);
+    expect(entry.presence.via).toBe("replay");
+  });
+
+  it("does not complete when the class was attended but the work is outstanding", () => {
+    const [entry] = computeProgress(
+      [session(1)],
+      new Map(),
+      enrolledLongAgo,
+      new Map([[1, coursework({ hasAssignment: true, assignmentSubmitted: false })]]),
+      present,
+      NOW,
+    );
+    expect(entry.completed).toBe(false);
+  });
+
+  it("locks the next module until the class behind it has been attended", () => {
     const sessions = [session(1), session(2, { startsAt: new Date(NOW - 2 * HOUR) })];
     const cw = new Map([
       [1, coursework({ hasAssignment: true, assignmentSubmitted: true })],
-      [2, coursework({ hasAssignment: true, assignmentSubmitted: false })],
-    ]);
-    const entries = computeProgress(sessions, new Map(), enrolledLongAgo, cw, NOW);
-    expect(entries.find((e) => e.sessionId === 2)!.locked).toBe(false);
-  });
-
-  it("still locks module 2 when the module-1 make is outstanding", () => {
-    const sessions = [session(1), session(2, { startsAt: new Date(NOW - 2 * HOUR) })];
-    const cw = new Map([
-      [1, coursework({ hasAssignment: true, assignmentSubmitted: false })],
       [2, coursework({ hasAssignment: true })],
     ]);
-    const entries = computeProgress(sessions, new Map(), enrolledLongAgo, cw, NOW);
+    const entries = computeProgress(sessions, new Map(), enrolledLongAgo, cw, new Map(), NOW);
     expect(entries.find((e) => e.sessionId === 2)!.locked).toBe(true);
+  });
+
+  it("counts partial attendance towards the progress bar", () => {
+    // Half the class watched: 50% against a 90% bar is 56% of the way there.
+    const half = new Map([[1, { ...EMPTY_PRESENCE, liveSeconds: 30 * 60 }]]);
+    const [entry] = computeProgress([session(1)], new Map(), enrolledLongAgo, new Map(), half, NOW);
+    expect(entry.presence.bestPct).toBe(50);
+    expect(entry.progressPct).toBe(56);
   });
 });
 
-describe("computeProgress — on-time attendance is recorded as a bonus", () => {
+describe("computeProgress — the live room is still recorded", () => {
   const start = new Date(NOW - 24 * HOUR);
 
   it("credits attendedLive when the learner joined within the grace window", () => {
@@ -73,6 +125,7 @@ describe("computeProgress — on-time attendance is recorded as a bonus", () => 
       new Map([[1, joined]]),
       enrolledLongAgo,
       new Map(),
+      present,
       NOW,
     );
     expect(entry.attendedLive).toBe(true);
@@ -86,22 +139,26 @@ describe("computeProgress — on-time attendance is recorded as a bonus", () => 
       new Map([[1, joined]]),
       enrolledLongAgo,
       new Map(),
+      present,
       NOW,
     );
     expect(entry.attended).toBe(true);
     expect(entry.attendedLive).toBe(false);
   });
 
-  it("credits attendance during the class, not only after it ends", () => {
-    const liveStart = new Date(NOW - 10 * 60 * 1000);
+  it("does not let joining the room stand in for staying in it", () => {
+    // Clicked join, left immediately: checked in, but no time accumulated.
     const [entry] = computeProgress(
-      [session(1, { startsAt: liveStart })],
-      new Map([[1, new Date(liveStart.getTime() + 60 * 1000)]]),
+      [session(1, { startsAt: start })],
+      new Map([[1, start]]),
       enrolledLongAgo,
+      new Map(),
       new Map(),
       NOW,
     );
     expect(entry.attendedLive).toBe(true);
+    expect(entry.presence.met).toBe(false);
+    expect(entry.completed).toBe(false);
   });
 });
 
@@ -113,67 +170,67 @@ describe("computeProgress — peer critique gates completion", () => {
       reviewsRequired: 2,
       reviewsGiven: 1,
     });
-    const [entry] = computeProgress([session(1)], new Map(), enrolledLongAgo, new Map([[1, cw]]), NOW);
+    const [entry] = computeProgress([session(1)], new Map(), enrolledLongAgo, new Map([[1, cw]]), present, NOW);
     expect(entry.completed).toBe(false);
     expect(entry.feedbackUnlocked).toBe(false);
-    expect(entry.progressPct).toBe(75); // submitted (100) + half the reviews (50)
+    // presence 100 + submitted 100 + half the reviews 50
+    expect(entry.progressPct).toBe(83);
   });
 
-  it("completes and unlocks feedback once both reviews are in", () => {
+  it("completes once both reviews are in", () => {
     const cw = coursework({
       hasAssignment: true,
       assignmentSubmitted: true,
       reviewsRequired: 2,
       reviewsGiven: 2,
     });
-    const [entry] = computeProgress([session(1)], new Map(), enrolledLongAgo, new Map([[1, cw]]), NOW);
+    const [entry] = computeProgress([session(1)], new Map(), enrolledLongAgo, new Map([[1, cw]]), present, NOW);
     expect(entry.completed).toBe(true);
     expect(entry.feedbackUnlocked).toBe(true);
   });
 
   it("ignores reviewsRequired when the module has no assignment", () => {
     const cw = coursework({ hasAssignment: false, reviewsRequired: 2, reviewsGiven: 0 });
-    const [entry] = computeProgress([session(1)], new Map(), enrolledLongAgo, new Map([[1, cw]]), NOW);
+    const [entry] = computeProgress([session(1)], new Map(), enrolledLongAgo, new Map([[1, cw]]), present, NOW);
     expect(entry.reviewsRequired).toBe(0);
-    expect(entry.completed).toBe(true); // no deliverables, and the class has ended
+    expect(entry.completed).toBe(true);
   });
 });
 
 describe("computeProgress — quizzes", () => {
   it("requires a pass when a quiz is published", () => {
     const cw = coursework({ hasQuiz: true, quizBestScore: 60 });
-    const [entry] = computeProgress([session(1)], new Map(), enrolledLongAgo, new Map([[1, cw]]), NOW);
+    const [entry] = computeProgress([session(1)], new Map(), enrolledLongAgo, new Map([[1, cw]]), present, NOW);
     expect(entry.quizPassed).toBe(false);
     expect(entry.completed).toBe(false);
-    expect(entry.progressPct).toBe(60);
+    expect(entry.progressPct).toBe(80); // presence 100 + quiz 60
   });
 
   it("caps an unpassed best score below 100 so the bar never lies", () => {
-    const cw = coursework({ hasQuiz: true, quizBestScore: 100 });
-    const passing = computeProgress([session(1)], new Map(), enrolledLongAgo, new Map([[1, cw]]), NOW);
-    expect(passing[0].progressPct).toBe(100);
-
     const failing = coursework({ hasQuiz: true, quizBestScore: 69 });
-    const entries = computeProgress([session(1)], new Map(), enrolledLongAgo, new Map([[1, failing]]), NOW);
-    expect(entries[0].progressPct).toBe(69);
+    const entries = computeProgress([session(1)], new Map(), enrolledLongAgo, new Map([[1, failing]]), present, NOW);
+    expect(entries[0].progressPct).toBe(85); // presence 100 + quiz 69
+    expect(entries[0].completed).toBe(false);
   });
 });
 
 describe("computeProgress — empty and unscheduled modules never dam the sequence", () => {
-  it("completes an empty module once its class has ended", () => {
-    const [entry] = computeProgress([session(1)], new Map(), enrolledLongAgo, new Map(), NOW);
+  it("completes an attended module with no coursework once the class has ended", () => {
+    const [entry] = computeProgress([session(1)], new Map(), enrolledLongAgo, new Map(), present, NOW);
     expect(entry.completed).toBe(true);
   });
 
-  it("leaves an empty future module incomplete but does not lock the next one", () => {
-    const sessions = [
-      session(1, { startsAt: new Date(NOW + 24 * HOUR) }),
-      session(2, { startsAt: new Date(NOW + 48 * HOUR) }),
-    ];
-    const entries = computeProgress(sessions, new Map(), enrolledLongAgo, new Map(), NOW);
-    expect(entries[0].completed).toBe(false);
-    // module 1 is not complete, so module 2 is genuinely locked...
-    expect(entries[1].locked).toBe(true);
+  it("does not require presence for a module that was never scheduled", () => {
+    const cw = new Map([[1, coursework({ hasAssignment: true, assignmentSubmitted: true })]]);
+    const [entry] = computeProgress(
+      [session(1, { startsAt: null })],
+      new Map(),
+      enrolledLongAgo,
+      cw,
+      new Map(),
+      NOW,
+    );
+    expect(entry.completed).toBe(true);
   });
 
   it("waives an unscheduled module as a prerequisite", () => {
@@ -182,9 +239,8 @@ describe("computeProgress — empty and unscheduled modules never dam the sequen
       session(2, { startsAt: new Date(NOW - 2 * HOUR) }),
     ];
     const cw = new Map([[2, coursework({ hasAssignment: true })]]);
-    const entries = computeProgress(sessions, new Map(), enrolledLongAgo, cw, NOW);
-    const second = entries.find((e) => e.sessionId === 2)!;
-    expect(second.locked).toBe(false);
+    const entries = computeProgress(sessions, new Map(), enrolledLongAgo, cw, new Map(), NOW);
+    expect(entries.find((e) => e.sessionId === 2)!.locked).toBe(false);
   });
 
   it("waives modules that ended before the learner enrolled", () => {
@@ -197,7 +253,7 @@ describe("computeProgress — empty and unscheduled modules never dam the sequen
       [1, coursework({ hasAssignment: true, assignmentSubmitted: false })],
       [2, coursework({ hasAssignment: true })],
     ]);
-    const entries = computeProgress(sessions, new Map(), enrolledYesterday, cw, NOW);
+    const entries = computeProgress(sessions, new Map(), enrolledYesterday, cw, new Map(), NOW);
     expect(entries.find((e) => e.sessionId === 2)!.locked).toBe(false);
   });
 });
@@ -212,7 +268,7 @@ describe("computeProgress — ordering and multi-program isolation", () => {
       [1, coursework({ hasAssignment: true, assignmentSubmitted: false })],
       [2, coursework({ hasAssignment: true })],
     ]);
-    const entries = computeProgress(sessions, new Map(), enrolledLongAgo, cw, NOW);
+    const entries = computeProgress(sessions, new Map(), enrolledLongAgo, cw, new Map(), NOW);
     expect(entries.find((e) => e.sessionId === 1)!.locked).toBe(false);
     expect(entries.find((e) => e.sessionId === 2)!.locked).toBe(true);
   });
@@ -230,8 +286,10 @@ describe("computeProgress — ordering and multi-program isolation", () => {
       [1, coursework({ hasAssignment: true, assignmentSubmitted: false })],
       [2, coursework({ hasAssignment: true, assignmentSubmitted: true })],
     ]);
-    const entries = computeProgress(sessions, new Map(), enrolled, cw, NOW);
+    const presence = new Map([[2, attendedInFull()]]);
+    const entries = computeProgress(sessions, new Map(), enrolled, cw, presence, NOW);
     expect(entries.find((e) => e.sessionId === 2)!.locked).toBe(false);
+    expect(entries.find((e) => e.sessionId === 2)!.completed).toBe(true);
   });
 });
 
@@ -248,7 +306,7 @@ describe("attendanceStreak", () => {
       [2, new Date(NOW - 48 * HOUR + 40 * 60 * 1000)], // late
       [3, new Date(NOW - 24 * HOUR)],
     ]);
-    const entries = computeProgress(sessions, attendance, enrolledLongAgo, new Map(), NOW);
+    const entries = computeProgress(sessions, attendance, enrolledLongAgo, new Map(), new Map(), NOW);
     expect(attendanceStreak(entries, sessions)).toBe(1);
   });
 
@@ -258,7 +316,7 @@ describe("attendanceStreak", () => {
       [2, new Date(NOW - 48 * HOUR)],
       [3, new Date(NOW - 24 * HOUR)],
     ]);
-    const entries = computeProgress(sessions, attendance, enrolledLongAgo, new Map(), NOW);
+    const entries = computeProgress(sessions, attendance, enrolledLongAgo, new Map(), new Map(), NOW);
     expect(attendanceStreak(entries, sessions)).toBe(3);
   });
 });

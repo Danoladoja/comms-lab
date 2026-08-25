@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { Link } from 'wouter';
+import TrackedReplay from '@/components/TrackedReplay';
 import { useListMySessions, useListMyProgress } from '@workspace/api-client-react';
-import { toEmbedUrl } from '@/lib/embed';
 import { PlayCircle, Video, ExternalLink, Clock } from 'lucide-react';
 
 function formatDate(iso: string | null | undefined) {
@@ -57,29 +57,22 @@ export default function Recordings() {
               <h2 className="text-xl font-display font-bold mb-4">{group.title}</h2>
               <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {group.sessions.map(s => {
-                  const attended = progress.find(p => p.sessionId === s.id)?.attendedLive ?? false;
-                  const embed = s.recordingUrl ? toEmbedUrl(s.recordingUrl) : null;
+                  const entry = progress.find(p => p.sessionId === s.id);
                   return (
                     <article key={s.id} className="bg-card border border-border rounded-2xl overflow-hidden flex flex-col">
-                      {s.recordingUrl && embed ? (
-                        embed.kind === 'iframe' ? (
-                          <iframe
-                            src={embed.src}
-                            title={`${s.title} recording`}
-                            className="w-full aspect-video bg-black"
-                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"
-                            allowFullScreen
-                          />
-                        ) : (
-                          <video src={embed.src} controls className="w-full aspect-video bg-black" />
-                        )
+                      {/* Tracked here too — watching from this page counts exactly
+                          the same as watching inside the classroom. */}
+                      {s.recordingUrl ? (
+                        <TrackedReplay
+                          sessionId={s.id}
+                          recordingUrl={s.recordingUrl}
+                          title={`${s.title} recording`}
+                        />
                       ) : (
                         <div className="aspect-video bg-[#07111E] text-[#F4F0E8] flex flex-col items-center justify-center text-center px-4">
                           <PlayCircle className="w-8 h-8 text-[#F4F0E8]/40 mb-2" />
                           <p className="text-xs text-[#F4F0E8]/70 max-w-[28ch]">
-                            {attended
-                              ? 'Recording coming soon. Your facilitator will upload it here.'
-                              : 'Replays are reserved for learners who attended this session live.'}
+                            Recording coming soon. Your facilitator will upload it here.
                           </p>
                         </div>
                       )}
@@ -88,6 +81,13 @@ export default function Recordings() {
                         <p className="text-xs text-muted-foreground flex items-center gap-1.5">
                           <Clock className="w-3.5 h-3.5" />{formatDate(s.startsAt as unknown as string)} · {s.durationMins} min
                         </p>
+                        {entry?.presence && (
+                          <p className="text-xs mt-1.5 font-semibold">
+                            {entry.presence.met
+                              ? <span className="text-emerald-700">Class covered</span>
+                              : <span className="text-muted-foreground">{entry.presence.bestPct}% of {entry.presence.thresholdPct}% needed</span>}
+                          </p>
+                        )}
                         {s.recordingUrl && (
                           <a
                             href={s.recordingUrl}

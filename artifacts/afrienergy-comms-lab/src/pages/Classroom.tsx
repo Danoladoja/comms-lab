@@ -7,16 +7,16 @@ import {
 } from '@workspace/api-client-react';
 import { liveWindow } from '@workspace/domain';
 import { Button } from '@/components/ui/button';
+import { Progress } from '@/components/ui/progress';
 import { useToast } from '@/hooks/use-toast';
+import { useLiveHeartbeat } from '@/hooks/useLiveHeartbeat';
 import { QuizPanel, AssignmentPanel } from '@/components/CourseworkDialogs';
 import { CritiqueQueue, MyFeedbackPanel } from '@/components/CritiquePanel';
+import TrackedReplay from '@/components/TrackedReplay';
 import {
   ArrowLeft, Video, PlayCircle, CheckCircle2, Lock, Radio, Clock,
-  FileQuestion, ClipboardList, ExternalLink, CalendarClock, MessagesSquare,
-  Flame, AlertTriangle,
+  FileQuestion, ClipboardList, CalendarClock, MessagesSquare,
 } from 'lucide-react';
-
-import { toEmbedUrl } from '@/lib/embed';
 
 type Tab = '' | 'assignment' | 'critique' | 'feedback' | 'quiz';
 
@@ -43,21 +43,20 @@ export default function Classroom() {
   const session = sessions.find(s => s.id === sessionId);
   const entry = progress.find(p => p.sessionId === sessionId);
 
+  // Counts time in the room while the class is running.
+  useLiveHeartbeat(session);
+
   const joinSession = useJoinSession({
     mutation: {
       onSuccess: (result) => {
         qc.invalidateQueries({ queryKey: getListMyProgressQueryKey() });
         qc.invalidateQueries({ queryKey: getListMySessionsQueryKey() });
-        // Late joins used to fail silently: attendance was recorded but never
-        // counted, and nobody said so. Now it is said out loud.
-        if (!result.countedAsOnTime) {
-          toast({
-            title: 'Checked in — but not counted as on time',
-            description: 'You joined after the grace window, so this one does not add to your streak. It does not affect completing the module.',
-          });
-        }
         if (result.joinUrl) {
           window.open(result.joinUrl, '_blank', 'noreferrer');
+          toast({
+            title: 'Keep this tab open',
+            description: 'Your time in class is counted from here while the session runs.',
+          });
         } else {
           toast({
             title: 'You are checked in',
@@ -87,16 +86,15 @@ export default function Classroom() {
     );
   }
 
-  // Both the button and the server read the same function, so the UI can no
-  // longer offer a join the API will refuse.
+  // Both the button and the server read the same window, so the UI can never
+  // offer a join the API will refuse.
   const win = liveWindow({
     startsAt: session.startsAt as unknown as string | null,
     durationMins: session.durationMins,
   });
   const locked = entry?.locked ?? false;
-  const embed = session.recordingUrl ? toEmbedUrl(session.recordingUrl) : null;
-  const hasReplay = win.state === 'ended' && !!session.recordingUrl && !!embed;
-
+  const presence = entry?.presence;
+  const hasReplay = win.state === 'ended' && !!session.recordingUrl;
   const owedCritiques = Math.max(0, (entry?.reviewsRequired ?? 0) - (entry?.reviewsGiven ?? 0));
 
   return (
@@ -118,11 +116,6 @@ export default function Classroom() {
               <CheckCircle2 className="w-3.5 h-3.5" aria-hidden />Completed
             </span>
           )}
-          {entry?.attendedLive && (
-            <span className="flex items-center gap-1 bg-amber-100 text-amber-900 text-xs font-semibold px-2.5 py-1 rounded-full">
-              <Flame className="w-3.5 h-3.5" aria-hidden />Was there live
-            </span>
-          )}
         </div>
         <p className="text-sm text-muted-foreground flex items-center gap-1.5 mt-1.5">
           <Clock className="w-4 h-4" aria-hidden />
@@ -135,8 +128,7 @@ export default function Classroom() {
           <Lock className="w-10 h-10 text-muted-foreground mx-auto mb-3" aria-hidden />
           <h2 className="font-bold mb-1">This module is locked</h2>
           <p className="text-sm text-muted-foreground mb-5">
-            Finish the previous module first — file the assignment and write the critiques you owe. Attendance is not
-            part of the lock: missing a live class never blocks you.
+            Finish the previous module first — attend the class or watch its recording, then complete the coursework.
           </p>
           <Button asChild variant="outline"><Link href="/dashboard">Back to dashboard</Link></Button>
         </div>
@@ -145,18 +137,12 @@ export default function Classroom() {
           {/* Video stage */}
           <div className="lg:col-span-2">
             <div className="rounded-2xl overflow-hidden border border-border bg-[#07111E] text-[#F4F0E8]">
-              {hasReplay && embed ? (
-                embed.kind === 'iframe' ? (
-                  <iframe
-                    src={embed.src}
-                    title={`${session.title} recording`}
-                    className="w-full aspect-video"
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"
-                    allowFullScreen
-                  />
-                ) : (
-                  <video src={embed.src} controls className="w-full aspect-video bg-black" />
-                )
+              {hasReplay ? (
+                <TrackedReplay
+                  sessionId={session.id}
+                  recordingUrl={session.recordingUrl!}
+                  title={`${session.title} recording`}
+                />
               ) : (
                 <div className="aspect-video flex flex-col items-center justify-center text-center px-6">
                   {win.canJoin ? (
@@ -165,26 +151,12 @@ export default function Classroom() {
                       <h2 className="font-display font-bold text-xl mb-1">
                         {win.state === 'open' ? 'The room is open' : 'Class is in session'}
                       </h2>
-                      <p className="text-sm text-[#F4F0E8]/80 mb-2 max-w-md">
-                        Joining checks you in and opens the live video room.
+                      <p className="text-sm text-[#F4F0E8]/80 mb-6 max-w-md">
+                        Joining opens the video room. Keep this tab open — your time in class is counted here.
                       </p>
-                      {/* Say what is about to be lost, before it is lost. */}
-                      {win.countsAsOnTime ? (
-                        win.msUntilLateMark < 5 * 60 * 1000 && (
-                          <p className="text-xs text-amber-300 mb-5 inline-flex items-center gap-1.5">
-                            <AlertTriangle className="w-3.5 h-3.5" aria-hidden />
-                            {minutesFrom(win.msUntilLateMark)} min left to count as on time
-                          </p>
-                        )
-                      ) : (
-                        <p className="text-xs text-[#F4F0E8]/70 mb-5 max-w-md">
-                          The on-time window has passed, so this join will not add to your streak. You can still join,
-                          and it does not affect completing the module.
-                        </p>
-                      )}
                       <Button
                         size="lg"
-                        className="font-bold mt-3"
+                        className="font-bold"
                         disabled={joinSession.isPending}
                         onClick={() => joinSession.mutate({ id: session.id })}
                       >
@@ -197,8 +169,7 @@ export default function Classroom() {
                       <PlayCircle className="w-12 h-12 text-[#F4F0E8]/50 mb-4" aria-hidden />
                       <h2 className="font-display font-bold text-xl mb-1">Recording coming soon</h2>
                       <p className="text-sm text-[#F4F0E8]/80 max-w-md">
-                        This class has ended. The recording appears here once your facilitator uploads it — everyone
-                        enrolled gets it, whether or not you made it live.
+                        This class has ended. The recording appears here once your facilitator uploads it.
                       </p>
                     </>
                   ) : (
@@ -217,24 +188,36 @@ export default function Classroom() {
                 </div>
               )}
             </div>
-            {hasReplay && (
-              <p className="text-xs text-muted-foreground mt-2">
-                Problems with playback?{' '}
-                <a className="underline focus-visible:ring-2 focus-visible:ring-ring rounded" href={session.recordingUrl!} target="_blank" rel="noreferrer">
-                  Open the recording in a new tab
-                </a>
-                {' '}or ask your facilitator for the audio-only version.
-              </p>
-            )}
           </div>
 
           {/* Sidebar */}
           <aside className="space-y-6">
             <section className="bg-card border border-border rounded-2xl p-5">
-              <h2 className="font-display font-bold mb-1 text-sm uppercase tracking-wider text-muted-foreground">
+              <h2 className="font-display font-bold mb-3 text-sm uppercase tracking-wider text-muted-foreground">
                 To complete this module
               </h2>
-              <p className="text-xs text-muted-foreground mb-3">Attendance is a bonus, not a requirement.</p>
+
+              {win.state !== 'unscheduled' && presence && (
+                <div className="mb-4 pb-4 border-b border-border">
+                  <div className="flex items-center justify-between gap-2 mb-1.5">
+                    <span className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Video className="w-4 h-4" aria-hidden />The class
+                    </span>
+                    {presence.met
+                      ? <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-900">Done</span>
+                      : <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-muted text-muted-foreground">{presence.bestPct}%</span>}
+                  </div>
+                  <Progress value={presence.bestPct} className="h-1.5 mb-1.5" />
+                  <p className="text-xs text-muted-foreground">
+                    {presence.met
+                      ? presence.via === 'live'
+                        ? 'Attended live.'
+                        : 'Watched the recording.'
+                      : `${presence.thresholdPct}% of the class needed. Attend live or watch the recording.`}
+                  </p>
+                </div>
+              )}
+
               <ul className="space-y-2.5 text-sm">
                 {entry?.hasAssignment !== false && (
                   <li className="flex items-center justify-between gap-2">
@@ -264,14 +247,6 @@ export default function Classroom() {
                         : <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-muted text-muted-foreground">Not taken</span>}
                   </li>
                 )}
-                <li className="flex items-center justify-between gap-2 border-t border-border pt-2.5">
-                  <span className="flex items-center gap-2 text-muted-foreground"><Flame className="w-4 h-4" aria-hidden />Live attendance</span>
-                  {entry?.attendedLive
-                    ? <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-900">On time</span>
-                    : entry?.attended
-                      ? <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-muted text-muted-foreground">Joined late</span>
-                      : <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-muted text-muted-foreground">Bonus</span>}
-                </li>
               </ul>
             </section>
 

@@ -6,6 +6,7 @@ import sessionsRouter from "./sessions";
 import enrollmentsRouter from "./enrollments";
 import courseworkRouter from "./coursework";
 import reviewsRouter from "./reviews";
+import presenceRouter from "./presence";
 import forumRouter from "./forum";
 import adminRouter from "./admin";
 
@@ -18,6 +19,7 @@ router.use(sessionsRouter);
 router.use(enrollmentsRouter);
 router.use(courseworkRouter);
 router.use(reviewsRouter);
+router.use(presenceRouter);
 router.use(forumRouter);
 router.use(adminRouter);
 

@@ -1,13 +1,16 @@
 import {
-  db, attendanceTable, enrollmentsTable, sessionsTable,
+  db, attendanceTable, replayProgressTable, enrollmentsTable, sessionsTable,
   quizQuestionsTable, quizAttemptsTable, assignmentsTable, assignmentSubmissionsTable,
   submissionReviewsTable,
 } from "@workspace/db";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import {
   computeProgress,
+  replayWatchedSeconds,
   EMPTY_COURSEWORK,
+  EMPTY_PRESENCE,
   type CourseworkStatus,
+  type PresenceInput,
   type ProgressEntry,
 } from "@workspace/domain";
 
@@ -36,12 +39,16 @@ export async function progressForUser(userId: number, programIds: number[]): Pro
   // `.concat(-1)` keeps the IN clause non-empty for programs with no sessions.
   const sessionIds = sessions.map((s) => s.id).concat(-1);
 
-  const [att, enrollRows, quizSessions, bestAttempts, assignments, submissions, reviewsGiven, reviewsReceived] =
+  const [att, replay, enrollRows, quizSessions, bestAttempts, assignments, submissions, reviewsGiven, reviewsReceived] =
     await Promise.all([
       db
         .select()
         .from(attendanceTable)
         .where(and(eq(attendanceTable.userId, userId), inArray(attendanceTable.sessionId, sessionIds))),
+      db
+        .select()
+        .from(replayProgressTable)
+        .where(and(eq(replayProgressTable.userId, userId), inArray(replayProgressTable.sessionId, sessionIds))),
       db
         .select({ programId: enrollmentsTable.programId, createdAt: enrollmentsTable.createdAt })
         .from(enrollmentsTable)
@@ -88,6 +95,25 @@ export async function progressForUser(userId: number, programIds: number[]): Pro
     ]);
 
   const attendance = new Map(att.map((a) => [a.sessionId, a.joinedAt]));
+
+  // Presence has two possible sources per module; computeProgress fills in the
+  // scheduled length and decides which route carries the learner.
+  const liveBySession = new Map(att.map((a) => [a.sessionId, a.liveSeconds]));
+  const replayBySession = new Map(replay.map((r) => [r.sessionId, r]));
+  const presenceBySession = new Map<number, PresenceInput>(
+    sessions.map((s) => {
+      const r = replayBySession.get(s.id);
+      return [
+        s.id,
+        {
+          ...EMPTY_PRESENCE,
+          liveSeconds: liveBySession.get(s.id) ?? 0,
+          replayWatchedSeconds: r ? replayWatchedSeconds(r.buckets, r.durationSeconds) : 0,
+          replayDurationSeconds: r?.durationSeconds ?? null,
+        },
+      ];
+    }),
+  );
   const enrolledAtByProgram = new Map(enrollRows.map((e) => [e.programId, e.createdAt]));
   const quizSet = new Set(quizSessions.map((q) => q.sessionId));
   const bestBySession = new Map(bestAttempts.map((a) => [a.sessionId, a.best]));
@@ -112,7 +138,7 @@ export async function progressForUser(userId: number, programIds: number[]): Pro
     ]),
   );
 
-  return computeProgress(sessions, attendance, enrolledAtByProgram, coursework);
+  return computeProgress(sessions, attendance, enrolledAtByProgram, coursework, presenceBySession);
 }
 
 export async function enrolledProgramIds(userId: number): Promise<number[]> {
