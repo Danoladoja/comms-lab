@@ -1578,7 +1578,7 @@ components:
         instructorName: { type: ["string", "null"] }
     SessionDetail:
       type: object
-      required: [id, programId, programTitle, title, description, sortOrder, durationMins]
+      required: [id, programId, programTitle, title, description, sortOrder, durationMins, hasMeetUrl]
       properties:
         id: { type: integer }
         programId: { type: integer }
@@ -1588,7 +1588,12 @@ components:
         sortOrder: { type: integer }
         startsAt: { type: ["string", "null"], format: date-time }
         durationMins: { type: integer }
+        # Creating the meeting room is the admin's job. Only admins ever receive
+        # the raw link; everyone else — learners and facilitators alike — gets it
+        # by pressing Join, which is also what records their time in class.
         meetUrl: { type: ["string", "null"] }
+        # Whether a room has been set up at all, so the UI can say "not ready yet".
+        hasMeetUrl: { type: boolean }
         recordingUrl: { type: ["string", "null"] }
         instructorId: { type: ["integer", "null"] }
         instructorName: { type: ["string", "null"] }

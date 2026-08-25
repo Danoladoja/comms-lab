@@ -760,6 +760,7 @@ export const ListMySessionsResponseItem = zod.object({
   "startsAt": zod.coerce.date().nullish(),
   "durationMins": zod.int(),
   "meetUrl": zod.string().nullish(),
+  "hasMeetUrl": zod.boolean(),
   "recordingUrl": zod.string().nullish(),
   "instructorId": zod.int().nullish(),
   "instructorName": zod.string().nullish()

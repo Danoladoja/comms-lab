@@ -459,6 +459,7 @@ export interface SessionDetail {
   durationMins: number;
   /** @nullable */
   meetUrl?: string | null;
+  hasMeetUrl: boolean;
   /** @nullable */
   recordingUrl?: string | null;
   /** @nullable */

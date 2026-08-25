@@ -71,10 +71,12 @@ portfolio.
   review queue opens, and write the critiques you owe before your feedback
   unlocks. This is what stops the loop from starving. Reviews are attributed in
   the database (so facilitators can spot abuse) but shown to authors anonymously.
-- **Entitlement is enforced server-side, never in the UI.** Learners never
-  receive `meetUrl` — joining goes through `POST /sessions/:id/join` so
-  attendance is recorded and the module lock is applied. Recordings, by
-  contrast, go to every enrolled learner.
+- **Creating the meeting room is an admin duty.** Only admins can set `meetUrl`
+  and only admins ever receive it. Everyone else — learners and facilitators
+  alike — reaches the room through `POST /sessions/:id/join`, which is also what
+  records attendance and applies the module lock. `hasMeetUrl` tells any page
+  whether the room is ready without leaking the link. Recordings, by contrast,
+  go to every enrolled learner, and instructors may set `recordingUrl`.
 - **Certificate codes are random and opaque**, stored on the enrollment row.
   The old `AECL-{programId}-{userId}` format was enumerable: anyone could walk
   it upward and harvest every graduate's name and your cohort sizes.
