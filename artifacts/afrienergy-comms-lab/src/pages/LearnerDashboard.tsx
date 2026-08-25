@@ -4,6 +4,7 @@ import {
   useListMyEnrollments, useListMySessions, useListMyProgress, useJoinSession,
   getListMyProgressQueryKey, getListMySessionsQueryKey,
 } from '@workspace/api-client-react';
+import { liveWindow } from '@workspace/domain';
 import { useCurrentUser } from '@/lib/useCurrentUser';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
@@ -38,12 +39,16 @@ import type { SessionDetail } from '@workspace/api-client-react';
 import { ProgramForum } from '@/components/CohortForum';
 type SessionRow = SessionDetail;
 
+/**
+ * Read the join window from @workspace/domain — the same function the API uses.
+ * The dashboard used to hard-code 15 minutes while the server accepted joins
+ * from 5, so the button failed for ten minutes before every class.
+ */
 function moduleState(s: { startsAt?: unknown; durationMins: number }, now: number) {
-  const start = s.startsAt ? new Date(s.startsAt as string).getTime() : null;
-  if (start === null) return 'upcoming';
-  const end = start + s.durationMins * 60 * 1000;
-  if (now >= start - 15 * 60 * 1000 && now <= end) return 'live';
-  return now > end ? 'done' : 'upcoming';
+  const win = liveWindow({ startsAt: s.startsAt as string | null, durationMins: s.durationMins }, now);
+  if (win.state === 'unscheduled') return 'upcoming';
+  if (win.canJoin) return 'live';
+  return win.state === 'ended' ? 'done' : 'upcoming';
 }
 
 export default function LearnerDashboard() {
@@ -61,16 +66,25 @@ export default function LearnerDashboard() {
       onSuccess: (result) => {
         qc.invalidateQueries({ queryKey: getListMyProgressQueryKey() });
         qc.invalidateQueries({ queryKey: getListMySessionsQueryKey() });
+        if (!result.countedAsOnTime) {
+          toast({
+            title: 'Checked in — but not counted as on time',
+            description: 'You joined after the grace window, so this one does not add to your streak. It does not affect completing the module.',
+          });
+        }
         if (result.joinUrl) {
           window.open(result.joinUrl, '_blank', 'noreferrer');
         } else {
-          setLocation('/classroom-preview');
+          toast({
+            title: 'You are checked in',
+            description: 'The video link has not been added yet. Your facilitator will share it shortly.',
+          });
         }
       },
       onError: () => {
         toast({
-          title: 'Module locked',
-          description: 'Complete the previous module to unlock this one.',
+          title: 'Cannot join yet',
+          description: 'Either the room is not open, or the previous module is unfinished.',
           variant: 'destructive',
         });
       },
@@ -171,6 +185,7 @@ export default function LearnerDashboard() {
                             const entry = progressBySession.get(m.id);
                             const locked = entry?.locked ?? false;
                             const pct = entry?.completed ? 100 : entry?.progressPct ?? 0;
+                            const owed = Math.max(0, (entry?.reviewsRequired ?? 0) - (entry?.reviewsGiven ?? 0));
                             return (
                               <li key={m.id} className={`rounded-xl border border-border transition-colors ${
                                 locked ? 'opacity-55 bg-muted/30' : 'hover:border-primary/40'
@@ -201,15 +216,15 @@ export default function LearnerDashboard() {
                                   <span className="text-xs font-semibold flex items-center gap-1.5 flex-shrink-0 text-primary">
                                     {locked
                                       ? <span className="text-muted-foreground">Locked</span>
-                                      : entry?.completed
-                                        ? (m.recordingUrl && entry.attendedLive
-                                            ? <><PlayCircle className="w-4 h-4" />Watch replay</>
-                                            : 'Completed')
-                                        : state === 'live'
-                                          ? <><Video className="w-4 h-4" />Join live</>
-                                          : state === 'done' && !entry?.attendedLive
-                                            ? <span className="text-muted-foreground">Missed live class</span>
-                                            : <>Open classroom<ArrowRight className="w-3.5 h-3.5" /></>}
+                                      : state === 'live'
+                                        ? <><Video className="w-4 h-4" aria-hidden />Join live</>
+                                        : owed > 0
+                                          ? <>{owed} critique{owed === 1 ? '' : 's'} to write<ArrowRight className="w-3.5 h-3.5" aria-hidden /></>
+                                          : entry?.completed
+                                            ? (m.recordingUrl
+                                                ? <><PlayCircle className="w-4 h-4" aria-hidden />Watch replay</>
+                                                : 'Completed')
+                                            : <>Open classroom<ArrowRight className="w-3.5 h-3.5" aria-hidden /></>}
                                   </span>
                                 </button>
                               </li>
@@ -333,7 +348,7 @@ function CourseworkList({ kind, sessions, progressBySession, onOpen }: {
       <p className="text-xs text-muted-foreground bg-[#F4F0E8] border border-border rounded-lg px-3 py-2">
         {kind === 'quiz'
           ? 'Each module has a short quiz. Score 70% or more to pass — you can retake it as many times as you need.'
-          : 'Each module has a written assignment. Submitting it counts toward completing the module.'}
+          : 'Each module ends in a make. File it, then critique two peers — that pair is what completes the module.'}
       </p>
       {items.map(s => {
         const e = progressBySession.get(s.id)!;

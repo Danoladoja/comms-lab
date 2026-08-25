@@ -271,7 +271,8 @@ export const JoinSessionParams = zod.object({
 export const JoinSessionResponse = zod.object({
   "sessionId": zod.int(),
   "joinedAt": zod.string(),
-  "joinUrl": zod.string().nullish()
+  "joinUrl": zod.string().nullish(),
+  "countedAsOnTime": zod.boolean()
 })
 
 
@@ -366,10 +367,24 @@ export const GetSessionAssignmentParams = zod.object({
   "id": zod.coerce.number().int()
 })
 
+
+
+export const getSessionAssignmentResponseRubricItemMaxScoreMin = 2;
+export const getSessionAssignmentResponseRubricItemMaxScoreMax = 10;
+
+
+
 export const GetSessionAssignmentResponse = zod.object({
   "sessionId": zod.int(),
   "title": zod.string(),
   "instructions": zod.string(),
+  "rubric": zod.array(zod.object({
+  "id": zod.string().min(1),
+  "label": zod.string().min(1),
+  "description": zod.string(),
+  "maxScore": zod.int().min(getSessionAssignmentResponseRubricItemMaxScoreMin).max(getSessionAssignmentResponseRubricItemMaxScoreMax)
+})),
+  "reviewsRequired": zod.int(),
   "mySubmission": zod.union([zod.object({
   "sessionId": zod.int(),
   "body": zod.string(),
@@ -388,15 +403,44 @@ export const UpsertSessionAssignmentParams = zod.object({
 
 
 
+export const upsertSessionAssignmentBodyRubricItemMaxScoreMin = 2;
+export const upsertSessionAssignmentBodyRubricItemMaxScoreMax = 10;
+
+export const upsertSessionAssignmentBodyReviewsRequiredMin = 0;
+export const upsertSessionAssignmentBodyReviewsRequiredMax = 5;
+
+
+
 export const UpsertSessionAssignmentBody = zod.object({
   "title": zod.string().min(1),
-  "instructions": zod.string().optional()
+  "instructions": zod.string().optional(),
+  "rubric": zod.array(zod.object({
+  "id": zod.string().min(1),
+  "label": zod.string().min(1),
+  "description": zod.string(),
+  "maxScore": zod.int().min(upsertSessionAssignmentBodyRubricItemMaxScoreMin).max(upsertSessionAssignmentBodyRubricItemMaxScoreMax)
+})).optional(),
+  "reviewsRequired": zod.int().min(upsertSessionAssignmentBodyReviewsRequiredMin).max(upsertSessionAssignmentBodyReviewsRequiredMax).optional()
 })
+
+
+
+export const upsertSessionAssignmentResponseRubricItemMaxScoreMin = 2;
+export const upsertSessionAssignmentResponseRubricItemMaxScoreMax = 10;
+
+
 
 export const UpsertSessionAssignmentResponse = zod.object({
   "sessionId": zod.int(),
   "title": zod.string(),
   "instructions": zod.string(),
+  "rubric": zod.array(zod.object({
+  "id": zod.string().min(1),
+  "label": zod.string().min(1),
+  "description": zod.string(),
+  "maxScore": zod.int().min(upsertSessionAssignmentResponseRubricItemMaxScoreMin).max(upsertSessionAssignmentResponseRubricItemMaxScoreMax)
+})),
+  "reviewsRequired": zod.int(),
   "mySubmission": zod.union([zod.object({
   "sessionId": zod.int(),
   "body": zod.string(),
@@ -427,6 +471,102 @@ export const SubmitAssignmentResponse = zod.object({
 
 
 /**
+ * Least-reviewed work first so nobody's submission goes unseen. The queue is empty until the learner has submitted their own make — otherwise it would be a way to read everyone else's answer first.
+ * @summary The peer submissions this learner should critique next for a module
+ */
+export const GetReviewQueueParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+
+
+export const getReviewQueueResponseRubricItemMaxScoreMin = 2;
+export const getReviewQueueResponseRubricItemMaxScoreMax = 10;
+
+
+
+export const GetReviewQueueResponse = zod.object({
+  "sessionId": zod.int(),
+  "rubric": zod.array(zod.object({
+  "id": zod.string().min(1),
+  "label": zod.string().min(1),
+  "description": zod.string(),
+  "maxScore": zod.int().min(getReviewQueueResponseRubricItemMaxScoreMin).max(getReviewQueueResponseRubricItemMaxScoreMax)
+})),
+  "reviewsRequired": zod.int(),
+  "reviewsGiven": zod.int(),
+  "canReview": zod.boolean(),
+  "reason": zod.string(),
+  "targets": zod.array(zod.object({
+  "submissionId": zod.int(),
+  "body": zod.string(),
+  "submittedAt": zod.string()
+}))
+})
+
+
+/**
+ * @summary Write a peer critique of another learner's submission
+ */
+export const SubmitReviewParams = zod.object({
+  "submissionId": zod.coerce.number().int()
+})
+
+export const submitReviewBodyCommentMax = 5000;
+
+
+
+export const SubmitReviewBody = zod.object({
+  "scores": zod.record(zod.string(), zod.int()),
+  "comment": zod.string().min(1).max(submitReviewBodyCommentMax)
+})
+
+export const SubmitReviewResponse = zod.object({
+  "id": zod.int(),
+  "scores": zod.record(zod.string(), zod.int()),
+  "comment": zod.string(),
+  "createdAt": zod.string(),
+  "scorePct": zod.int()
+})
+
+
+/**
+ * Locked until the learner has written the critiques they owe. This is what keeps the loop from starving.
+ * @summary The critiques this learner's own submission has received
+ */
+export const GetMyFeedbackParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+
+
+export const getMyFeedbackResponseRubricItemMaxScoreMin = 2;
+export const getMyFeedbackResponseRubricItemMaxScoreMax = 10;
+
+
+
+export const GetMyFeedbackResponse = zod.object({
+  "sessionId": zod.int(),
+  "unlocked": zod.boolean(),
+  "reviewsRequired": zod.int(),
+  "reviewsGiven": zod.int(),
+  "rubric": zod.array(zod.object({
+  "id": zod.string().min(1),
+  "label": zod.string().min(1),
+  "description": zod.string(),
+  "maxScore": zod.int().min(getMyFeedbackResponseRubricItemMaxScoreMin).max(getMyFeedbackResponseRubricItemMaxScoreMax)
+})),
+  "reviews": zod.array(zod.object({
+  "id": zod.int(),
+  "scores": zod.record(zod.string(), zod.int()),
+  "comment": zod.string(),
+  "createdAt": zod.string(),
+  "scorePct": zod.int()
+}))
+})
+
+
+/**
  * @summary Per-module progress, lock state, and replay rights across the user's enrolled programs
  */
 export const ListMyProgressResponseItem = zod.object({
@@ -434,13 +574,18 @@ export const ListMyProgressResponseItem = zod.object({
   "programId": zod.int(),
   "progressPct": zod.int(),
   "attendedLive": zod.boolean(),
+  "attended": zod.boolean(),
   "completed": zod.boolean(),
   "locked": zod.boolean(),
   "hasQuiz": zod.boolean(),
   "quizPassed": zod.boolean(),
   "quizBestScore": zod.int().nullable(),
   "hasAssignment": zod.boolean(),
-  "assignmentSubmitted": zod.boolean()
+  "assignmentSubmitted": zod.boolean(),
+  "reviewsRequired": zod.int(),
+  "reviewsGiven": zod.int(),
+  "reviewsReceived": zod.int(),
+  "feedbackUnlocked": zod.boolean()
 })
 export const ListMyProgressResponse = zod.array(ListMyProgressResponseItem)
 
@@ -484,7 +629,10 @@ export const ListMyCertificatesResponseItem = zod.object({
   "programTitle": zod.string(),
   "learnerName": zod.string(),
   "completedAt": zod.coerce.date().nullable(),
-  "certificateId": zod.string()
+  "certificateId": zod.string(),
+  "portfolioPublic": zod.boolean(),
+  "modulesCompleted": zod.int(),
+  "reviewsWritten": zod.int()
 })
 export const ListMyCertificatesResponse = zod.array(ListMyCertificatesResponseItem)
 
@@ -497,11 +645,41 @@ export const VerifyCertificateParams = zod.object({
 })
 
 export const VerifyCertificateResponse = zod.object({
+  "programTitle": zod.string(),
+  "learnerName": zod.string(),
+  "completedAt": zod.coerce.date().nullable(),
+  "certificateId": zod.string(),
+  "portfolioPublic": zod.boolean(),
+  "modulesCompleted": zod.int(),
+  "reviewsWritten": zod.int(),
+  "works": zod.array(zod.object({
+  "title": zod.string(),
+  "body": zod.string(),
+  "submittedAt": zod.string()
+}))
+})
+
+
+/**
+ * @summary Publish or unpublish the learner's work on their verification page
+ */
+export const SetPortfolioVisibilityParams = zod.object({
+  "programId": zod.coerce.number().int()
+})
+
+export const SetPortfolioVisibilityBody = zod.object({
+  "portfolioPublic": zod.boolean()
+})
+
+export const SetPortfolioVisibilityResponse = zod.object({
   "programId": zod.int(),
   "programTitle": zod.string(),
   "learnerName": zod.string(),
   "completedAt": zod.coerce.date().nullable(),
-  "certificateId": zod.string()
+  "certificateId": zod.string(),
+  "portfolioPublic": zod.boolean(),
+  "modulesCompleted": zod.int(),
+  "reviewsWritten": zod.int()
 })
 
 

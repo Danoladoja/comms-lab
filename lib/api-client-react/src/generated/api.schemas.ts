@@ -92,6 +92,7 @@ export interface JoinResult {
   joinedAt: string;
   /** @nullable */
   joinUrl?: string | null;
+  countedAsOnTime: boolean;
 }
 
 export interface Certificate {
@@ -101,6 +102,31 @@ export interface Certificate {
   /** @nullable */
   completedAt: string | null;
   certificateId: string;
+  portfolioPublic: boolean;
+  modulesCompleted: number;
+  reviewsWritten: number;
+}
+
+export interface PortfolioWork {
+  title: string;
+  body: string;
+  submittedAt: string;
+}
+
+export interface PublicCertificate {
+  programTitle: string;
+  learnerName: string;
+  /** @nullable */
+  completedAt: string | null;
+  certificateId: string;
+  portfolioPublic: boolean;
+  modulesCompleted: number;
+  reviewsWritten: number;
+  works: PortfolioWork[];
+}
+
+export interface PortfolioVisibilityInput {
+  portfolioPublic: boolean;
 }
 
 export interface SessionProgress {
@@ -108,6 +134,7 @@ export interface SessionProgress {
   programId: number;
   progressPct: number;
   attendedLive: boolean;
+  attended: boolean;
   completed: boolean;
   locked: boolean;
   hasQuiz: boolean;
@@ -116,6 +143,10 @@ export interface SessionProgress {
   quizBestScore: number | null;
   hasAssignment: boolean;
   assignmentSubmitted: boolean;
+  reviewsRequired: number;
+  reviewsGiven: number;
+  reviewsReceived: number;
+  feedbackUnlocked: boolean;
 }
 
 export interface QuizQuestionPublic {
@@ -170,6 +201,19 @@ export interface QuizResult {
   bestScore: number;
 }
 
+export interface RubricCriterion {
+  /** @minLength 1 */
+  id: string;
+  /** @minLength 1 */
+  label: string;
+  description: string;
+  /**
+     * @minimum 2
+     * @maximum 10
+     */
+  maxScore: number;
+}
+
 export interface AssignmentSubmission {
   sessionId: number;
   body: string;
@@ -180,6 +224,8 @@ export interface AssignmentDetail {
   sessionId: number;
   title: string;
   instructions: string;
+  rubric: RubricCriterion[];
+  reviewsRequired: number;
   mySubmission?: AssignmentSubmission | null;
 }
 
@@ -187,11 +233,63 @@ export interface AssignmentInput {
   /** @minLength 1 */
   title: string;
   instructions?: string;
+  rubric?: RubricCriterion[];
+  /**
+     * @minimum 0
+     * @maximum 5
+     */
+  reviewsRequired?: number;
 }
 
 export interface AssignmentSubmissionInput {
   /** @minLength 1 */
   body: string;
+}
+
+export interface ReviewTarget {
+  submissionId: number;
+  body: string;
+  submittedAt: string;
+}
+
+export interface ReviewQueue {
+  sessionId: number;
+  rubric: RubricCriterion[];
+  reviewsRequired: number;
+  reviewsGiven: number;
+  canReview: boolean;
+  reason: string;
+  targets: ReviewTarget[];
+}
+
+export type ReviewInputScores = {[key: string]: number};
+
+export interface ReviewInput {
+  scores: ReviewInputScores;
+  /**
+     * @minLength 1
+     * @maxLength 5000
+     */
+  comment: string;
+}
+
+export type ReceivedReviewScores = {[key: string]: number};
+
+export interface ReceivedReview {
+  id: number;
+  scores: ReceivedReviewScores;
+  comment: string;
+  createdAt: string;
+  scorePct: number;
+}
+
+export interface MyFeedback {
+  sessionId: number;
+  unlocked: boolean;
+  reviewsRequired: number;
+  reviewsGiven: number;
+  rubric: RubricCriterion[];
+  reviews: ReceivedReview[];
 }
 
 export type UserRoleUpdateRole = typeof UserRoleUpdateRole[keyof typeof UserRoleUpdateRole];

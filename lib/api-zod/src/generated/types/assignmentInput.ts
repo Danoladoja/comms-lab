@@ -5,9 +5,16 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { RubricCriterion } from './rubricCriterion';
 
 export interface AssignmentInput {
   /** @minLength 1 */
   title: string;
   instructions?: string;
+  rubric?: RubricCriterion[];
+  /**
+     * @minimum 0
+     * @maximum 5
+     */
+  reviewsRequired?: number;
 }

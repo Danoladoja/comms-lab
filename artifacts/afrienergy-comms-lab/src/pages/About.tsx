@@ -1,16 +1,8 @@
 import { Link } from 'wouter';
 import { motion } from 'framer-motion';
 import { ArrowRight } from 'lucide-react';
-import { instructors } from '@/data/mock';
+import { faculty } from '@/content/faculty';
 import { KenteOverlay } from '@/components/KenteOverlay';
-
-const C = {
-  ink:   '#07111E',
-  gold:  '#F97316',
-  brown: '#C2410C',
-  paper: '#F4F0E8',
-  white: '#FFFFFF',
-};
 
 const fadeUp = {
   hidden:  { opacity: 0, y: 24 },
@@ -46,7 +38,7 @@ const approach = [
 
 export default function About() {
   return (
-    <div style={{ backgroundColor: C.ink, color: C.white }}>
+    <div className="surface-ink">
 
       {/* 1. INTRO ─────────────────────────────────────────────────────────── */}
       <section className="relative overflow-hidden">
@@ -58,7 +50,7 @@ export default function About() {
             animate="visible"
             custom={0.1}
             className="text-xs uppercase tracking-[0.35em] mb-8"
-            style={{ color: C.gold }}
+            style={{ color: "var(--brand-gold)" }}
           >
             About the Lab
           </motion.p>
@@ -80,7 +72,7 @@ export default function About() {
             animate="visible"
             custom={0.35}
             className="mt-8 text-base md:text-lg leading-relaxed max-w-2xl"
-            style={{ color: 'rgba(255,255,255,0.6)' }}
+            style={{ color: 'var(--brand-on-ink-muted)' }}
           >
             The Afrienergy Comms Lab trains energy communicators, policy advocates, and strategic
             storytellers for Africa's energy transition. We are not a university. We are a lab
@@ -90,7 +82,7 @@ export default function About() {
       </section>
 
       {/* 2. THE GAP ───────────────────────────────────────────────────────── */}
-      <section style={{ backgroundColor: C.paper, color: C.ink }}>
+      <section style={{ backgroundColor: "var(--brand-paper)", color: "var(--brand-ink)" }}>
         <div className="max-w-6xl mx-auto px-6 py-24 md:py-32">
           <div className="grid md:grid-cols-2 gap-16 items-start">
             <div>
@@ -100,7 +92,7 @@ export default function About() {
                 whileInView="visible"
                 viewport={{ once: true }}
                 className="text-xs uppercase tracking-[0.35em] mb-6"
-                style={{ color: C.brown }}
+                style={{ color: "var(--brand-brown)" }}
               >
                 The Gap
               </motion.p>
@@ -136,7 +128,7 @@ export default function About() {
                 their work land. Engineers who cannot brief a minister. Policy analysts who cannot
                 write a story. Advocates who cannot reach the communities they serve.
               </p>
-              <p style={{ color: C.ink, fontWeight: 600 }}>
+              <p style={{ color: "var(--brand-ink)", fontWeight: 600 }}>
                 The gap between what energy professionals know and what decision-makers, communities,
                 and investors understand is one of the most underestimated barriers to Africa's
                 energy future. We exist to close it.
@@ -147,7 +139,7 @@ export default function About() {
       </section>
 
       {/* 3. APPROACH ──────────────────────────────────────────────────────── */}
-      <section className="relative overflow-hidden" style={{ backgroundColor: C.ink }}>
+      <section className="relative overflow-hidden" >
         <KenteOverlay opacity={0.055} />
         <div className="relative z-10 max-w-6xl mx-auto px-6 py-24 md:py-32">
           <motion.p
@@ -156,7 +148,7 @@ export default function About() {
             whileInView="visible"
             viewport={{ once: true }}
             className="text-xs uppercase tracking-[0.35em] mb-6"
-            style={{ color: C.gold }}
+            style={{ color: "var(--brand-gold)" }}
           >
             How We Work
           </motion.p>
@@ -181,16 +173,13 @@ export default function About() {
                 whileInView="visible"
                 viewport={{ once: true, margin: '-40px' }}
                 custom={i * 0.1}
-                className="flex flex-col gap-4 p-6 md:p-10 transition-colors"
-                style={{ backgroundColor: C.ink }}
-                onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#0c1929')}
-                onMouseLeave={e => (e.currentTarget.style.backgroundColor = C.ink)}
+                className="panel-ink flex flex-col gap-4 p-6 md:p-10"
               >
-                <span className="font-mono text-xs" style={{ color: C.gold }}>{n}</span>
+                <span className="font-mono text-xs" style={{ color: "var(--brand-gold)" }}>{n}</span>
                 <h3 className="font-display font-semibold" style={{ fontSize: 'clamp(1.2rem, 2.5vw, 1.5rem)' }}>
                   {title}
                 </h3>
-                <p className="text-sm leading-relaxed" style={{ color: 'rgba(255,255,255,0.5)' }}>
+                <p className="text-sm leading-relaxed" style={{ color: 'var(--brand-on-ink-muted)' }}>
                   {body}
                 </p>
               </motion.div>
@@ -200,7 +189,7 @@ export default function About() {
       </section>
 
       {/* 4. FACULTY ───────────────────────────────────────────────────────── */}
-      <section style={{ backgroundColor: C.paper, color: C.ink }}>
+      <section style={{ backgroundColor: "var(--brand-paper)", color: "var(--brand-ink)" }}>
         <div className="max-w-6xl mx-auto px-6 py-24 md:py-32">
           <motion.p
             variants={fadeUp}
@@ -208,7 +197,7 @@ export default function About() {
             whileInView="visible"
             viewport={{ once: true }}
             className="text-xs uppercase tracking-[0.35em] mb-4"
-            style={{ color: C.brown }}
+            style={{ color: "var(--brand-brown)" }}
           >
             Faculty
           </motion.p>
@@ -225,7 +214,7 @@ export default function About() {
           </motion.h2>
 
           <div className="grid md:grid-cols-3 gap-px" style={{ background: 'rgba(7,17,30,0.08)' }}>
-            {instructors.map((person, i) => (
+            {faculty.map((person, i) => (
               <motion.div
                 key={person.id}
                 variants={fadeUp}
@@ -234,15 +223,15 @@ export default function About() {
                 viewport={{ once: true, margin: '-40px' }}
                 custom={i * 0.1}
                 className="flex flex-col p-6 md:p-8"
-                style={{ backgroundColor: C.paper }}
+                style={{ backgroundColor: "var(--brand-paper)" }}
               >
                 <img
                   src={person.imageUrl}
                   alt={person.name}
                   className="w-16 h-16 rounded-full object-cover mb-6"
-                  style={{ border: `2px solid ${C.gold}` }}
+                  style={{ border: "2px solid var(--brand-gold)" }}
                 />
-                <p className="text-xs uppercase tracking-widest mb-2" style={{ color: C.brown }}>
+                <p className="text-xs uppercase tracking-widest mb-2" style={{ color: "var(--brand-brown)" }}>
                   {person.title}
                 </p>
                 <h3 className="font-display font-semibold text-lg mb-4">{person.name}</h3>
@@ -258,7 +247,7 @@ export default function About() {
       {/* 5. CTA ───────────────────────────────────────────────────────────── */}
       <section
         className="relative overflow-hidden text-center px-6 py-28 md:py-36"
-        style={{ backgroundColor: C.ink }}
+        
       >
         <KenteOverlay opacity={0.08} />
         <div className="relative z-10">
@@ -268,7 +257,7 @@ export default function About() {
             whileInView="visible"
             viewport={{ once: true }}
             className="text-xs uppercase tracking-[0.35em] mb-6"
-            style={{ color: C.gold }}
+            style={{ color: "var(--brand-gold)" }}
           >
             Join the Lab
           </motion.p>
@@ -291,25 +280,11 @@ export default function About() {
             custom={0.2}
             className="flex flex-col sm:flex-row items-center justify-center gap-4"
           >
-            <Link href="/register">
-              <button
-                className="px-10 py-4 text-sm font-bold uppercase tracking-widest transition-colors"
-                style={{ backgroundColor: C.gold, color: C.ink }}
-                onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#EA6D0A')}
-                onMouseLeave={e => (e.currentTarget.style.backgroundColor = C.gold)}
-              >
-                Register Your Interest
-              </button>
+            <Link href="/sign-up" className="btn-editorial btn-editorial-solid px-10 py-4">
+              Register Your Interest
             </Link>
-            <Link href="/courses">
-              <button
-                className="flex items-center gap-2 px-10 py-4 text-sm font-bold uppercase tracking-widest border transition-colors"
-                style={{ borderColor: 'rgba(255,255,255,0.3)', color: C.white }}
-                onMouseEnter={e => (e.currentTarget.style.borderColor = C.gold)}
-                onMouseLeave={e => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.3)')}
-              >
-                View Programs <ArrowRight size={14} />
-              </button>
+            <Link href="/courses" className="btn-editorial btn-editorial-ghost px-10 py-4">
+              View Programs <ArrowRight size={14} aria-hidden />
             </Link>
           </motion.div>
         </div>
