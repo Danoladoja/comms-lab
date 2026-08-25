@@ -118,10 +118,8 @@ portfolio.
   pnpm --filter @workspace/scripts run seed:rubrics
   ```
 - Presence tracking adds columns to `session_attendance` and a `replay_progress`
-  table; `pnpm --filter @workspace/db run push` covers both. Learners who
-  attended classes before this shipped have no recorded seconds, so their past
-  modules will read as uncovered until they watch the recording. Decide whether
-  to credit them manually before deploying mid-cohort.
+  table; `pnpm --filter @workspace/db run push` covers both. Nothing to backfill
+  — presence shipped before the first cohort was onboarded.
 
 ## Pointers
 
