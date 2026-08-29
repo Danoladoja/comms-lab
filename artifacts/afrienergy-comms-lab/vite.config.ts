@@ -13,6 +13,10 @@ import {
 } from './server/og.mjs';
 
 import runtimeErrorOverlay from '@replit/vite-plugin-runtime-error-modal';
+import {
+  renderCertificateImage,
+  // @ts-expect-error plain-JS module shared with the production server
+} from './server/og-image.mjs';
 
 const rawPort = process.env.PORT;
 
@@ -47,8 +51,24 @@ function certificateOgPlugin(): Plugin {
     configureServer(server: ViteDevServer) {
       const base = basePath!.endsWith('/') ? basePath! : `${basePath}/`;
       const pattern = new RegExp(`^${base.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}verify/([^/?#]+)`);
+      const imagePattern = new RegExp(`^${base.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}verify/([^/?#]+)/og-image\\.png`);
       server.middlewares.use(async (req, res, next) => {
         if (req.method !== 'GET') return next();
+        const imageMatch = imagePattern.exec(req.url ?? '');
+        if (imageMatch) {
+          const cert = await fetchCertificate(decodeURIComponent(imageMatch[1]), resolveApiBases(req));
+          const image = cert
+            ? renderCertificateImage(cert)
+            : fs.readFileSync(path.resolve(import.meta.dirname, 'public', 'og-certificate.png'));
+          res.statusCode = 200;
+          res.setHeader('Content-Type', 'image/png');
+          res.setHeader(
+            'Cache-Control',
+            cert ? 'public, max-age=86400, stale-while-revalidate=604800' : 'public, max-age=300',
+          );
+          res.end(image);
+          return;
+        }
         const match = pattern.exec(req.url ?? '');
         if (!match || !(req.headers.accept ?? '').includes('text/html')) return next();
         try {

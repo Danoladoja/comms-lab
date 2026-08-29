@@ -3,12 +3,13 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { copyFileSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { buildCertificateMeta, escapeHtml, injectMeta } from './og.mjs';
+import { renderCertificateImage } from './og-image.mjs';
 
 const dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -48,12 +49,21 @@ test('buildCertificateMeta escapes HTML and builds absolute URLs', () => {
   );
   assert.ok(meta.includes('A &lt;b&gt;&quot;Bold&quot;&lt;/b&gt; &amp; Program'));
   assert.ok(!meta.includes('<b>'));
-  assert.ok(meta.includes('https://app.example.com/og-certificate.png'));
+  assert.ok(meta.includes('https://app.example.com/verify/AECL-001-0007/og-image.png'));
   assert.ok(meta.includes('https://app.example.com/verify/AECL-001-0007'));
 });
 
 test('escapeHtml covers all special characters', () => {
   assert.equal(escapeHtml(`<>&"'`), '&lt;&gt;&amp;&quot;&#39;');
+});
+
+test('renderCertificateImage creates and caches a 1200x630 PNG', () => {
+  const first = renderCertificateImage(CERT);
+  const second = renderCertificateImage(CERT);
+  assert.strictEqual(first, second);
+  assert.deepEqual([...first.subarray(0, 8)], [137, 80, 78, 71, 13, 10, 26, 10]);
+  assert.equal(first.readUInt32BE(16), 1200);
+  assert.equal(first.readUInt32BE(20), 630);
 });
 
 // ---------- integration test: real server + stub API ----------
@@ -81,6 +91,7 @@ before(async () => {
 
   const publicDir = mkdtempSync(path.join(tmpdir(), 'og-test-'));
   writeFileSync(path.join(publicDir, 'index.html'), SHELL);
+  copyFileSync(path.resolve(dirname, '..', 'public', 'og-certificate.png'), path.join(publicDir, 'og-certificate.png'));
 
   serverPort = 20000 + Math.floor(Math.random() * 10000);
   server = spawn('node', [path.join(dirname, 'index.mjs')], {
@@ -115,10 +126,26 @@ test('valid certificate link serves certificate-specific OG tags', async () => {
   assert.equal(res.status, 200);
   assert.ok(html.includes('Certificate of Completion — Strategic Energy Communications'));
   assert.ok(html.includes('Amina Diallo completed the Strategic Energy Communications program'));
-  assert.ok(html.includes('content="https://afrienergy.replit.app/og-certificate.png"'));
+  assert.ok(html.includes('content="https://afrienergy.replit.app/verify/AECL-001-0007/og-image.png"'));
   assert.ok(html.includes('content="https://afrienergy.replit.app/verify/AECL-001-0007"'));
   assert.ok(html.includes('rel="canonical" href="https://afrienergy.replit.app/verify/AECL-001-0007"'));
   assert.ok(!html.includes('<meta property="og:title" content="Afrienergy Comms Lab" />')); // default replaced
+});
+
+test('valid certificate image route serves a personalized cacheable PNG', async () => {
+  const res = await fetch(`http://127.0.0.1:${serverPort}/verify/${CERT.certificateId}/og-image.png`);
+  const image = Buffer.from(await res.arrayBuffer());
+  assert.equal(res.status, 200);
+  assert.equal(res.headers.get('content-type'), 'image/png');
+  assert.match(res.headers.get('cache-control'), /max-age=86400/);
+  assert.deepEqual([...image.subarray(0, 8)], [137, 80, 78, 71, 13, 10, 26, 10]);
+});
+
+test('invalid certificate image route falls back to the generic banner', async () => {
+  const res = await fetch(`http://127.0.0.1:${serverPort}/verify/AECL-999-9999/og-image.png`);
+  assert.equal(res.status, 200);
+  assert.equal(res.headers.get('content-type'), 'image/png');
+  assert.ok((await res.arrayBuffer()).byteLength > 1000);
 });
 
 test('invalid certificate link falls back to generic site metadata', async () => {

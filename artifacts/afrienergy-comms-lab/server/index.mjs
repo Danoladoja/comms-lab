@@ -7,6 +7,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import express from 'express';
+import { renderCertificateImage } from './og-image.mjs';
 import {
   buildCertificateMeta,
   fetchCertificate,
@@ -31,6 +32,21 @@ const base = basePath.endsWith('/') ? basePath : `${basePath}/`;
 
 const app = express();
 app.disable('x-powered-by');
+
+app.get(`${base}verify/:certificateId/og-image.png`, async (req, res) => {
+  const cert = await fetchCertificate(req.params.certificateId, resolveApiBases(req));
+  if (!cert) {
+    res.setHeader('Cache-Control', 'public, max-age=300');
+    return res.sendFile(path.join(publicDir, 'og-certificate.png'));
+  }
+  const image = renderCertificateImage(cert);
+  res.set({
+    'Content-Type': 'image/png',
+    'Content-Length': String(image.length),
+    'Cache-Control': 'public, max-age=86400, stale-while-revalidate=604800',
+  });
+  res.status(200).send(image);
+});
 
 // OG-injected HTML shell for certificate verification links.
 app.get(`${base}verify/:certificateId`, async (req, res) => {

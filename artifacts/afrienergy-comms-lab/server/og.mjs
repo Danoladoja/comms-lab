@@ -76,7 +76,7 @@ export function buildCertificateMeta(cert, origin, basePath = '/') {
   const description =
     `${cert.learnerName} completed the ${cert.programTitle} program at Afrienergy Comms Lab${completed}. ` +
     `Verified certificate ${cert.certificateId}.`;
-  const image = `${origin}${base}og-certificate.png`;
+  const image = `${origin}${base}verify/${encodeURIComponent(cert.certificateId)}/og-image.png`;
   const url = `${origin}${base}verify/${cert.certificateId}`;
   const t = escapeHtml(title);
   const d = escapeHtml(description);
