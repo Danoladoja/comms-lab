@@ -8,7 +8,7 @@ import {
   replayBucketFor,
   REPLAY_REPORT_INTERVAL_MS,
 } from '@workspace/domain';
-import { toEmbedUrl } from '@/lib/embed';
+import { toEmbedUrl, isMeasurableRecording } from '@/lib/embed';
 import { AlertTriangle } from 'lucide-react';
 
 /**
@@ -179,12 +179,13 @@ export default function TrackedReplay({
   title: string;
 }) {
   const embed = toEmbedUrl(recordingUrl);
+  const measurable = isMeasurableRecording(recordingUrl);
 
-  if (embed?.kind === 'iframe' && embed.src.includes('youtube.com/embed/')) {
+  if (measurable && embed?.kind === 'iframe') {
     return <YouTubeReplay sessionId={sessionId} src={embed.src} title={title} />;
   }
 
-  if (embed?.kind === 'video') {
+  if (measurable && embed?.kind === 'video') {
     return <FileReplay sessionId={sessionId} src={embed.src} />;
   }
 

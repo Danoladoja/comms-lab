@@ -1,7 +1,13 @@
 # Setting up automatic class recordings
 
-Once this is done, every finished class ends up on YouTube by itself and appears
-in the classroom as a replay. Nobody uploads anything by hand.
+**This is optional.** The manual workflow works without any of it: after a
+class, upload the recording to YouTube as unlisted and paste the link under
+**Admin Console → Programs → the programme → the session → Recording link**.
+**Admin Console → Recordings** lists which past classes are still missing one.
+
+Do the setup below only when pasting links each week becomes a chore. Once it is
+done, every finished class ends up on YouTube by itself and appears in the
+classroom as a replay.
 
 You do this **once**. It takes about twenty minutes, and most of it is clicking
 around Google Cloud.

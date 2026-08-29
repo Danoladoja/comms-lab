@@ -11,16 +11,26 @@ import {
 } from 'lucide-react';
 
 /**
- * Recordings: connecting the Google account, and seeing what the transfer has
- * managed on its own.
+ * Recordings: which past classes still need one, and optionally letting Google
+ * do the work.
  *
- * The point of this screen is that nobody has to wonder. Once the account is
- * connected the job copies each finished class from Meet to YouTube by itself,
- * and every row here says plainly where that has got to — including when it has
- * given up and a person needs to step in.
+ * The screen leads with what a person has to do, because for now a person does
+ * it: upload to YouTube, paste the link. Automatic transfers sit underneath as
+ * an optional extra. When they are switched on the same list reports where each
+ * transfer has got to instead — including when it has given up.
+ *
+ * A class with no recording is the state that actually holds learners up, so it
+ * is never left to be inferred.
  */
 
-function statusChip(status: string, hasRecording: boolean) {
+function statusChip(status: string, hasRecording: boolean, automationOn: boolean) {
+  // With no Google account connected nothing is in flight, so there are only
+  // two honest states: there is a recording, or there is not.
+  if (!automationOn) {
+    return hasRecording
+      ? { label: 'Has recording', tone: 'bg-emerald-100 text-emerald-900', icon: CircleCheck }
+      : { label: 'Needs recording', tone: 'bg-amber-100 text-amber-900', icon: CircleAlert };
+  }
   if (hasRecording && status === 'manual') {
     return { label: 'Added by hand', tone: 'bg-muted text-muted-foreground', icon: Link2 };
   }
@@ -79,16 +89,115 @@ export default function RecordingsAdmin() {
     },
   });
 
-  const needsAttention = rows.filter(r => r.status === 'failed');
+  const automationOn = !!connection?.connected;
+  const needsAttention = automationOn
+    ? rows.filter(r => r.status === 'failed')
+    : rows.filter(r => !r.recordingUrl);
 
   return (
     <div className="space-y-8">
-      {/* ---- The Google account ---- */}
+      {/* How this works right now, in one sentence, before any detail. */}
+      {!loadingConnection && !automationOn && (
+        <section className="rounded-2xl border border-border bg-card p-6 max-w-3xl">
+          <h2 className="font-display font-bold mb-1">Adding recordings</h2>
+          <p className="text-sm text-muted-foreground">
+            Recordings are added by hand at the moment. After a class: download it, upload it to YouTube as{' '}
+            <strong>unlisted</strong>, then paste the link on the session under{' '}
+            <strong>Programs → the programme → the session → Recording link</strong>.
+          </p>
+          <p className="text-sm text-muted-foreground mt-3">
+            The list below shows which classes are still waiting for one. A class with no recording blocks anyone
+            who missed it live from finishing that module.
+          </p>
+        </section>
+      )}
+
+      {/* ---- Past classes: what still needs doing ---- */}
+      <section className="max-w-3xl">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+          <h2 className="font-display font-bold">Past classes</h2>
+          {needsAttention.length > 0 && (
+            <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${
+              automationOn ? 'bg-red-100 text-red-900' : 'bg-amber-100 text-amber-900'
+            }`}>
+              {needsAttention.length} still need{needsAttention.length === 1 ? 's' : ''} a recording
+            </span>
+          )}
+        </div>
+
+        {loadingRows ? (
+          <div className="h-32 bg-card border border-border rounded-2xl animate-pulse" />
+        ) : rows.length === 0 ? (
+          <p className="text-sm text-muted-foreground bg-card border border-border rounded-2xl p-6">
+            No classes have taken place yet.
+          </p>
+        ) : (
+          <ul className="space-y-2">
+            {rows.map(row => {
+              const chip = statusChip(row.status, !!row.recordingUrl, automationOn);
+              const Icon = chip.icon;
+              return (
+                <li key={row.sessionId} className="bg-card border border-border rounded-xl p-4">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-xs uppercase tracking-widest text-[#C2410C] font-medium mb-0.5">
+                        {row.programTitle}
+                      </p>
+                      <h3 className="font-semibold text-sm">{row.sessionTitle}</h3>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {formatWhen(row.startsAt as unknown as string | null)}
+                        {row.attempts > 0 && row.status !== 'ready' && ` · ${row.attempts} attempt${row.attempts === 1 ? '' : 's'}`}
+                      </p>
+                    </div>
+                    <span className={`text-xs font-semibold px-2.5 py-1 rounded-full flex items-center gap-1.5 flex-shrink-0 ${chip.tone}`}>
+                      <Icon className="w-3.5 h-3.5" aria-hidden />{chip.label}
+                    </span>
+                  </div>
+
+                  {automationOn && !row.hasMeetUrl && row.status !== 'ready' && !row.recordingUrl && (
+                    <p className="text-xs text-muted-foreground mt-2">
+                      No meeting room was set for this class, so there is nothing to fetch. Paste a recording link on
+                      the session instead.
+                    </p>
+                  )}
+
+                  {!automationOn && !row.recordingUrl && (
+                    <p className="text-xs text-muted-foreground mt-2">
+                      Add it under Programs → {row.programTitle} → {row.sessionTitle}.
+                    </p>
+                  )}
+
+                  {row.status === 'failed' && row.error && (
+                    <p className="text-xs text-red-800 mt-2 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                      {row.error}
+                    </p>
+                  )}
+
+                  {row.recordingUrl && (
+                    <a
+                      href={row.recordingUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-xs font-semibold text-primary inline-flex items-center gap-1.5 mt-2 hover:underline focus-visible:ring-2 focus-visible:ring-ring rounded"
+                    >
+                      <PlayCircle className="w-3.5 h-3.5" aria-hidden />Watch the replay
+                    </a>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </section>
+
       <section className="bg-card border border-border rounded-2xl p-6 max-w-3xl">
-        <h2 className="font-display font-bold mb-1">Google account</h2>
+        <h2 className="font-display font-bold mb-1">
+          Automatic transfers <span className="font-normal text-sm text-muted-foreground">— optional</span>
+        </h2>
         <p className="text-sm text-muted-foreground mb-5">
-          The account that holds your Meet recordings and owns the YouTube channel. Once connected, each finished
-          class is copied to YouTube as an unlisted video and appears in the classroom on its own.
+          Connect the Google account that holds your Meet recordings and owns the YouTube channel, and each finished
+          class is copied across and published by itself. Everything above keeps working by hand either way. Setup
+          takes about twenty minutes and is written up in <code className="text-xs">docs/recording-automation-setup.md</code>.
         </p>
 
         {loadingConnection ? (
@@ -167,75 +276,6 @@ export default function RecordingsAdmin() {
         )}
       </section>
 
-      {/* ---- Per-class status ---- */}
-      <section className="max-w-3xl">
-        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-          <h2 className="font-display font-bold">Past classes</h2>
-          {needsAttention.length > 0 && (
-            <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-red-100 text-red-900">
-              {needsAttention.length} need{needsAttention.length === 1 ? 's' : ''} attention
-            </span>
-          )}
-        </div>
-
-        {loadingRows ? (
-          <div className="h-32 bg-card border border-border rounded-2xl animate-pulse" />
-        ) : rows.length === 0 ? (
-          <p className="text-sm text-muted-foreground bg-card border border-border rounded-2xl p-6">
-            No classes have taken place yet.
-          </p>
-        ) : (
-          <ul className="space-y-2">
-            {rows.map(row => {
-              const chip = statusChip(row.status, !!row.recordingUrl);
-              const Icon = chip.icon;
-              return (
-                <li key={row.sessionId} className="bg-card border border-border rounded-xl p-4">
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="text-xs uppercase tracking-widest text-[#C2410C] font-medium mb-0.5">
-                        {row.programTitle}
-                      </p>
-                      <h3 className="font-semibold text-sm">{row.sessionTitle}</h3>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        {formatWhen(row.startsAt as unknown as string | null)}
-                        {row.attempts > 0 && row.status !== 'ready' && ` · ${row.attempts} attempt${row.attempts === 1 ? '' : 's'}`}
-                      </p>
-                    </div>
-                    <span className={`text-xs font-semibold px-2.5 py-1 rounded-full flex items-center gap-1.5 flex-shrink-0 ${chip.tone}`}>
-                      <Icon className="w-3.5 h-3.5" aria-hidden />{chip.label}
-                    </span>
-                  </div>
-
-                  {!row.hasMeetUrl && row.status !== 'ready' && !row.recordingUrl && (
-                    <p className="text-xs text-muted-foreground mt-2">
-                      No meeting room was set for this class, so there is nothing to fetch. Paste a recording link on
-                      the session instead.
-                    </p>
-                  )}
-
-                  {row.status === 'failed' && row.error && (
-                    <p className="text-xs text-red-800 mt-2 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
-                      {row.error}
-                    </p>
-                  )}
-
-                  {row.recordingUrl && (
-                    <a
-                      href={row.recordingUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-xs font-semibold text-primary inline-flex items-center gap-1.5 mt-2 hover:underline focus-visible:ring-2 focus-visible:ring-ring rounded"
-                    >
-                      <PlayCircle className="w-3.5 h-3.5" aria-hidden />Watch the replay
-                    </a>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </section>
     </div>
   );
 }
