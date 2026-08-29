@@ -26,6 +26,7 @@ import type {
   AssignmentSubmission,
   AssignmentSubmissionInput,
   Certificate,
+  CourseworkDraftResult,
   Enrollment,
   EnrollmentDetail,
   EnrollmentUpdate,
@@ -59,6 +60,8 @@ import type {
   SessionInput,
   SessionProgress,
   SessionUpdate,
+  SlideDeck,
+  SlidesVisibilityInput,
   ThreadDetail,
   ThreadInput,
   ThreadList,
@@ -1348,6 +1351,298 @@ export const useSubmitAssignment = <TError = ErrorType<ApiMessage>,
         TContext
       > => {
       return useMutation(getSubmitAssignmentMutationOptions(options));
+    }
+
+export const getGetSessionSlidesUrl = (id: number,) => {
+
+
+
+
+  return `/api/sessions/${id}/slides`
+}
+
+/**
+ * @summary The slide deck for a module, if one has been uploaded
+ */
+export const getSessionSlides = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<SlideDeck> => {
+
+  return customFetch<SlideDeck>(getGetSessionSlidesUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetSessionSlidesQueryKey = (id: number,) => {
+    return [
+    `/api/sessions/${id}/slides`
+    ] as const;
+    }
+
+
+export const getGetSessionSlidesQueryOptions = <TData = Awaited<ReturnType<typeof getSessionSlides>>, TError = ErrorType<ApiMessage>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSessionSlides>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetSessionSlidesQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getSessionSlides>>> = ({ signal }) => getSessionSlides(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getSessionSlides>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetSessionSlidesQueryResult = NonNullable<Awaited<ReturnType<typeof getSessionSlides>>>
+export type GetSessionSlidesQueryError = ErrorType<ApiMessage>
+
+
+/**
+ * @summary The slide deck for a module, if one has been uploaded
+ */
+
+export function useGetSessionSlides<TData = Awaited<ReturnType<typeof getSessionSlides>>, TError = ErrorType<ApiMessage>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSessionSlides>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetSessionSlidesQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getDeleteSessionSlidesUrl = (id: number,) => {
+
+
+
+
+  return `/api/sessions/${id}/slides`
+}
+
+/**
+ * @summary Remove the slide deck for a module (admin or assigned instructor)
+ */
+export const deleteSessionSlides = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+  return customFetch<void>(getDeleteSessionSlidesUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteSessionSlidesMutationOptions = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteSessionSlides>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteSessionSlides>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['deleteSessionSlides'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteSessionSlides>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  deleteSessionSlides(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteSessionSlidesMutationResult = NonNullable<Awaited<ReturnType<typeof deleteSessionSlides>>>
+
+    export type DeleteSessionSlidesMutationError = ErrorType<ApiMessage>
+
+    /**
+ * @summary Remove the slide deck for a module (admin or assigned instructor)
+ */
+export const useDeleteSessionSlides = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteSessionSlides>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteSessionSlides>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getDeleteSessionSlidesMutationOptions(options));
+    }
+
+export const getSetSlidesVisibilityUrl = (id: number,) => {
+
+
+
+
+  return `/api/sessions/${id}/slides/visibility`
+}
+
+/**
+ * @summary Show or hide the deck from learners
+ */
+export const setSlidesVisibility = async (id: number,
+    slidesVisibilityInput: SlidesVisibilityInput, options?: Parameters<typeof customFetch>[1]): Promise<SlideDeck> => {
+
+  return customFetch<SlideDeck>(getSetSlidesVisibilityUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(slidesVisibilityInput)
+  }
+);}
+
+
+
+
+
+export const getSetSlidesVisibilityMutationOptions = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setSlidesVisibility>>, TError,{id: number;data: BodyType<SlidesVisibilityInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof setSlidesVisibility>>, TError,{id: number;data: BodyType<SlidesVisibilityInput>}, TContext> => {
+
+const mutationKey = ['setSlidesVisibility'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof setSlidesVisibility>>, {id: number;data: BodyType<SlidesVisibilityInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  setSlidesVisibility(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SetSlidesVisibilityMutationResult = NonNullable<Awaited<ReturnType<typeof setSlidesVisibility>>>
+    export type SetSlidesVisibilityMutationBody = BodyType<SlidesVisibilityInput>
+    export type SetSlidesVisibilityMutationError = ErrorType<ApiMessage>
+
+    /**
+ * @summary Show or hide the deck from learners
+ */
+export const useSetSlidesVisibility = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setSlidesVisibility>>, TError,{id: number;data: BodyType<SlidesVisibilityInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof setSlidesVisibility>>,
+        TError,
+        {id: number;data: BodyType<SlidesVisibilityInput>},
+        TContext
+      > => {
+      return useMutation(getSetSlidesVisibilityMutationOptions(options));
+    }
+
+export const getDraftCourseworkFromSlidesUrl = (id: number,) => {
+
+
+
+
+  return `/api/sessions/${id}/coursework/draft`
+}
+
+/**
+ * Returns a draft for a human to edit and approve. Nothing is saved by this call — the facilitator reviews it and saves through the normal quiz and assignment endpoints.
+ * @summary Draft a quiz and a written task from the module's slides
+ */
+export const draftCourseworkFromSlides = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<CourseworkDraftResult> => {
+
+  return customFetch<CourseworkDraftResult>(getDraftCourseworkFromSlidesUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getDraftCourseworkFromSlidesMutationOptions = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof draftCourseworkFromSlides>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof draftCourseworkFromSlides>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['draftCourseworkFromSlides'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof draftCourseworkFromSlides>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  draftCourseworkFromSlides(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DraftCourseworkFromSlidesMutationResult = NonNullable<Awaited<ReturnType<typeof draftCourseworkFromSlides>>>
+
+    export type DraftCourseworkFromSlidesMutationError = ErrorType<ApiMessage>
+
+    /**
+ * @summary Draft a quiz and a written task from the module's slides
+ */
+export const useDraftCourseworkFromSlides = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof draftCourseworkFromSlides>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof draftCourseworkFromSlides>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getDraftCourseworkFromSlidesMutationOptions(options));
     }
 
 export const getRecordHeartbeatUrl = (id: number,) => {

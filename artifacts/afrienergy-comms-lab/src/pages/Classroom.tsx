@@ -2,8 +2,8 @@ import { useState } from 'react';
 import { Link, useParams } from 'wouter';
 import { useQueryClient } from '@tanstack/react-query';
 import {
-  useListMySessions, useListMyProgress, useJoinSession,
-  getListMyProgressQueryKey, getListMySessionsQueryKey,
+  useListMySessions, useListMyProgress, useJoinSession, useGetSessionSlides,
+  getListMyProgressQueryKey, getListMySessionsQueryKey, getGetSessionSlidesQueryKey,
 } from '@workspace/api-client-react';
 import { liveWindow } from '@workspace/domain';
 import { Button } from '@/components/ui/button';
@@ -15,7 +15,7 @@ import { CritiqueQueue, MyFeedbackPanel } from '@/components/CritiquePanel';
 import TrackedReplay from '@/components/TrackedReplay';
 import {
   ArrowLeft, Video, PlayCircle, CheckCircle2, Lock, Radio, Clock,
-  FileQuestion, ClipboardList, CalendarClock, MessagesSquare,
+  FileQuestion, ClipboardList, CalendarClock, MessagesSquare, FileText,
 } from 'lucide-react';
 
 type Tab = '' | 'assignment' | 'critique' | 'feedback' | 'quiz';
@@ -45,6 +45,12 @@ export default function Classroom() {
 
   // Counts time in the room while the class is running.
   useLiveHeartbeat(session);
+
+  // The facilitator's deck, when they have shared it. Useful for revision, and
+  // for anyone who would rather read than stream an hour of video.
+  const { data: slides } = useGetSessionSlides(sessionId, {
+    query: { queryKey: getGetSessionSlidesQueryKey(sessionId), retry: false },
+  });
 
   const joinSession = useJoinSession({
     mutation: {
@@ -192,6 +198,20 @@ export default function Classroom() {
 
           {/* Sidebar */}
           <aside className="space-y-6">
+            {slides && (
+              <a
+                href={`${import.meta.env.BASE_URL.replace(/\/$/, '')}${slides.downloadPath}`}
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-center gap-3 bg-card border border-border rounded-2xl p-4 hover:border-primary/50 focus-visible:ring-2 focus-visible:ring-ring transition-colors"
+              >
+                <FileText className="w-5 h-5 text-primary flex-shrink-0" aria-hidden />
+                <span className="min-w-0">
+                  <span className="block text-sm font-semibold">Class slides</span>
+                  <span className="block text-xs text-muted-foreground truncate">{slides.filename}</span>
+                </span>
+              </a>
+            )}
             <section className="bg-card border border-border rounded-2xl p-5">
               <h2 className="font-display font-bold mb-3 text-sm uppercase tracking-wider text-muted-foreground">
                 To complete this module

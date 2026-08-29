@@ -7,3 +7,4 @@ export * from "./coursework";
 export * from "./forum";
 export * from "./reminders";
 export * from "./googleConnection";
+export * from "./slides";

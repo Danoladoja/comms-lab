@@ -220,6 +220,57 @@ export interface QuizResult {
   bestScore: number;
 }
 
+export interface SlideDeck {
+  sessionId: number;
+  filename: string;
+  mimeType: string;
+  sizeBytes: number;
+  visibleToLearners: boolean;
+  hasReadableText: boolean;
+  textChars: number;
+  canDraft: boolean;
+  uploadedAt: string;
+  downloadPath: string;
+}
+
+export interface SlidesVisibilityInput {
+  visibleToLearners: boolean;
+}
+
+export interface DraftQuestion {
+  prompt: string;
+  options: string[];
+  correctIndex: number;
+  rationale: string;
+}
+
+export interface RubricCriterion {
+  /** @minLength 1 */
+  id: string;
+  /** @minLength 1 */
+  label: string;
+  description: string;
+  /**
+     * @minimum 2
+     * @maximum 10
+     */
+  maxScore: number;
+}
+
+export interface DraftAssignment {
+  title: string;
+  instructions: string;
+  reviewsRequired: number;
+  rubric?: RubricCriterion[];
+}
+
+export interface CourseworkDraftResult {
+  questions?: DraftQuestion[];
+  assignment?: DraftAssignment | null;
+  problems: string[];
+  notes: string[];
+}
+
 export interface HeartbeatResult {
   sessionId: number;
   liveSeconds: number;
@@ -242,19 +293,6 @@ export interface ReplayProgressResult {
   /** @nullable */
   durationSeconds: number | null;
   presence: Presence;
-}
-
-export interface RubricCriterion {
-  /** @minLength 1 */
-  id: string;
-  /** @minLength 1 */
-  label: string;
-  description: string;
-  /**
-     * @minimum 2
-     * @maximum 10
-     */
-  maxScore: number;
 }
 
 export interface AssignmentSubmission {

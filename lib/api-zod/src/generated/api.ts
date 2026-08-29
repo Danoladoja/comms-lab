@@ -471,6 +471,100 @@ export const SubmitAssignmentResponse = zod.object({
 
 
 /**
+ * @summary The slide deck for a module, if one has been uploaded
+ */
+export const GetSessionSlidesParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const GetSessionSlidesResponse = zod.object({
+  "sessionId": zod.int(),
+  "filename": zod.string(),
+  "mimeType": zod.string(),
+  "sizeBytes": zod.int(),
+  "visibleToLearners": zod.boolean(),
+  "hasReadableText": zod.boolean(),
+  "textChars": zod.int(),
+  "canDraft": zod.boolean(),
+  "uploadedAt": zod.coerce.date(),
+  "downloadPath": zod.string()
+})
+
+
+/**
+ * @summary Remove the slide deck for a module (admin or assigned instructor)
+ */
+export const DeleteSessionSlidesParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const DeleteSessionSlidesResponse = zod.void()
+
+
+/**
+ * @summary Show or hide the deck from learners
+ */
+export const SetSlidesVisibilityParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const SetSlidesVisibilityBody = zod.object({
+  "visibleToLearners": zod.boolean()
+})
+
+export const SetSlidesVisibilityResponse = zod.object({
+  "sessionId": zod.int(),
+  "filename": zod.string(),
+  "mimeType": zod.string(),
+  "sizeBytes": zod.int(),
+  "visibleToLearners": zod.boolean(),
+  "hasReadableText": zod.boolean(),
+  "textChars": zod.int(),
+  "canDraft": zod.boolean(),
+  "uploadedAt": zod.coerce.date(),
+  "downloadPath": zod.string()
+})
+
+
+/**
+ * Returns a draft for a human to edit and approve. Nothing is saved by this call — the facilitator reviews it and saves through the normal quiz and assignment endpoints.
+ * @summary Draft a quiz and a written task from the module's slides
+ */
+export const DraftCourseworkFromSlidesParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+
+
+export const draftCourseworkFromSlidesResponseAssignmentOneRubricItemMaxScoreMin = 2;
+export const draftCourseworkFromSlidesResponseAssignmentOneRubricItemMaxScoreMax = 10;
+
+
+
+export const DraftCourseworkFromSlidesResponse = zod.object({
+  "questions": zod.array(zod.object({
+  "prompt": zod.string(),
+  "options": zod.array(zod.string()),
+  "correctIndex": zod.int(),
+  "rationale": zod.string()
+})).optional(),
+  "assignment": zod.union([zod.object({
+  "title": zod.string(),
+  "instructions": zod.string(),
+  "reviewsRequired": zod.int(),
+  "rubric": zod.array(zod.object({
+  "id": zod.string().min(1),
+  "label": zod.string().min(1),
+  "description": zod.string(),
+  "maxScore": zod.int().min(draftCourseworkFromSlidesResponseAssignmentOneRubricItemMaxScoreMin).max(draftCourseworkFromSlidesResponseAssignmentOneRubricItemMaxScoreMax)
+})).optional()
+}),zod.null()]).optional(),
+  "problems": zod.array(zod.string()),
+  "notes": zod.array(zod.string())
+})
+
+
+/**
  * Credits the gap since the previous beat, clamped to the scheduled window and capped per beat. Rejected outside the live window.
  * @summary Report that the learner still has the classroom open during a live class
  */

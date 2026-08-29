@@ -19,6 +19,9 @@ portfolio.
   `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI` and `GOOGLE_TOKEN_SECRET`.
   Without them the app runs fine and recordings are pasted in by hand. See
   `docs/recording-automation-setup.md`.
+- Coursework drafting (optional) needs `ANTHROPIC_API_KEY`, and optionally
+  `ANTHROPIC_MODEL`. Without it slides still upload and coursework is written by
+  hand; only the "Draft from slides" button is unavailable.
 
 ## Stack
 
@@ -43,6 +46,8 @@ portfolio.
 | API routes | `artifacts/api-server/src/routes/` |
 | Progress loading | `artifacts/api-server/src/lib/progress.ts` — the only place that assembles inputs for `computeProgress` |
 | Presence rules | `lib/domain/src/presence.ts` — thresholds, heartbeat crediting, replay buckets |
+| Drafting rules | `lib/domain/src/courseworkDraft.ts` — the brief given to the model, and the checking of what comes back |
+| Slide handling | `lib/domain/src/slideText.ts` (assembly, quality) + `artifacts/api-server/src/lib/slides/` (pptx parsing, Claude call) |
 | Recording rules | `lib/domain/src/recordingPipeline.ts` — when to look, what to name it, when to give up |
 | Google plumbing | `artifacts/api-server/src/lib/google/` — OAuth, Meet, Drive→YouTube transfer |
 | Web app | `artifacts/afrienergy-comms-lab/src` |
@@ -92,6 +97,22 @@ portfolio.
 - **The Google refresh token is encrypted at rest** with AES-256-GCM keyed from
   `GOOGLE_TOKEN_SECRET`, and no route ever returns it. Scopes are read-only for
   Meet and Drive; the only write is a YouTube upload.
+- **Generated coursework is a draft, never a save.** The drafting endpoint
+  writes nothing: it returns questions and a task that fill the editors, and a
+  human saves them through the normal endpoints. A wrong answer key fails
+  learners silently at the 70% pass mark, so a person must have looked.
+  `validateDraft` drops questions with an out-of-range key, duplicate options or
+  too few choices, and reports every repair rather than hiding it.
+- **The rubric is never model-generated.** Peer critique across the programme
+  scores against one house rubric; a per-module invention would make critiques
+  incomparable. The drafter's rubric field is discarded.
+- **Slide decks live in Postgres, not on disk.** The host filesystem is
+  ephemeral — a deck written to disk vanishes on restart, taking the learner's
+  revision material with it. Text is extracted once at upload so redrafting
+  never re-parses.
+- **.pptx text is read with fflate**, not a PowerPoint library: a .pptx is a zip
+  of XML and every visible string sits in an `<a:t>` element. Slides are sorted
+  numerically, because `slide10.xml` sorts before `slide2.xml` alphabetically.
 - **Certificate codes are random and opaque**, stored on the enrollment row.
   The old `AECL-{programId}-{userId}` format was enumerable: anyone could walk
   it upward and harvest every graduate's name and your cohort sizes.
@@ -113,6 +134,10 @@ portfolio.
   verify publicly at `/verify/:code` with no sign-in. Learners can opt to
   publish their portfolio on that page.
 - **Reminders**: idempotent 24h and 1h emails before each session.
+- **Slides**: one deck per module, uploaded by a facilitator or admin, optionally
+  shown to learners in the classroom. A .pptx also unlocks drafting.
+- **Coursework drafting**: reads the deck, drafts a quiz and a written task for
+  the facilitator to edit and approve. Nothing is saved automatically.
 - **Recordings**: published automatically as unlisted YouTube videos once the
   admin connects a Google account (Admin Console → Recordings), which also shows
   per-class status and surfaces failures.
@@ -124,6 +149,11 @@ portfolio.
   clients are out of date.
 - **Never hand-edit anything under a `generated/` directory.**
 - **Never re-type a rule that lives in `lib/domain`.** Import it.
+- The slide upload route takes raw bytes (`express.raw`), not multipart — the
+  filename arrives in an `x-filename` header. Avoids a file-upload dependency
+  and the 33% inflation of base64.
+- PDFs upload and are readable by learners but yield no text, so they cannot be
+  drafted from. The UI says so before anyone clicks Draft.
 - The recording job holds one upload at a time and skips a pass if the previous
   one is still running — an hour of class video outlasts the five-minute tick.
 - `GOOGLE_REDIRECT_URI` must match the Google Cloud entry exactly, trailing

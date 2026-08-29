@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   useGetSessionQuiz, useUpsertSessionQuiz,
@@ -15,7 +15,14 @@ type EditableQuestion = { prompt: string; options: string[]; correctIndex: numbe
 
 const emptyQuestion = (): EditableQuestion => ({ prompt: '', options: ['', '', '', ''], correctIndex: 0 });
 
-export function QuizEditor({ sessionId }: { sessionId: number }) {
+export type SeedQuestion = { prompt: string; options: string[]; correctIndex: number; rationale?: string };
+
+export function QuizEditor({ sessionId, seed, seedVersion = 0 }: {
+  sessionId: number;
+  /** A drafted quiz to load in for editing. Never saved until the facilitator saves it. */
+  seed?: SeedQuestion[];
+  seedVersion?: number;
+}) {
   const qc = useQueryClient();
   const { toast } = useToast();
   const { data: quiz, isLoading } = useGetSessionQuiz(sessionId, {
@@ -23,6 +30,8 @@ export function QuizEditor({ sessionId }: { sessionId: number }) {
   });
   const [questions, setQuestions] = useState<EditableQuestion[]>([]);
   const [loaded, setLoaded] = useState(false);
+  const [rationales, setRationales] = useState<(string | undefined)[]>([]);
+  const seenSeed = useRef(0);
 
   useEffect(() => {
     if (!loaded && quiz) {
@@ -34,6 +43,20 @@ export function QuizEditor({ sessionId }: { sessionId: number }) {
       setLoaded(true);
     }
   }, [quiz, loaded]);
+
+  // A new draft replaces whatever is on screen — it is unsaved either way.
+  useEffect(() => {
+    if (seed && seedVersion > seenSeed.current) {
+      seenSeed.current = seedVersion;
+      setQuestions(seed.map(q => ({
+        prompt: q.prompt,
+        options: [...q.options, '', '', '', ''].slice(0, Math.max(4, q.options.length)),
+        correctIndex: q.correctIndex,
+      })));
+      setRationales(seed.map(q => q.rationale));
+      setLoaded(true);
+    }
+  }, [seed, seedVersion]);
 
   const save = useUpsertSessionQuiz({
     mutation: {
@@ -75,6 +98,11 @@ export function QuizEditor({ sessionId }: { sessionId: number }) {
               <Trash2 className="w-4 h-4" />
             </Button>
           </div>
+          {rationales[i] && (
+            <p className="text-xs text-muted-foreground bg-muted/50 rounded px-2 py-1.5">
+              <span className="font-semibold">Why this answer: </span>{rationales[i]}
+            </p>
+          )}
           {q.options.map((opt, oi) => (
             <div key={oi} className="flex items-center gap-2">
               <input
@@ -123,7 +151,11 @@ export function QuizEditor({ sessionId }: { sessionId: number }) {
   );
 }
 
-export function AssignmentEditor({ sessionId }: { sessionId: number }) {
+export function AssignmentEditor({ sessionId, seed, seedVersion = 0 }: {
+  sessionId: number;
+  seed?: { title: string; instructions: string };
+  seedVersion?: number;
+}) {
   const qc = useQueryClient();
   const { toast } = useToast();
   const { data: assignment, isLoading } = useGetSessionAssignment(sessionId, {
@@ -131,6 +163,16 @@ export function AssignmentEditor({ sessionId }: { sessionId: number }) {
   });
   const [title, setTitle] = useState<string | null>(null);
   const [instructions, setInstructions] = useState<string | null>(null);
+  const seenSeed = useRef(0);
+
+  useEffect(() => {
+    if (seed && seedVersion > seenSeed.current) {
+      seenSeed.current = seedVersion;
+      setTitle(seed.title);
+      setInstructions(seed.instructions);
+    }
+  }, [seed, seedVersion]);
+
   const titleValue = title ?? assignment?.title ?? '';
   const instructionsValue = instructions ?? assignment?.instructions ?? '';
 
