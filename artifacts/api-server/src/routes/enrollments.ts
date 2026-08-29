@@ -439,17 +439,16 @@ router.get("/my/sessions", async (req, res) => {
     .where(baseWhere)
     .orderBy(asc(sessionsTable.startsAt), asc(sessionsTable.sortOrder), asc(sessionsTable.id));
 
-  if (user.role === "instructor" || user.role === "admin") {
-    res.json(rows);
-    return;
-  }
-
-  // Learners still never receive the raw meet link — joining has to go through
-  // the join endpoint so attendance is recorded and the lock is enforced. But
-  // every enrolled learner now gets the recording, full stop. Withholding
-  // replays from people who missed a live class punished load-shedding and
-  // breaking news, not effort.
-  res.json(rows.map((r) => ({ ...r, meetUrl: null })));
+  // Setting up the meeting room is an admin duty, so only admins receive the
+  // raw link. Learners and facilitators alike reach the room by pressing Join,
+  // which is also what starts counting their time in class. Everyone gets
+  // hasMeetUrl so the page can say whether the room is ready yet.
+  const isAdmin = user.role === "admin";
+  res.json(rows.map((r) => ({
+    ...r,
+    meetUrl: isAdmin ? r.meetUrl : null,
+    hasMeetUrl: !!r.meetUrl,
+  })));
 });
 
 export default router;

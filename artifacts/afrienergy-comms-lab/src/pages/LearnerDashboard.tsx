@@ -66,14 +66,12 @@ export default function LearnerDashboard() {
       onSuccess: (result) => {
         qc.invalidateQueries({ queryKey: getListMyProgressQueryKey() });
         qc.invalidateQueries({ queryKey: getListMySessionsQueryKey() });
-        if (!result.countedAsOnTime) {
-          toast({
-            title: 'Checked in — but not counted as on time',
-            description: 'You joined after the grace window, so this one does not add to your streak. It does not affect completing the module.',
-          });
-        }
         if (result.joinUrl) {
           window.open(result.joinUrl, '_blank', 'noreferrer');
+          toast({
+            title: 'Keep the classroom open',
+            description: 'Your time in class is counted from the classroom tab while the session runs.',
+          });
         } else {
           toast({
             title: 'You are checked in',
@@ -186,6 +184,9 @@ export default function LearnerDashboard() {
                             const locked = entry?.locked ?? false;
                             const pct = entry?.completed ? 100 : entry?.progressPct ?? 0;
                             const owed = Math.max(0, (entry?.reviewsRequired ?? 0) - (entry?.reviewsGiven ?? 0));
+                            // The class itself is outstanding once it has ended and
+                            // the presence bar has not been reached by either route.
+                            const needsClass = state === 'done' && entry?.presence?.met === false;
                             return (
                               <li key={m.id} className={`rounded-xl border border-border transition-colors ${
                                 locked ? 'opacity-55 bg-muted/30' : 'hover:border-primary/40'
@@ -218,13 +219,13 @@ export default function LearnerDashboard() {
                                       ? <span className="text-muted-foreground">Locked</span>
                                       : state === 'live'
                                         ? <><Video className="w-4 h-4" aria-hidden />Join live</>
-                                        : owed > 0
-                                          ? <>{owed} critique{owed === 1 ? '' : 's'} to write<ArrowRight className="w-3.5 h-3.5" aria-hidden /></>
-                                          : entry?.completed
-                                            ? (m.recordingUrl
-                                                ? <><PlayCircle className="w-4 h-4" aria-hidden />Watch replay</>
-                                                : 'Completed')
-                                            : <>Open classroom<ArrowRight className="w-3.5 h-3.5" aria-hidden /></>}
+                                        : entry?.completed
+                                          ? 'Completed'
+                                          : needsClass
+                                            ? <><PlayCircle className="w-4 h-4" aria-hidden />Watch the class</>
+                                            : owed > 0
+                                              ? <>{owed} critique{owed === 1 ? '' : 's'} to write<ArrowRight className="w-3.5 h-3.5" aria-hidden /></>
+                                              : <>Open classroom<ArrowRight className="w-3.5 h-3.5" aria-hidden /></>}
                                   </span>
                                 </button>
                               </li>

@@ -129,12 +129,31 @@ export interface PortfolioVisibilityInput {
   portfolioPublic: boolean;
 }
 
+export type PresenceVia = typeof PresenceVia[keyof typeof PresenceVia];
+
+
+export const PresenceVia = {
+  live: 'live',
+  replay: 'replay',
+  none: 'none',
+} as const;
+
+export interface Presence {
+  livePct: number;
+  replayPct: number;
+  bestPct: number;
+  met: boolean;
+  via: PresenceVia;
+  thresholdPct: number;
+}
+
 export interface SessionProgress {
   sessionId: number;
   programId: number;
   progressPct: number;
   attendedLive: boolean;
   attended: boolean;
+  presence: Presence;
   completed: boolean;
   locked: boolean;
   hasQuiz: boolean;
@@ -199,6 +218,30 @@ export interface QuizResult {
   correctCount: number;
   totalQuestions: number;
   bestScore: number;
+}
+
+export interface HeartbeatResult {
+  sessionId: number;
+  liveSeconds: number;
+  presence: Presence;
+}
+
+export interface ReplayProgressInput {
+  /**
+     * @maxItems 5000
+     * @items.minimum 0
+     */
+  buckets: number[];
+  /** @minimum 1 */
+  durationSeconds?: number;
+}
+
+export interface ReplayProgressResult {
+  sessionId: number;
+  watchedSeconds: number;
+  /** @nullable */
+  durationSeconds: number | null;
+  presence: Presence;
 }
 
 export interface RubricCriterion {
@@ -290,6 +333,37 @@ export interface MyFeedback {
   reviewsGiven: number;
   rubric: RubricCriterion[];
   reviews: ReceivedReview[];
+}
+
+export interface GoogleConnectionStatus {
+  connected: boolean;
+  configured: boolean;
+  secretConfigured: boolean;
+  /** @nullable */
+  googleEmail?: string | null;
+  /** @nullable */
+  connectedAt?: string | null;
+  /** @nullable */
+  lastError?: string | null;
+  /** @nullable */
+  authorizeUrl?: string | null;
+}
+
+export interface RecordingStatusRow {
+  sessionId: number;
+  sessionTitle: string;
+  programTitle: string;
+  /** @nullable */
+  startsAt?: string | null;
+  status: string;
+  attempts: number;
+  hasMeetUrl: boolean;
+  /** @nullable */
+  recordingUrl?: string | null;
+  /** @nullable */
+  error?: string | null;
+  /** @nullable */
+  checkedAt?: string | null;
 }
 
 export type UserRoleUpdateRole = typeof UserRoleUpdateRole[keyof typeof UserRoleUpdateRole];
@@ -416,6 +490,7 @@ export interface SessionDetail {
   durationMins: number;
   /** @nullable */
   meetUrl?: string | null;
+  hasMeetUrl: boolean;
   /** @nullable */
   recordingUrl?: string | null;
   /** @nullable */

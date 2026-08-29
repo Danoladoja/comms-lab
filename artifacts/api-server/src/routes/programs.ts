@@ -151,7 +151,8 @@ router.get("/programs/:id/sessions", async (req, res) => {
   res.json(
     rows.map((r) => ({
       ...r,
-      meetUrl: showLinks && isStaff ? r.meetUrl : null,
+      meetUrl: user?.role === "admin" ? r.meetUrl : null,
+      hasMeetUrl: !!r.meetUrl,
       recordingUrl: showLinks ? r.recordingUrl : null,
     })),
   );

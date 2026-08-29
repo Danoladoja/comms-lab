@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { Presence } from './presence';
 
 export interface SessionProgress {
   sessionId: number;
@@ -12,6 +13,7 @@ export interface SessionProgress {
   progressPct: number;
   attendedLive: boolean;
   attended: boolean;
+  presence: Presence;
   completed: boolean;
   locked: boolean;
   hasQuiz: boolean;

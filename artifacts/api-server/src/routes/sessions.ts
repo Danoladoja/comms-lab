@@ -29,10 +29,20 @@ router.patch("/sessions/:id", async (req, res) => {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
-  // Instructors may only update the links and description of their own session
-  const data = isAdmin
-    ? parsed.data
-    : { meetUrl: parsed.data.meetUrl, recordingUrl: parsed.data.recordingUrl, description: parsed.data.description };
+  // Creating the meeting room is an admin duty, so instructors cannot set
+  // meetUrl — only the recording and the description of their own session.
+  const data: Record<string, unknown> = isAdmin
+    ? { ...parsed.data }
+    : { recordingUrl: parsed.data.recordingUrl, description: parsed.data.description };
+
+  // A link put in by a person outranks the automatic transfer. Marking it
+  // "manual" stops the Meet-to-YouTube job replacing it; clearing the field
+  // hands the session back to the job.
+  if ("recordingUrl" in data) {
+    data.recordingStatus = data.recordingUrl ? "manual" : "pending";
+    data.recordingError = null;
+  }
+
   const [updated] = await db.update(sessionsTable).set(data).where(eq(sessionsTable.id, id)).returning();
   const instructor = updated.instructorId
     ? await db.select({ name: usersTable.name }).from(usersTable).where(eq(usersTable.id, updated.instructorId))

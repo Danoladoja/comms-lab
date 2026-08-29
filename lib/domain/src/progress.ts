@@ -1,23 +1,31 @@
 import { ON_TIME_GRACE_MS } from "./liveWindow";
+import {
+  presenceStatus,
+  EMPTY_PRESENCE,
+  PRESENCE_THRESHOLD_PCT,
+  type PresenceInput,
+  type PresenceStatus,
+} from "./presence";
 
 /**
  * How a learner moves through a program.
  *
- * The rule that matters: **completion is earned by what you made, never by
- * where you were at 14:00.** Attendance is a bonus signal (streaks, priority in
- * the live queue); it never gates a module and it never blocks the next one.
- * This is deliberate — the audience is working journalists across four time
- * zones with load-shedding and metered data, and the previous behaviour locked
- * a learner out of the entire rest of the program for missing one live class.
+ * A module is complete when the learner has both **attended the class** and
+ * **done the work**.
  *
- * A module is complete when every deliverable the facilitator actually
- * published has been done:
+ * Attending means reaching the presence bar by either route — being in the live
+ * class, or watching the recording (see ./presence.ts). Which route is nobody's
+ * business but the learner's: someone on a night shift in Lagos who watches the
+ * replay in full has attended as surely as someone who was there at 14:00.
+ *
+ * Doing the work means every deliverable the facilitator actually published:
  *   - assignment (the "make"), if one exists → submitted
  *   - peer critique, if the assignment asks for it → the required reviews given
  *   - quiz, if one exists → passed
  *
- * A module that publishes no deliverables completes once its session has ended,
- * so an empty module can never dam the sequence behind it.
+ * A module that has neither a scheduled class nor any deliverable completes
+ * once it is in the past, so an empty module can never dam the sequence behind
+ * it.
  */
 
 export const QUIZ_PASS_MARK = 70;
@@ -57,10 +65,12 @@ export type ProgressEntry = {
   sessionId: number;
   programId: number;
   progressPct: number;
-  /** Joined the live room on time. A bonus — never a requirement. */
+  /** Joined the live room within the on-time grace window. */
   attendedLive: boolean;
-  /** Checked in at all, on time or late. */
+  /** Checked in to the live room at all, on time or late. */
   attended: boolean;
+  /** How much of the class has been attended live or watched on replay. */
+  presence: PresenceStatus;
   completed: boolean;
   locked: boolean;
   hasQuiz: boolean;
@@ -93,6 +103,7 @@ export function computeProgress(
   attendance: Map<number, Date>,
   enrolledAtByProgram: Map<number, Date>,
   coursework: Map<number, CourseworkStatus>,
+  presenceBySession: Map<number, PresenceInput> = new Map(),
   now = Date.now(),
 ): ProgressEntry[] {
   const byProgram = new Map<number, SessionLite[]>();
@@ -118,13 +129,25 @@ export function computeProgress(
       const attendedLive =
         !!joined && start !== null && joined.getTime() <= start + ON_TIME_GRACE_MS;
 
+      // Presence is measured against the scheduled length of the class, so an
+      // unscheduled module has nothing to be present for.
+      const presence = presenceStatus({
+        ...(presenceBySession.get(s.id) ?? EMPTY_PRESENCE),
+        sessionSeconds: s.durationMins * 60,
+      });
+
       const cw = coursework.get(s.id) ?? EMPTY_COURSEWORK;
       const quizPassed = cw.hasQuiz && (cw.quizBestScore ?? 0) >= QUIZ_PASS_MARK;
       const reviewsRequired = cw.hasAssignment ? cw.reviewsRequired : 0;
       const reviewsDone = cw.reviewsGiven >= reviewsRequired;
 
-      // Each published deliverable contributes one equal share of the module.
+      // Attending the class is a requirement in its own right, and counts as one
+      // share of the module alongside each published deliverable.
       const parts: number[] = [];
+      const presenceRequired = start !== null;
+      if (presenceRequired) {
+        parts.push(Math.min(100, Math.round((presence.bestPct / PRESENCE_THRESHOLD_PCT) * 100)));
+      }
       if (cw.hasAssignment) {
         parts.push(cw.assignmentSubmitted ? 100 : 0);
         if (reviewsRequired > 0) {
@@ -139,9 +162,12 @@ export function computeProgress(
         (!cw.hasAssignment || (cw.assignmentSubmitted && reviewsDone)) &&
         (!cw.hasQuiz || quizPassed);
 
-      // No deliverables published → the module completes when the class is over,
-      // so an empty module never dams the sequence behind it.
-      const completed = parts.length === 0 ? hasEnded : deliverablesMet;
+      // Both halves: attended the class, and did the work.
+      const requirementsMet = (!presenceRequired || presence.met) && deliverablesMet;
+
+      // Nothing scheduled and nothing published → the module completes once it is
+      // in the past, so an empty module never dams the sequence behind it.
+      const completed = parts.length === 0 ? hasEnded : requirementsMet;
 
       const progressPct = completed
         ? 100
@@ -155,6 +181,7 @@ export function computeProgress(
         progressPct,
         attendedLive,
         attended,
+        presence,
         completed,
         locked: !previousSatisfied,
         hasQuiz: cw.hasQuiz,

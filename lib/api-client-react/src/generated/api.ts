@@ -31,7 +31,9 @@ import type {
   EnrollmentUpdate,
   ForumPost,
   ForumThread,
+  GoogleConnectionStatus,
   HealthStatus,
+  HeartbeatResult,
   JoinResult,
   ListAllEnrollmentsParams,
   MyFeedback,
@@ -47,6 +49,9 @@ import type {
   QuizInput,
   QuizResult,
   ReceivedReview,
+  RecordingStatusRow,
+  ReplayProgressInput,
+  ReplayProgressResult,
   ReviewInput,
   ReviewQueue,
   Session,
@@ -1345,6 +1350,150 @@ export const useSubmitAssignment = <TError = ErrorType<ApiMessage>,
       return useMutation(getSubmitAssignmentMutationOptions(options));
     }
 
+export const getRecordHeartbeatUrl = (id: number,) => {
+
+
+
+
+  return `/api/sessions/${id}/presence/heartbeat`
+}
+
+/**
+ * Credits the gap since the previous beat, clamped to the scheduled window and capped per beat. Rejected outside the live window.
+ * @summary Report that the learner still has the classroom open during a live class
+ */
+export const recordHeartbeat = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<HeartbeatResult> => {
+
+  return customFetch<HeartbeatResult>(getRecordHeartbeatUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getRecordHeartbeatMutationOptions = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof recordHeartbeat>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof recordHeartbeat>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['recordHeartbeat'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof recordHeartbeat>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  recordHeartbeat(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RecordHeartbeatMutationResult = NonNullable<Awaited<ReturnType<typeof recordHeartbeat>>>
+
+    export type RecordHeartbeatMutationError = ErrorType<ApiMessage>
+
+    /**
+ * @summary Report that the learner still has the classroom open during a live class
+ */
+export const useRecordHeartbeat = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof recordHeartbeat>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof recordHeartbeat>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getRecordHeartbeatMutationOptions(options));
+    }
+
+export const getRecordReplayProgressUrl = (id: number,) => {
+
+
+
+
+  return `/api/sessions/${id}/replay/progress`
+}
+
+/**
+ * @summary Report which slices of the recording the learner has watched
+ */
+export const recordReplayProgress = async (id: number,
+    replayProgressInput: ReplayProgressInput, options?: Parameters<typeof customFetch>[1]): Promise<ReplayProgressResult> => {
+
+  return customFetch<ReplayProgressResult>(getRecordReplayProgressUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(replayProgressInput)
+  }
+);}
+
+
+
+
+
+export const getRecordReplayProgressMutationOptions = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof recordReplayProgress>>, TError,{id: number;data: BodyType<ReplayProgressInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof recordReplayProgress>>, TError,{id: number;data: BodyType<ReplayProgressInput>}, TContext> => {
+
+const mutationKey = ['recordReplayProgress'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof recordReplayProgress>>, {id: number;data: BodyType<ReplayProgressInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  recordReplayProgress(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RecordReplayProgressMutationResult = NonNullable<Awaited<ReturnType<typeof recordReplayProgress>>>
+    export type RecordReplayProgressMutationBody = BodyType<ReplayProgressInput>
+    export type RecordReplayProgressMutationError = ErrorType<ApiMessage>
+
+    /**
+ * @summary Report which slices of the recording the learner has watched
+ */
+export const useRecordReplayProgress = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof recordReplayProgress>>, TError,{id: number;data: BodyType<ReplayProgressInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof recordReplayProgress>>,
+        TError,
+        {id: number;data: BodyType<ReplayProgressInput>},
+        TContext
+      > => {
+      return useMutation(getRecordReplayProgressMutationOptions(options));
+    }
+
 export const getGetReviewQueueUrl = (id: number,) => {
 
 
@@ -2100,6 +2249,302 @@ export function useListMySessions<TData = Awaited<ReturnType<typeof listMySessio
 
 
 
+
+export const getGetGoogleConnectionUrl = () => {
+
+
+
+
+  return `/api/admin/google`
+}
+
+/**
+ * @summary Whether a Google account is connected for recording transfers
+ */
+export const getGoogleConnection = async ( options?: Parameters<typeof customFetch>[1]): Promise<GoogleConnectionStatus> => {
+
+  return customFetch<GoogleConnectionStatus>(getGetGoogleConnectionUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetGoogleConnectionQueryKey = () => {
+    return [
+    `/api/admin/google`
+    ] as const;
+    }
+
+
+export const getGetGoogleConnectionQueryOptions = <TData = Awaited<ReturnType<typeof getGoogleConnection>>, TError = ErrorType<ApiMessage>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getGoogleConnection>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetGoogleConnectionQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getGoogleConnection>>> = ({ signal }) => getGoogleConnection({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getGoogleConnection>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetGoogleConnectionQueryResult = NonNullable<Awaited<ReturnType<typeof getGoogleConnection>>>
+export type GetGoogleConnectionQueryError = ErrorType<ApiMessage>
+
+
+/**
+ * @summary Whether a Google account is connected for recording transfers
+ */
+
+export function useGetGoogleConnection<TData = Awaited<ReturnType<typeof getGoogleConnection>>, TError = ErrorType<ApiMessage>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getGoogleConnection>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetGoogleConnectionQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getDisconnectGoogleUrl = () => {
+
+
+
+
+  return `/api/admin/google`
+}
+
+/**
+ * @summary Disconnect the Google account
+ */
+export const disconnectGoogle = async ( options?: Parameters<typeof customFetch>[1]): Promise<GoogleConnectionStatus> => {
+
+  return customFetch<GoogleConnectionStatus>(getDisconnectGoogleUrl(),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDisconnectGoogleMutationOptions = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof disconnectGoogle>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof disconnectGoogle>>, TError,void, TContext> => {
+
+const mutationKey = ['disconnectGoogle'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof disconnectGoogle>>, void> = () => {
+
+
+          return  disconnectGoogle(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DisconnectGoogleMutationResult = NonNullable<Awaited<ReturnType<typeof disconnectGoogle>>>
+
+    export type DisconnectGoogleMutationError = ErrorType<ApiMessage>
+
+    /**
+ * @summary Disconnect the Google account
+ */
+export const useDisconnectGoogle = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof disconnectGoogle>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof disconnectGoogle>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getDisconnectGoogleMutationOptions(options));
+    }
+
+export const getListRecordingStatusUrl = () => {
+
+
+
+
+  return `/api/admin/recordings`
+}
+
+/**
+ * @summary Where each past class stands in the Meet-to-YouTube transfer
+ */
+export const listRecordingStatus = async ( options?: Parameters<typeof customFetch>[1]): Promise<RecordingStatusRow[]> => {
+
+  return customFetch<RecordingStatusRow[]>(getListRecordingStatusUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListRecordingStatusQueryKey = () => {
+    return [
+    `/api/admin/recordings`
+    ] as const;
+    }
+
+
+export const getListRecordingStatusQueryOptions = <TData = Awaited<ReturnType<typeof listRecordingStatus>>, TError = ErrorType<ApiMessage>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listRecordingStatus>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListRecordingStatusQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listRecordingStatus>>> = ({ signal }) => listRecordingStatus({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listRecordingStatus>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListRecordingStatusQueryResult = NonNullable<Awaited<ReturnType<typeof listRecordingStatus>>>
+export type ListRecordingStatusQueryError = ErrorType<ApiMessage>
+
+
+/**
+ * @summary Where each past class stands in the Meet-to-YouTube transfer
+ */
+
+export function useListRecordingStatus<TData = Awaited<ReturnType<typeof listRecordingStatus>>, TError = ErrorType<ApiMessage>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listRecordingStatus>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListRecordingStatusQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getSyncRecordingsNowUrl = () => {
+
+
+
+
+  return `/api/admin/recordings/sync`
+}
+
+/**
+ * @summary Run the recording transfer immediately instead of waiting
+ */
+export const syncRecordingsNow = async ( options?: Parameters<typeof customFetch>[1]): Promise<ApiMessage> => {
+
+  return customFetch<ApiMessage>(getSyncRecordingsNowUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getSyncRecordingsNowMutationOptions = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof syncRecordingsNow>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof syncRecordingsNow>>, TError,void, TContext> => {
+
+const mutationKey = ['syncRecordingsNow'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof syncRecordingsNow>>, void> = () => {
+
+
+          return  syncRecordingsNow(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SyncRecordingsNowMutationResult = NonNullable<Awaited<ReturnType<typeof syncRecordingsNow>>>
+
+    export type SyncRecordingsNowMutationError = ErrorType<ApiMessage>
+
+    /**
+ * @summary Run the recording transfer immediately instead of waiting
+ */
+export const useSyncRecordingsNow = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof syncRecordingsNow>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof syncRecordingsNow>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getSyncRecordingsNowMutationOptions(options));
+    }
 
 export const getListUsersUrl = () => {
 

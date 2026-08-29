@@ -6,23 +6,19 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface SessionDetail {
-  id: number;
-  programId: number;
+export interface RecordingStatusRow {
+  sessionId: number;
+  sessionTitle: string;
   programTitle: string;
-  title: string;
-  description: string;
-  sortOrder: number;
   /** @nullable */
   startsAt?: Date | null;
-  durationMins: number;
-  /** @nullable */
-  meetUrl?: string | null;
+  status: string;
+  attempts: number;
   hasMeetUrl: boolean;
   /** @nullable */
   recordingUrl?: string | null;
   /** @nullable */
-  instructorId?: number | null;
+  error?: string | null;
   /** @nullable */
-  instructorName?: string | null;
+  checkedAt?: Date | null;
 }

@@ -493,6 +493,85 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiMessage"
+  /sessions/{id}/presence/heartbeat:
+    post:
+      operationId: recordHeartbeat
+      tags: [enrollments]
+      summary: Report that the learner still has the classroom open during a live class
+      description: >
+        Credits the gap since the previous beat, clamped to the scheduled window
+        and capped per beat. Rejected outside the live window.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Heartbeat recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HeartbeatResult"
+        "401":
+          description: Not signed in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "403":
+          description: Not enrolled, module locked, or the class is not running
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "404":
+          description: Session not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+  /sessions/{id}/replay/progress:
+    post:
+      operationId: recordReplayProgress
+      tags: [enrollments]
+      summary: Report which slices of the recording the learner has watched
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReplayProgressInput"
+      responses:
+        "200":
+          description: Progress recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReplayProgressResult"
+        "401":
+          description: Not signed in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "403":
+          description: Not enrolled or module locked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "404":
+          description: Session not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
   /sessions/{id}/reviews/queue:
     get:
       operationId: getReviewQueue
@@ -780,6 +859,79 @@ paths:
                   $ref: "#/components/schemas/SessionDetail"
         "401":
           description: Not signed in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+  /admin/google:
+    get:
+      operationId: getGoogleConnection
+      tags: [admin]
+      summary: Whether a Google account is connected for recording transfers
+      responses:
+        "200":
+          description: Connection status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GoogleConnectionStatus"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+    delete:
+      operationId: disconnectGoogle
+      tags: [admin]
+      summary: Disconnect the Google account
+      responses:
+        "200":
+          description: Disconnected
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GoogleConnectionStatus"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+  /admin/recordings:
+    get:
+      operationId: listRecordingStatus
+      tags: [admin]
+      summary: Where each past class stands in the Meet-to-YouTube transfer
+      responses:
+        "200":
+          description: Recording status per past session
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RecordingStatusRow"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+  /admin/recordings/sync:
+    post:
+      operationId: syncRecordingsNow
+      tags: [admin]
+      summary: Run the recording transfer immediately instead of waiting
+      responses:
+        "202":
+          description: Sync started
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "403":
+          description: Forbidden
           content:
             application/json:
               schema:
@@ -1205,15 +1357,15 @@ components:
         portfolioPublic: { type: boolean }
     SessionProgress:
       type: object
-      required: [sessionId, programId, progressPct, attendedLive, attended, completed, locked, hasQuiz, quizPassed, quizBestScore, hasAssignment, assignmentSubmitted, reviewsRequired, reviewsGiven, reviewsReceived, feedbackUnlocked]
+      required: [sessionId, programId, progressPct, attendedLive, attended, presence, completed, locked, hasQuiz, quizPassed, quizBestScore, hasAssignment, assignmentSubmitted, reviewsRequired, reviewsGiven, reviewsReceived, feedbackUnlocked]
       properties:
         sessionId: { type: integer }
         programId: { type: integer }
         progressPct: { type: integer }
-        # attendedLive is recognition (streaks, priority in the live queue).
-        # It never gates completion and never locks the next module.
         attendedLive: { type: boolean }
         attended: { type: boolean }
+        presence:
+          $ref: "#/components/schemas/Presence"
         completed: { type: boolean }
         locked: { type: boolean }
         hasQuiz: { type: boolean }
@@ -1286,6 +1438,46 @@ components:
         correctCount: { type: integer }
         totalQuestions: { type: integer }
         bestScore: { type: integer }
+    Presence:
+      type: object
+      required: [livePct, replayPct, bestPct, met, via, thresholdPct]
+      properties:
+        livePct: { type: integer }
+        replayPct: { type: integer }
+        # The better of the two routes — never their sum, since both timelines
+        # cover the same material.
+        bestPct: { type: integer }
+        met: { type: boolean }
+        via: { type: string, enum: [live, replay, none] }
+        thresholdPct: { type: integer }
+    HeartbeatResult:
+      type: object
+      required: [sessionId, liveSeconds, presence]
+      properties:
+        sessionId: { type: integer }
+        liveSeconds: { type: integer }
+        presence:
+          $ref: "#/components/schemas/Presence"
+    ReplayProgressInput:
+      type: object
+      required: [buckets]
+      properties:
+        # Fifteen-second slices of the recording actually played. Sending a
+        # bucket beyond the recording's length is discarded server-side.
+        buckets:
+          type: array
+          maxItems: 5000
+          items: { type: integer, minimum: 0 }
+        durationSeconds: { type: integer, minimum: 1 }
+    ReplayProgressResult:
+      type: object
+      required: [sessionId, watchedSeconds, durationSeconds, presence]
+      properties:
+        sessionId: { type: integer }
+        watchedSeconds: { type: integer }
+        durationSeconds: { type: ["integer", "null"] }
+        presence:
+          $ref: "#/components/schemas/Presence"
     RubricCriterion:
       type: object
       required: [id, label, description, maxScore]
@@ -1397,6 +1589,36 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/ReceivedReview"
+    GoogleConnectionStatus:
+      type: object
+      required: [connected, configured, secretConfigured]
+      properties:
+        # A Google account is linked and usable.
+        connected: { type: boolean }
+        # The server has the client id/secret it needs to offer the connect flow.
+        configured: { type: boolean }
+        # GOOGLE_TOKEN_SECRET is set, without which a token cannot be stored.
+        secretConfigured: { type: boolean }
+        googleEmail: { type: ["string", "null"] }
+        connectedAt: { type: ["string", "null"] }
+        lastError: { type: ["string", "null"] }
+        # Where to send the admin to grant access. Null when not configured.
+        authorizeUrl: { type: ["string", "null"] }
+    RecordingStatusRow:
+      type: object
+      required: [sessionId, sessionTitle, programTitle, status, attempts, hasMeetUrl]
+      properties:
+        sessionId: { type: integer }
+        sessionTitle: { type: string }
+        programTitle: { type: string }
+        startsAt: { type: ["string", "null"], format: date-time }
+        # pending | searching | uploading | ready | failed | manual
+        status: { type: string }
+        attempts: { type: integer }
+        hasMeetUrl: { type: boolean }
+        recordingUrl: { type: ["string", "null"] }
+        error: { type: ["string", "null"] }
+        checkedAt: { type: ["string", "null"], format: date-time }
     UserRoleUpdate:
       type: object
       required: [role]
@@ -1459,7 +1681,7 @@ components:
         instructorName: { type: ["string", "null"] }
     SessionDetail:
       type: object
-      required: [id, programId, programTitle, title, description, sortOrder, durationMins]
+      required: [id, programId, programTitle, title, description, sortOrder, durationMins, hasMeetUrl]
       properties:
         id: { type: integer }
         programId: { type: integer }
@@ -1469,7 +1691,12 @@ components:
         sortOrder: { type: integer }
         startsAt: { type: ["string", "null"], format: date-time }
         durationMins: { type: integer }
+        # Creating the meeting room is the admin's job. Only admins ever receive
+        # the raw link; everyone else — learners and facilitators alike — gets it
+        # by pressing Join, which is also what records their time in class.
         meetUrl: { type: ["string", "null"] }
+        # Whether a room has been set up at all, so the UI can say "not ready yet".
+        hasMeetUrl: { type: boolean }
         recordingUrl: { type: ["string", "null"] }
         instructorId: { type: ["integer", "null"] }
         instructorName: { type: ["string", "null"] }

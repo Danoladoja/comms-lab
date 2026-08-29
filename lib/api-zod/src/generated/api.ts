@@ -471,6 +471,62 @@ export const SubmitAssignmentResponse = zod.object({
 
 
 /**
+ * Credits the gap since the previous beat, clamped to the scheduled window and capped per beat. Rejected outside the live window.
+ * @summary Report that the learner still has the classroom open during a live class
+ */
+export const RecordHeartbeatParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const RecordHeartbeatResponse = zod.object({
+  "sessionId": zod.int(),
+  "liveSeconds": zod.int(),
+  "presence": zod.object({
+  "livePct": zod.int(),
+  "replayPct": zod.int(),
+  "bestPct": zod.int(),
+  "met": zod.boolean(),
+  "via": zod.enum(['live', 'replay', 'none']),
+  "thresholdPct": zod.int()
+})
+})
+
+
+/**
+ * @summary Report which slices of the recording the learner has watched
+ */
+export const RecordReplayProgressParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const recordReplayProgressBodyBucketsItemMin = 0;
+
+export const recordReplayProgressBodyBucketsMax = 5000;
+
+
+
+
+export const RecordReplayProgressBody = zod.object({
+  "buckets": zod.array(zod.int().min(recordReplayProgressBodyBucketsItemMin)).max(recordReplayProgressBodyBucketsMax),
+  "durationSeconds": zod.int().min(1).optional()
+})
+
+export const RecordReplayProgressResponse = zod.object({
+  "sessionId": zod.int(),
+  "watchedSeconds": zod.int(),
+  "durationSeconds": zod.int().nullable(),
+  "presence": zod.object({
+  "livePct": zod.int(),
+  "replayPct": zod.int(),
+  "bestPct": zod.int(),
+  "met": zod.boolean(),
+  "via": zod.enum(['live', 'replay', 'none']),
+  "thresholdPct": zod.int()
+})
+})
+
+
+/**
  * Least-reviewed work first so nobody's submission goes unseen. The queue is empty until the learner has submitted their own make — otherwise it would be a way to read everyone else's answer first.
  * @summary The peer submissions this learner should critique next for a module
  */
@@ -575,6 +631,14 @@ export const ListMyProgressResponseItem = zod.object({
   "progressPct": zod.int(),
   "attendedLive": zod.boolean(),
   "attended": zod.boolean(),
+  "presence": zod.object({
+  "livePct": zod.int(),
+  "replayPct": zod.int(),
+  "bestPct": zod.int(),
+  "met": zod.boolean(),
+  "via": zod.enum(['live', 'replay', 'none']),
+  "thresholdPct": zod.int()
+}),
   "completed": zod.boolean(),
   "locked": zod.boolean(),
   "hasQuiz": zod.boolean(),
@@ -696,11 +760,66 @@ export const ListMySessionsResponseItem = zod.object({
   "startsAt": zod.coerce.date().nullish(),
   "durationMins": zod.int(),
   "meetUrl": zod.string().nullish(),
+  "hasMeetUrl": zod.boolean(),
   "recordingUrl": zod.string().nullish(),
   "instructorId": zod.int().nullish(),
   "instructorName": zod.string().nullish()
 })
 export const ListMySessionsResponse = zod.array(ListMySessionsResponseItem)
+
+
+/**
+ * @summary Whether a Google account is connected for recording transfers
+ */
+export const GetGoogleConnectionResponse = zod.object({
+  "connected": zod.boolean(),
+  "configured": zod.boolean(),
+  "secretConfigured": zod.boolean(),
+  "googleEmail": zod.string().nullish(),
+  "connectedAt": zod.string().nullish(),
+  "lastError": zod.string().nullish(),
+  "authorizeUrl": zod.string().nullish()
+})
+
+
+/**
+ * @summary Disconnect the Google account
+ */
+export const DisconnectGoogleResponse = zod.object({
+  "connected": zod.boolean(),
+  "configured": zod.boolean(),
+  "secretConfigured": zod.boolean(),
+  "googleEmail": zod.string().nullish(),
+  "connectedAt": zod.string().nullish(),
+  "lastError": zod.string().nullish(),
+  "authorizeUrl": zod.string().nullish()
+})
+
+
+/**
+ * @summary Where each past class stands in the Meet-to-YouTube transfer
+ */
+export const ListRecordingStatusResponseItem = zod.object({
+  "sessionId": zod.int(),
+  "sessionTitle": zod.string(),
+  "programTitle": zod.string(),
+  "startsAt": zod.coerce.date().nullish(),
+  "status": zod.string(),
+  "attempts": zod.int(),
+  "hasMeetUrl": zod.boolean(),
+  "recordingUrl": zod.string().nullish(),
+  "error": zod.string().nullish(),
+  "checkedAt": zod.coerce.date().nullish()
+})
+export const ListRecordingStatusResponse = zod.array(ListRecordingStatusResponseItem)
+
+
+/**
+ * @summary Run the recording transfer immediately instead of waiting
+ */
+export const SyncRecordingsNowResponse = zod.object({
+  "error": zod.string()
+})
 
 
 /**

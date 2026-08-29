@@ -21,3 +21,20 @@ export function toEmbedUrl(url: string): { kind: 'iframe' | 'video'; src: string
   } catch { /* fall through */ }
   return null;
 }
+
+/**
+ * Can watch time be measured in this recording?
+ *
+ * Only YouTube and direct video files report playback position, and watch time
+ * is what lets a learner who missed the live class complete the module. A Vimeo
+ * or Loom link plays perfectly well and counts for nothing — so the admin needs
+ * telling at the moment they paste it, not the learner three weeks later.
+ *
+ * The single source of truth for this question: the player and the admin form
+ * must never disagree about what will count.
+ */
+export function isMeasurableRecording(url: string): boolean {
+  const embed = toEmbedUrl(url);
+  if (!embed) return false;
+  return embed.kind === 'video' || embed.src.includes('youtube.com/embed/');
+}

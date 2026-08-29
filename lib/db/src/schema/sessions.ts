@@ -16,6 +16,18 @@ export const sessionsTable = pgTable("sessions", {
   durationMins: integer("duration_mins").notNull().default(60),
   meetUrl: text("meet_url"),
   recordingUrl: text("recording_url"),
+  /**
+   * Where the automatic Meet-to-YouTube copy has got to for this class:
+   * pending | searching | uploading | ready | failed | manual.
+   * "manual" means a human pasted a link and the pipeline must not touch it.
+   */
+  recordingStatus: text("recording_status").notNull().default("pending"),
+  /** The last thing that went wrong, shown to admins so they can act. */
+  recordingError: text("recording_error"),
+  recordingAttempts: integer("recording_attempts").notNull().default(0),
+  recordingCheckedAt: timestamp("recording_checked_at", { withTimezone: true }),
+  /** The Drive file already dealt with, so a retry never uploads twice. */
+  recordingDriveFileId: text("recording_drive_file_id"),
   instructorId: integer("instructor_id").references(() => usersTable.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),

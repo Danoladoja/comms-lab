@@ -19,15 +19,17 @@ import {
   type Program,
   type Session,
 } from '@workspace/api-client-react';
+import RecordingsAdmin from '@/components/RecordingsAdmin';
+import { isMeasurableRecording } from '@/lib/embed';
 import { useCurrentUser } from '@/lib/useCurrentUser';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { ChevronDown, ChevronUp, Plus, Trash2 } from 'lucide-react';
+import { ChevronDown, ChevronUp, Plus, Trash2, CircleAlert } from 'lucide-react';
 import { QuizEditor, AssignmentEditor } from '@/components/AdminCourseworkEditor';
 
-const TABS = ['Programs', 'Enrollments', 'People'] as const;
+const TABS = ['Programs', 'Enrollments', 'People', 'Recordings'] as const;
 type Tab = (typeof TABS)[number];
 
 function formatSessionDate(iso: string | null | undefined) {
@@ -47,6 +49,10 @@ function SessionRow({ session, instructors, onChanged }: {
   const [recordingUrl, setRecordingUrl] = useState(session.recordingUrl ?? '');
   const [instructorId, setInstructorId] = useState<string>(session.instructorId ? String(session.instructorId) : '');
   const [coursework, setCoursework] = useState<'none' | 'quiz' | 'assignment'>('none');
+
+  const startsAtMs = session.startsAt ? new Date(session.startsAt as unknown as string).getTime() : null;
+  const isPast = startsAtMs !== null && Date.now() > startsAtMs + session.durationMins * 60 * 1000;
+  const recordingMeasurable = !!recordingUrl.trim() && isMeasurableRecording(recordingUrl.trim());
 
   const update = useUpdateSession({
     mutation: {
@@ -75,17 +81,73 @@ function SessionRow({ session, instructors, onChanged }: {
           <Trash2 className="w-4 h-4" />
         </Button>
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-        <Input value={meetUrl} onChange={e => setMeetUrl(e.target.value)} placeholder="Meeting link" className="text-sm" />
-        <Input value={recordingUrl} onChange={e => setRecordingUrl(e.target.value)} placeholder="Recording link (YouTube)" className="text-sm" />
-        <select
-          className="border border-border rounded-md px-3 py-2 text-sm bg-background"
-          value={instructorId}
-          onChange={e => setInstructorId(e.target.value)}
-        >
-          <option value="">No facilitator</option>
-          {instructors.map(i => <option key={i.id} value={i.id}>{i.name || i.email}</option>)}
-        </select>
+      {/* Past class with nowhere to watch it: the one state that actually
+          holds learners up, so it is said out loud rather than implied. */}
+      {isPast && !recordingUrl && (
+        <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 flex items-start gap-2">
+          <CircleAlert className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" aria-hidden />
+          <span>
+            This class has finished and has no recording. Anyone who missed it cannot complete the module until
+            you add one below.
+          </span>
+        </p>
+      )}
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div>
+          <label className="block text-xs font-medium text-muted-foreground mb-1" htmlFor={`meet-${session.id}`}>
+            Meeting link
+          </label>
+          <Input
+            id={`meet-${session.id}`}
+            value={meetUrl}
+            onChange={e => setMeetUrl(e.target.value)}
+            placeholder="https://meet.google.com/..."
+            className="text-sm"
+          />
+          <p className="text-xs text-muted-foreground mt-1">Create the room, paste it here.</p>
+        </div>
+
+        <div>
+          <label className="block text-xs font-medium text-muted-foreground mb-1" htmlFor={`rec-${session.id}`}>
+            Recording link
+          </label>
+          <Input
+            id={`rec-${session.id}`}
+            value={recordingUrl}
+            onChange={e => setRecordingUrl(e.target.value)}
+            placeholder="https://youtu.be/..."
+            className="text-sm"
+            aria-describedby={`rec-help-${session.id}`}
+          />
+          <p id={`rec-help-${session.id}`} className="text-xs mt-1">
+            {!recordingUrl.trim() ? (
+              <span className="text-muted-foreground">Upload to YouTube as unlisted, paste the link.</span>
+            ) : recordingMeasurable ? (
+              <span className="text-emerald-700">Good — watch time counts towards completion.</span>
+            ) : (
+              <span className="text-amber-800">
+                Not a YouTube or video-file link. It will play, but watch time can't be counted, so learners who
+                missed the class can't complete the module.
+              </span>
+            )}
+          </p>
+        </div>
+
+        <div>
+          <label className="block text-xs font-medium text-muted-foreground mb-1" htmlFor={`fac-${session.id}`}>
+            Facilitator
+          </label>
+          <select
+            id={`fac-${session.id}`}
+            className="w-full border border-border rounded-md px-3 py-2 text-sm bg-background"
+            value={instructorId}
+            onChange={e => setInstructorId(e.target.value)}
+          >
+            <option value="">No facilitator</option>
+            {instructors.map(i => <option key={i.id} value={i.id}>{i.name || i.email}</option>)}
+          </select>
+        </div>
       </div>
       <div className="flex flex-wrap items-center gap-2">
         <Button
@@ -411,7 +473,7 @@ export default function AdminConsole() {
     <div className="container mx-auto px-4 md:px-6 py-12">
       <div className="mb-8">
         <h1 className="text-3xl md:text-4xl font-display font-bold mb-2">Admin Console</h1>
-        <p className="text-muted-foreground">Manage programs, sessions, enrollments, and people.</p>
+        <p className="text-muted-foreground">Manage programs, sessions, enrollments, people, and class recordings.</p>
       </div>
 
       <div className="flex gap-1 border-b border-border mb-8">
@@ -431,6 +493,7 @@ export default function AdminConsole() {
       {tab === 'Programs' && <ProgramsTab instructors={instructors} />}
       {tab === 'Enrollments' && <EnrollmentsTab />}
       {tab === 'People' && <PeopleTab selfId={user?.id} />}
+      {tab === 'Recordings' && <RecordingsAdmin />}
     </div>
   );
 }
