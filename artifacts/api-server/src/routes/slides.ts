@@ -1,13 +1,16 @@
 import { Router, type IRouter } from "express";
 import express from "express";
-import { db, sessionSlidesTable, sessionsTable, programsTable, enrollmentsTable } from "@workspace/db";
-import { and, eq, sql } from "drizzle-orm";
+import {
+  db, sessionSlidesTable, sessionReadingsTable, sessionsTable, programsTable, enrollmentsTable,
+} from "@workspace/db";
+import { and, asc, eq, sql } from "drizzle-orm";
 import {
   slideTypeFor,
   slideTextQuality,
+  validateReadings,
   MAX_SLIDE_UPLOAD_BYTES,
 } from "@workspace/domain";
-import { SetSlidesVisibilityBody } from "@workspace/api-zod";
+import { SetSlidesVisibilityBody, SetSessionReadingsBody } from "@workspace/api-zod";
 import { getCurrentUser } from "../lib/auth";
 import { progressForUser } from "../lib/progress";
 import { extractSlideText } from "../lib/slides/extract";
@@ -262,6 +265,61 @@ router.post("/sessions/:id/coursework/draft", async (req, res) => {
     problems: result.problems,
     notes: result.draft?.notes ?? [],
   });
+});
+
+/* ---------- Reading list ---------- */
+
+/**
+ * Further reading. Ungraded, and never consulted by `computeProgress` — adding
+ * a link cannot change whether anyone can finish a module.
+ */
+router.get("/sessions/:id/readings", async (req, res) => {
+  const user = await getCurrentUser(req);
+  if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const sessionId = Number(req.params.id);
+  const session = await loadSession(sessionId);
+  if (!session) { res.status(404).json({ error: "Session not found" }); return; }
+
+  if (!isStaffFor(user, session) && !(await learnerMayRead(user, session))) {
+    res.status(403).json({ error: "Forbidden" });
+    return;
+  }
+
+  const rows = await db
+    .select({ title: sessionReadingsTable.title, url: sessionReadingsTable.url, note: sessionReadingsTable.note })
+    .from(sessionReadingsTable)
+    .where(eq(sessionReadingsTable.sessionId, sessionId))
+    .orderBy(asc(sessionReadingsTable.sortOrder), asc(sessionReadingsTable.id));
+  res.json(rows);
+});
+
+router.put("/sessions/:id/readings", async (req, res) => {
+  const user = await getCurrentUser(req);
+  if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const sessionId = Number(req.params.id);
+  const session = await loadSession(sessionId);
+  if (!session) { res.status(404).json({ error: "Session not found" }); return; }
+  if (!isStaffFor(user, session)) { res.status(403).json({ error: "Forbidden" }); return; }
+
+  const parsed = SetSessionReadingsBody.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
+
+  const { items, problems } = validateReadings(parsed.data.items);
+
+  // Replace wholesale: the editor sends the list as the facilitator wants it,
+  // and a partial save would leave a half-edited shelf behind.
+  await db.transaction(async (tx) => {
+    await tx.delete(sessionReadingsTable).where(eq(sessionReadingsTable.sessionId, sessionId));
+    if (items.length > 0) {
+      await tx.insert(sessionReadingsTable).values(
+        items.map((item, i) => ({ sessionId, ...item, sortOrder: i })),
+      );
+    }
+  });
+
+  res.json({ items, problems });
 });
 
 export default router;

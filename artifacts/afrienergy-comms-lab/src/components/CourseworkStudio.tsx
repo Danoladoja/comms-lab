@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import SlideDeckPanel from '@/components/SlideDeckPanel';
 import { QuizEditor, AssignmentEditor } from '@/components/AdminCourseworkEditor';
+import ReadingListEditor from '@/components/ReadingListEditor';
 import { Sparkles, Loader, CircleAlert, Lightbulb } from 'lucide-react';
 
 /**
@@ -129,6 +130,13 @@ export default function CourseworkStudio({ sessionId }: { sessionId: number }) {
             <AssignmentEditor sessionId={sessionId} seed={assignment} seedVersion={version} />
           </div>
         </div>
+      </section>
+
+      <section>
+        <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
+          Reading list <span className="font-normal normal-case tracking-normal">— ungraded</span>
+        </h4>
+        <ReadingListEditor sessionId={sessionId} />
       </section>
     </div>
   );

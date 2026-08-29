@@ -493,6 +493,65 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiMessage"
+  /sessions/{id}/readings:
+    get:
+      operationId: getSessionReadings
+      tags: [enrollments]
+      summary: Further reading for a module (ungraded)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: The reading list, possibly empty
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ReadingItem"
+        "403":
+          description: Not enrolled or module locked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "404":
+          description: Session not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+    put:
+      operationId: setSessionReadings
+      tags: [admin]
+      summary: Replace the reading list for a module (admin or assigned instructor)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReadingListInput"
+      responses:
+        "200":
+          description: Saved, with anything that was rejected
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReadingListResult"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
   /sessions/{id}/slides:
     get:
       operationId: getSessionSlides
@@ -1559,6 +1618,46 @@ components:
         correctCount: { type: integer }
         totalQuestions: { type: integer }
         bestScore: { type: integer }
+    ReadingItem:
+      type: object
+      required: [title, url, note]
+      properties:
+        title: { type: string }
+        url: { type: string }
+        note: { type: string }
+    ReadingListInput:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          maxItems: 20
+          items:
+            type: object
+            required: [title, url]
+            properties:
+              title: { type: string, maxLength: 200 }
+              url: { type: string }
+              note: { type: string, maxLength: 400 }
+    ReadingListProblem:
+      type: object
+      required: [index, message]
+      properties:
+        # Which row was rejected, so the facilitator can find it.
+        index: { type: integer }
+        message: { type: string }
+    ReadingListResult:
+      type: object
+      required: [items, problems]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReadingItem"
+        problems:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReadingListProblem"
     SlideDeck:
       type: object
       required: [sessionId, filename, mimeType, sizeBytes, visibleToLearners, hasReadableText, textChars, canDraft, uploadedAt, downloadPath]

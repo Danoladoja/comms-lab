@@ -5,4 +5,5 @@ export * from "./reviews";
 export * from "./recordingPipeline";
 export * from "./slideText";
 export * from "./courseworkDraft";
+export * from "./readingList";
 export * from "./certificateCode";

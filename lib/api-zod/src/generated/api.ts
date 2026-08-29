@@ -471,6 +471,57 @@ export const SubmitAssignmentResponse = zod.object({
 
 
 /**
+ * @summary Further reading for a module (ungraded)
+ */
+export const GetSessionReadingsParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const GetSessionReadingsResponseItem = zod.object({
+  "title": zod.string(),
+  "url": zod.string(),
+  "note": zod.string()
+})
+export const GetSessionReadingsResponse = zod.array(GetSessionReadingsResponseItem)
+
+
+/**
+ * @summary Replace the reading list for a module (admin or assigned instructor)
+ */
+export const SetSessionReadingsParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const setSessionReadingsBodyItemsItemTitleMax = 200;
+
+export const setSessionReadingsBodyItemsItemNoteMax = 400;
+
+export const setSessionReadingsBodyItemsMax = 20;
+
+
+
+export const SetSessionReadingsBody = zod.object({
+  "items": zod.array(zod.object({
+  "title": zod.string().max(setSessionReadingsBodyItemsItemTitleMax),
+  "url": zod.string(),
+  "note": zod.string().max(setSessionReadingsBodyItemsItemNoteMax).optional()
+})).max(setSessionReadingsBodyItemsMax)
+})
+
+export const SetSessionReadingsResponse = zod.object({
+  "items": zod.array(zod.object({
+  "title": zod.string(),
+  "url": zod.string(),
+  "note": zod.string()
+})),
+  "problems": zod.array(zod.object({
+  "index": zod.int(),
+  "message": zod.string()
+}))
+})
+
+
+/**
  * @summary The slide deck for a module, if one has been uploaded
  */
 export const GetSessionSlidesParams = zod.object({

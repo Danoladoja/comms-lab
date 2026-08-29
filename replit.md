@@ -47,6 +47,7 @@ portfolio.
 | Progress loading | `artifacts/api-server/src/lib/progress.ts` — the only place that assembles inputs for `computeProgress` |
 | Presence rules | `lib/domain/src/presence.ts` — thresholds, heartbeat crediting, replay buckets |
 | Drafting rules | `lib/domain/src/courseworkDraft.ts` — the brief given to the model, and the checking of what comes back |
+| Reading list rules | `lib/domain/src/readingList.ts` — URL tidying and per-row validation |
 | Slide handling | `lib/domain/src/slideText.ts` (assembly, quality) + `artifacts/api-server/src/lib/slides/` (pptx parsing, Claude call) |
 | Recording rules | `lib/domain/src/recordingPipeline.ts` — when to look, what to name it, when to give up |
 | Google plumbing | `artifacts/api-server/src/lib/google/` — OAuth, Meet, Drive→YouTube transfer |
@@ -136,6 +137,9 @@ portfolio.
 - **Reminders**: idempotent 24h and 1h emails before each session.
 - **Slides**: one deck per module, uploaded by a facilitator or admin, optionally
   shown to learners in the classroom. A .pptx also unlocks drafting.
+- **Reading list**: links a facilitator points learners at, shown as a tab in the
+  classroom. Ungraded and never read by `computeProgress` — adding a link cannot
+  change whether anyone can finish.
 - **Coursework drafting**: reads the deck, drafts a quiz and a written task for
   the facilitator to edit and approve. Nothing is saved automatically.
 - **Recordings**: published automatically as unlisted YouTube videos once the

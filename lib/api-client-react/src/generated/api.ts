@@ -49,6 +49,9 @@ import type {
   QuizAttemptInput,
   QuizInput,
   QuizResult,
+  ReadingItem,
+  ReadingListInput,
+  ReadingListResult,
   ReceivedReview,
   RecordingStatusRow,
   ReplayProgressInput,
@@ -1351,6 +1354,155 @@ export const useSubmitAssignment = <TError = ErrorType<ApiMessage>,
         TContext
       > => {
       return useMutation(getSubmitAssignmentMutationOptions(options));
+    }
+
+export const getGetSessionReadingsUrl = (id: number,) => {
+
+
+
+
+  return `/api/sessions/${id}/readings`
+}
+
+/**
+ * @summary Further reading for a module (ungraded)
+ */
+export const getSessionReadings = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<ReadingItem[]> => {
+
+  return customFetch<ReadingItem[]>(getGetSessionReadingsUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetSessionReadingsQueryKey = (id: number,) => {
+    return [
+    `/api/sessions/${id}/readings`
+    ] as const;
+    }
+
+
+export const getGetSessionReadingsQueryOptions = <TData = Awaited<ReturnType<typeof getSessionReadings>>, TError = ErrorType<ApiMessage>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSessionReadings>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetSessionReadingsQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getSessionReadings>>> = ({ signal }) => getSessionReadings(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getSessionReadings>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetSessionReadingsQueryResult = NonNullable<Awaited<ReturnType<typeof getSessionReadings>>>
+export type GetSessionReadingsQueryError = ErrorType<ApiMessage>
+
+
+/**
+ * @summary Further reading for a module (ungraded)
+ */
+
+export function useGetSessionReadings<TData = Awaited<ReturnType<typeof getSessionReadings>>, TError = ErrorType<ApiMessage>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSessionReadings>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetSessionReadingsQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getSetSessionReadingsUrl = (id: number,) => {
+
+
+
+
+  return `/api/sessions/${id}/readings`
+}
+
+/**
+ * @summary Replace the reading list for a module (admin or assigned instructor)
+ */
+export const setSessionReadings = async (id: number,
+    readingListInput: ReadingListInput, options?: Parameters<typeof customFetch>[1]): Promise<ReadingListResult> => {
+
+  return customFetch<ReadingListResult>(getSetSessionReadingsUrl(id),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(readingListInput)
+  }
+);}
+
+
+
+
+
+export const getSetSessionReadingsMutationOptions = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setSessionReadings>>, TError,{id: number;data: BodyType<ReadingListInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof setSessionReadings>>, TError,{id: number;data: BodyType<ReadingListInput>}, TContext> => {
+
+const mutationKey = ['setSessionReadings'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof setSessionReadings>>, {id: number;data: BodyType<ReadingListInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  setSessionReadings(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SetSessionReadingsMutationResult = NonNullable<Awaited<ReturnType<typeof setSessionReadings>>>
+    export type SetSessionReadingsMutationBody = BodyType<ReadingListInput>
+    export type SetSessionReadingsMutationError = ErrorType<ApiMessage>
+
+    /**
+ * @summary Replace the reading list for a module (admin or assigned instructor)
+ */
+export const useSetSessionReadings = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setSessionReadings>>, TError,{id: number;data: BodyType<ReadingListInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof setSessionReadings>>,
+        TError,
+        {id: number;data: BodyType<ReadingListInput>},
+        TContext
+      > => {
+      return useMutation(getSetSessionReadingsMutationOptions(options));
     }
 
 export const getGetSessionSlidesUrl = (id: number,) => {

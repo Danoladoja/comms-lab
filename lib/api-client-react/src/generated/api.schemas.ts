@@ -220,6 +220,35 @@ export interface QuizResult {
   bestScore: number;
 }
 
+export interface ReadingItem {
+  title: string;
+  url: string;
+  note: string;
+}
+
+export type ReadingListInputItemsItem = {
+  /** @maxLength 200 */
+  title: string;
+  url: string;
+  /** @maxLength 400 */
+  note?: string;
+};
+
+export interface ReadingListInput {
+  /** @maxItems 20 */
+  items: ReadingListInputItemsItem[];
+}
+
+export interface ReadingListProblem {
+  index: number;
+  message: string;
+}
+
+export interface ReadingListResult {
+  items: ReadingItem[];
+  problems: ReadingListProblem[];
+}
+
 export interface SlideDeck {
   sessionId: number;
   filename: string;
