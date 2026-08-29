@@ -15,13 +15,28 @@ localPort = 19473
 run = "pnpm --filter @workspace/afrienergy-comms-lab run dev"
 
 [services.production]
-build = [ "pnpm", "--filter", "@workspace/afrienergy-comms-lab", "run", "build" ]
-serve = "static"
-publicDir = "artifacts/afrienergy-comms-lab/dist/public"
 
-[[services.production.rewrites]]
-from = "/*"
-to = "/index.html"
+[services.production.build]
+args = [ "pnpm", "--filter", "@workspace/afrienergy-comms-lab", "run", "build" ]
+
+[services.production.build.env]
+NODE_ENV = "production"
+
+# The SPA is served by a small Node server (instead of static hosting) so that
+# /verify/:certificateId responses get certificate-specific Open Graph tags
+# injected server-side for link crawlers (LinkedIn previews).
+[services.production.run]
+args = [ "node", "artifacts/afrienergy-comms-lab/server/index.mjs" ]
+
+[services.production.run.env]
+PORT = "19473"
+BASE_PATH = "/"
+NODE_ENV = "production"
+# Explicit API origin for server-side certificate lookups (the api-server
+# service listens on 8080 in production; see artifacts/api-server). The web
+# server also falls back to REPLIT_DOMAINS / the request origin through the
+# shared proxy if this origin is unreachable.
+API_ORIGIN = "http://127.0.0.1:8080"
 
 [services.env]
 PORT = "19473"

@@ -1,7 +1,16 @@
 import path from 'path';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
-import { defineConfig } from 'vite';
+import fs from 'fs';
+import { defineConfig, type Plugin, type ViteDevServer } from 'vite';
+import {
+  buildCertificateMeta,
+  fetchCertificate,
+  injectMeta,
+  requestOrigin,
+  resolveApiBases,
+  // @ts-expect-error plain-JS module shared with the production server
+} from './server/og.mjs';
 
 import runtimeErrorOverlay from '@replit/vite-plugin-runtime-error-modal';
 
@@ -27,10 +36,44 @@ if (!basePath) {
   );
 }
 
+/**
+ * Dev-server middleware that mirrors the production OG injection for
+ * /verify/:certificateId, so crawlers hitting the dev preview also see
+ * certificate-specific Open Graph tags.
+ */
+function certificateOgPlugin(): Plugin {
+  return {
+    name: 'certificate-og-meta',
+    configureServer(server: ViteDevServer) {
+      const base = basePath!.endsWith('/') ? basePath! : `${basePath}/`;
+      const pattern = new RegExp(`^${base.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}verify/([^/?#]+)`);
+      server.middlewares.use(async (req, res, next) => {
+        if (req.method !== 'GET') return next();
+        const match = pattern.exec(req.url ?? '');
+        if (!match || !(req.headers.accept ?? '').includes('text/html')) return next();
+        try {
+          const cert = await fetchCertificate(decodeURIComponent(match[1]), resolveApiBases(req));
+          const raw = fs.readFileSync(path.resolve(import.meta.dirname, 'index.html'), 'utf8');
+          let html = await server.transformIndexHtml(req.url!, raw);
+          if (cert) {
+            html = injectMeta(html, buildCertificateMeta(cert, requestOrigin(req), base));
+          }
+          res.statusCode = 200;
+          res.setHeader('Content-Type', 'text/html');
+          res.end(html);
+        } catch (e) {
+          next(e);
+        }
+      });
+    },
+  };
+}
+
 export default defineConfig({
   base: basePath,
   plugins: [
     react(),
+    certificateOgPlugin(),
     tailwindcss({ optimize: false }),
     runtimeErrorOverlay(),
     ...(process.env.NODE_ENV !== 'production' &&

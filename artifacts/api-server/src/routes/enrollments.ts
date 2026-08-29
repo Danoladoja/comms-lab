@@ -173,6 +173,14 @@ router.get("/my/progress", async (req, res) => {
 
 /* ---------- Certificates ---------- */
 
+export function certificateCodeForVerification(rawCode: string): string | null {
+  return normaliseCertificateCode(rawCode);
+}
+
+export function enrollmentCanReceiveCertificate(status: string): boolean {
+  return status === "enrolled" || status === "completed";
+}
+
 function completedProgramIdsFrom(progress: ProgressEntry[]): number[] {
   const byProgram = new Map<number, ProgressEntry[]>();
   for (const p of progress) {
@@ -310,7 +318,7 @@ router.patch("/my/certificates/:programId/portfolio", async (req, res) => {
  * explicitly published their portfolio.
  */
 router.get("/certificates/:certificateId/verify", async (req, res) => {
-  const code = normaliseCertificateCode(String(req.params.certificateId));
+  const code = certificateCodeForVerification(String(req.params.certificateId));
   if (!code) {
     res.status(404).json({ error: "Certificate not found" });
     return;
@@ -322,13 +330,11 @@ router.get("/certificates/:certificateId/verify", async (req, res) => {
       programId: enrollmentsTable.programId,
       portfolioPublic: enrollmentsTable.portfolioPublic,
       certificateCode: enrollmentsTable.certificateCode,
+      status: enrollmentsTable.status,
     })
     .from(enrollmentsTable)
-    .where(and(
-      eq(enrollmentsTable.certificateCode, code),
-      sql`${enrollmentsTable.status} in ('enrolled', 'completed')`,
-    ));
-  if (!enrollment) {
+    .where(eq(enrollmentsTable.certificateCode, code));
+  if (!enrollment || !enrollmentCanReceiveCertificate(enrollment.status)) {
     res.status(404).json({ error: "Certificate not found" });
     return;
   }
