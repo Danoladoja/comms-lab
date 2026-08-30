@@ -1,9 +1,14 @@
 import { Router, type IRouter } from "express";
-import { db, enrollmentsTable, programsTable, usersTable } from "@workspace/db";
-import { and, asc, eq, sql } from "drizzle-orm";
-import { UpdateUserRoleBody, UpdateEnrollmentBody } from "@workspace/api-zod";
-import { requireRole } from "../lib/auth";
+import {
+  db, enrollmentsTable, programsTable, usersTable, pendingInvitationsTable, sessionsTable,
+} from "@workspace/db";
+import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
+import { UpdateUserRoleBody, UpdateEnrollmentBody, InviteFacilitatorBody } from "@workspace/api-zod";
+import { validateInvite, describeInvite } from "@workspace/domain";
+import { requireRole, getCurrentUser } from "../lib/auth";
+import { sendInvitation, revokeInvitation, invitesConfigured } from "../lib/clerkInvites";
 import { sendWaitlistPromotion } from "../lib/enrollmentEmails";
+import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
 
@@ -30,12 +35,56 @@ router.patch("/admin/users/:id/role", async (req, res) => {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
-  const updated = await db.update(usersTable).set({ role: parsed.data.role }).where(eq(usersTable.id, id)).returning();
-  if (updated.length === 0) {
-    res.status(404).json({ error: "User not found" });
+  const me = await getCurrentUser(req);
+
+  // Two guards the interface already applies, applied again here because the
+  // interface is not the security boundary and a direct call bypasses it.
+  //
+  // Changing your own role is refused outright: stepping down is something
+  // another admin does for you. And the last admin cannot be demoted by anyone,
+  // because there is no way back — the "first user becomes admin" rule only
+  // fires on an empty database, so a programme with no admin needs someone with
+  // database access to repair it.
+  if (me && me.id === id) {
+    res.status(400).json({ error: "You cannot change your own role. Ask another admin to do it." });
     return;
   }
-  const u = updated[0];
+
+  // Counting admins and then demoting one has to happen under a lock, or two
+  // admins demoting each other at the same instant both read "2 admins", both
+  // pass the check, and the programme is left with none. It is the same lock
+  // the first-user bootstrap takes, because they guard the same invariant:
+  // there is always exactly one way to have an admin, and it must not be lost.
+  const outcome = await db.transaction(async (tx) => {
+    await tx.execute(sql`select pg_advisory_xact_lock(981431)`);
+
+    const [target] = await tx.select().from(usersTable).where(eq(usersTable.id, id));
+    if (!target) return { ok: false as const, status: 404, error: "User not found", row: null };
+
+    if (target.role === "admin" && parsed.data.role !== "admin") {
+      const [{ admins }] = await tx
+        .select({ admins: sql<number>`count(*)::int` })
+        .from(usersTable)
+        .where(eq(usersTable.role, "admin"));
+      if (admins <= 1) {
+        return {
+          ok: false as const,
+          status: 400,
+          error: "This is the only admin. Make someone else an admin first, or nobody can reach this console.",
+          row: null,
+        };
+      }
+    }
+
+    const rows = await tx.update(usersTable).set({ role: parsed.data.role }).where(eq(usersTable.id, id)).returning();
+    return { ok: true as const, status: 200, error: "", row: rows[0] };
+  });
+
+  if (!outcome.ok || !outcome.row) {
+    res.status(outcome.status).json({ error: outcome.error || "User not found" });
+    return;
+  }
+  const u = outcome.row;
   res.json({ id: u.id, clerkUserId: u.clerkUserId, email: u.email, name: u.name, role: u.role });
 });
 
@@ -118,5 +167,191 @@ router.patch("/admin/enrollments/:id", async (req, res) => {
   }
   res.json(updated[0]);
 });
+
+/* ---------- Inviting facilitators ---------- */
+
+/**
+ * The people teaching here are senior practitioners giving their time for
+ * nothing. Asking them to invent a password before they can see the class they
+ * agreed to teach is a poor way to spend that goodwill.
+ *
+ * So: the admin invites by email, Clerk sends the link, and the facilitator
+ * arrives already a facilitator with their classes waiting. The role travels on
+ * Clerk's public metadata, which only a backend can write.
+ */
+router.post("/admin/invitations", async (req, res) => {
+  if (!invitesConfigured()) {
+    res.status(503).json({ error: "Clerk is not configured on the server, so invitations cannot be sent." });
+    return;
+  }
+
+  const parsed = InviteFacilitatorBody.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
+
+  const { invite, problems } = validateInvite(parsed.data);
+  if (!invite) { res.status(400).json({ error: problems.join(" ") }); return; }
+
+  const me = await getCurrentUser(req);
+
+  // Somebody already here does not need an invitation; they need their role
+  // changing, which is a different button. Compared case-insensitively because
+  // the users table stores whatever Clerk gave it, unnormalised.
+  const [existing] = await db
+    .select()
+    .from(usersTable)
+    .where(and(sql`lower(${usersTable.email}) = ${invite.email}`, sql`${usersTable.email} <> ''`));
+  if (existing) {
+    res.status(400).json({ error: "That person already has an account. Change their role in the list below instead." });
+    return;
+  }
+
+  const [prior] = await db
+    .select()
+    .from(pendingInvitationsTable)
+    .where(eq(pendingInvitationsTable.email, invite.email));
+
+  // An invitation already taken up is a record of what happened, not something
+  // to overwrite. The person exists somewhere; the admin wants the People list.
+  if (prior?.acceptedAt) {
+    res.status(400).json({
+      error: "That invitation has already been accepted. Find them in the list below and change their role there.",
+    });
+    return;
+  }
+
+  // Withdraw the previous invitation before issuing another, or the first link
+  // stays live forever with nothing recording its id — a second ticket in the
+  // same inbox, still granting facilitator, and unrevocable through this app.
+  if (prior?.clerkInvitationId) {
+    const outcome = await revokeInvitation(prior.clerkInvitationId);
+    if (outcome === "failed") {
+      res.status(502).json({
+        error: "Could not withdraw the previous invitation to this address, so a second was not sent. Try again shortly.",
+      });
+      return;
+    }
+    if (outcome === "already-accepted") {
+      res.status(400).json({
+        error: "They have already used their first invitation. Find them in the list below and change their role there.",
+      });
+      return;
+    }
+  }
+
+  const sent = await sendInvitation({ email: invite.email, role: invite.role });
+  if (!sent.ok) { res.status(400).json({ error: sent.error }); return; }
+
+  const values = {
+    email: invite.email,
+    role: invite.role,
+    sessionIds: invite.sessionIds,
+    clerkInvitationId: sent.invitation.id,
+    invitedByUserId: me?.id ?? null,
+    // Re-inviting is a fresh invitation, and dates it as one: otherwise it keeps
+    // the original date, sorts to the bottom of the admin's list, and reports
+    // the wrong day.
+    createdAt: new Date(),
+    acceptedAt: null,
+    acceptedByUserId: null,
+  };
+
+  // Re-inviting replaces rather than stacks, so nobody ends up with two sets
+  // of classes from two invitations.
+  let saved;
+  try {
+    [saved] = await db
+      .insert(pendingInvitationsTable)
+      .values(values)
+      .onConflictDoUpdate({ target: pendingInvitationsTable.email, set: values })
+      .returning();
+  } catch (err) {
+    // The link is already in the post. Take it back rather than leaving a live
+    // invitation with nothing recording it.
+    await revokeInvitation(sent.invitation.id);
+    logger.error({ err, email: invite.email }, "Could not record an invitation; withdrew it again");
+    res.status(500).json({ error: "Could not record that invitation, so it has been withdrawn. Try again." });
+    return;
+  }
+
+  logger.info({ email: invite.email, role: invite.role, classes: invite.sessionIds.length }, "Facilitator invited");
+  res.status(201).json(invitePayload(saved));
+});
+
+router.get("/admin/invitations", async (_req, res) => {
+  // Pending first, always. Accepted rows are kept forever as a record, and with
+  // a plain date ordering they would eventually push a still-live invitation
+  // off the end of the list — where it could no longer be withdrawn, which is
+  // exactly the invitation most likely to need withdrawing.
+  const rows = await db
+    .select()
+    .from(pendingInvitationsTable)
+    .orderBy(sql`${pendingInvitationsTable.acceptedAt} is not null`, desc(pendingInvitationsTable.createdAt))
+    .limit(200);
+  res.json(rows.map(invitePayload));
+});
+
+router.delete("/admin/invitations/:id", async (req, res) => {
+  const id = Number(req.params.id);
+  const [invite] = await db.select().from(pendingInvitationsTable).where(eq(pendingInvitationsTable.id, id));
+  if (!invite) { res.status(404).json({ error: "Invitation not found" }); return; }
+
+  if (invite.acceptedAt) {
+    res.status(400).json({ error: "That person has already joined. Change their role in the list instead." });
+    return;
+  }
+
+  // acceptedAt is only written when the person first uses the app, so somebody
+  // who has completed sign-up but not yet browsed still looks pending here.
+  // Clerk is the authority on whether the link has been spent, and the local
+  // row is only removed once Clerk confirms the grant is gone.
+  const outcome = await revokeInvitation(invite.clerkInvitationId);
+
+  if (outcome === "already-accepted") {
+    // Record it as accepted so the admin sees the truth, and say plainly that
+    // the role is now on that person's account and has to be removed there.
+    await db
+      .update(pendingInvitationsTable)
+      .set({ acceptedAt: new Date() })
+      .where(eq(pendingInvitationsTable.id, id));
+    res.status(400).json({
+      error: "They have already accepted, so the invitation cannot be withdrawn. They will appear in the list below once they sign in, and you can change their role there.",
+    });
+    return;
+  }
+
+  if (outcome === "failed") {
+    res.status(502).json({
+      error: "Could not reach Clerk to withdraw it, so the invitation is still live. Try again shortly.",
+    });
+    return;
+  }
+
+  await db.delete(pendingInvitationsTable).where(eq(pendingInvitationsTable.id, id));
+  res.status(204).end();
+});
+
+function invitePayload(row: {
+  id: number;
+  email: string;
+  role: string;
+  sessionIds: number[];
+  createdAt: Date;
+  acceptedAt: Date | null;
+}) {
+  return {
+    id: row.id,
+    email: row.email,
+    role: row.role,
+    sessionIds: row.sessionIds ?? [],
+    createdAt: row.createdAt.toISOString(),
+    acceptedAt: row.acceptedAt ? row.acceptedAt.toISOString() : null,
+    summary: describeInvite({
+      email: row.email,
+      role: row.role,
+      sessionCount: (row.sessionIds ?? []).length,
+      createdAt: row.createdAt,
+    }),
+  };
+}
 
 export default router;

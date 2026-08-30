@@ -66,6 +66,32 @@ export interface HealthStatus {
   status: string;
 }
 
+export interface Invitation {
+  id: number;
+  email: string;
+  role: string;
+  sessionIds: number[];
+  createdAt: string;
+  acceptedAt?: string | null;
+  summary: string;
+}
+
+export type InvitationInputRole = typeof InvitationInputRole[keyof typeof InvitationInputRole];
+
+
+export const InvitationInputRole = {
+  instructor: 'instructor',
+  learner: 'learner',
+} as const;
+
+export interface InvitationInput {
+  /** @maxLength 320 */
+  email: string;
+  role?: InvitationInputRole;
+  /** @maxItems 20 */
+  sessionIds?: number[];
+}
+
 export interface ApiMessage {
   error: string;
 }

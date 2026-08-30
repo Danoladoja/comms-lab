@@ -1301,6 +1301,97 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiMessage"
+  /admin/invitations:
+    get:
+      operationId: listInvitations
+      tags: [admin]
+      summary: Facilitators who have been invited
+      responses:
+        "200":
+          description: Invitations, most recent first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Invitation"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+    post:
+      operationId: inviteFacilitator
+      tags: [admin]
+      summary: Invite a facilitator by email
+      description: >
+        Sends a Clerk invitation carrying the role, so the person arrives already
+        a facilitator rather than as a learner awaiting promotion. Any classes
+        listed are handed over when they accept, unless somebody else is teaching
+        them by then. An invitation cannot grant admin.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InvitationInput"
+      responses:
+        "201":
+          description: Invitation sent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Invitation"
+        "400":
+          description: The address, role or classes were not usable, or that person already has an account
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "503":
+          description: Clerk is not configured on the server
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+  /admin/invitations/{id}:
+    delete:
+      operationId: revokeInvitation
+      tags: [admin]
+      summary: Withdraw an invitation that has not been accepted
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "204":
+          description: Withdrawn
+        "400":
+          description: Already accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
   /admin/users/{id}/role:
     patch:
       operationId: updateUserRole
@@ -1635,6 +1726,36 @@ components:
           type: string
       required:
         - status
+    Invitation:
+      type: object
+      required: [id, email, role, sessionIds, createdAt, summary]
+      properties:
+        id: { type: integer }
+        email: { type: string }
+        role: { type: string }
+        sessionIds:
+          type: array
+          items: { type: integer }
+        createdAt: { type: string }
+        # Set once the person has arrived and their classes have been handed over.
+        acceptedAt:
+          oneOf:
+            - type: string
+            - type: "null"
+        summary: { type: string }
+    InvitationInput:
+      type: object
+      required: [email]
+      properties:
+        email: { type: string, maxLength: 320 }
+        # Admin is deliberately not accepted here — see the server.
+        role:
+          type: string
+          enum: [instructor, learner]
+        sessionIds:
+          type: array
+          maxItems: 20
+          items: { type: integer }
     ApiMessage:
       type: object
       properties:

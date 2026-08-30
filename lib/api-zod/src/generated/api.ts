@@ -1140,6 +1140,58 @@ export const ListUsersResponse = zod.array(ListUsersResponseItem)
 
 
 /**
+ * @summary Facilitators who have been invited
+ */
+export const ListInvitationsResponseItem = zod.object({
+  "id": zod.int(),
+  "email": zod.string(),
+  "role": zod.string(),
+  "sessionIds": zod.array(zod.int()),
+  "createdAt": zod.string(),
+  "acceptedAt": zod.union([zod.string(),zod.null()]).optional(),
+  "summary": zod.string()
+})
+export const ListInvitationsResponse = zod.array(ListInvitationsResponseItem)
+
+
+/**
+ * Sends a Clerk invitation carrying the role, so the person arrives already a facilitator rather than as a learner awaiting promotion. Any classes listed are handed over when they accept, unless somebody else is teaching them by then. An invitation cannot grant admin.
+ * @summary Invite a facilitator by email
+ */
+export const inviteFacilitatorBodyEmailMax = 320;
+
+export const inviteFacilitatorBodySessionIdsMax = 20;
+
+
+
+export const InviteFacilitatorBody = zod.object({
+  "email": zod.string().max(inviteFacilitatorBodyEmailMax),
+  "role": zod.enum(['instructor', 'learner']).optional(),
+  "sessionIds": zod.array(zod.int()).max(inviteFacilitatorBodySessionIdsMax).optional()
+})
+
+export const InviteFacilitatorResponse = zod.object({
+  "id": zod.int(),
+  "email": zod.string(),
+  "role": zod.string(),
+  "sessionIds": zod.array(zod.int()),
+  "createdAt": zod.string(),
+  "acceptedAt": zod.union([zod.string(),zod.null()]).optional(),
+  "summary": zod.string()
+})
+
+
+/**
+ * @summary Withdraw an invitation that has not been accepted
+ */
+export const RevokeInvitationParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const RevokeInvitationResponse = zod.void()
+
+
+/**
  * @summary Change a user's role (admin)
  */
 export const UpdateUserRoleParams = zod.object({

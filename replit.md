@@ -19,6 +19,10 @@ portfolio.
   `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI` and `GOOGLE_TOKEN_SECRET`.
   Without them the app runs fine and recordings are pasted in by hand. See
   `docs/recording-automation-setup.md`.
+- Facilitator invitations need `CLERK_SECRET_KEY` (already required for auth) and
+  use `APP_BASE_URL` to build the link people land on. Without `APP_BASE_URL`
+  Clerk falls back to its own account portal, which works but looks less like
+  your app.
 - Coursework drafting (optional) needs `ANTHROPIC_API_KEY`, and optionally
   `ANTHROPIC_MODEL`. Without it slides and transcripts still upload and
   coursework is written by hand; only the drafting buttons are unavailable.
@@ -49,6 +53,7 @@ portfolio.
 | Drafting rules | `lib/domain/src/courseworkDraft.ts` — the brief given to the model, and the checking of what comes back |
 | Reading list rules | `lib/domain/src/readingList.ts` — URL tidying and per-row validation |
 | Slide handling | `lib/domain/src/slideText.ts` (assembly, quality) + `artifacts/api-server/src/lib/slides/` (pptx parsing, Claude call) |
+| Invitations and roles | `lib/domain/src/invitations.ts` — what an emailed link may grant, and how a role is read off an account |
 | What the drafter reads | `lib/domain/src/courseworkSource.ts` — combining the deck and the pasted transcript, and how the budget is split |
 | Recording rules | `lib/domain/src/recordingPipeline.ts` — when to look, what to name it, when to give up |
 | Google plumbing | `artifacts/api-server/src/lib/google/` — OAuth, Meet, Drive→YouTube transfer |
@@ -105,6 +110,35 @@ portfolio.
   learners silently at the 70% pass mark, so a person must have looked.
   `validateDraft` drops questions with an out-of-range key, duplicate options or
   too few choices, and reports every repair rather than hiding it.
+- **Facilitators are invited, not asked to sign up.** The people teaching are
+  senior practitioners working pro bono; making them invent a password before
+  they can see their own class spends that goodwill badly. The admin invites by
+  email, Clerk sends the link, and they arrive already a facilitator with their
+  classes assigned.
+- **The role travels on Clerk's `publicMetadata`, never `unsafeMetadata`.**
+  Public metadata can only be written by a backend. Unsafe metadata can be
+  written by the account holder from their own browser — reading a role from
+  there would let any learner promote themselves and open every module's answer
+  keys. `roleFromPublicMetadata` returns null for anything unrecognised so a
+  typo can never become a role.
+- **An emailed invitation cannot grant admin.** An invitation is a link in an
+  inbox: forwardable, mistypeable, sometimes read by someone else. A wrong
+  facilitator can be corrected; a wrong admin can delete the programme. Admin
+  stays a deliberate act on a person already known to the system.
+- **A pending invitation is matched on a Clerk-verified email only.** An
+  unverified address could be typed by anyone at sign-up, and would hand them
+  another facilitator's cohort.
+- **Accepting an invitation never takes a class off whoever is teaching it.**
+  An invitation accepted three weeks late must not silently replace the person
+  standing in front of that cohort, so an occupied class is skipped and
+  reported. The update re-checks for an empty slot in its WHERE clause, so two
+  facilitators accepting at once cannot both take the same class.
+- **The bootstrap rule outranks an invitation.** The first person into an empty
+  database is the owner whatever they were invited as.
+- **The last admin cannot be demoted, and nobody can change their own role.**
+  Enforced on the server, not only in the interface. There is no way back from
+  zero admins: the first-user rule only fires on an empty database, so a
+  programme with no admin needs someone with database access to repair it.
 - **A transcript beats a deck, and either alone is enough.** Slides are headings;
   the class is where the reasoning happens. A facilitator pastes the transcript
   (YouTube → three dots → Show transcript) into the class-material box, and the
@@ -161,6 +195,8 @@ portfolio.
 - **Reading list**: links a facilitator points learners at, shown as a tab in the
   classroom. Ungraded and never read by `computeProgress` — adding a link cannot
   change whether anyone can finish.
+- **Facilitator invitations**: Admin Console -> People. One email, one click, role
+  and classes assigned on arrival. Pending invitations can be withdrawn.
 - **Class material**: the slide deck, plus anything the facilitator pastes in —
   usually the class transcript. Staff-only, and read by the drafter.
 - **Coursework drafting**: reads the deck and the transcript, drafts a quiz and a
