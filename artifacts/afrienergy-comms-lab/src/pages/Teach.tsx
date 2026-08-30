@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { Video, PlayCircle, CircleAlert, CircleCheck } from 'lucide-react';
+import CourseworkStudio from '@/components/CourseworkStudio';
 
 function formatSessionDate(iso: string | null | undefined) {
   if (!iso) return 'Date to be announced';
@@ -24,6 +25,7 @@ function formatSessionDate(iso: string | null | undefined) {
 
 function SessionCard({ session, onSaved }: { session: SessionDetail; onSaved: () => void }) {
   const [recordingUrl, setRecordingUrl] = useState(session.recordingUrl ?? '');
+  const [showCoursework, setShowCoursework] = useState(false);
   const { toast } = useToast();
 
   const update = useUpdateSession({
@@ -110,6 +112,17 @@ function SessionCard({ session, onSaved }: { session: SessionDetail; onSaved: ()
         >
           {update.isPending ? 'Saving...' : 'Save recording link'}
         </Button>
+
+        <Button
+          size="sm"
+          variant={showCoursework ? 'secondary' : 'ghost'}
+          className="w-full"
+          onClick={() => setShowCoursework(v => !v)}
+        >
+          {showCoursework ? 'Hide slides & coursework' : 'Slides & coursework'}
+        </Button>
+
+        {showCoursework && <CourseworkStudio sessionId={session.id} />}
       </div>
     </div>
   );

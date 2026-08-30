@@ -79,7 +79,9 @@ router.get("/sessions/:id/quiz", async (req, res) => {
     // Learners never receive the correctIndex field at all.
     questions: questions.map((q) => ({
       id: q.id, prompt: q.prompt, options: q.options, sortOrder: q.sortOrder,
-      ...(staff ? { correctIndex: q.correctIndex } : {}),
+      // Origin travels with the answer key: it is a facilitator's record of
+      // whether anyone reviewed the question, and no business of learners.
+      ...(staff ? { correctIndex: q.correctIndex, origin: q.origin } : {}),
     })),
     bestScore: best,
     passed: (best ?? 0) >= QUIZ_PASS_MARK,
@@ -112,14 +114,26 @@ router.put("/sessions/:id/quiz", async (req, res) => {
     return tx
       .insert(quizQuestionsTable)
       .values(parsed.data.questions.map((q, i) => ({
-        sessionId, prompt: q.prompt, options: q.options, correctIndex: q.correctIndex, sortOrder: i,
+        sessionId,
+        prompt: q.prompt,
+        options: q.options,
+        correctIndex: q.correctIndex,
+        sortOrder: i,
+        // How the question came to exist. The editor works this out by
+        // comparing what is being saved against the draft it came from; an
+        // older client that sends nothing is recorded as hand-written, which is
+        // what every question was before drafting existed.
+        origin: q.origin ?? "manual",
       })))
       .returning();
   });
   res.json({
     sessionId,
     passMark: QUIZ_PASS_MARK,
-    questions: saved.map((q) => ({ id: q.id, prompt: q.prompt, options: q.options, sortOrder: q.sortOrder, correctIndex: q.correctIndex })),
+    questions: saved.map((q) => ({
+      id: q.id, prompt: q.prompt, options: q.options, sortOrder: q.sortOrder,
+      correctIndex: q.correctIndex, origin: q.origin,
+    })),
     bestScore: null,
     passed: false,
   });
@@ -179,6 +193,10 @@ router.get("/sessions/:id/assignment", async (req, res) => {
     // rather than silently becoming un-critiquable.
     rubric: assignment.rubric.length > 0 ? assignment.rubric : DEFAULT_RUBRIC,
     reviewsRequired: assignment.reviewsRequired,
+    // Staff only, as on quiz questions. Without it the editor cannot tell a task
+    // it drafted last week from one a person wrote, and would record every later
+    // save as hand-written.
+    ...(isStaffFor(user, session) ? { origin: assignment.origin } : {}),
     mySubmission: submission
       ? { sessionId, body: submission.body, submittedAt: submission.submittedAt.toISOString() }
       : null,
@@ -208,6 +226,7 @@ router.put("/sessions/:id/assignment", async (req, res) => {
     instructions: parsed.data.instructions ?? "",
     rubric,
     reviewsRequired,
+    origin: parsed.data.origin ?? "manual",
   };
   const [saved] = await db
     .insert(assignmentsTable)
@@ -220,6 +239,7 @@ router.put("/sessions/:id/assignment", async (req, res) => {
     instructions: saved.instructions,
     rubric: saved.rubric,
     reviewsRequired: saved.reviewsRequired,
+    origin: saved.origin,
     mySubmission: null,
   });
 });

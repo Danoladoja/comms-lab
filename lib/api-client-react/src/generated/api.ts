@@ -26,6 +26,8 @@ import type {
   AssignmentSubmission,
   AssignmentSubmissionInput,
   Certificate,
+  CourseworkDraftResult,
+  CourseworkDraftRun,
   Enrollment,
   EnrollmentDetail,
   EnrollmentUpdate,
@@ -36,6 +38,7 @@ import type {
   HeartbeatResult,
   JoinResult,
   ListAllEnrollmentsParams,
+  MoreQuestionsInput,
   MyFeedback,
   PinInput,
   PortfolioVisibilityInput,
@@ -44,12 +47,17 @@ import type {
   ProgramInput,
   ProgramUpdate,
   PublicCertificate,
+  QuestionsDraftResult,
   Quiz,
   QuizAttemptInput,
   QuizInput,
   QuizResult,
+  ReadingItem,
+  ReadingListInput,
+  ReadingListResult,
   ReceivedReview,
   RecordingStatusRow,
+  ReplaceQuestionInput,
   ReplayProgressInput,
   ReplayProgressResult,
   ReviewInput,
@@ -57,8 +65,12 @@ import type {
   Session,
   SessionDetail,
   SessionInput,
+  SessionNotes,
+  SessionNotesInput,
   SessionProgress,
   SessionUpdate,
+  SlideDeck,
+  SlidesVisibilityInput,
   ThreadDetail,
   ThreadInput,
   ThreadList,
@@ -1349,6 +1361,820 @@ export const useSubmitAssignment = <TError = ErrorType<ApiMessage>,
       > => {
       return useMutation(getSubmitAssignmentMutationOptions(options));
     }
+
+export const getGetSessionReadingsUrl = (id: number,) => {
+
+
+
+
+  return `/api/sessions/${id}/readings`
+}
+
+/**
+ * @summary Further reading for a module (ungraded)
+ */
+export const getSessionReadings = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<ReadingItem[]> => {
+
+  return customFetch<ReadingItem[]>(getGetSessionReadingsUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetSessionReadingsQueryKey = (id: number,) => {
+    return [
+    `/api/sessions/${id}/readings`
+    ] as const;
+    }
+
+
+export const getGetSessionReadingsQueryOptions = <TData = Awaited<ReturnType<typeof getSessionReadings>>, TError = ErrorType<ApiMessage>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSessionReadings>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetSessionReadingsQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getSessionReadings>>> = ({ signal }) => getSessionReadings(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getSessionReadings>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetSessionReadingsQueryResult = NonNullable<Awaited<ReturnType<typeof getSessionReadings>>>
+export type GetSessionReadingsQueryError = ErrorType<ApiMessage>
+
+
+/**
+ * @summary Further reading for a module (ungraded)
+ */
+
+export function useGetSessionReadings<TData = Awaited<ReturnType<typeof getSessionReadings>>, TError = ErrorType<ApiMessage>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSessionReadings>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetSessionReadingsQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getSetSessionReadingsUrl = (id: number,) => {
+
+
+
+
+  return `/api/sessions/${id}/readings`
+}
+
+/**
+ * @summary Replace the reading list for a module (admin or assigned instructor)
+ */
+export const setSessionReadings = async (id: number,
+    readingListInput: ReadingListInput, options?: Parameters<typeof customFetch>[1]): Promise<ReadingListResult> => {
+
+  return customFetch<ReadingListResult>(getSetSessionReadingsUrl(id),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(readingListInput)
+  }
+);}
+
+
+
+
+
+export const getSetSessionReadingsMutationOptions = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setSessionReadings>>, TError,{id: number;data: BodyType<ReadingListInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof setSessionReadings>>, TError,{id: number;data: BodyType<ReadingListInput>}, TContext> => {
+
+const mutationKey = ['setSessionReadings'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof setSessionReadings>>, {id: number;data: BodyType<ReadingListInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  setSessionReadings(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SetSessionReadingsMutationResult = NonNullable<Awaited<ReturnType<typeof setSessionReadings>>>
+    export type SetSessionReadingsMutationBody = BodyType<ReadingListInput>
+    export type SetSessionReadingsMutationError = ErrorType<ApiMessage>
+
+    /**
+ * @summary Replace the reading list for a module (admin or assigned instructor)
+ */
+export const useSetSessionReadings = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setSessionReadings>>, TError,{id: number;data: BodyType<ReadingListInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof setSessionReadings>>,
+        TError,
+        {id: number;data: BodyType<ReadingListInput>},
+        TContext
+      > => {
+      return useMutation(getSetSessionReadingsMutationOptions(options));
+    }
+
+export const getGetSessionSlidesUrl = (id: number,) => {
+
+
+
+
+  return `/api/sessions/${id}/slides`
+}
+
+/**
+ * @summary The slide deck for a module, if one has been uploaded
+ */
+export const getSessionSlides = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<SlideDeck> => {
+
+  return customFetch<SlideDeck>(getGetSessionSlidesUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetSessionSlidesQueryKey = (id: number,) => {
+    return [
+    `/api/sessions/${id}/slides`
+    ] as const;
+    }
+
+
+export const getGetSessionSlidesQueryOptions = <TData = Awaited<ReturnType<typeof getSessionSlides>>, TError = ErrorType<ApiMessage>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSessionSlides>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetSessionSlidesQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getSessionSlides>>> = ({ signal }) => getSessionSlides(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getSessionSlides>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetSessionSlidesQueryResult = NonNullable<Awaited<ReturnType<typeof getSessionSlides>>>
+export type GetSessionSlidesQueryError = ErrorType<ApiMessage>
+
+
+/**
+ * @summary The slide deck for a module, if one has been uploaded
+ */
+
+export function useGetSessionSlides<TData = Awaited<ReturnType<typeof getSessionSlides>>, TError = ErrorType<ApiMessage>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSessionSlides>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetSessionSlidesQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getDeleteSessionSlidesUrl = (id: number,) => {
+
+
+
+
+  return `/api/sessions/${id}/slides`
+}
+
+/**
+ * @summary Remove the slide deck for a module (admin or assigned instructor)
+ */
+export const deleteSessionSlides = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+  return customFetch<void>(getDeleteSessionSlidesUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteSessionSlidesMutationOptions = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteSessionSlides>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteSessionSlides>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['deleteSessionSlides'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteSessionSlides>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  deleteSessionSlides(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteSessionSlidesMutationResult = NonNullable<Awaited<ReturnType<typeof deleteSessionSlides>>>
+
+    export type DeleteSessionSlidesMutationError = ErrorType<ApiMessage>
+
+    /**
+ * @summary Remove the slide deck for a module (admin or assigned instructor)
+ */
+export const useDeleteSessionSlides = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteSessionSlides>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteSessionSlides>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getDeleteSessionSlidesMutationOptions(options));
+    }
+
+export const getSetSlidesVisibilityUrl = (id: number,) => {
+
+
+
+
+  return `/api/sessions/${id}/slides/visibility`
+}
+
+/**
+ * @summary Show or hide the deck from learners
+ */
+export const setSlidesVisibility = async (id: number,
+    slidesVisibilityInput: SlidesVisibilityInput, options?: Parameters<typeof customFetch>[1]): Promise<SlideDeck> => {
+
+  return customFetch<SlideDeck>(getSetSlidesVisibilityUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(slidesVisibilityInput)
+  }
+);}
+
+
+
+
+
+export const getSetSlidesVisibilityMutationOptions = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setSlidesVisibility>>, TError,{id: number;data: BodyType<SlidesVisibilityInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof setSlidesVisibility>>, TError,{id: number;data: BodyType<SlidesVisibilityInput>}, TContext> => {
+
+const mutationKey = ['setSlidesVisibility'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof setSlidesVisibility>>, {id: number;data: BodyType<SlidesVisibilityInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  setSlidesVisibility(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SetSlidesVisibilityMutationResult = NonNullable<Awaited<ReturnType<typeof setSlidesVisibility>>>
+    export type SetSlidesVisibilityMutationBody = BodyType<SlidesVisibilityInput>
+    export type SetSlidesVisibilityMutationError = ErrorType<ApiMessage>
+
+    /**
+ * @summary Show or hide the deck from learners
+ */
+export const useSetSlidesVisibility = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setSlidesVisibility>>, TError,{id: number;data: BodyType<SlidesVisibilityInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof setSlidesVisibility>>,
+        TError,
+        {id: number;data: BodyType<SlidesVisibilityInput>},
+        TContext
+      > => {
+      return useMutation(getSetSlidesVisibilityMutationOptions(options));
+    }
+
+export const getDraftCourseworkFromSlidesUrl = (id: number,) => {
+
+
+
+
+  return `/api/sessions/${id}/coursework/draft`
+}
+
+/**
+ * Reads the slide deck, the pasted material (usually a transcript), or both. Returns a draft for a human to edit and approve. Nothing is saved by this call — the facilitator reviews it and saves through the normal quiz and assignment endpoints.
+ * @summary Draft a quiz and a written task from the module's material
+ */
+export const draftCourseworkFromSlides = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<CourseworkDraftResult> => {
+
+  return customFetch<CourseworkDraftResult>(getDraftCourseworkFromSlidesUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getDraftCourseworkFromSlidesMutationOptions = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof draftCourseworkFromSlides>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof draftCourseworkFromSlides>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['draftCourseworkFromSlides'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof draftCourseworkFromSlides>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  draftCourseworkFromSlides(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DraftCourseworkFromSlidesMutationResult = NonNullable<Awaited<ReturnType<typeof draftCourseworkFromSlides>>>
+
+    export type DraftCourseworkFromSlidesMutationError = ErrorType<ApiMessage>
+
+    /**
+ * @summary Draft a quiz and a written task from the module's material
+ */
+export const useDraftCourseworkFromSlides = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof draftCourseworkFromSlides>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof draftCourseworkFromSlides>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getDraftCourseworkFromSlidesMutationOptions(options));
+    }
+
+export const getGetSessionNotesUrl = (id: number,) => {
+
+
+
+
+  return `/api/sessions/${id}/notes`
+}
+
+/**
+ * Usually a transcript of the class, copied out of the recording. Read by the coursework drafter alongside the slides, and never shown to learners.
+ * @summary The material a facilitator pasted in for this module
+ */
+export const getSessionNotes = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<SessionNotes> => {
+
+  return customFetch<SessionNotes>(getGetSessionNotesUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetSessionNotesQueryKey = (id: number,) => {
+    return [
+    `/api/sessions/${id}/notes`
+    ] as const;
+    }
+
+
+export const getGetSessionNotesQueryOptions = <TData = Awaited<ReturnType<typeof getSessionNotes>>, TError = ErrorType<ApiMessage>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSessionNotes>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetSessionNotesQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getSessionNotes>>> = ({ signal }) => getSessionNotes(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getSessionNotes>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetSessionNotesQueryResult = NonNullable<Awaited<ReturnType<typeof getSessionNotes>>>
+export type GetSessionNotesQueryError = ErrorType<ApiMessage>
+
+
+/**
+ * @summary The material a facilitator pasted in for this module
+ */
+
+export function useGetSessionNotes<TData = Awaited<ReturnType<typeof getSessionNotes>>, TError = ErrorType<ApiMessage>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSessionNotes>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetSessionNotesQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getSetSessionNotesUrl = (id: number,) => {
+
+
+
+
+  return `/api/sessions/${id}/notes`
+}
+
+/**
+ * @summary Replace the pasted material for a module
+ */
+export const setSessionNotes = async (id: number,
+    sessionNotesInput: SessionNotesInput, options?: Parameters<typeof customFetch>[1]): Promise<SessionNotes> => {
+
+  return customFetch<SessionNotes>(getSetSessionNotesUrl(id),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(sessionNotesInput)
+  }
+);}
+
+
+
+
+
+export const getSetSessionNotesMutationOptions = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setSessionNotes>>, TError,{id: number;data: BodyType<SessionNotesInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof setSessionNotes>>, TError,{id: number;data: BodyType<SessionNotesInput>}, TContext> => {
+
+const mutationKey = ['setSessionNotes'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof setSessionNotes>>, {id: number;data: BodyType<SessionNotesInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  setSessionNotes(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SetSessionNotesMutationResult = NonNullable<Awaited<ReturnType<typeof setSessionNotes>>>
+    export type SetSessionNotesMutationBody = BodyType<SessionNotesInput>
+    export type SetSessionNotesMutationError = ErrorType<ApiMessage>
+
+    /**
+ * @summary Replace the pasted material for a module
+ */
+export const useSetSessionNotes = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setSessionNotes>>, TError,{id: number;data: BodyType<SessionNotesInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof setSessionNotes>>,
+        TError,
+        {id: number;data: BodyType<SessionNotesInput>},
+        TContext
+      > => {
+      return useMutation(getSetSessionNotesMutationOptions(options));
+    }
+
+export const getReplaceDraftQuestionUrl = (id: number,) => {
+
+
+
+
+  return `/api/sessions/${id}/coursework/questions/replace`
+}
+
+/**
+ * Returns a single replacement for the question at replaceIndex, written from the same class material and checked not to repeat anything already on the quiz. Saves nothing. The existing questions are sent from the editor rather than read from the database, so unsaved edits count.
+ * @summary Redo one quiz question
+ */
+export const replaceDraftQuestion = async (id: number,
+    replaceQuestionInput: ReplaceQuestionInput, options?: Parameters<typeof customFetch>[1]): Promise<QuestionsDraftResult> => {
+
+  return customFetch<QuestionsDraftResult>(getReplaceDraftQuestionUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(replaceQuestionInput)
+  }
+);}
+
+
+
+
+
+export const getReplaceDraftQuestionMutationOptions = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof replaceDraftQuestion>>, TError,{id: number;data: BodyType<ReplaceQuestionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof replaceDraftQuestion>>, TError,{id: number;data: BodyType<ReplaceQuestionInput>}, TContext> => {
+
+const mutationKey = ['replaceDraftQuestion'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof replaceDraftQuestion>>, {id: number;data: BodyType<ReplaceQuestionInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  replaceDraftQuestion(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ReplaceDraftQuestionMutationResult = NonNullable<Awaited<ReturnType<typeof replaceDraftQuestion>>>
+    export type ReplaceDraftQuestionMutationBody = BodyType<ReplaceQuestionInput>
+    export type ReplaceDraftQuestionMutationError = ErrorType<ApiMessage>
+
+    /**
+ * @summary Redo one quiz question
+ */
+export const useReplaceDraftQuestion = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof replaceDraftQuestion>>, TError,{id: number;data: BodyType<ReplaceQuestionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof replaceDraftQuestion>>,
+        TError,
+        {id: number;data: BodyType<ReplaceQuestionInput>},
+        TContext
+      > => {
+      return useMutation(getReplaceDraftQuestionMutationOptions(options));
+    }
+
+export const getDraftMoreQuestionsUrl = (id: number,) => {
+
+
+
+
+  return `/api/sessions/${id}/coursework/questions/more`
+}
+
+/**
+ * Returns further questions covering ground the existing ones do not. Anything that restates a question already on the quiz is dropped before it is returned. Saves nothing.
+ * @summary Ask for more quiz questions
+ */
+export const draftMoreQuestions = async (id: number,
+    moreQuestionsInput: MoreQuestionsInput, options?: Parameters<typeof customFetch>[1]): Promise<QuestionsDraftResult> => {
+
+  return customFetch<QuestionsDraftResult>(getDraftMoreQuestionsUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(moreQuestionsInput)
+  }
+);}
+
+
+
+
+
+export const getDraftMoreQuestionsMutationOptions = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof draftMoreQuestions>>, TError,{id: number;data: BodyType<MoreQuestionsInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof draftMoreQuestions>>, TError,{id: number;data: BodyType<MoreQuestionsInput>}, TContext> => {
+
+const mutationKey = ['draftMoreQuestions'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof draftMoreQuestions>>, {id: number;data: BodyType<MoreQuestionsInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  draftMoreQuestions(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DraftMoreQuestionsMutationResult = NonNullable<Awaited<ReturnType<typeof draftMoreQuestions>>>
+    export type DraftMoreQuestionsMutationBody = BodyType<MoreQuestionsInput>
+    export type DraftMoreQuestionsMutationError = ErrorType<ApiMessage>
+
+    /**
+ * @summary Ask for more quiz questions
+ */
+export const useDraftMoreQuestions = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof draftMoreQuestions>>, TError,{id: number;data: BodyType<MoreQuestionsInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof draftMoreQuestions>>,
+        TError,
+        {id: number;data: BodyType<MoreQuestionsInput>},
+        TContext
+      > => {
+      return useMutation(getDraftMoreQuestionsMutationOptions(options));
+    }
+
+export const getGetCourseworkDraftHistoryUrl = (id: number,) => {
+
+
+
+
+  return `/api/sessions/${id}/coursework/history`
+}
+
+/**
+ * @summary What this module's coursework was drafted from, and when
+ */
+export const getCourseworkDraftHistory = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<CourseworkDraftRun[]> => {
+
+  return customFetch<CourseworkDraftRun[]>(getGetCourseworkDraftHistoryUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetCourseworkDraftHistoryQueryKey = (id: number,) => {
+    return [
+    `/api/sessions/${id}/coursework/history`
+    ] as const;
+    }
+
+
+export const getGetCourseworkDraftHistoryQueryOptions = <TData = Awaited<ReturnType<typeof getCourseworkDraftHistory>>, TError = ErrorType<ApiMessage>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCourseworkDraftHistory>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetCourseworkDraftHistoryQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getCourseworkDraftHistory>>> = ({ signal }) => getCourseworkDraftHistory(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getCourseworkDraftHistory>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetCourseworkDraftHistoryQueryResult = NonNullable<Awaited<ReturnType<typeof getCourseworkDraftHistory>>>
+export type GetCourseworkDraftHistoryQueryError = ErrorType<ApiMessage>
+
+
+/**
+ * @summary What this module's coursework was drafted from, and when
+ */
+
+export function useGetCourseworkDraftHistory<TData = Awaited<ReturnType<typeof getCourseworkDraftHistory>>, TError = ErrorType<ApiMessage>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCourseworkDraftHistory>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetCourseworkDraftHistoryQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getRecordHeartbeatUrl = (id: number,) => {
 

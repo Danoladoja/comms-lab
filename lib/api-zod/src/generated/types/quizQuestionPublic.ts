@@ -13,4 +13,6 @@ export interface QuizQuestionPublic {
   sortOrder: number;
   /** @nullable */
   correctIndex?: number | null;
+  /** @nullable */
+  origin?: string | null;
 }

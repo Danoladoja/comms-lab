@@ -2,8 +2,9 @@ import { useState } from 'react';
 import { Link, useParams } from 'wouter';
 import { useQueryClient } from '@tanstack/react-query';
 import {
-  useListMySessions, useListMyProgress, useJoinSession,
-  getListMyProgressQueryKey, getListMySessionsQueryKey,
+  useListMySessions, useListMyProgress, useJoinSession, useGetSessionSlides, useGetSessionReadings,
+  getListMyProgressQueryKey, getListMySessionsQueryKey, getGetSessionSlidesQueryKey,
+  getGetSessionReadingsQueryKey,
 } from '@workspace/api-client-react';
 import { liveWindow } from '@workspace/domain';
 import { Button } from '@/components/ui/button';
@@ -13,12 +14,13 @@ import { useLiveHeartbeat } from '@/hooks/useLiveHeartbeat';
 import { QuizPanel, AssignmentPanel } from '@/components/CourseworkDialogs';
 import { CritiqueQueue, MyFeedbackPanel } from '@/components/CritiquePanel';
 import TrackedReplay from '@/components/TrackedReplay';
+import { ReadingListView } from '@/components/ReadingListEditor';
 import {
   ArrowLeft, Video, PlayCircle, CheckCircle2, Lock, Radio, Clock,
-  FileQuestion, ClipboardList, CalendarClock, MessagesSquare,
+  FileQuestion, ClipboardList, CalendarClock, MessagesSquare, FileText, BookOpen,
 } from 'lucide-react';
 
-type Tab = '' | 'assignment' | 'critique' | 'feedback' | 'quiz';
+type Tab = '' | 'assignment' | 'critique' | 'feedback' | 'quiz' | 'reading';
 
 function formatSessionDate(iso: string | null | undefined) {
   if (!iso) return 'Date to be announced';
@@ -45,6 +47,17 @@ export default function Classroom() {
 
   // Counts time in the room while the class is running.
   useLiveHeartbeat(session);
+
+  // The facilitator's deck, when they have shared it. Useful for revision, and
+  // for anyone who would rather read than stream an hour of video.
+  const { data: slides } = useGetSessionSlides(sessionId, {
+    query: { queryKey: getGetSessionSlidesQueryKey(sessionId), retry: false },
+  });
+
+  // Further reading. Ungraded, so it sits outside the completion checklist.
+  const { data: readings = [] } = useGetSessionReadings(sessionId, {
+    query: { queryKey: getGetSessionReadingsQueryKey(sessionId), retry: false },
+  });
 
   const joinSession = useJoinSession({
     mutation: {
@@ -192,6 +205,20 @@ export default function Classroom() {
 
           {/* Sidebar */}
           <aside className="space-y-6">
+            {slides && (
+              <a
+                href={`${import.meta.env.BASE_URL.replace(/\/$/, '')}${slides.downloadPath}`}
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-center gap-3 bg-card border border-border rounded-2xl p-4 hover:border-primary/50 focus-visible:ring-2 focus-visible:ring-ring transition-colors"
+              >
+                <FileText className="w-5 h-5 text-primary flex-shrink-0" aria-hidden />
+                <span className="min-w-0">
+                  <span className="block text-sm font-semibold">Class slides</span>
+                  <span className="block text-xs text-muted-foreground truncate">{slides.filename}</span>
+                </span>
+              </a>
+            )}
             <section className="bg-card border border-border rounded-2xl p-5">
               <h2 className="font-display font-bold mb-3 text-sm uppercase tracking-wider text-muted-foreground">
                 To complete this module
@@ -287,6 +314,15 @@ export default function Classroom() {
                 <FileQuestion className="w-4 h-4 mr-1.5" aria-hidden />Quiz
                 {entry?.quizPassed && <CheckCircle2 className="w-3.5 h-3.5 ml-1.5 text-emerald-600" aria-hidden />}
               </Button>
+              <Button
+                variant={tab === 'reading' ? 'default' : 'outline'}
+                className="col-span-2"
+                onClick={() => setTab(t => (t === 'reading' ? '' : 'reading'))}
+                aria-pressed={tab === 'reading'}
+              >
+                <BookOpen className="w-4 h-4 mr-1.5" aria-hidden />Reading list
+                {readings.length > 0 && <span className="ml-1.5 text-xs font-bold">{readings.length}</span>}
+              </Button>
             </nav>
           </aside>
 
@@ -325,6 +361,19 @@ export default function Classroom() {
               {entry?.hasAssignment === false
                 ? <p className="text-sm text-muted-foreground">No assignment has been published for this module.</p>
                 : <MyFeedbackPanel sessionId={session.id} />}
+            </section>
+          )}
+
+          {tab === 'reading' && (
+            <section className="lg:col-span-3 bg-card border border-border rounded-2xl p-6">
+              <div className="mb-4">
+                <h2 className="font-display font-bold">Reading list</h2>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Chosen by your facilitator. None of it is graded and none of it is needed to finish the module —
+                  it is here because it is worth your time.
+                </p>
+              </div>
+              <ReadingListView items={readings} />
             </section>
           )}
 

@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { AssignmentInputOrigin } from './assignmentInputOrigin';
 import type { RubricCriterion } from './rubricCriterion';
 
 export interface AssignmentInput {
@@ -17,4 +18,5 @@ export interface AssignmentInput {
      * @maximum 5
      */
   reviewsRequired?: number;
+  origin?: AssignmentInputOrigin;
 }

@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { QuizInputQuestionsItemOrigin } from './quizInputQuestionsItemOrigin';
 
 export type QuizInputQuestionsItem = {
   /** @minLength 1 */
@@ -16,4 +17,5 @@ export type QuizInputQuestionsItem = {
   options: string[];
   /** @minimum 0 */
   correctIndex: number;
+  origin?: QuizInputQuestionsItemOrigin;
 };

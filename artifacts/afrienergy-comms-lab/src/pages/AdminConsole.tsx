@@ -19,6 +19,7 @@ import {
   type Program,
   type Session,
 } from '@workspace/api-client-react';
+import CourseworkStudio from '@/components/CourseworkStudio';
 import RecordingsAdmin from '@/components/RecordingsAdmin';
 import { isMeasurableRecording } from '@/lib/embed';
 import { useCurrentUser } from '@/lib/useCurrentUser';
@@ -27,7 +28,6 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { ChevronDown, ChevronUp, Plus, Trash2, CircleAlert } from 'lucide-react';
-import { QuizEditor, AssignmentEditor } from '@/components/AdminCourseworkEditor';
 
 const TABS = ['Programs', 'Enrollments', 'People', 'Recordings'] as const;
 type Tab = (typeof TABS)[number];
@@ -48,7 +48,7 @@ function SessionRow({ session, instructors, onChanged }: {
   const [meetUrl, setMeetUrl] = useState(session.meetUrl ?? '');
   const [recordingUrl, setRecordingUrl] = useState(session.recordingUrl ?? '');
   const [instructorId, setInstructorId] = useState<string>(session.instructorId ? String(session.instructorId) : '');
-  const [coursework, setCoursework] = useState<'none' | 'quiz' | 'assignment'>('none');
+  const [coursework, setCoursework] = useState<'none' | 'open'>('none');
 
   const startsAtMs = session.startsAt ? new Date(session.startsAt as unknown as string).getTime() : null;
   const isPast = startsAtMs !== null && Date.now() > startsAtMs + session.durationMins * 60 * 1000;
@@ -164,20 +164,13 @@ function SessionRow({ session, instructors, onChanged }: {
           {update.isPending ? 'Saving...' : 'Save'}
         </Button>
         <Button
-          size="sm" variant={coursework === 'quiz' ? 'secondary' : 'ghost'}
-          onClick={() => setCoursework(coursework === 'quiz' ? 'none' : 'quiz')}
+          size="sm" variant={coursework === 'open' ? 'secondary' : 'ghost'}
+          onClick={() => setCoursework(coursework === 'open' ? 'none' : 'open')}
         >
-          Quiz
-        </Button>
-        <Button
-          size="sm" variant={coursework === 'assignment' ? 'secondary' : 'ghost'}
-          onClick={() => setCoursework(coursework === 'assignment' ? 'none' : 'assignment')}
-        >
-          Assignment
+          Slides & coursework
         </Button>
       </div>
-      {coursework === 'quiz' && <QuizEditor sessionId={session.id} />}
-      {coursework === 'assignment' && <AssignmentEditor sessionId={session.id} />}
+      {coursework === 'open' && <CourseworkStudio sessionId={session.id} />}
     </div>
   );
 }

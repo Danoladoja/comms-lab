@@ -493,6 +493,351 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiMessage"
+  /sessions/{id}/readings:
+    get:
+      operationId: getSessionReadings
+      tags: [enrollments]
+      summary: Further reading for a module (ungraded)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: The reading list, possibly empty
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ReadingItem"
+        "403":
+          description: Not enrolled or module locked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "404":
+          description: Session not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+    put:
+      operationId: setSessionReadings
+      tags: [admin]
+      summary: Replace the reading list for a module (admin or assigned instructor)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReadingListInput"
+      responses:
+        "200":
+          description: Saved, with anything that was rejected
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReadingListResult"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+  /sessions/{id}/slides:
+    get:
+      operationId: getSessionSlides
+      tags: [enrollments]
+      summary: The slide deck for a module, if one has been uploaded
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Deck details (the file itself is downloaded separately)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SlideDeck"
+        "404":
+          description: No deck for this module
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+    delete:
+      operationId: deleteSessionSlides
+      tags: [admin]
+      summary: Remove the slide deck for a module (admin or assigned instructor)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "204":
+          description: Deleted
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+  /sessions/{id}/slides/visibility:
+    patch:
+      operationId: setSlidesVisibility
+      tags: [admin]
+      summary: Show or hide the deck from learners
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SlidesVisibilityInput"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SlideDeck"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "404":
+          description: No deck for this module
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+  /sessions/{id}/coursework/draft:
+    post:
+      operationId: draftCourseworkFromSlides
+      tags: [admin]
+      summary: Draft a quiz and a written task from the module's material
+      description: >
+        Reads the slide deck, the pasted material (usually a transcript), or
+        both. Returns a draft for a human to edit and approve. Nothing is saved
+        by this call — the facilitator reviews it and saves through the normal
+        quiz and assignment endpoints.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: A draft, possibly with problems noted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CourseworkDraftResult"
+        "400":
+          description: There is too little class material to draft from
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "503":
+          description: No AI key configured on the server
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+  /sessions/{id}/notes:
+    get:
+      operationId: getSessionNotes
+      tags: [admin]
+      summary: The material a facilitator pasted in for this module
+      description: >
+        Usually a transcript of the class, copied out of the recording. Read by
+        the coursework drafter alongside the slides, and never shown to learners.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: The pasted material, empty if none
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SessionNotes"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+    put:
+      operationId: setSessionNotes
+      tags: [admin]
+      summary: Replace the pasted material for a module
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SessionNotesInput"
+      responses:
+        "200":
+          description: Saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SessionNotes"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+  /sessions/{id}/coursework/questions/replace:
+    post:
+      operationId: replaceDraftQuestion
+      tags: [admin]
+      summary: Redo one quiz question
+      description: >
+        Returns a single replacement for the question at replaceIndex, written
+        from the same class material and checked not to repeat anything already
+        on the quiz. Saves nothing. The existing questions are sent from the
+        editor rather than read from the database, so unsaved edits count.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReplaceQuestionInput"
+      responses:
+        "200":
+          description: A replacement question, or an explanation of why there is none
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QuestionsDraftResult"
+        "400":
+          description: Not enough class material to draft from
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "503":
+          description: No AI key configured on the server
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+  /sessions/{id}/coursework/questions/more:
+    post:
+      operationId: draftMoreQuestions
+      tags: [admin]
+      summary: Ask for more quiz questions
+      description: >
+        Returns further questions covering ground the existing ones do not.
+        Anything that restates a question already on the quiz is dropped before
+        it is returned. Saves nothing.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MoreQuestionsInput"
+      responses:
+        "200":
+          description: Further questions, or an explanation of why there are none
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QuestionsDraftResult"
+        "400":
+          description: Not enough class material, or the quiz is already full
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "503":
+          description: No AI key configured on the server
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+  /sessions/{id}/coursework/history:
+    get:
+      operationId: getCourseworkDraftHistory
+      tags: [admin]
+      summary: What this module's coursework was drafted from, and when
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Drafting runs, most recent first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CourseworkDraftRun"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
   /sessions/{id}/presence/heartbeat:
     post:
       operationId: recordHeartbeat
@@ -1388,6 +1733,9 @@ components:
           items: { type: string }
         sortOrder: { type: integer }
         correctIndex: { type: ["integer", "null"] }
+        # Sent only to staff, alongside correctIndex. How the question came to
+        # exist: manual, drafted, or edited.
+        origin: { type: ["string", "null"] }
     Quiz:
       type: object
       required: [sessionId, passMark, questions, bestScore, passed]
@@ -1416,6 +1764,11 @@ components:
                 minItems: 2
                 items: { type: string, minLength: 1 }
               correctIndex: { type: integer, minimum: 0 }
+              # How the question came to exist: manual, drafted, or edited.
+              # Never shown to learners; never affects marking.
+              origin:
+                type: string
+                enum: [manual, drafted, edited]
     QuizAttemptInput:
       type: object
       required: [answers]
@@ -1438,6 +1791,212 @@ components:
         correctCount: { type: integer }
         totalQuestions: { type: integer }
         bestScore: { type: integer }
+    ReadingItem:
+      type: object
+      required: [title, url, note]
+      properties:
+        title: { type: string }
+        url: { type: string }
+        note: { type: string }
+    ReadingListInput:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          maxItems: 20
+          items:
+            type: object
+            required: [title, url]
+            properties:
+              title: { type: string, maxLength: 200 }
+              url: { type: string }
+              note: { type: string, maxLength: 400 }
+    ReadingListProblem:
+      type: object
+      required: [index, message]
+      properties:
+        # Which row was rejected, so the facilitator can find it.
+        index: { type: integer }
+        message: { type: string }
+    ReadingListResult:
+      type: object
+      required: [items, problems]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReadingItem"
+        problems:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReadingListProblem"
+    SlideDeck:
+      type: object
+      required: [sessionId, filename, mimeType, sizeBytes, visibleToLearners, hasReadableText, textChars, canDraft, uploadedAt, downloadPath]
+      properties:
+        sessionId: { type: integer }
+        filename: { type: string }
+        mimeType: { type: string }
+        sizeBytes: { type: integer }
+        visibleToLearners: { type: boolean }
+        # False for a PDF or an image-only deck: readable enough for a learner,
+        # but nothing for the drafter to work from.
+        hasReadableText: { type: boolean }
+        textChars: { type: integer }
+        canDraft: { type: boolean }
+        uploadedAt: { type: string, format: date-time }
+        downloadPath: { type: string }
+    SlidesVisibilityInput:
+      type: object
+      required: [visibleToLearners]
+      properties:
+        visibleToLearners: { type: boolean }
+    DraftQuestion:
+      type: object
+      required: [prompt, options, correctIndex, rationale]
+      properties:
+        prompt: { type: string }
+        options:
+          type: array
+          items: { type: string }
+        correctIndex: { type: integer }
+        # Why that answer is right. Shown to the facilitator, never to learners.
+        rationale: { type: string }
+    DraftAssignment:
+      type: object
+      required: [title, instructions, reviewsRequired]
+      properties:
+        title: { type: string }
+        instructions: { type: string }
+        reviewsRequired: { type: integer }
+        rubric:
+          type: array
+          items:
+            $ref: "#/components/schemas/RubricCriterion"
+    CourseworkDraftResult:
+      type: object
+      required: [problems, notes]
+      properties:
+        questions:
+          type: array
+          items:
+            $ref: "#/components/schemas/DraftQuestion"
+        assignment:
+          oneOf:
+            - $ref: "#/components/schemas/DraftAssignment"
+            - type: "null"
+        # What had to be dropped or corrected before showing this.
+        problems:
+          type: array
+          items: { type: string }
+        # What the drafter wants a second pair of eyes on.
+        notes:
+          type: array
+          items: { type: string }
+        source:
+          oneOf:
+            - $ref: "#/components/schemas/DraftSource"
+            - type: "null"
+    SessionNotes:
+      type: object
+      required: [sessionId, label, body, chars, updatedAt]
+      properties:
+        sessionId: { type: integer }
+        # "Transcript", "Speaker notes", and so on.
+        label: { type: string }
+        body: { type: string }
+        chars: { type: integer }
+        updatedAt:
+          oneOf:
+            - type: string
+            - type: "null"
+    SessionNotesInput:
+      type: object
+      required: [body]
+      properties:
+        label: { type: string, maxLength: 60 }
+        body: { type: string }
+    DraftSource:
+      type: object
+      required: [kinds, chars, truncated, description]
+      properties:
+        # Which material was read: some of "slides", "notes".
+        kinds:
+          type: array
+          items: { type: string }
+        chars: { type: integer }
+        # True when material had to be cut to fit the drafter's budget.
+        truncated: { type: boolean }
+        # One phrase for the facilitator: "the slides and the transcript".
+        description: { type: string }
+    ExistingQuestionInput:
+      type: object
+      required: [prompt, options]
+      properties:
+        prompt: { type: string }
+        options:
+          type: array
+          items: { type: string }
+    ReplaceQuestionInput:
+      type: object
+      required: [existing, replaceIndex]
+      properties:
+        # The quiz as it stands in the editor, including unsaved edits.
+        existing:
+          type: array
+          maxItems: 20
+          items:
+            $ref: "#/components/schemas/ExistingQuestionInput"
+        replaceIndex: { type: integer, minimum: 0 }
+        # What the facilitator wants different about it, in their own words.
+        guidance: { type: string, maxLength: 500 }
+    MoreQuestionsInput:
+      type: object
+      required: [existing]
+      properties:
+        existing:
+          type: array
+          maxItems: 20
+          items:
+            $ref: "#/components/schemas/ExistingQuestionInput"
+        wanted: { type: integer, minimum: 1, maximum: 4 }
+        guidance: { type: string, maxLength: 500 }
+    QuestionsDraftResult:
+      type: object
+      required: [questions, problems, notes]
+      properties:
+        questions:
+          type: array
+          items:
+            $ref: "#/components/schemas/DraftQuestion"
+        problems:
+          type: array
+          items: { type: string }
+        notes:
+          type: array
+          items: { type: string }
+        source:
+          oneOf:
+            - $ref: "#/components/schemas/DraftSource"
+            - type: "null"
+    CourseworkDraftRun:
+      type: object
+      required: [id, kind, model, questionCount, createdAt, summary]
+      properties:
+        id: { type: integer }
+        # "draft", "replace" or "expand".
+        kind: { type: string }
+        model: { type: string }
+        questionCount: { type: integer }
+        createdAt: { type: string }
+        by:
+          oneOf:
+            - type: string
+            - type: "null"
+        # A ready-made sentence: "5 questions drafted from the slides and the
+        # transcript on 12 August 2026 by Amina."
+        summary: { type: string }
     Presence:
       type: object
       required: [livePct, replayPct, bestPct, met, via, thresholdPct]
@@ -1498,6 +2057,8 @@ components:
           items:
             $ref: "#/components/schemas/RubricCriterion"
         reviewsRequired: { type: integer }
+        # Sent to staff only. How the task came to exist: manual, drafted, edited.
+        origin: { type: ["string", "null"] }
         mySubmission:
           oneOf:
             - $ref: "#/components/schemas/AssignmentSubmission"
@@ -1513,6 +2074,9 @@ components:
           items:
             $ref: "#/components/schemas/RubricCriterion"
         reviewsRequired: { type: integer, minimum: 0, maximum: 5 }
+        origin:
+          type: string
+          enum: [manual, drafted, edited]
     AssignmentSubmissionInput:
       type: object
       required: [body]

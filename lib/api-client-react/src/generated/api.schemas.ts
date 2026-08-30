@@ -175,6 +175,8 @@ export interface QuizQuestionPublic {
   sortOrder: number;
   /** @nullable */
   correctIndex?: number | null;
+  /** @nullable */
+  origin?: string | null;
 }
 
 export interface Quiz {
@@ -186,6 +188,15 @@ export interface Quiz {
   passed: boolean;
 }
 
+export type QuizInputQuestionsItemOrigin = typeof QuizInputQuestionsItemOrigin[keyof typeof QuizInputQuestionsItemOrigin];
+
+
+export const QuizInputQuestionsItemOrigin = {
+  manual: 'manual',
+  drafted: 'drafted',
+  edited: 'edited',
+} as const;
+
 export type QuizInputQuestionsItem = {
   /** @minLength 1 */
   prompt: string;
@@ -196,6 +207,7 @@ export type QuizInputQuestionsItem = {
   options: string[];
   /** @minimum 0 */
   correctIndex: number;
+  origin?: QuizInputQuestionsItemOrigin;
 };
 
 export interface QuizInput {
@@ -218,6 +230,151 @@ export interface QuizResult {
   correctCount: number;
   totalQuestions: number;
   bestScore: number;
+}
+
+export interface ReadingItem {
+  title: string;
+  url: string;
+  note: string;
+}
+
+export type ReadingListInputItemsItem = {
+  /** @maxLength 200 */
+  title: string;
+  url: string;
+  /** @maxLength 400 */
+  note?: string;
+};
+
+export interface ReadingListInput {
+  /** @maxItems 20 */
+  items: ReadingListInputItemsItem[];
+}
+
+export interface ReadingListProblem {
+  index: number;
+  message: string;
+}
+
+export interface ReadingListResult {
+  items: ReadingItem[];
+  problems: ReadingListProblem[];
+}
+
+export interface SlideDeck {
+  sessionId: number;
+  filename: string;
+  mimeType: string;
+  sizeBytes: number;
+  visibleToLearners: boolean;
+  hasReadableText: boolean;
+  textChars: number;
+  canDraft: boolean;
+  uploadedAt: string;
+  downloadPath: string;
+}
+
+export interface SlidesVisibilityInput {
+  visibleToLearners: boolean;
+}
+
+export interface DraftQuestion {
+  prompt: string;
+  options: string[];
+  correctIndex: number;
+  rationale: string;
+}
+
+export interface RubricCriterion {
+  /** @minLength 1 */
+  id: string;
+  /** @minLength 1 */
+  label: string;
+  description: string;
+  /**
+     * @minimum 2
+     * @maximum 10
+     */
+  maxScore: number;
+}
+
+export interface DraftAssignment {
+  title: string;
+  instructions: string;
+  reviewsRequired: number;
+  rubric?: RubricCriterion[];
+}
+
+export interface DraftSource {
+  kinds: string[];
+  chars: number;
+  truncated: boolean;
+  description: string;
+}
+
+export interface CourseworkDraftResult {
+  questions?: DraftQuestion[];
+  assignment?: DraftAssignment | null;
+  problems: string[];
+  notes: string[];
+  source?: DraftSource | null;
+}
+
+export interface SessionNotes {
+  sessionId: number;
+  label: string;
+  body: string;
+  chars: number;
+  updatedAt: string | null;
+}
+
+export interface SessionNotesInput {
+  /** @maxLength 60 */
+  label?: string;
+  body: string;
+}
+
+export interface ExistingQuestionInput {
+  prompt: string;
+  options: string[];
+}
+
+export interface ReplaceQuestionInput {
+  /** @maxItems 20 */
+  existing: ExistingQuestionInput[];
+  /** @minimum 0 */
+  replaceIndex: number;
+  /** @maxLength 500 */
+  guidance?: string;
+}
+
+export interface MoreQuestionsInput {
+  /** @maxItems 20 */
+  existing: ExistingQuestionInput[];
+  /**
+     * @minimum 1
+     * @maximum 4
+     */
+  wanted?: number;
+  /** @maxLength 500 */
+  guidance?: string;
+}
+
+export interface QuestionsDraftResult {
+  questions: DraftQuestion[];
+  problems: string[];
+  notes: string[];
+  source?: DraftSource | null;
+}
+
+export interface CourseworkDraftRun {
+  id: number;
+  kind: string;
+  model: string;
+  questionCount: number;
+  createdAt: string;
+  by?: string | null;
+  summary: string;
 }
 
 export interface HeartbeatResult {
@@ -244,19 +401,6 @@ export interface ReplayProgressResult {
   presence: Presence;
 }
 
-export interface RubricCriterion {
-  /** @minLength 1 */
-  id: string;
-  /** @minLength 1 */
-  label: string;
-  description: string;
-  /**
-     * @minimum 2
-     * @maximum 10
-     */
-  maxScore: number;
-}
-
 export interface AssignmentSubmission {
   sessionId: number;
   body: string;
@@ -269,8 +413,19 @@ export interface AssignmentDetail {
   instructions: string;
   rubric: RubricCriterion[];
   reviewsRequired: number;
+  /** @nullable */
+  origin?: string | null;
   mySubmission?: AssignmentSubmission | null;
 }
+
+export type AssignmentInputOrigin = typeof AssignmentInputOrigin[keyof typeof AssignmentInputOrigin];
+
+
+export const AssignmentInputOrigin = {
+  manual: 'manual',
+  drafted: 'drafted',
+  edited: 'edited',
+} as const;
 
 export interface AssignmentInput {
   /** @minLength 1 */
@@ -282,6 +437,7 @@ export interface AssignmentInput {
      * @maximum 5
      */
   reviewsRequired?: number;
+  origin?: AssignmentInputOrigin;
 }
 
 export interface AssignmentSubmissionInput {

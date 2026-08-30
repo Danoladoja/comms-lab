@@ -14,5 +14,7 @@ export interface AssignmentDetail {
   instructions: string;
   rubric: RubricCriterion[];
   reviewsRequired: number;
+  /** @nullable */
+  origin?: string | null;
   mySubmission?: AssignmentSubmission | null;
 }

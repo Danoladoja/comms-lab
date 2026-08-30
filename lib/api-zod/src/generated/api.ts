@@ -291,7 +291,8 @@ export const GetSessionQuizResponse = zod.object({
   "prompt": zod.string(),
   "options": zod.array(zod.string()),
   "sortOrder": zod.int(),
-  "correctIndex": zod.int().nullish()
+  "correctIndex": zod.int().nullish(),
+  "origin": zod.string().nullish()
 })),
   "bestScore": zod.int().nullable(),
   "passed": zod.boolean()
@@ -317,7 +318,8 @@ export const UpsertSessionQuizBody = zod.object({
   "questions": zod.array(zod.object({
   "prompt": zod.string().min(1),
   "options": zod.array(zod.string().min(1)).min(upsertSessionQuizBodyQuestionsItemOptionsMin),
-  "correctIndex": zod.int().min(upsertSessionQuizBodyQuestionsItemCorrectIndexMin)
+  "correctIndex": zod.int().min(upsertSessionQuizBodyQuestionsItemCorrectIndexMin),
+  "origin": zod.enum(['manual', 'drafted', 'edited']).optional()
 }))
 })
 
@@ -329,7 +331,8 @@ export const UpsertSessionQuizResponse = zod.object({
   "prompt": zod.string(),
   "options": zod.array(zod.string()),
   "sortOrder": zod.int(),
-  "correctIndex": zod.int().nullish()
+  "correctIndex": zod.int().nullish(),
+  "origin": zod.string().nullish()
 })),
   "bestScore": zod.int().nullable(),
   "passed": zod.boolean()
@@ -385,6 +388,7 @@ export const GetSessionAssignmentResponse = zod.object({
   "maxScore": zod.int().min(getSessionAssignmentResponseRubricItemMaxScoreMin).max(getSessionAssignmentResponseRubricItemMaxScoreMax)
 })),
   "reviewsRequired": zod.int(),
+  "origin": zod.string().nullish(),
   "mySubmission": zod.union([zod.object({
   "sessionId": zod.int(),
   "body": zod.string(),
@@ -420,7 +424,8 @@ export const UpsertSessionAssignmentBody = zod.object({
   "description": zod.string(),
   "maxScore": zod.int().min(upsertSessionAssignmentBodyRubricItemMaxScoreMin).max(upsertSessionAssignmentBodyRubricItemMaxScoreMax)
 })).optional(),
-  "reviewsRequired": zod.int().min(upsertSessionAssignmentBodyReviewsRequiredMin).max(upsertSessionAssignmentBodyReviewsRequiredMax).optional()
+  "reviewsRequired": zod.int().min(upsertSessionAssignmentBodyReviewsRequiredMin).max(upsertSessionAssignmentBodyReviewsRequiredMax).optional(),
+  "origin": zod.enum(['manual', 'drafted', 'edited']).optional()
 })
 
 
@@ -441,6 +446,7 @@ export const UpsertSessionAssignmentResponse = zod.object({
   "maxScore": zod.int().min(upsertSessionAssignmentResponseRubricItemMaxScoreMin).max(upsertSessionAssignmentResponseRubricItemMaxScoreMax)
 })),
   "reviewsRequired": zod.int(),
+  "origin": zod.string().nullish(),
   "mySubmission": zod.union([zod.object({
   "sessionId": zod.int(),
   "body": zod.string(),
@@ -468,6 +474,304 @@ export const SubmitAssignmentResponse = zod.object({
   "body": zod.string(),
   "submittedAt": zod.string()
 })
+
+
+/**
+ * @summary Further reading for a module (ungraded)
+ */
+export const GetSessionReadingsParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const GetSessionReadingsResponseItem = zod.object({
+  "title": zod.string(),
+  "url": zod.string(),
+  "note": zod.string()
+})
+export const GetSessionReadingsResponse = zod.array(GetSessionReadingsResponseItem)
+
+
+/**
+ * @summary Replace the reading list for a module (admin or assigned instructor)
+ */
+export const SetSessionReadingsParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const setSessionReadingsBodyItemsItemTitleMax = 200;
+
+export const setSessionReadingsBodyItemsItemNoteMax = 400;
+
+export const setSessionReadingsBodyItemsMax = 20;
+
+
+
+export const SetSessionReadingsBody = zod.object({
+  "items": zod.array(zod.object({
+  "title": zod.string().max(setSessionReadingsBodyItemsItemTitleMax),
+  "url": zod.string(),
+  "note": zod.string().max(setSessionReadingsBodyItemsItemNoteMax).optional()
+})).max(setSessionReadingsBodyItemsMax)
+})
+
+export const SetSessionReadingsResponse = zod.object({
+  "items": zod.array(zod.object({
+  "title": zod.string(),
+  "url": zod.string(),
+  "note": zod.string()
+})),
+  "problems": zod.array(zod.object({
+  "index": zod.int(),
+  "message": zod.string()
+}))
+})
+
+
+/**
+ * @summary The slide deck for a module, if one has been uploaded
+ */
+export const GetSessionSlidesParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const GetSessionSlidesResponse = zod.object({
+  "sessionId": zod.int(),
+  "filename": zod.string(),
+  "mimeType": zod.string(),
+  "sizeBytes": zod.int(),
+  "visibleToLearners": zod.boolean(),
+  "hasReadableText": zod.boolean(),
+  "textChars": zod.int(),
+  "canDraft": zod.boolean(),
+  "uploadedAt": zod.coerce.date(),
+  "downloadPath": zod.string()
+})
+
+
+/**
+ * @summary Remove the slide deck for a module (admin or assigned instructor)
+ */
+export const DeleteSessionSlidesParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const DeleteSessionSlidesResponse = zod.void()
+
+
+/**
+ * @summary Show or hide the deck from learners
+ */
+export const SetSlidesVisibilityParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const SetSlidesVisibilityBody = zod.object({
+  "visibleToLearners": zod.boolean()
+})
+
+export const SetSlidesVisibilityResponse = zod.object({
+  "sessionId": zod.int(),
+  "filename": zod.string(),
+  "mimeType": zod.string(),
+  "sizeBytes": zod.int(),
+  "visibleToLearners": zod.boolean(),
+  "hasReadableText": zod.boolean(),
+  "textChars": zod.int(),
+  "canDraft": zod.boolean(),
+  "uploadedAt": zod.coerce.date(),
+  "downloadPath": zod.string()
+})
+
+
+/**
+ * Reads the slide deck, the pasted material (usually a transcript), or both. Returns a draft for a human to edit and approve. Nothing is saved by this call — the facilitator reviews it and saves through the normal quiz and assignment endpoints.
+ * @summary Draft a quiz and a written task from the module's material
+ */
+export const DraftCourseworkFromSlidesParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+
+
+export const draftCourseworkFromSlidesResponseAssignmentOneRubricItemMaxScoreMin = 2;
+export const draftCourseworkFromSlidesResponseAssignmentOneRubricItemMaxScoreMax = 10;
+
+
+
+export const DraftCourseworkFromSlidesResponse = zod.object({
+  "questions": zod.array(zod.object({
+  "prompt": zod.string(),
+  "options": zod.array(zod.string()),
+  "correctIndex": zod.int(),
+  "rationale": zod.string()
+})).optional(),
+  "assignment": zod.union([zod.object({
+  "title": zod.string(),
+  "instructions": zod.string(),
+  "reviewsRequired": zod.int(),
+  "rubric": zod.array(zod.object({
+  "id": zod.string().min(1),
+  "label": zod.string().min(1),
+  "description": zod.string(),
+  "maxScore": zod.int().min(draftCourseworkFromSlidesResponseAssignmentOneRubricItemMaxScoreMin).max(draftCourseworkFromSlidesResponseAssignmentOneRubricItemMaxScoreMax)
+})).optional()
+}),zod.null()]).optional(),
+  "problems": zod.array(zod.string()),
+  "notes": zod.array(zod.string()),
+  "source": zod.union([zod.object({
+  "kinds": zod.array(zod.string()),
+  "chars": zod.int(),
+  "truncated": zod.boolean(),
+  "description": zod.string()
+}),zod.null()]).optional()
+})
+
+
+/**
+ * Usually a transcript of the class, copied out of the recording. Read by the coursework drafter alongside the slides, and never shown to learners.
+ * @summary The material a facilitator pasted in for this module
+ */
+export const GetSessionNotesParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const GetSessionNotesResponse = zod.object({
+  "sessionId": zod.int(),
+  "label": zod.string(),
+  "body": zod.string(),
+  "chars": zod.int(),
+  "updatedAt": zod.union([zod.string(),zod.null()])
+})
+
+
+/**
+ * @summary Replace the pasted material for a module
+ */
+export const SetSessionNotesParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const setSessionNotesBodyLabelMax = 60;
+
+
+
+export const SetSessionNotesBody = zod.object({
+  "label": zod.string().max(setSessionNotesBodyLabelMax).optional(),
+  "body": zod.string()
+})
+
+export const SetSessionNotesResponse = zod.object({
+  "sessionId": zod.int(),
+  "label": zod.string(),
+  "body": zod.string(),
+  "chars": zod.int(),
+  "updatedAt": zod.union([zod.string(),zod.null()])
+})
+
+
+/**
+ * Returns a single replacement for the question at replaceIndex, written from the same class material and checked not to repeat anything already on the quiz. Saves nothing. The existing questions are sent from the editor rather than read from the database, so unsaved edits count.
+ * @summary Redo one quiz question
+ */
+export const ReplaceDraftQuestionParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const replaceDraftQuestionBodyExistingMax = 20;
+
+export const replaceDraftQuestionBodyReplaceIndexMin = 0;
+
+export const replaceDraftQuestionBodyGuidanceMax = 500;
+
+
+
+export const ReplaceDraftQuestionBody = zod.object({
+  "existing": zod.array(zod.object({
+  "prompt": zod.string(),
+  "options": zod.array(zod.string())
+})).max(replaceDraftQuestionBodyExistingMax),
+  "replaceIndex": zod.int().min(replaceDraftQuestionBodyReplaceIndexMin),
+  "guidance": zod.string().max(replaceDraftQuestionBodyGuidanceMax).optional()
+})
+
+export const ReplaceDraftQuestionResponse = zod.object({
+  "questions": zod.array(zod.object({
+  "prompt": zod.string(),
+  "options": zod.array(zod.string()),
+  "correctIndex": zod.int(),
+  "rationale": zod.string()
+})),
+  "problems": zod.array(zod.string()),
+  "notes": zod.array(zod.string()),
+  "source": zod.union([zod.object({
+  "kinds": zod.array(zod.string()),
+  "chars": zod.int(),
+  "truncated": zod.boolean(),
+  "description": zod.string()
+}),zod.null()]).optional()
+})
+
+
+/**
+ * Returns further questions covering ground the existing ones do not. Anything that restates a question already on the quiz is dropped before it is returned. Saves nothing.
+ * @summary Ask for more quiz questions
+ */
+export const DraftMoreQuestionsParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const draftMoreQuestionsBodyExistingMax = 20;
+
+export const draftMoreQuestionsBodyWantedMax = 4;
+
+export const draftMoreQuestionsBodyGuidanceMax = 500;
+
+
+
+export const DraftMoreQuestionsBody = zod.object({
+  "existing": zod.array(zod.object({
+  "prompt": zod.string(),
+  "options": zod.array(zod.string())
+})).max(draftMoreQuestionsBodyExistingMax),
+  "wanted": zod.int().min(1).max(draftMoreQuestionsBodyWantedMax).optional(),
+  "guidance": zod.string().max(draftMoreQuestionsBodyGuidanceMax).optional()
+})
+
+export const DraftMoreQuestionsResponse = zod.object({
+  "questions": zod.array(zod.object({
+  "prompt": zod.string(),
+  "options": zod.array(zod.string()),
+  "correctIndex": zod.int(),
+  "rationale": zod.string()
+})),
+  "problems": zod.array(zod.string()),
+  "notes": zod.array(zod.string()),
+  "source": zod.union([zod.object({
+  "kinds": zod.array(zod.string()),
+  "chars": zod.int(),
+  "truncated": zod.boolean(),
+  "description": zod.string()
+}),zod.null()]).optional()
+})
+
+
+/**
+ * @summary What this module's coursework was drafted from, and when
+ */
+export const GetCourseworkDraftHistoryParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const GetCourseworkDraftHistoryResponseItem = zod.object({
+  "id": zod.int(),
+  "kind": zod.string(),
+  "model": zod.string(),
+  "questionCount": zod.int(),
+  "createdAt": zod.string(),
+  "by": zod.union([zod.string(),zod.null()]).optional(),
+  "summary": zod.string()
+})
+export const GetCourseworkDraftHistoryResponse = zod.array(GetCourseworkDraftHistoryResponseItem)
 
 
 /**
