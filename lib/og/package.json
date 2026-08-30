@@ -1,0 +1,14 @@
+{
+  "name": "@workspace/og",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.mjs",
+  "exports": {
+    ".": {
+      "types": "./src/index.d.mts",
+      "default": "./src/index.mjs"
+    }
+  },
+  "types": "./src/index.d.mts"
+}

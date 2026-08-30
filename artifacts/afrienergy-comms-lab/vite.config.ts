@@ -9,14 +9,12 @@ import {
   injectMeta,
   requestOrigin,
   resolveApiBases,
-  // @ts-expect-error plain-JS module shared with the production server
-} from './server/og.mjs';
+} from '@workspace/og';
 
 import runtimeErrorOverlay from '@replit/vite-plugin-runtime-error-modal';
 import {
   renderCertificateImage,
-  // @ts-expect-error plain-JS module shared with the production server
-} from './server/og-image.mjs';
+} from '@workspace/og';
 
 const rawPort = process.env.PORT;
 

@@ -80,6 +80,7 @@
   "dependencies": {
     "@clerk/react": "^6.13.1",
     "@clerk/themes": "^2.4.57",
-    "express": "^5.2.1"
+    "express": "^5.2.1",
+    "@workspace/og": "workspace:*"
   }
 }

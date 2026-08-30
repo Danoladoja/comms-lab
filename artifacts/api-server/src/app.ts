@@ -9,6 +9,7 @@ import {
   getClerkProxyHost,
 } from "./middlewares/clerkProxyMiddleware";
 import router from "./routes";
+import { webRouter } from "./web";
 import { logger } from "./lib/logger";
 
 /**
@@ -59,6 +60,20 @@ app.use(
 );
 
 app.use("/api", router);
+
+// An unknown endpoint must still answer as an API. Without this it reaches
+// Express's default handler and comes back as an HTML error page, which a
+// client expecting JSON will either fail to parse or, worse, parse as text and
+// carry on with.
+app.use("/api", (_req, res) => {
+  res.status(404).json({ error: "Not found" });
+});
+
+// The built web app, served from this same process so the browser's `/api`
+// calls and the pages that make them share one origin. Null when no build is
+// present — running the API alone in development is perfectly normal.
+const web = webRouter();
+if (web) app.use(web);
 
 /**
  * Body-parser rejects a malformed or oversized body before any route runs, so
