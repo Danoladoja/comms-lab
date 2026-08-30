@@ -4,6 +4,12 @@ import { usersTable } from "./users";
 
 // Multiple-choice quiz questions attached to a module (session).
 // correctIndex points into options; it is never sent to learners.
+//
+// `origin` records how the question came to exist: "manual" (a person typed it),
+// "drafted" (the model wrote it and it was saved untouched), or "edited"
+// (drafted, then changed before saving). It never reaches learners and never
+// affects marking. It exists so "why is this question here?" has an answer, and
+// so a facilitator can see how much of a quiz went out unreviewed.
 export const quizQuestionsTable = pgTable("quiz_questions", {
   id: serial("id").primaryKey(),
   sessionId: integer("session_id").notNull().references(() => sessionsTable.id, { onDelete: "cascade" }),
@@ -11,6 +17,7 @@ export const quizQuestionsTable = pgTable("quiz_questions", {
   options: jsonb("options").$type<string[]>().notNull(),
   correctIndex: integer("correct_index").notNull(),
   sortOrder: integer("sort_order").notNull().default(0),
+  origin: text("origin").notNull().default("manual"),
 });
 
 // Every quiz attempt is kept; the best score counts. Pass mark is 70%.
@@ -43,6 +50,8 @@ export const assignmentsTable = pgTable(
       .notNull()
       .default([]),
     reviewsRequired: integer("reviews_required").notNull().default(2),
+    /** As on quiz questions: "manual", "drafted" or "edited". */
+    origin: text("origin").notNull().default("manual"),
   },
   (t) => [uniqueIndex("assignments_session_unique").on(t.sessionId)],
 );

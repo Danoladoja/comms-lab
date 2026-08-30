@@ -1,4 +1,4 @@
-import express, { type Express } from "express";
+import express, { type Express, type ErrorRequestHandler } from "express";
 import cors from "cors";
 import pinoHttp from "pino-http";
 import { clerkMiddleware } from "@clerk/express";
@@ -10,6 +10,12 @@ import {
 } from "./middlewares/clerkProxyMiddleware";
 import router from "./routes";
 import { logger } from "./lib/logger";
+
+/**
+ * Comfortably above the largest thing anyone posts as JSON — a class transcript.
+ * Slide decks do not come through here; they are raw bytes on their own route.
+ */
+const JSON_BODY_LIMIT = "1mb";
 
 const app: Express = express();
 
@@ -37,8 +43,11 @@ app.use(
 app.use(CLERK_PROXY_PATH, clerkProxyMiddleware());
 
 app.use(cors({ credentials: true, origin: true }));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// The default 100kb would refuse a pasted class transcript — MAX_NOTES_CHARS is
+// 150,000 characters, and JSON escaping adds to that. The refusal happens in the
+// body parser, before any route runs, so it cannot be raised per route.
+app.use(express.json({ limit: JSON_BODY_LIMIT }));
+app.use(express.urlencoded({ extended: true, limit: JSON_BODY_LIMIT }));
 
 app.use(
   clerkMiddleware((req) => ({
@@ -50,5 +59,26 @@ app.use(
 );
 
 app.use("/api", router);
+
+/**
+ * Body-parser rejects a malformed or oversized body before any route runs, so
+ * those failures never reach a handler that knows how to answer in JSON.
+ * Without this the caller gets Express's default HTML error page and the UI can
+ * only say "something went wrong".
+ */
+const bodyErrors: ErrorRequestHandler = (err, _req, res, next) => {
+  if (res.headersSent) { next(err); return; }
+  const type = (err as { type?: string })?.type;
+  if (type === "entity.too.large") {
+    res.status(413).json({ error: "That is too large to save. Shorten it and try again." });
+    return;
+  }
+  if (type === "entity.parse.failed") {
+    res.status(400).json({ error: "The request could not be read." });
+    return;
+  }
+  next(err);
+};
+app.use(bodyErrors);
 
 export default app;

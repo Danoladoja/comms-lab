@@ -1,20 +1,36 @@
-import { Router, type IRouter } from "express";
+import { Router, type IRouter, type Request } from "express";
 import express from "express";
 import {
-  db, sessionSlidesTable, sessionReadingsTable, sessionsTable, programsTable, enrollmentsTable,
+  db, sessionSlidesTable, sessionReadingsTable, sessionNotesTable, courseworkDraftsTable,
+  sessionsTable, programsTable, enrollmentsTable, usersTable,
 } from "@workspace/db";
-import { and, asc, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq, sql } from "drizzle-orm";
 import {
   slideTypeFor,
   slideTextQuality,
   validateReadings,
+  combineSources,
+  sourceQuality,
+  describeSource,
+  describeDraftRun,
+  roomForMoreQuestions,
   MAX_SLIDE_UPLOAD_BYTES,
+  MAX_NOTES_CHARS,
+  DEFAULT_NOTES_LABEL,
+  MAX_QUIZ_QUESTIONS,
+  type CombinedSource,
+  type MaterialKind,
 } from "@workspace/domain";
-import { SetSlidesVisibilityBody, SetSessionReadingsBody } from "@workspace/api-zod";
+import {
+  SetSlidesVisibilityBody, SetSessionReadingsBody, SetSessionNotesBody,
+  ReplaceDraftQuestionBody, DraftMoreQuestionsBody,
+} from "@workspace/api-zod";
 import { getCurrentUser } from "../lib/auth";
 import { progressForUser } from "../lib/progress";
 import { extractSlideText } from "../lib/slides/extract";
-import { draftCoursework, drafterConfigured } from "../lib/slides/drafter";
+import {
+  draftCoursework, replaceQuestion, moreQuestions, normaliseExisting, drafterConfigured, MODEL,
+} from "../lib/slides/drafter";
 import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
@@ -218,9 +234,17 @@ router.delete("/sessions/:id/slides", async (req, res) => {
   res.status(204).end();
 });
 
-/* ---------- Draft coursework from the deck ---------- */
+/* ---------- Pasted material: a transcript, or speaker notes ---------- */
 
-router.post("/sessions/:id/coursework/draft", async (req, res) => {
+/**
+ * What the facilitator typed or pasted in, most often a transcript copied out of
+ * the class recording.
+ *
+ * Staff only, in both directions. A transcript is a verbatim record of a room
+ * people spoke freely in, and publishing it to learners is not a decision to
+ * make by accident.
+ */
+router.get("/sessions/:id/notes", async (req, res) => {
   const user = await getCurrentUser(req);
   if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
 
@@ -229,42 +253,316 @@ router.post("/sessions/:id/coursework/draft", async (req, res) => {
   if (!session) { res.status(404).json({ error: "Session not found" }); return; }
   if (!isStaffFor(user, session)) { res.status(403).json({ error: "Forbidden" }); return; }
 
+  const [row] = await db.select().from(sessionNotesTable).where(eq(sessionNotesTable.sessionId, sessionId));
+  res.json(notesPayload(sessionId, row));
+});
+
+router.put("/sessions/:id/notes", async (req, res) => {
+  const user = await getCurrentUser(req);
+  if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const sessionId = Number(req.params.id);
+  const session = await loadSession(sessionId);
+  if (!session) { res.status(404).json({ error: "Session not found" }); return; }
+  if (!isStaffFor(user, session)) { res.status(403).json({ error: "Forbidden" }); return; }
+
+  const parsed = SetSessionNotesBody.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
+
+  const values = {
+    sessionId,
+    label: (parsed.data.label ?? "").trim() || DEFAULT_NOTES_LABEL,
+    body: parsed.data.body.slice(0, MAX_NOTES_CHARS),
+    updatedByUserId: user.id,
+  };
+
+  const [saved] = await db
+    .insert(sessionNotesTable)
+    .values(values)
+    .onConflictDoUpdate({ target: sessionNotesTable.sessionId, set: values })
+    .returning();
+
+  res.json(notesPayload(sessionId, saved));
+});
+
+function notesPayload(sessionId: number, row?: { label: string; body: string; updatedAt: Date } | null) {
+  return {
+    sessionId,
+    label: row?.label ?? DEFAULT_NOTES_LABEL,
+    body: row?.body ?? "",
+    chars: (row?.body ?? "").trim().length,
+    updatedAt: row?.updatedAt ? row.updatedAt.toISOString() : null,
+  };
+}
+
+/* ---------- Drafting coursework from whatever material exists ---------- */
+
+/**
+ * Gather the deck and the pasted material into one block for the drafter, and
+ * say plainly what is missing when there is not enough.
+ */
+async function materialFor(sessionId: number): Promise<
+  { ok: true; source: CombinedSource; notesLabel: string } | { ok: false; status: number; error: string }
+> {
+  const [[deck], [notes]] = await Promise.all([
+    db.select().from(sessionSlidesTable).where(eq(sessionSlidesTable.sessionId, sessionId)),
+    db.select().from(sessionNotesTable).where(eq(sessionNotesTable.sessionId, sessionId)),
+  ]);
+
+  const notesLabel = notes?.label ?? DEFAULT_NOTES_LABEL;
+  const source = combineSources({
+    slideText: deck?.extractedText ?? "",
+    notesText: notes?.body ?? "",
+    notesLabel,
+  });
+
+  const quality = sourceQuality(source);
+  if (quality.usable) return { ok: true, source, notesLabel };
+
+  // The message has to tell the facilitator what to do next, and the right next
+  // step differs depending on what they already have.
+  const deckUnreadable = !!deck && slideTextQuality(deck.extractedText).chars === 0;
+  const error = quality.reason === "empty"
+    ? deckUnreadable
+      ? "No text could be read from this deck — PDFs and image-only slides give nothing to work from. Upload the .pptx, or paste the class transcript below."
+      : "There is nothing to draft from yet. Upload a deck, or paste the class transcript below."
+    : "There is too little here to draft from. Paste the class transcript below, or upload a fuller deck.";
+
+  return { ok: false, status: 400, error };
+}
+
+/** Keep a record of what was read, by whom, and what came back. */
+async function recordRun(args: {
+  sessionId: number;
+  userId: number;
+  kind: "draft" | "replace" | "expand";
+  source: CombinedSource;
+  notesLabel: string;
+  questionCount: number;
+  payload: unknown;
+}) {
+  try {
+    await db.insert(courseworkDraftsTable).values({
+      sessionId: args.sessionId,
+      createdByUserId: args.userId,
+      kind: args.kind,
+      model: MODEL,
+      sourceKinds: args.source.kinds,
+      sourceLabel: args.notesLabel,
+      sourceChars: args.source.chars,
+      questionCount: args.questionCount,
+      payload: args.payload,
+    });
+  } catch (err) {
+    // Losing the audit row must not lose the facilitator their draft.
+    logger.error({ err, sessionId: args.sessionId }, "Could not record a drafting run");
+  }
+}
+
+function sourcePayload(source: CombinedSource, notesLabel: string) {
+  return {
+    kinds: source.kinds,
+    chars: source.chars,
+    truncated: source.truncated,
+    description: describeSource(source.kinds, notesLabel),
+  };
+}
+
+/** Everything the three drafting endpoints check before spending a request. */
+async function readyToDraft(req: Request, sessionId: number) {
+  const user = await getCurrentUser(req);
+  if (!user) return { ok: false, fail: { status: 401, error: "Unauthorized" } } as const;
+
+  const session = await loadSession(sessionId);
+  if (!session) return { ok: false, fail: { status: 404, error: "Session not found" } } as const;
+  if (!isStaffFor(user, session)) return { ok: false, fail: { status: 403, error: "Forbidden" } } as const;
+
   if (!drafterConfigured()) {
-    res.status(503).json({ error: "No AI key is configured on the server. Add ANTHROPIC_API_KEY to use drafting." });
-    return;
+    return {
+      ok: false,
+      fail: {
+        status: 503,
+        error: "No AI key is configured on the server. Add ANTHROPIC_API_KEY to use drafting.",
+      },
+    } as const;
   }
 
-  const [deck] = await db.select().from(sessionSlidesTable).where(eq(sessionSlidesTable.sessionId, sessionId));
-  if (!deck) { res.status(404).json({ error: "Upload a slide deck for this module first" }); return; }
+  const material = await materialFor(sessionId);
+  if (!material.ok) return { ok: false, fail: { status: material.status, error: material.error } } as const;
 
-  const quality = slideTextQuality(deck.extractedText);
-  if (!quality.usable) {
+  return {
+    ok: true,
+    user,
+    source: material.source,
+    notesLabel: material.notesLabel,
+    context: {
+      programTitle: session.programTitle,
+      sessionTitle: session.title,
+      sessionDescription: session.description,
+      sourceText: material.source.text,
+    },
+  } as const;
+}
+
+router.post("/sessions/:id/coursework/draft", async (req, res) => {
+  const sessionId = Number(req.params.id);
+  const ready = await readyToDraft(req, sessionId);
+  if (!ready.ok) { res.status(ready.fail.status).json({ error: ready.fail.error }); return; }
+
+  const result = await draftCoursework(ready.context);
+  const questions = result.draft?.questions ?? [];
+
+  logger.info(
+    { sessionId, kinds: ready.source.kinds, chars: ready.source.chars, questions: questions.length },
+    "Drafted coursework",
+  );
+
+  if (result.draft) {
+    await recordRun({
+      sessionId,
+      userId: ready.user.id,
+      kind: "draft",
+      source: ready.source,
+      notesLabel: ready.notesLabel,
+      questionCount: questions.length,
+      payload: result.draft,
+    });
+  }
+
+  res.json({
+    questions,
+    assignment: result.draft?.assignment ?? null,
+    problems: result.problems,
+    notes: result.draft?.notes ?? [],
+    source: sourcePayload(ready.source, ready.notesLabel),
+  });
+});
+
+/** Redo one question, without touching the rest of the quiz. */
+router.post("/sessions/:id/coursework/questions/replace", async (req, res) => {
+  const sessionId = Number(req.params.id);
+
+  // Authorisation first, as on the sibling route: a caller with no business here
+  // gets 401 or 403, not a description of the schema they failed to match.
+  const ready = await readyToDraft(req, sessionId);
+  if (!ready.ok) { res.status(ready.fail.status).json({ error: ready.fail.error }); return; }
+
+  const parsed = ReplaceDraftQuestionBody.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
+
+  const result = await replaceQuestion({
+    ...ready.context,
+    existing: normaliseExisting(parsed.data.existing),
+    replaceIndex: parsed.data.replaceIndex,
+    guidance: parsed.data.guidance,
+  });
+
+  if (result.questions.length > 0) {
+    await recordRun({
+      sessionId,
+      userId: ready.user.id,
+      kind: "replace",
+      source: ready.source,
+      notesLabel: ready.notesLabel,
+      questionCount: result.questions.length,
+      payload: result.questions,
+    });
+  }
+
+  res.json({ ...result, source: sourcePayload(ready.source, ready.notesLabel) });
+});
+
+/** A few more questions, covering ground the quiz has not. */
+router.post("/sessions/:id/coursework/questions/more", async (req, res) => {
+  const sessionId = Number(req.params.id);
+
+  // Authorisation first: a caller with no business here gets 401 or 403, not a
+  // lecture about quiz length.
+  const ready = await readyToDraft(req, sessionId);
+  if (!ready.ok) { res.status(ready.fail.status).json({ error: ready.fail.error }); return; }
+
+  const parsed = DraftMoreQuestionsBody.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
+
+  const existing = normaliseExisting(parsed.data.existing);
+  const written = existing.filter((q) => q.prompt).length;
+  if (roomForMoreQuestions(written) === 0) {
     res.status(400).json({
-      error: quality.reason === "empty"
-        ? "No text could be read from this deck. PDFs and image-only slides cannot be drafted from — upload the .pptx instead."
-        : "There is too little text in this deck to draft from. Add speaker notes or upload a fuller version.",
+      error: `${MAX_QUIZ_QUESTIONS} questions is as long as a quiz should get. Remove one before adding another.`,
     });
     return;
   }
 
-  const result = await draftCoursework({
-    programTitle: session.programTitle,
-    sessionTitle: session.title,
-    sessionDescription: session.description,
-    slideText: deck.extractedText,
+  const result = await moreQuestions({
+    ...ready.context,
+    existing,
+    wanted: parsed.data.wanted ?? 2,
+    guidance: parsed.data.guidance,
   });
 
-  logger.info(
-    { sessionId, questions: result.draft?.questions.length ?? 0, problems: result.problems.length },
-    "Drafted coursework from slides",
-  );
+  if (result.questions.length > 0) {
+    await recordRun({
+      sessionId,
+      userId: ready.user.id,
+      kind: "expand",
+      source: ready.source,
+      notesLabel: ready.notesLabel,
+      questionCount: result.questions.length,
+      payload: result.questions,
+    });
+  }
 
-  res.json({
-    questions: result.draft?.questions ?? [],
-    assignment: result.draft?.assignment ?? null,
-    problems: result.problems,
-    notes: result.draft?.notes ?? [],
-  });
+  res.json({ ...result, source: sourcePayload(ready.source, ready.notesLabel) });
+});
+
+/**
+ * Where this module's coursework came from.
+ *
+ * The question worth being able to answer in six months is not "was AI used"
+ * but "was anyone reading" — so each run records what material it read and how
+ * much of it, not merely that it happened.
+ */
+router.get("/sessions/:id/coursework/history", async (req, res) => {
+  const user = await getCurrentUser(req);
+  if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const sessionId = Number(req.params.id);
+  const session = await loadSession(sessionId);
+  if (!session) { res.status(404).json({ error: "Session not found" }); return; }
+  if (!isStaffFor(user, session)) { res.status(403).json({ error: "Forbidden" }); return; }
+
+  const rows = await db
+    .select({
+      id: courseworkDraftsTable.id,
+      kind: courseworkDraftsTable.kind,
+      model: courseworkDraftsTable.model,
+      sourceKinds: courseworkDraftsTable.sourceKinds,
+      sourceLabel: courseworkDraftsTable.sourceLabel,
+      questionCount: courseworkDraftsTable.questionCount,
+      createdAt: courseworkDraftsTable.createdAt,
+      byName: usersTable.name,
+    })
+    .from(courseworkDraftsTable)
+    .leftJoin(usersTable, eq(courseworkDraftsTable.createdByUserId, usersTable.id))
+    .where(eq(courseworkDraftsTable.sessionId, sessionId))
+    .orderBy(desc(courseworkDraftsTable.createdAt))
+    .limit(20);
+
+  res.json(rows.map((row) => ({
+    id: row.id,
+    kind: row.kind,
+    model: row.model,
+    questionCount: row.questionCount,
+    createdAt: row.createdAt.toISOString(),
+    by: row.byName,
+    summary: describeDraftRun({
+      kinds: (row.sourceKinds ?? []) as MaterialKind[],
+      notesLabel: row.sourceLabel,
+      questionCount: row.questionCount,
+      byName: row.byName,
+      at: row.createdAt,
+    }),
+  })));
 });
 
 /* ---------- Reading list ---------- */

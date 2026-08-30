@@ -6,13 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface QuizQuestionPublic {
-  id: number;
+export interface ExistingQuestionInput {
   prompt: string;
   options: string[];
-  sortOrder: number;
-  /** @nullable */
-  correctIndex?: number | null;
-  /** @nullable */
-  origin?: string | null;
 }

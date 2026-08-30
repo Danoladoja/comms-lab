@@ -5,13 +5,11 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
-import type { DraftAssignment } from './draftAssignment';
 import type { DraftQuestion } from './draftQuestion';
 import type { DraftSource } from './draftSource';
 
-export interface CourseworkDraftResult {
-  questions?: DraftQuestion[];
-  assignment?: DraftAssignment | null;
+export interface QuestionsDraftResult {
+  questions: DraftQuestion[];
   problems: string[];
   notes: string[];
   source?: DraftSource | null;

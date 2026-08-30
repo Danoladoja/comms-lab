@@ -4,6 +4,7 @@ export * from "./progress";
 export * from "./reviews";
 export * from "./recordingPipeline";
 export * from "./slideText";
+export * from "./courseworkSource";
 export * from "./courseworkDraft";
 export * from "./readingList";
 export * from "./certificateCode";

@@ -27,6 +27,7 @@ import type {
   AssignmentSubmissionInput,
   Certificate,
   CourseworkDraftResult,
+  CourseworkDraftRun,
   Enrollment,
   EnrollmentDetail,
   EnrollmentUpdate,
@@ -37,6 +38,7 @@ import type {
   HeartbeatResult,
   JoinResult,
   ListAllEnrollmentsParams,
+  MoreQuestionsInput,
   MyFeedback,
   PinInput,
   PortfolioVisibilityInput,
@@ -45,6 +47,7 @@ import type {
   ProgramInput,
   ProgramUpdate,
   PublicCertificate,
+  QuestionsDraftResult,
   Quiz,
   QuizAttemptInput,
   QuizInput,
@@ -54,6 +57,7 @@ import type {
   ReadingListResult,
   ReceivedReview,
   RecordingStatusRow,
+  ReplaceQuestionInput,
   ReplayProgressInput,
   ReplayProgressResult,
   ReviewInput,
@@ -61,6 +65,8 @@ import type {
   Session,
   SessionDetail,
   SessionInput,
+  SessionNotes,
+  SessionNotesInput,
   SessionProgress,
   SessionUpdate,
   SlideDeck,
@@ -1734,8 +1740,8 @@ export const getDraftCourseworkFromSlidesUrl = (id: number,) => {
 }
 
 /**
- * Returns a draft for a human to edit and approve. Nothing is saved by this call — the facilitator reviews it and saves through the normal quiz and assignment endpoints.
- * @summary Draft a quiz and a written task from the module's slides
+ * Reads the slide deck, the pasted material (usually a transcript), or both. Returns a draft for a human to edit and approve. Nothing is saved by this call — the facilitator reviews it and saves through the normal quiz and assignment endpoints.
+ * @summary Draft a quiz and a written task from the module's material
  */
 export const draftCourseworkFromSlides = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<CourseworkDraftResult> => {
 
@@ -1784,7 +1790,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type DraftCourseworkFromSlidesMutationError = ErrorType<ApiMessage>
 
     /**
- * @summary Draft a quiz and a written task from the module's slides
+ * @summary Draft a quiz and a written task from the module's material
  */
 export const useDraftCourseworkFromSlides = <TError = ErrorType<ApiMessage>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof draftCourseworkFromSlides>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
@@ -1796,6 +1802,379 @@ export const useDraftCourseworkFromSlides = <TError = ErrorType<ApiMessage>,
       > => {
       return useMutation(getDraftCourseworkFromSlidesMutationOptions(options));
     }
+
+export const getGetSessionNotesUrl = (id: number,) => {
+
+
+
+
+  return `/api/sessions/${id}/notes`
+}
+
+/**
+ * Usually a transcript of the class, copied out of the recording. Read by the coursework drafter alongside the slides, and never shown to learners.
+ * @summary The material a facilitator pasted in for this module
+ */
+export const getSessionNotes = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<SessionNotes> => {
+
+  return customFetch<SessionNotes>(getGetSessionNotesUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetSessionNotesQueryKey = (id: number,) => {
+    return [
+    `/api/sessions/${id}/notes`
+    ] as const;
+    }
+
+
+export const getGetSessionNotesQueryOptions = <TData = Awaited<ReturnType<typeof getSessionNotes>>, TError = ErrorType<ApiMessage>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSessionNotes>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetSessionNotesQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getSessionNotes>>> = ({ signal }) => getSessionNotes(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getSessionNotes>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetSessionNotesQueryResult = NonNullable<Awaited<ReturnType<typeof getSessionNotes>>>
+export type GetSessionNotesQueryError = ErrorType<ApiMessage>
+
+
+/**
+ * @summary The material a facilitator pasted in for this module
+ */
+
+export function useGetSessionNotes<TData = Awaited<ReturnType<typeof getSessionNotes>>, TError = ErrorType<ApiMessage>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSessionNotes>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetSessionNotesQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getSetSessionNotesUrl = (id: number,) => {
+
+
+
+
+  return `/api/sessions/${id}/notes`
+}
+
+/**
+ * @summary Replace the pasted material for a module
+ */
+export const setSessionNotes = async (id: number,
+    sessionNotesInput: SessionNotesInput, options?: Parameters<typeof customFetch>[1]): Promise<SessionNotes> => {
+
+  return customFetch<SessionNotes>(getSetSessionNotesUrl(id),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(sessionNotesInput)
+  }
+);}
+
+
+
+
+
+export const getSetSessionNotesMutationOptions = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setSessionNotes>>, TError,{id: number;data: BodyType<SessionNotesInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof setSessionNotes>>, TError,{id: number;data: BodyType<SessionNotesInput>}, TContext> => {
+
+const mutationKey = ['setSessionNotes'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof setSessionNotes>>, {id: number;data: BodyType<SessionNotesInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  setSessionNotes(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SetSessionNotesMutationResult = NonNullable<Awaited<ReturnType<typeof setSessionNotes>>>
+    export type SetSessionNotesMutationBody = BodyType<SessionNotesInput>
+    export type SetSessionNotesMutationError = ErrorType<ApiMessage>
+
+    /**
+ * @summary Replace the pasted material for a module
+ */
+export const useSetSessionNotes = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setSessionNotes>>, TError,{id: number;data: BodyType<SessionNotesInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof setSessionNotes>>,
+        TError,
+        {id: number;data: BodyType<SessionNotesInput>},
+        TContext
+      > => {
+      return useMutation(getSetSessionNotesMutationOptions(options));
+    }
+
+export const getReplaceDraftQuestionUrl = (id: number,) => {
+
+
+
+
+  return `/api/sessions/${id}/coursework/questions/replace`
+}
+
+/**
+ * Returns a single replacement for the question at replaceIndex, written from the same class material and checked not to repeat anything already on the quiz. Saves nothing. The existing questions are sent from the editor rather than read from the database, so unsaved edits count.
+ * @summary Redo one quiz question
+ */
+export const replaceDraftQuestion = async (id: number,
+    replaceQuestionInput: ReplaceQuestionInput, options?: Parameters<typeof customFetch>[1]): Promise<QuestionsDraftResult> => {
+
+  return customFetch<QuestionsDraftResult>(getReplaceDraftQuestionUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(replaceQuestionInput)
+  }
+);}
+
+
+
+
+
+export const getReplaceDraftQuestionMutationOptions = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof replaceDraftQuestion>>, TError,{id: number;data: BodyType<ReplaceQuestionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof replaceDraftQuestion>>, TError,{id: number;data: BodyType<ReplaceQuestionInput>}, TContext> => {
+
+const mutationKey = ['replaceDraftQuestion'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof replaceDraftQuestion>>, {id: number;data: BodyType<ReplaceQuestionInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  replaceDraftQuestion(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ReplaceDraftQuestionMutationResult = NonNullable<Awaited<ReturnType<typeof replaceDraftQuestion>>>
+    export type ReplaceDraftQuestionMutationBody = BodyType<ReplaceQuestionInput>
+    export type ReplaceDraftQuestionMutationError = ErrorType<ApiMessage>
+
+    /**
+ * @summary Redo one quiz question
+ */
+export const useReplaceDraftQuestion = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof replaceDraftQuestion>>, TError,{id: number;data: BodyType<ReplaceQuestionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof replaceDraftQuestion>>,
+        TError,
+        {id: number;data: BodyType<ReplaceQuestionInput>},
+        TContext
+      > => {
+      return useMutation(getReplaceDraftQuestionMutationOptions(options));
+    }
+
+export const getDraftMoreQuestionsUrl = (id: number,) => {
+
+
+
+
+  return `/api/sessions/${id}/coursework/questions/more`
+}
+
+/**
+ * Returns further questions covering ground the existing ones do not. Anything that restates a question already on the quiz is dropped before it is returned. Saves nothing.
+ * @summary Ask for more quiz questions
+ */
+export const draftMoreQuestions = async (id: number,
+    moreQuestionsInput: MoreQuestionsInput, options?: Parameters<typeof customFetch>[1]): Promise<QuestionsDraftResult> => {
+
+  return customFetch<QuestionsDraftResult>(getDraftMoreQuestionsUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(moreQuestionsInput)
+  }
+);}
+
+
+
+
+
+export const getDraftMoreQuestionsMutationOptions = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof draftMoreQuestions>>, TError,{id: number;data: BodyType<MoreQuestionsInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof draftMoreQuestions>>, TError,{id: number;data: BodyType<MoreQuestionsInput>}, TContext> => {
+
+const mutationKey = ['draftMoreQuestions'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof draftMoreQuestions>>, {id: number;data: BodyType<MoreQuestionsInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  draftMoreQuestions(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DraftMoreQuestionsMutationResult = NonNullable<Awaited<ReturnType<typeof draftMoreQuestions>>>
+    export type DraftMoreQuestionsMutationBody = BodyType<MoreQuestionsInput>
+    export type DraftMoreQuestionsMutationError = ErrorType<ApiMessage>
+
+    /**
+ * @summary Ask for more quiz questions
+ */
+export const useDraftMoreQuestions = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof draftMoreQuestions>>, TError,{id: number;data: BodyType<MoreQuestionsInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof draftMoreQuestions>>,
+        TError,
+        {id: number;data: BodyType<MoreQuestionsInput>},
+        TContext
+      > => {
+      return useMutation(getDraftMoreQuestionsMutationOptions(options));
+    }
+
+export const getGetCourseworkDraftHistoryUrl = (id: number,) => {
+
+
+
+
+  return `/api/sessions/${id}/coursework/history`
+}
+
+/**
+ * @summary What this module's coursework was drafted from, and when
+ */
+export const getCourseworkDraftHistory = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<CourseworkDraftRun[]> => {
+
+  return customFetch<CourseworkDraftRun[]>(getGetCourseworkDraftHistoryUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetCourseworkDraftHistoryQueryKey = (id: number,) => {
+    return [
+    `/api/sessions/${id}/coursework/history`
+    ] as const;
+    }
+
+
+export const getGetCourseworkDraftHistoryQueryOptions = <TData = Awaited<ReturnType<typeof getCourseworkDraftHistory>>, TError = ErrorType<ApiMessage>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCourseworkDraftHistory>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetCourseworkDraftHistoryQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getCourseworkDraftHistory>>> = ({ signal }) => getCourseworkDraftHistory(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getCourseworkDraftHistory>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetCourseworkDraftHistoryQueryResult = NonNullable<Awaited<ReturnType<typeof getCourseworkDraftHistory>>>
+export type GetCourseworkDraftHistoryQueryError = ErrorType<ApiMessage>
+
+
+/**
+ * @summary What this module's coursework was drafted from, and when
+ */
+
+export function useGetCourseworkDraftHistory<TData = Awaited<ReturnType<typeof getCourseworkDraftHistory>>, TError = ErrorType<ApiMessage>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCourseworkDraftHistory>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetCourseworkDraftHistoryQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getRecordHeartbeatUrl = (id: number,) => {
 

@@ -20,8 +20,8 @@ portfolio.
   Without them the app runs fine and recordings are pasted in by hand. See
   `docs/recording-automation-setup.md`.
 - Coursework drafting (optional) needs `ANTHROPIC_API_KEY`, and optionally
-  `ANTHROPIC_MODEL`. Without it slides still upload and coursework is written by
-  hand; only the "Draft from slides" button is unavailable.
+  `ANTHROPIC_MODEL`. Without it slides and transcripts still upload and
+  coursework is written by hand; only the drafting buttons are unavailable.
 
 ## Stack
 
@@ -49,6 +49,7 @@ portfolio.
 | Drafting rules | `lib/domain/src/courseworkDraft.ts` — the brief given to the model, and the checking of what comes back |
 | Reading list rules | `lib/domain/src/readingList.ts` — URL tidying and per-row validation |
 | Slide handling | `lib/domain/src/slideText.ts` (assembly, quality) + `artifacts/api-server/src/lib/slides/` (pptx parsing, Claude call) |
+| What the drafter reads | `lib/domain/src/courseworkSource.ts` — combining the deck and the pasted transcript, and how the budget is split |
 | Recording rules | `lib/domain/src/recordingPipeline.ts` — when to look, what to name it, when to give up |
 | Google plumbing | `artifacts/api-server/src/lib/google/` — OAuth, Meet, Drive→YouTube transfer |
 | Web app | `artifacts/afrienergy-comms-lab/src` |
@@ -104,6 +105,26 @@ portfolio.
   learners silently at the 70% pass mark, so a person must have looked.
   `validateDraft` drops questions with an out-of-range key, duplicate options or
   too few choices, and reports every repair rather than hiding it.
+- **A transcript beats a deck, and either alone is enough.** Slides are headings;
+  the class is where the reasoning happens. A facilitator pastes the transcript
+  (YouTube → three dots → Show transcript) into the class-material box, and the
+  drafter is told to prefer it. When both are present the deck is capped at a
+  third of the budget, because a class deck is a few thousand characters while a
+  transcript fills whatever it is given.
+- **Pasted class material is staff-only in both directions.** A transcript is a
+  verbatim record of a room people spoke freely in; publishing it to learners is
+  not a decision to make by accident.
+- **Redo and "draft more" are given the editor's questions, not the database's.**
+  A facilitator who has reworded three questions without saving still gets a
+  replacement that does not collide with them. Anything that restates an
+  existing question is dropped before it is returned — the failure mode of
+  "give me four more" is four rephrasings of question two.
+- **Every question records its origin**: `manual`, `drafted`, or `edited`. It
+  never reaches learners and never affects marking. It exists because the
+  question worth answering in six months is not "was AI used" but "was anyone
+  reading" — and a question saved exactly as drafted is flagged in the editor.
+  Each drafting run is also logged in `coursework_drafts` with the material it
+  read and how much of it.
 - **The rubric is never model-generated.** Peer critique across the programme
   scores against one house rubric; a per-module invention would make critiques
   incomparable. The drafter's rubric field is discarded.
@@ -140,8 +161,12 @@ portfolio.
 - **Reading list**: links a facilitator points learners at, shown as a tab in the
   classroom. Ungraded and never read by `computeProgress` — adding a link cannot
   change whether anyone can finish.
-- **Coursework drafting**: reads the deck, drafts a quiz and a written task for
-  the facilitator to edit and approve. Nothing is saved automatically.
+- **Class material**: the slide deck, plus anything the facilitator pastes in —
+  usually the class transcript. Staff-only, and read by the drafter.
+- **Coursework drafting**: reads the deck and the transcript, drafts a quiz and a
+  written task for the facilitator to edit and approve. Nothing is saved
+  automatically. One question can be redone on its own, and a few more asked
+  for, up to twelve.
 - **Recordings**: published automatically as unlisted YouTube videos once the
   admin connects a Google account (Admin Console → Recordings), which also shows
   per-class status and surfaces failures.
@@ -157,7 +182,7 @@ portfolio.
   filename arrives in an `x-filename` header. Avoids a file-upload dependency
   and the 33% inflation of base64.
 - PDFs upload and are readable by learners but yield no text, so they cannot be
-  drafted from. The UI says so before anyone clicks Draft.
+  drafted from on their own. The UI says so, and points at the transcript box.
 - The recording job holds one upload at a time and skips a pass if the previous
   one is still running — an hour of class video outlasts the five-minute tick.
 - `GOOGLE_REDIRECT_URI` must match the Google Cloud entry exactly, trailing
