@@ -20,6 +20,7 @@ import {
   type Session,
 } from '@workspace/api-client-react';
 import CourseworkStudio from '@/components/CourseworkStudio';
+import InviteFacilitator from '@/components/InviteFacilitator';
 import RecordingsAdmin from '@/components/RecordingsAdmin';
 import { isMeasurableRecording } from '@/lib/embed';
 import { useCurrentUser } from '@/lib/useCurrentUser';
@@ -401,7 +402,11 @@ function PeopleTab({ selfId }: { selfId: number | undefined }) {
   const update = useUpdateUserRole({
     mutation: {
       onSuccess: () => { toast({ title: 'Role updated' }); qc.invalidateQueries({ queryKey: getListUsersQueryKey() }); },
-      onError: () => toast({ title: 'Could not update role', variant: 'destructive' }),
+      onError: (err) => toast({
+        title: 'Could not update role',
+        description: (err as unknown as { error?: string })?.error,
+        variant: 'destructive',
+      }),
     },
   });
 
@@ -409,8 +414,11 @@ function PeopleTab({ selfId }: { selfId: number | undefined }) {
 
   return (
     <div className="space-y-4">
+      <InviteFacilitator />
+
       <p className="text-sm text-muted-foreground">
-        Facilitators sign up like everyone else. Once they have joined, set their role to Facilitator here, then assign them to sessions under Programs.
+        Anyone who signed up on their own appears here. Change a role to give someone the Teaching area, then
+        assign their classes under Programs.
       </p>
       <div className="bg-card border border-border rounded-xl overflow-x-auto">
         <table className="w-full text-sm">

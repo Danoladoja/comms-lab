@@ -10,3 +10,4 @@ export * from "./googleConnection";
 export * from "./slides";
 export * from "./material";
 export * from "./readings";
+export * from "./invitations";

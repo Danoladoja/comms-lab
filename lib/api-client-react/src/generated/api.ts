@@ -36,6 +36,8 @@ import type {
   GoogleConnectionStatus,
   HealthStatus,
   HeartbeatResult,
+  Invitation,
+  InvitationInput,
   JoinResult,
   ListAllEnrollmentsParams,
   MoreQuestionsInput,
@@ -3448,6 +3450,226 @@ export function useListUsers<TData = Awaited<ReturnType<typeof listUsers>>, TErr
 
 
 
+
+export const getListInvitationsUrl = () => {
+
+
+
+
+  return `/api/admin/invitations`
+}
+
+/**
+ * @summary Facilitators who have been invited
+ */
+export const listInvitations = async ( options?: Parameters<typeof customFetch>[1]): Promise<Invitation[]> => {
+
+  return customFetch<Invitation[]>(getListInvitationsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListInvitationsQueryKey = () => {
+    return [
+    `/api/admin/invitations`
+    ] as const;
+    }
+
+
+export const getListInvitationsQueryOptions = <TData = Awaited<ReturnType<typeof listInvitations>>, TError = ErrorType<ApiMessage>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listInvitations>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListInvitationsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listInvitations>>> = ({ signal }) => listInvitations({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listInvitations>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListInvitationsQueryResult = NonNullable<Awaited<ReturnType<typeof listInvitations>>>
+export type ListInvitationsQueryError = ErrorType<ApiMessage>
+
+
+/**
+ * @summary Facilitators who have been invited
+ */
+
+export function useListInvitations<TData = Awaited<ReturnType<typeof listInvitations>>, TError = ErrorType<ApiMessage>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listInvitations>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListInvitationsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getInviteFacilitatorUrl = () => {
+
+
+
+
+  return `/api/admin/invitations`
+}
+
+/**
+ * Sends a Clerk invitation carrying the role, so the person arrives already a facilitator rather than as a learner awaiting promotion. Any classes listed are handed over when they accept, unless somebody else is teaching them by then. An invitation cannot grant admin.
+ * @summary Invite a facilitator by email
+ */
+export const inviteFacilitator = async (invitationInput: InvitationInput, options?: Parameters<typeof customFetch>[1]): Promise<Invitation> => {
+
+  return customFetch<Invitation>(getInviteFacilitatorUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(invitationInput)
+  }
+);}
+
+
+
+
+
+export const getInviteFacilitatorMutationOptions = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof inviteFacilitator>>, TError,{data: BodyType<InvitationInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof inviteFacilitator>>, TError,{data: BodyType<InvitationInput>}, TContext> => {
+
+const mutationKey = ['inviteFacilitator'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof inviteFacilitator>>, {data: BodyType<InvitationInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  inviteFacilitator(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type InviteFacilitatorMutationResult = NonNullable<Awaited<ReturnType<typeof inviteFacilitator>>>
+    export type InviteFacilitatorMutationBody = BodyType<InvitationInput>
+    export type InviteFacilitatorMutationError = ErrorType<ApiMessage>
+
+    /**
+ * @summary Invite a facilitator by email
+ */
+export const useInviteFacilitator = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof inviteFacilitator>>, TError,{data: BodyType<InvitationInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof inviteFacilitator>>,
+        TError,
+        {data: BodyType<InvitationInput>},
+        TContext
+      > => {
+      return useMutation(getInviteFacilitatorMutationOptions(options));
+    }
+
+export const getRevokeInvitationUrl = (id: number,) => {
+
+
+
+
+  return `/api/admin/invitations/${id}`
+}
+
+/**
+ * @summary Withdraw an invitation that has not been accepted
+ */
+export const revokeInvitation = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+  return customFetch<void>(getRevokeInvitationUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getRevokeInvitationMutationOptions = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof revokeInvitation>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof revokeInvitation>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['revokeInvitation'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof revokeInvitation>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  revokeInvitation(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RevokeInvitationMutationResult = NonNullable<Awaited<ReturnType<typeof revokeInvitation>>>
+
+    export type RevokeInvitationMutationError = ErrorType<ApiMessage>
+
+    /**
+ * @summary Withdraw an invitation that has not been accepted
+ */
+export const useRevokeInvitation = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof revokeInvitation>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof revokeInvitation>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getRevokeInvitationMutationOptions(options));
+    }
 
 export const getUpdateUserRoleUrl = (id: number,) => {
 
