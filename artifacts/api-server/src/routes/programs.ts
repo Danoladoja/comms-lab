@@ -137,7 +137,10 @@ router.get("/programs/:id/sessions", async (req, res) => {
       meetUrl: sessionsTable.meetUrl,
       recordingUrl: sessionsTable.recordingUrl,
       instructorId: sessionsTable.instructorId,
-      instructorName: usersTable.name,
+      // Whichever of the two is set: an account holder's name, or a guest's.
+      // Callers that just want to print who is teaching read one field.
+      instructorName: sql<string | null>`coalesce(${usersTable.name}, ${sessionsTable.guestFacilitator})`,
+      guestFacilitator: sessionsTable.guestFacilitator,
     })
     .from(sessionsTable)
     .leftJoin(usersTable, eq(sessionsTable.instructorId, usersTable.id))
@@ -177,7 +180,7 @@ router.post("/programs/:id/sessions", requireRole("admin"), async (req, res) => 
     .insert(sessionsTable)
     .values({ ...parsed.data, programId })
     .returning();
-  res.status(201).json({ ...created, instructorName: null });
+  res.status(201).json({ ...created, instructorName: created.guestFacilitator ?? null });
 });
 
 export default router;

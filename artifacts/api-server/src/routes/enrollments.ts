@@ -446,7 +446,8 @@ router.get("/my/sessions", async (req, res) => {
       meetUrl: sessionsTable.meetUrl,
       recordingUrl: sessionsTable.recordingUrl,
       instructorId: sessionsTable.instructorId,
-      instructorName: usersTable.name,
+      instructorName: sql<string | null>`coalesce(${usersTable.name}, ${sessionsTable.guestFacilitator})`,
+      guestFacilitator: sessionsTable.guestFacilitator,
     })
     .from(sessionsTable)
     .innerJoin(programsTable, eq(sessionsTable.programId, programsTable.id))

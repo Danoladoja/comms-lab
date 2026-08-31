@@ -14,3 +14,4 @@ export * from "./imageUpload";
 export * from "./roster";
 export * from "./programStatus";
 export * from "./sessionTime";
+export * from "./facilitator";

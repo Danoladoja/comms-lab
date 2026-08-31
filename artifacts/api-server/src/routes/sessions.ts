@@ -43,11 +43,16 @@ router.patch("/sessions/:id", async (req, res) => {
     data.recordingError = null;
   }
 
+  // An account holder and a typed guest name are alternatives, never both: a
+  // class with one of each would leave every page choosing which to believe.
+  if ("instructorId" in data && data.instructorId) data.guestFacilitator = null;
+  if ("guestFacilitator" in data && data.guestFacilitator) data.instructorId = null;
+
   const [updated] = await db.update(sessionsTable).set(data).where(eq(sessionsTable.id, id)).returning();
   const instructor = updated.instructorId
     ? await db.select({ name: usersTable.name }).from(usersTable).where(eq(usersTable.id, updated.instructorId))
     : [];
-  res.json({ ...updated, instructorName: instructor[0]?.name ?? null });
+  res.json({ ...updated, instructorName: instructor[0]?.name ?? updated.guestFacilitator ?? null });
 });
 
 router.delete("/sessions/:id", async (req, res) => {

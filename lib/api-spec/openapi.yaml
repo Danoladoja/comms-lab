@@ -2654,6 +2654,9 @@ components:
         recordingUrl: { type: ["string", "null"] }
         instructorId: { type: ["integer", "null"] }
         instructorName: { type: ["string", "null"] }
+        # A facilitator with no account. instructorName carries whichever of the
+        # two is set, so a page that only wants a name reads one field.
+        guestFacilitator: { type: ["string", "null"] }
     SessionDetail:
       type: object
       required: [id, programId, programTitle, title, description, sortOrder, durationMins, hasMeetUrl]
@@ -2675,6 +2678,9 @@ components:
         recordingUrl: { type: ["string", "null"] }
         instructorId: { type: ["integer", "null"] }
         instructorName: { type: ["string", "null"] }
+        # A facilitator with no account. instructorName carries whichever of the
+        # two is set, so a page that only wants a name reads one field.
+        guestFacilitator: { type: ["string", "null"] }
     SessionInput:
       type: object
       required: [title]
@@ -2687,6 +2693,7 @@ components:
         meetUrl: { type: string }
         recordingUrl: { type: string }
         instructorId: { type: ["integer", "null"] }
+        guestFacilitator: { type: ["string", "null"] }
     SessionUpdate:
       type: object
       properties:
@@ -2698,6 +2705,7 @@ components:
         meetUrl: { type: ["string", "null"] }
         recordingUrl: { type: ["string", "null"] }
         instructorId: { type: ["integer", "null"] }
+        guestFacilitator: { type: ["string", "null"] }
     Enrollment:
       type: object
       required: [id, userId, programId, status]

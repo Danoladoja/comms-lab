@@ -745,6 +745,8 @@ export interface Session {
   instructorId?: number | null;
   /** @nullable */
   instructorName?: string | null;
+  /** @nullable */
+  guestFacilitator?: string | null;
 }
 
 export interface SessionDetail {
@@ -766,6 +768,8 @@ export interface SessionDetail {
   instructorId?: number | null;
   /** @nullable */
   instructorName?: string | null;
+  /** @nullable */
+  guestFacilitator?: string | null;
 }
 
 export interface SessionInput {
@@ -781,6 +785,8 @@ export interface SessionInput {
   recordingUrl?: string;
   /** @nullable */
   instructorId?: number | null;
+  /** @nullable */
+  guestFacilitator?: string | null;
 }
 
 export interface SessionUpdate {
@@ -798,6 +804,8 @@ export interface SessionUpdate {
   recordingUrl?: string | null;
   /** @nullable */
   instructorId?: number | null;
+  /** @nullable */
+  guestFacilitator?: string | null;
 }
 
 export type EnrollmentStatus = typeof EnrollmentStatus[keyof typeof EnrollmentStatus];

@@ -29,6 +29,13 @@ export const sessionsTable = pgTable("sessions", {
   /** The Drive file already dealt with, so a retry never uploads twice. */
   recordingDriveFileId: text("recording_drive_file_id"),
   instructorId: integer("instructor_id").references(() => usersTable.id, { onDelete: "set null" }),
+  /**
+   * A facilitator with no account — a guest speaker, a visiting editor. Shown
+   * to learners and nothing else: it grants no access to the room, the
+   * attendance list or anybody's submissions. Set only when instructorId is
+   * empty, so a class never carries two answers to who is running it.
+   */
+  guestFacilitator: text("guest_facilitator"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

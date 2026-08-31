@@ -21,4 +21,6 @@ export interface SessionUpdate {
   recordingUrl?: string | null;
   /** @nullable */
   instructorId?: number | null;
+  /** @nullable */
+  guestFacilitator?: string | null;
 }

@@ -170,7 +170,8 @@ export const ListProgramSessionsResponseItem = zod.object({
   "meetUrl": zod.string().nullish(),
   "recordingUrl": zod.string().nullish(),
   "instructorId": zod.int().nullish(),
-  "instructorName": zod.string().nullish()
+  "instructorName": zod.string().nullish(),
+  "guestFacilitator": zod.string().nullish()
 })
 export const ListProgramSessionsResponse = zod.array(ListProgramSessionsResponseItem)
 
@@ -195,7 +196,8 @@ export const CreateSessionBody = zod.object({
   "durationMins": zod.int().min(createSessionBodyDurationMinsMin).optional(),
   "meetUrl": zod.string().optional(),
   "recordingUrl": zod.string().optional(),
-  "instructorId": zod.int().nullish()
+  "instructorId": zod.int().nullish(),
+  "guestFacilitator": zod.string().nullish()
 })
 
 export const CreateSessionResponse = zod.object({
@@ -209,7 +211,8 @@ export const CreateSessionResponse = zod.object({
   "meetUrl": zod.string().nullish(),
   "recordingUrl": zod.string().nullish(),
   "instructorId": zod.int().nullish(),
-  "instructorName": zod.string().nullish()
+  "instructorName": zod.string().nullish(),
+  "guestFacilitator": zod.string().nullish()
 })
 
 
@@ -233,7 +236,8 @@ export const UpdateSessionBody = zod.object({
   "durationMins": zod.int().min(updateSessionBodyDurationMinsMin).optional(),
   "meetUrl": zod.string().nullish(),
   "recordingUrl": zod.string().nullish(),
-  "instructorId": zod.int().nullish()
+  "instructorId": zod.int().nullish(),
+  "guestFacilitator": zod.string().nullish()
 })
 
 export const UpdateSessionResponse = zod.object({
@@ -247,7 +251,8 @@ export const UpdateSessionResponse = zod.object({
   "meetUrl": zod.string().nullish(),
   "recordingUrl": zod.string().nullish(),
   "instructorId": zod.int().nullish(),
-  "instructorName": zod.string().nullish()
+  "instructorName": zod.string().nullish(),
+  "guestFacilitator": zod.string().nullish()
 })
 
 
@@ -1067,7 +1072,8 @@ export const ListMySessionsResponseItem = zod.object({
   "hasMeetUrl": zod.boolean(),
   "recordingUrl": zod.string().nullish(),
   "instructorId": zod.int().nullish(),
-  "instructorName": zod.string().nullish()
+  "instructorName": zod.string().nullish(),
+  "guestFacilitator": zod.string().nullish()
 })
 export const ListMySessionsResponse = zod.array(ListMySessionsResponseItem)
 

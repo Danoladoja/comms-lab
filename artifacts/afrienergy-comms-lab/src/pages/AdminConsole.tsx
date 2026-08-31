@@ -21,6 +21,10 @@ import {
   type Session,
 } from '@workspace/api-client-react';
 import {
+  describeFacilitatorChoice,
+  facilitatorFields,
+  facilitatorInputValue,
+  matchFacilitator,
   programStatusNote,
   sessionDateTimeFromInput,
   sessionDateTimeInput,
@@ -57,8 +61,10 @@ function SessionRow({ session, instructors, onChanged }: {
   const { toast } = useToast();
   const [meetUrl, setMeetUrl] = useState(session.meetUrl ?? '');
   const [recordingUrl, setRecordingUrl] = useState(session.recordingUrl ?? '');
-  const [instructorId, setInstructorId] = useState<string>(session.instructorId ? String(session.instructorId) : '');
+  const [facilitator, setFacilitator] = useState(facilitatorInputValue(session));
   const [coursework, setCoursework] = useState<'none' | 'open'>('none');
+  /** What the typed text means right now: an account, a guest, or nobody. */
+  const choice = matchFacilitator(facilitator, instructors);
   const [editing, setEditing] = useState(false);
 
   /** The details themselves — what it is called, when it runs, how long for. */
@@ -252,26 +258,36 @@ function SessionRow({ session, instructors, onChanged }: {
           <label className="block text-xs font-medium text-muted-foreground mb-1" htmlFor={`fac-${session.id}`}>
             Facilitator
           </label>
-          <select
+          {/* Type a name or pick one from the list. Somebody with an account
+              gets the class; anybody else is written up as a guest. */}
+          <Input
             id={`fac-${session.id}`}
-            className="w-full border border-border rounded-md px-3 py-2 text-sm bg-background"
-            value={instructorId}
-            onChange={e => setInstructorId(e.target.value)}
-          >
-            <option value="">No facilitator</option>
-            {instructors.map(i => <option key={i.id} value={i.id}>{i.name || i.email}</option>)}
-          </select>
+            className="text-sm"
+            list={`facilitators-${session.id}`}
+            value={facilitator}
+            placeholder="Type a name, or choose"
+            onChange={e => setFacilitator(e.target.value)}
+          />
+          <datalist id={`facilitators-${session.id}`}>
+            {instructors.map(i => <option key={i.id} value={i.name || i.email} />)}
+          </datalist>
+          <p className={`text-xs mt-1 ${choice.kind === 'ambiguous' ? 'text-destructive' : 'text-muted-foreground'}`}>
+            {describeFacilitatorChoice(choice)}
+          </p>
         </div>
       </div>
       <div className="flex flex-wrap items-center gap-2">
         <Button
-          size="sm" variant="outline" disabled={update.isPending}
+          size="sm" variant="outline"
+          // Two people of the same name: saving would hand the class to whichever
+          // the code happened to find first, so it waits for an email instead.
+          disabled={update.isPending || choice.kind === 'ambiguous'}
           onClick={() => update.mutate({
             id: session.id,
             data: {
               meetUrl: meetUrl || null,
               recordingUrl: recordingUrl || null,
-              instructorId: instructorId ? Number(instructorId) : null,
+              ...facilitatorFields(choice),
             },
           })}
         >

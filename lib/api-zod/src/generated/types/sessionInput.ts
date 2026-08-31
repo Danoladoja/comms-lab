@@ -19,4 +19,6 @@ export interface SessionInput {
   recordingUrl?: string;
   /** @nullable */
   instructorId?: number | null;
+  /** @nullable */
+  guestFacilitator?: string | null;
 }

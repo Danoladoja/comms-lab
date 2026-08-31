@@ -25,4 +25,6 @@ export interface SessionDetail {
   instructorId?: number | null;
   /** @nullable */
   instructorName?: string | null;
+  /** @nullable */
+  guestFacilitator?: string | null;
 }
