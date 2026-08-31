@@ -1452,6 +1452,38 @@ export const DeleteProgramThumbnailResponse = zod.object({
 
 
 /**
+ * Admin only. Each person is handled on their own and reported on individually: one bad address, or one applicant who already has an account, must never stop the other forty-nine being invited.
+ * @summary Invite a roster of learners onto a programme
+ */
+export const inviteLearnersInBulkBodyEntriesMax = 500;
+
+
+
+export const InviteLearnersInBulkBody = zod.object({
+  "programId": zod.int().describe('The cohort each invited learner is enrolled onto when they accept.'),
+  "entries": zod.array(zod.object({
+  "row": zod.int().optional().describe('The line of the admin\'s own sheet, so a result can be pointed back at it.'),
+  "name": zod.string().optional(),
+  "email": zod.string()
+})).max(inviteLearnersInBulkBodyEntriesMax)
+})
+
+export const InviteLearnersInBulkResponse = zod.object({
+  "outcomes": zod.array(zod.object({
+  "row": zod.int().optional(),
+  "name": zod.string().optional(),
+  "email": zod.string(),
+  "status": zod.enum(['invited', 'enrolled', 'already-enrolled', 'reinvited', 'failed']).describe('invited — a new person, invitation sent. enrolled — they already had an account and were put straight onto the programme. already-enrolled — nothing to do. reinvited — a previous unaccepted invitation was withdrawn and replaced. failed — see detail.'),
+  "detail": zod.string()
+})),
+  "invited": zod.int(),
+  "enrolled": zod.int(),
+  "alreadyEnrolled": zod.int(),
+  "failed": zod.int()
+})
+
+
+/**
  * Public and unauthenticated. The enquiry is delivered by email and is not stored, so a caller that receives 202 should treat the message as gone from its hands. Rate limited per client address.
  * @summary Send a partnership enquiry
  */

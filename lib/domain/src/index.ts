@@ -11,3 +11,4 @@ export * from "./certificateCode";
 export * from "./invitations";
 export * from "./partnership";
 export * from "./imageUpload";
+export * from "./roster";

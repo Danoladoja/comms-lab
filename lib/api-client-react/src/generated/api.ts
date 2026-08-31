@@ -25,6 +25,8 @@ import type {
   AssignmentInput,
   AssignmentSubmission,
   AssignmentSubmissionInput,
+  BulkInviteBody,
+  BulkInviteResult,
   Certificate,
   CourseworkDraftResult,
   CourseworkDraftRun,
@@ -4492,6 +4494,78 @@ export const useDeleteProgramThumbnail = <TError = ErrorType<ApiMessage>,
         TContext
       > => {
       return useMutation(getDeleteProgramThumbnailMutationOptions(options));
+    }
+
+export const getInviteLearnersInBulkUrl = () => {
+
+
+
+
+  return `/api/admin/invitations/bulk`
+}
+
+/**
+ * Admin only. Each person is handled on their own and reported on individually: one bad address, or one applicant who already has an account, must never stop the other forty-nine being invited.
+ * @summary Invite a roster of learners onto a programme
+ */
+export const inviteLearnersInBulk = async (bulkInviteBody: BulkInviteBody, options?: Parameters<typeof customFetch>[1]): Promise<BulkInviteResult> => {
+
+  return customFetch<BulkInviteResult>(getInviteLearnersInBulkUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(bulkInviteBody)
+  }
+);}
+
+
+
+
+
+export const getInviteLearnersInBulkMutationOptions = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof inviteLearnersInBulk>>, TError,{data: BodyType<BulkInviteBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof inviteLearnersInBulk>>, TError,{data: BodyType<BulkInviteBody>}, TContext> => {
+
+const mutationKey = ['inviteLearnersInBulk'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof inviteLearnersInBulk>>, {data: BodyType<BulkInviteBody>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  inviteLearnersInBulk(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type InviteLearnersInBulkMutationResult = NonNullable<Awaited<ReturnType<typeof inviteLearnersInBulk>>>
+    export type InviteLearnersInBulkMutationBody = BodyType<BulkInviteBody>
+    export type InviteLearnersInBulkMutationError = ErrorType<ApiMessage>
+
+    /**
+ * @summary Invite a roster of learners onto a programme
+ */
+export const useInviteLearnersInBulk = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof inviteLearnersInBulk>>, TError,{data: BodyType<BulkInviteBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof inviteLearnersInBulk>>,
+        TError,
+        {data: BodyType<BulkInviteBody>},
+        TContext
+      > => {
+      return useMutation(getInviteLearnersInBulkMutationOptions(options));
     }
 
 export const getSubmitPartnershipEnquiryUrl = () => {

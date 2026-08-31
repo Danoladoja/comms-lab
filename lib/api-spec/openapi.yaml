@@ -1765,6 +1765,46 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiMessage"
+  /admin/invitations/bulk:
+    post:
+      operationId: inviteLearnersInBulk
+      tags: [admin]
+      summary: Invite a roster of learners onto a programme
+      description: >-
+        Admin only. Each person is handled on their own and reported on
+        individually: one bad address, or one applicant who already has an
+        account, must never stop the other forty-nine being invited.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BulkInviteBody"
+      responses:
+        "200":
+          description: Every person attempted, with an outcome each
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BulkInviteResult"
+        "400":
+          description: Nothing usable in the request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "403":
+          description: Not an admin
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "503":
+          description: Invitations are not configured on the server
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
   /partnership-enquiries:
     post:
       operationId: submitPartnershipEnquiry
@@ -1807,6 +1847,65 @@ paths:
                 $ref: "#/components/schemas/ApiMessage"
 components:
   schemas:
+    BulkInviteEntry:
+      type: object
+      required: [email]
+      properties:
+        row:
+          type: integer
+          description: The line of the admin's own sheet, so a result can be pointed back at it.
+        name:
+          type: string
+        email:
+          type: string
+    BulkInviteBody:
+      type: object
+      required: [programId, entries]
+      properties:
+        programId:
+          type: integer
+          description: The cohort each invited learner is enrolled onto when they accept.
+        entries:
+          type: array
+          maxItems: 500
+          items:
+            $ref: "#/components/schemas/BulkInviteEntry"
+    BulkInviteOutcome:
+      type: object
+      required: [email, status, detail]
+      properties:
+        row:
+          type: integer
+        name:
+          type: string
+        email:
+          type: string
+        status:
+          type: string
+          enum: [invited, enrolled, already-enrolled, reinvited, failed]
+          description: >-
+            invited — a new person, invitation sent. enrolled — they already had
+            an account and were put straight onto the programme. already-enrolled
+            — nothing to do. reinvited — a previous unaccepted invitation was
+            withdrawn and replaced. failed — see detail.
+        detail:
+          type: string
+    BulkInviteResult:
+      type: object
+      required: [outcomes, invited, enrolled, alreadyEnrolled, failed]
+      properties:
+        outcomes:
+          type: array
+          items:
+            $ref: "#/components/schemas/BulkInviteOutcome"
+        invited:
+          type: integer
+        enrolled:
+          type: integer
+        alreadyEnrolled:
+          type: integer
+        failed:
+          type: integer
     PartnershipEnquiryInput:
       type: object
       required: [name, organisation, email, interest, message]

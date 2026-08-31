@@ -5,6 +5,51 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+export interface BulkInviteEntry {
+  /** The line of the admin's own sheet, so a result can be pointed back at it. */
+  row?: number;
+  name?: string;
+  email: string;
+}
+
+export interface BulkInviteBody {
+  /** The cohort each invited learner is enrolled onto when they accept. */
+  programId: number;
+  /** @maxItems 500 */
+  entries: BulkInviteEntry[];
+}
+
+/**
+ * invited — a new person, invitation sent. enrolled — they already had an account and were put straight onto the programme. already-enrolled — nothing to do. reinvited — a previous unaccepted invitation was withdrawn and replaced. failed — see detail.
+ */
+export type BulkInviteOutcomeStatus = typeof BulkInviteOutcomeStatus[keyof typeof BulkInviteOutcomeStatus];
+
+
+export const BulkInviteOutcomeStatus = {
+  invited: 'invited',
+  enrolled: 'enrolled',
+  'already-enrolled': 'already-enrolled',
+  reinvited: 'reinvited',
+  failed: 'failed',
+} as const;
+
+export interface BulkInviteOutcome {
+  row?: number;
+  name?: string;
+  email: string;
+  /** invited — a new person, invitation sent. enrolled — they already had an account and were put straight onto the programme. already-enrolled — nothing to do. reinvited — a previous unaccepted invitation was withdrawn and replaced. failed — see detail. */
+  status: BulkInviteOutcomeStatus;
+  detail: string;
+}
+
+export interface BulkInviteResult {
+  outcomes: BulkInviteOutcome[];
+  invited: number;
+  enrolled: number;
+  alreadyEnrolled: number;
+  failed: number;
+}
+
 export type PartnershipEnquiryInputInterest = typeof PartnershipEnquiryInputInterest[keyof typeof PartnershipEnquiryInputInterest];
 
 

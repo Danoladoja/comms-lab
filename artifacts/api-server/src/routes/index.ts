@@ -13,12 +13,14 @@ import adminRouter from "./admin";
 import googleRecordingsRouter from "./googleRecordings";
 import partnershipsRouter from "./partnerships";
 import programThumbnailsRouter from "./programThumbnails";
+import bulkInvitesRouter from "./bulkInvites";
 
 const router: IRouter = Router();
 
 router.use(healthRouter);
 router.use(meRouter);
 router.use(programThumbnailsRouter);
+router.use(bulkInvitesRouter);
 router.use(programsRouter);
 router.use(sessionsRouter);
 router.use(enrollmentsRouter);

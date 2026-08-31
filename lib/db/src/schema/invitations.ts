@@ -1,5 +1,6 @@
 import { pgTable, text, serial, integer, timestamp, jsonb, uniqueIndex } from "drizzle-orm/pg-core";
 import { usersTable } from "./users";
+import { programsTable } from "./programs";
 
 /**
  * A facilitator who has been invited but has not arrived yet.
@@ -22,6 +23,15 @@ export const pendingInvitationsTable = pgTable(
     role: text("role").notNull().default("instructor"),
     /** Classes to hand over on arrival, if nobody else is teaching them by then. */
     sessionIds: jsonb("session_ids").$type<number[]>().notNull().default([]),
+    /**
+     * The programme to enrol an arriving learner on.
+     *
+     * Facilitators are invited to classes; learners are invited to a cohort.
+     * Null for a facilitator invitation, and for any learner invited before
+     * this existed. Set null rather than cascading on delete, so removing a
+     * programme does not silently erase the record that somebody was invited.
+     */
+    programId: integer("program_id").references(() => programsTable.id, { onDelete: "set null" }),
     /** Clerk's id for the invitation, so it can be revoked there too. */
     clerkInvitationId: text("clerk_invitation_id").notNull().default(""),
     invitedByUserId: integer("invited_by_user_id").references(() => usersTable.id, { onDelete: "set null" }),

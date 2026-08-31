@@ -21,6 +21,7 @@ import {
 } from '@workspace/api-client-react';
 import CourseworkStudio from '@/components/CourseworkStudio';
 import InviteFacilitator from '@/components/InviteFacilitator';
+import InviteLearners from '@/components/InviteLearners';
 import RecordingsAdmin from '@/components/RecordingsAdmin';
 import ProgramThumbnail from '@/components/ProgramThumbnail';
 import { isMeasurableRecording } from '@/lib/embed';
@@ -509,6 +510,8 @@ function PeopleTab({ selfId }: { selfId: number | undefined }) {
 
   return (
     <div className="space-y-4">
+      <InviteLearners />
+
       <InviteFacilitator />
 
       <p className="text-sm text-muted-foreground">

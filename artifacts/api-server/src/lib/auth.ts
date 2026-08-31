@@ -1,10 +1,10 @@
 import type { NextFunction, Request, Response } from "express";
 import { clerkClient, getAuth } from "@clerk/express";
 import {
-  db, usersTable, sessionsTable, pendingInvitationsTable, type User,
+  db, usersTable, sessionsTable, pendingInvitationsTable, enrollmentsTable, type User,
 } from "@workspace/db";
 import { and, eq, inArray, isNull, sql } from "drizzle-orm";
-import { invitableRoleFromPublicMetadata, planAssignments } from "@workspace/domain";
+import { generateCertificateCode, invitableRoleFromPublicMetadata, planAssignments } from "@workspace/domain";
 import { logger } from "./logger";
 
 const userCache = new WeakMap<Request, User>();
@@ -114,14 +114,40 @@ async function claimInvitation(user: User, email: string): Promise<void> {
       }
     }
 
+    // A learner invited to a cohort is enrolled on the way in, so the classes
+    // are waiting rather than needing a second step from them or the admin.
+    // Doing nothing if a row already exists means an invitation accepted after
+    // the person enrolled themselves cannot wipe out the status an admin set.
+    let enrolled = false;
+    if (invite.programId) {
+      const [row] = await db
+        .insert(enrollmentsTable)
+        .values({
+          userId: user.id,
+          programId: invite.programId,
+          status: "enrolled",
+          certificateCode: generateCertificateCode(),
+        })
+        .onConflictDoNothing({ target: [enrollmentsTable.userId, enrollmentsTable.programId] })
+        .returning();
+      enrolled = !!row;
+    }
+
     await db
       .update(pendingInvitationsTable)
       .set({ acceptedAt: new Date(), acceptedByUserId: user.id })
       .where(eq(pendingInvitationsTable.id, invite.id));
 
     logger.info(
-      { userId: user.id, assigned: outcome.assigned.length, alreadyTaken: outcome.alreadyTaken.length },
-      "Invited facilitator arrived",
+      {
+        userId: user.id,
+        role: invite.role,
+        assigned: outcome.assigned.length,
+        alreadyTaken: outcome.alreadyTaken.length,
+        programId: invite.programId ?? null,
+        enrolled,
+      },
+      "Invited person arrived",
     );
   } catch (err) {
     // Never block a sign-in over this. They are in; an admin can assign classes
