@@ -12,5 +12,6 @@ export type ProgramUpdateStatus = typeof ProgramUpdateStatus[keyof typeof Progra
 export const ProgramUpdateStatus = {
   draft: 'draft',
   published: 'published',
+  closed: 'closed',
   archived: 'archived',
 } as const;

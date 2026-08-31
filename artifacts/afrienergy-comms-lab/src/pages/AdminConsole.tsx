@@ -17,8 +17,10 @@ import {
   getListAllEnrollmentsQueryKey,
   getListUsersQueryKey,
   type Program,
+  type ProgramStatus,
   type Session,
 } from '@workspace/api-client-react';
+import { programStatusNote } from '@workspace/domain';
 import CourseworkStudio from '@/components/CourseworkStudio';
 import InviteFacilitator from '@/components/InviteFacilitator';
 import InviteLearners from '@/components/InviteLearners';
@@ -317,10 +319,25 @@ function ProgramCard({ program, instructors }: { program: Program; instructors: 
 
   const update = useUpdateProgram({
     mutation: {
-      onSuccess: () => { toast({ title: 'Program updated' }); qc.invalidateQueries({ queryKey: getListProgramsQueryKey() }); },
+      onSuccess: (updated) => {
+        toast({ title: `${updated.title} — ${programStatusNote(updated.status).toLowerCase()}` });
+        qc.invalidateQueries({ queryKey: getListProgramsQueryKey() });
+      },
       onError: () => toast({ title: 'Could not update program', variant: 'destructive' }),
     },
   });
+
+  const setStatus = (status: ProgramStatus) => update.mutate({ id: program.id, data: { status } });
+
+  /** The obvious next move from wherever the programme is now. */
+  const next =
+    program.status === 'published'
+      ? { label: 'Close', status: 'closed' as const, strong: false }
+      : program.status === 'closed'
+        ? { label: 'Reopen sign-ups', status: 'published' as const, strong: false }
+        : program.status === 'archived'
+          ? { label: 'Put back on the site', status: 'published' as const, strong: false }
+          : { label: 'Publish', status: 'published' as const, strong: true };
 
   return (
     <div className="bg-card border border-border rounded-xl p-5">
@@ -338,16 +355,25 @@ function ProgramCard({ program, instructors }: { program: Program; instructors: 
           <p className="text-xs uppercase tracking-widest text-[#C2410C] font-medium">{program.tag}</p>
           <h3 className="font-semibold">{program.title}</h3>
           <p className="text-xs text-muted-foreground">{program.startDate} · {program.format} · {program.duration} · {program.enrolledCount}/{program.capacity} enrolled</p>
+          {/* What this state actually does, in words, next to the control that
+              changes it — so nobody has to remember what "closed" means. */}
+          <p className="text-xs text-muted-foreground/80 mt-0.5">{programStatusNote(program.status)}</p>
         </div>
         <select
           className="border border-border rounded-md px-3 py-2 text-sm bg-background"
           value={program.status}
-          onChange={e => update.mutate({ id: program.id, data: { status: e.target.value as any } })}
+          onChange={e => setStatus(e.target.value as ProgramStatus)}
         >
-          <option value="draft">Draft</option>
-          <option value="published">Published</option>
-          <option value="archived">Archived</option>
+          <option value="draft">Draft — hidden</option>
+          <option value="published">Published — open for sign-ups</option>
+          <option value="closed">Closed — on the site, no sign-ups</option>
+          <option value="archived">Archived — off the site</option>
         </select>
+        {/* The one press that matters for the state it is in now. The dropdown
+            can reach any state; this is the one an admin actually wants. */}
+        <Button size="sm" variant={next.strong ? 'default' : 'outline'} disabled={update.isPending} onClick={() => setStatus(next.status)}>
+          {next.label}
+        </Button>
         <div className="flex items-center gap-1.5">
           <Input
             type="number" className="w-20 text-sm" value={capacity}
@@ -360,7 +386,7 @@ function ProgramCard({ program, instructors }: { program: Program; instructors: 
           <span className="text-xs text-muted-foreground">places</span>
         </div>
         <Button variant="outline" size="sm" onClick={() => setEditing(!editing)}>
-          <Pencil className="w-4 h-4 mr-1.5" />{editing ? 'Close' : 'Edit'}
+          <Pencil className="w-4 h-4 mr-1.5" />{editing ? 'Done' : 'Edit'}
         </Button>
         <Button variant="outline" size="sm" onClick={() => setOpen(!open)}>
           Sessions {open ? <ChevronUp className="w-4 h-4 ml-1" /> : <ChevronDown className="w-4 h-4 ml-1" />}
@@ -450,14 +476,15 @@ function ProgramsTab({ instructors }: { instructors: { id: number; name: string;
             <Button size="sm" variant="outline" disabled={!canCreate || create.isPending} onClick={() => submit('draft')}>
               Save as draft
             </Button>
-            {/* A way out that does not create anything. Without it the only exit
-                is the New Program button, which reads like a second attempt. */}
+            {/* A way out that does not create anything. Called Cancel, not
+                Close: closing is what happens to a programme, and the two
+                must not read as the same action. */}
             <Button size="sm" variant="ghost" disabled={create.isPending} onClick={closeCreate}>
-              Close
+              Cancel
             </Button>
             <p className="w-full text-xs text-muted-foreground">
-              Publishing puts the program on the public catalogue straight away. A draft stays
-              hidden until you publish it from its card.
+              Publishing puts the program on the public catalogue straight away and opens sign-ups.
+              A draft stays hidden until you publish it from its card. Cancel just closes this form.
             </p>
           </div>
         </div>

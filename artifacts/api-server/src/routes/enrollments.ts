@@ -6,6 +6,9 @@ import {
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import {
   liveWindow,
+  acceptsEnrolment,
+  showsInCatalogue,
+  CLOSED_TO_ENROLMENT_MESSAGE,
   generateCertificateCode,
   normaliseCertificateCode,
   type ProgressEntry,
@@ -25,8 +28,14 @@ router.post("/programs/:id/enroll", async (req, res) => {
   }
   const programId = Number(req.params.id);
   const program = await db.select().from(programsTable).where(eq(programsTable.id, programId));
-  if (program.length === 0 || program[0].status !== "published") {
+  if (program.length === 0 || (!showsInCatalogue(program[0].status) && !acceptsEnrolment(program[0].status))) {
     res.status(404).json({ error: "Program not found" });
+    return;
+  }
+  // A closed programme is still on the site, so this is a real refusal rather
+  // than a missing page, and the learner is told which it is.
+  if (!acceptsEnrolment(program[0].status)) {
+    res.status(409).json({ error: CLOSED_TO_ENROLMENT_MESSAGE });
     return;
   }
   const existing = await db

@@ -42,7 +42,7 @@ export const ListProgramsResponseItem = zod.object({
   "duration": zod.string(),
   "thumbnailUrl": zod.string().nullish(),
   "capacity": zod.int(),
-  "status": zod.enum(['draft', 'published', 'archived']),
+  "status": zod.enum(['draft', 'published', 'closed', 'archived']),
   "enrolledCount": zod.int()
 })
 export const ListProgramsResponse = zod.array(ListProgramsResponseItem)
@@ -69,7 +69,7 @@ export const CreateProgramBody = zod.object({
   "duration": zod.string().min(1),
   "thumbnailUrl": zod.string().optional(),
   "capacity": zod.int().min(1).optional(),
-  "status": zod.enum(['draft', 'published', 'archived']).optional()
+  "status": zod.enum(['draft', 'published', 'closed', 'archived']).optional()
 })
 
 export const CreateProgramResponse = zod.object({
@@ -82,7 +82,7 @@ export const CreateProgramResponse = zod.object({
   "duration": zod.string(),
   "thumbnailUrl": zod.string().nullish(),
   "capacity": zod.int(),
-  "status": zod.enum(['draft', 'published', 'archived']),
+  "status": zod.enum(['draft', 'published', 'closed', 'archived']),
   "enrolledCount": zod.int()
 })
 
@@ -104,7 +104,7 @@ export const GetProgramResponse = zod.object({
   "duration": zod.string(),
   "thumbnailUrl": zod.string().nullish(),
   "capacity": zod.int(),
-  "status": zod.enum(['draft', 'published', 'archived']),
+  "status": zod.enum(['draft', 'published', 'closed', 'archived']),
   "enrolledCount": zod.int()
 })
 
@@ -134,7 +134,7 @@ export const UpdateProgramBody = zod.object({
   "duration": zod.string().min(1).optional(),
   "thumbnailUrl": zod.string().optional(),
   "capacity": zod.int().min(1).optional(),
-  "status": zod.enum(['draft', 'published', 'archived']).optional()
+  "status": zod.enum(['draft', 'published', 'closed', 'archived']).optional()
 })
 
 export const UpdateProgramResponse = zod.object({
@@ -147,7 +147,7 @@ export const UpdateProgramResponse = zod.object({
   "duration": zod.string(),
   "thumbnailUrl": zod.string().nullish(),
   "capacity": zod.int(),
-  "status": zod.enum(['draft', 'published', 'archived']),
+  "status": zod.enum(['draft', 'published', 'closed', 'archived']),
   "enrolledCount": zod.int()
 })
 
@@ -1423,7 +1423,7 @@ export const UploadProgramThumbnailResponse = zod.object({
   "duration": zod.string(),
   "thumbnailUrl": zod.string().nullish(),
   "capacity": zod.int(),
-  "status": zod.enum(['draft', 'published', 'archived']),
+  "status": zod.enum(['draft', 'published', 'closed', 'archived']),
   "enrolledCount": zod.int()
 })
 
@@ -1446,7 +1446,7 @@ export const DeleteProgramThumbnailResponse = zod.object({
   "duration": zod.string(),
   "thumbnailUrl": zod.string().nullish(),
   "capacity": zod.int(),
-  "status": zod.enum(['draft', 'published', 'archived']),
+  "status": zod.enum(['draft', 'published', 'closed', 'archived']),
   "enrolledCount": zod.int()
 })
 

@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { Link } from 'wouter';
 import { useListPrograms } from '@workspace/api-client-react';
+import { acceptsEnrolment } from '@workspace/domain';
 import { Input } from '@/components/ui/input';
 import { Search, Filter, ArrowRight, Calendar, Clock, Users } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -165,6 +166,14 @@ export default function CourseCatalog() {
                           <span className="absolute top-3 left-3 bg-background/90 backdrop-blur-sm text-foreground text-xs font-semibold px-2.5 py-1 rounded-full border border-border/50">
                             {program.format}
                           </span>
+                          {/* A closed cohort stays listed, so it has to say so
+                              here — before somebody reads the whole page and
+                              only then finds there is no way in. */}
+                          {!acceptsEnrolment(program.status) && (
+                            <span className="absolute top-3 right-3 bg-[#07111E]/90 backdrop-blur-sm text-[#F4F0E8] text-xs font-semibold px-2.5 py-1 rounded-full">
+                              Sign-ups closed
+                            </span>
+                          )}
                         </div>
 
                         <div className="flex flex-col flex-1 p-5">
@@ -192,7 +201,9 @@ export default function CourseCatalog() {
                         <div className="px-5 py-4 border-t border-border flex items-center justify-between bg-muted/20">
                           <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
                             <Users className="w-3.5 h-3.5" />
-                            {placesLeft > 0 ? `${placesLeft} places left` : 'Waitlist open'}
+                            {!acceptsEnrolment(program.status)
+                              ? 'Cohort closed'
+                              : placesLeft > 0 ? `${placesLeft} places left` : 'Waitlist open'}
                           </span>
                           <Link href={`/programs/${program.id}`}>
                             <button className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-widest text-foreground hover:text-primary transition-colors group-hover:text-primary">

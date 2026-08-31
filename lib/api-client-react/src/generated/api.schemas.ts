@@ -651,6 +651,7 @@ export type ProgramStatus = typeof ProgramStatus[keyof typeof ProgramStatus];
 export const ProgramStatus = {
   draft: 'draft',
   published: 'published',
+  closed: 'closed',
   archived: 'archived',
 } as const;
 
@@ -675,6 +676,7 @@ export type ProgramInputStatus = typeof ProgramInputStatus[keyof typeof ProgramI
 export const ProgramInputStatus = {
   draft: 'draft',
   published: 'published',
+  closed: 'closed',
   archived: 'archived',
 } as const;
 
@@ -703,6 +705,7 @@ export type ProgramUpdateStatus = typeof ProgramUpdateStatus[keyof typeof Progra
 export const ProgramUpdateStatus = {
   draft: 'draft',
   published: 'published',
+  closed: 'closed',
   archived: 'archived',
 } as const;
 

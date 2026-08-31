@@ -12,5 +12,6 @@ export type ProgramStatus = typeof ProgramStatus[keyof typeof ProgramStatus];
 export const ProgramStatus = {
   draft: 'draft',
   published: 'published',
+  closed: 'closed',
   archived: 'archived',
 } as const;

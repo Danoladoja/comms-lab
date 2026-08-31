@@ -64,8 +64,12 @@ export function ProgramThumbnail({ programId, thumbnailUrl, onChanged }: Props) 
       });
 
       if (!res.ok) {
-        const body = (await res.json().catch(() => null)) as { message?: string } | null;
-        setProblem(body?.message ?? 'That image could not be saved. Try again.');
+        // The server says `message` when it knows what went wrong and `error`
+        // when something failed unexpectedly. Reading only the first left an
+        // admin staring at "try again" while the real cause sat in the other
+        // field.
+        const body = (await res.json().catch(() => null)) as { message?: string; error?: string } | null;
+        setProblem(body?.message ?? body?.error ?? 'That image could not be saved. Try again.');
         setPreview(null);
         URL.revokeObjectURL(localPreview);
         return;

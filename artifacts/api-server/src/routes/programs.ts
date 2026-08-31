@@ -1,11 +1,12 @@
 import { Router, type IRouter } from "express";
 import { db, programsTable, sessionsTable, enrollmentsTable, usersTable } from "@workspace/db";
-import { and, asc, eq, ne, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, ne, sql } from "drizzle-orm";
 import {
   CreateProgramBody,
   UpdateProgramBody,
   CreateSessionBody,
 } from "@workspace/api-zod";
+import { showsInCatalogue } from "@workspace/domain";
 import { getCurrentUser, requireRole } from "../lib/auth";
 import { progressForUser } from "../lib/progress";
 
@@ -39,7 +40,9 @@ router.get("/programs", async (req, res) => {
   const rows = await db
     .select(programColumns())
     .from(programsTable)
-    .where(isAdmin ? ne(programsTable.status, "archived") : eq(programsTable.status, "published"))
+    // A closed programme stays on the catalogue: the cohort is full or under
+    // way, and that is worth reading about. Only the sign-up is gone.
+    .where(isAdmin ? ne(programsTable.status, "archived") : inArray(programsTable.status, ["published", "closed"]))
     .orderBy(asc(programsTable.id));
   res.json(rows);
 });
@@ -62,7 +65,7 @@ router.get("/programs/:id", async (req, res) => {
     return;
   }
   const user = await getCurrentUser(req);
-  if (rows[0].status !== "published" && user?.role !== "admin") {
+  if (!showsInCatalogue(rows[0].status) && user?.role !== "admin") {
     res.status(404).json({ error: "Program not found" });
     return;
   }

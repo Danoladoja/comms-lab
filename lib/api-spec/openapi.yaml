@@ -2612,7 +2612,7 @@ components:
         duration: { type: string }
         thumbnailUrl: { type: ["string", "null"] }
         capacity: { type: integer }
-        status: { type: string, enum: [draft, published, archived] }
+        status: { type: string, enum: [draft, published, closed, archived] }
         enrolledCount: { type: integer }
     ProgramInput:
       type: object
@@ -2626,7 +2626,7 @@ components:
         duration: { type: string, minLength: 1 }
         thumbnailUrl: { type: string }
         capacity: { type: integer, minimum: 1 }
-        status: { type: string, enum: [draft, published, archived] }
+        status: { type: string, enum: [draft, published, closed, archived] }
     ProgramUpdate:
       type: object
       properties:
@@ -2638,7 +2638,7 @@ components:
         duration: { type: string, minLength: 1 }
         thumbnailUrl: { type: string }
         capacity: { type: integer, minimum: 1 }
-        status: { type: string, enum: [draft, published, archived] }
+        status: { type: string, enum: [draft, published, closed, archived] }
     Session:
       type: object
       required: [id, programId, title, description, sortOrder, durationMins]

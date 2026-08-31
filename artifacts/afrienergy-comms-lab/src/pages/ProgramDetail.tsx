@@ -10,6 +10,7 @@ import {
   getGetProgramQueryKey,
   getListProgramSessionsQueryKey,
 } from '@workspace/api-client-react';
+import { acceptsEnrolment } from '@workspace/domain';
 import { useCurrentUser } from '@/lib/useCurrentUser';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
@@ -70,6 +71,9 @@ export default function ProgramDetail() {
   }
 
   const placesLeft = Math.max(0, program.capacity - program.enrolledCount);
+  // Closed means the cohort is full or under way. The page stays up so people
+  // can read what the Lab runs; only the way in is gone.
+  const open = acceptsEnrolment(program.status);
 
   return (
     <div>
@@ -82,7 +86,7 @@ export default function ProgramDetail() {
           <div className="flex flex-wrap items-center gap-6 text-sm text-[#F4F0E8]/80">
             <span className="flex items-center gap-2"><Calendar className="w-4 h-4 text-[#F97316]" />Starts {program.startDate}</span>
             <span className="flex items-center gap-2"><Clock className="w-4 h-4 text-[#F97316]" />{program.duration} · {program.format}</span>
-            <span className="flex items-center gap-2"><Users className="w-4 h-4 text-[#F97316]" />{placesLeft > 0 ? `${placesLeft} places left` : 'Waitlist open'}</span>
+            <span className="flex items-center gap-2"><Users className="w-4 h-4 text-[#F97316]" />{!open ? 'Sign-ups closed' : placesLeft > 0 ? `${placesLeft} places left` : 'Waitlist open'}</span>
           </div>
         </div>
       </section>
@@ -129,9 +133,13 @@ export default function ProgramDetail() {
         {/* Enroll card */}
         <aside>
           <div className="bg-card border border-border rounded-2xl p-6 lg:sticky lg:top-28">
-            <h3 className="font-display font-bold text-lg mb-2">Reserve your place</h3>
+            <h3 className="font-display font-bold text-lg mb-2">
+              {open ? 'Reserve your place' : 'Sign-ups have closed'}
+            </h3>
             <p className="text-sm text-muted-foreground mb-6">
-              Free to join. Places are limited to keep cohorts practical and interactive.
+              {open
+                ? 'Free to join. Places are limited to keep cohorts practical and interactive.'
+                : 'This cohort is no longer taking new learners. Browse the other programmes, or write to us about the next run.'}
             </p>
             {myEnrollment ? (
               <div className="flex items-center gap-2 bg-primary/10 text-primary rounded-lg px-4 py-3 font-medium text-sm">
@@ -139,6 +147,10 @@ export default function ProgramDetail() {
                 {myEnrollment.status === 'waitlisted' ? 'You are on the waitlist' :
                  myEnrollment.status === 'completed' ? 'Completed' : 'You are enrolled'}
               </div>
+            ) : !open ? (
+              <Button asChild variant="outline" className="w-full font-bold">
+                <Link href="/courses">See other programmes</Link>
+              </Button>
             ) : isSignedIn ? (
               <Button
                 className="w-full font-bold"
