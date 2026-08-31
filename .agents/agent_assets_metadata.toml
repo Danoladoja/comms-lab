@@ -1,0 +1,16 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "g13jzEoV6Tuk-NlXlRHRR"
+uri = "file://screenshots/certificate-design-preview.jpg"
+type = "image"
+title = "Certificate Design Preview"
+description = "Current Afrienergy Comms Lab completion certificate shown with representative learner and programme details."
+logical_id = "da684766-bdac-4f77-8f7b-82baf19ee2db"
+content_hash = "sha256:5b0dbdd726cf26aa58e0550dc642b856914f984b957e119255c267b9e692deed"
+size = 52724
+mtime_ms = 1788188647342
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:61c1a181-e5d0-4506-8631-780238d50abe/da684766-bdac-4f77-8f7b-82baf19ee2db/e9ec8129-b1cf-445c-9475-c39434940095"
+storage_version_token = "1788188659259001"
+content_type = "image/jpeg"

@@ -1,0 +1,1915 @@
+From 7190406381e610c56aeda9179515301e1342cd38 Mon Sep 17 00:00:00 2001
+From: claude <noreply@anthropic.com>
+Date: Mon, 31 Aug 2026 10:44:21 +0000
+Subject: [PATCH] feat: partnerships page, privacy policy, and a logo that
+ reaches home
+
+The logo in the header and footer already pointed at "/", but "/" redirected
+anyone signed in to /dashboard, so the homepage was unreachable for everybody
+with an account. "/" is now the homepage for everyone; landing on the dashboard
+after signing in is Clerk's post-sign-in destination instead, which is where
+that behaviour belongs.
+
+Partnerships is a real page with a working form. The enquiry is delivered by
+email and stored nowhere, which sets the standard the route has to meet: a
+failed send is never reported as success, the page prints a direct address to
+fall back on, and a failure writes the full enquiry to the log because it is
+the only remaining copy.
+
+This is the first endpoint on the server that writes without a signed-in user
+behind it, so it is guarded three ways: a hidden field the crude scrapers fill
+and people never see, a small per-address hourly budget, and validation that
+refuses anything unusable before a mail provider is contacted. The budget is
+spent only on submissions that were otherwise valid, so somebody fumbling their
+email address five times is not locked out before they ever send anything.
+
+Express now trusts one proxy hop. Without it every request appears to come from
+Railway's proxy, the whole internet shares one apparent address, and the second
+genuine partner of the day is turned away. One hop rather than `true`, so a
+caller cannot prepend an X-Forwarded-For and mint a fresh identity per request.
+
+The privacy policy is adapted from the Africa Energy Pulse one rather than
+copied. That policy covers a publication with a newsletter; this is a platform
+holding accounts, attendance, submitted coursework and peer critique, and
+claiming to collect less than we do would be worse than having no policy. It
+names the processors that actually see the data, including that class material
+goes to an AI provider when a facilitator uses the drafting tool.
+
+Terms of Service is gone rather than left as a dead "#" link.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01Dq13wi75fjGnN4oYqzszGa
+---
+ artifacts/afrienergy-comms-lab/src/App.tsx    |  48 ++-
+ .../src/components/layout/Footer.tsx          |   5 +-
+ .../src/pages/Partnerships.tsx                | 345 ++++++++++++++++++
+ .../src/pages/Privacy.tsx                     | 202 ++++++++++
+ artifacts/api-server/src/app.ts               |  12 +
+ artifacts/api-server/src/routes/index.ts      |   2 +
+ .../src/routes/partnerships.test.ts           | 152 ++++++++
+ .../api-server/src/routes/partnerships.ts     | 155 ++++++++
+ .../src/generated/api.schemas.ts              |  39 ++
+ lib/api-client-react/src/generated/api.ts     |  74 ++++
+ lib/api-spec/openapi.yaml                     |  83 +++++
+ lib/api-zod/src/generated/api.ts              |  29 ++
+ lib/api-zod/src/generated/types/index.ts      |   3 +
+ .../types/partnershipEnquiryInput.ts          |  25 ++
+ .../types/partnershipEnquiryInputInterest.ts  |  18 +
+ .../types/partnershipEnquiryProblems.ts       |  18 +
+ lib/domain/src/index.ts                       |   1 +
+ lib/domain/src/partnership.test.ts            | 179 +++++++++
+ lib/domain/src/partnership.ts                 | 241 ++++++++++++
+ 19 files changed, 1613 insertions(+), 18 deletions(-)
+ create mode 100644 artifacts/afrienergy-comms-lab/src/pages/Partnerships.tsx
+ create mode 100644 artifacts/afrienergy-comms-lab/src/pages/Privacy.tsx
+ create mode 100644 artifacts/api-server/src/routes/partnerships.test.ts
+ create mode 100644 artifacts/api-server/src/routes/partnerships.ts
+ create mode 100644 lib/api-zod/src/generated/types/partnershipEnquiryInput.ts
+ create mode 100644 lib/api-zod/src/generated/types/partnershipEnquiryInputInterest.ts
+ create mode 100644 lib/api-zod/src/generated/types/partnershipEnquiryProblems.ts
+ create mode 100644 lib/domain/src/partnership.test.ts
+ create mode 100644 lib/domain/src/partnership.ts
+
+diff --git a/artifacts/afrienergy-comms-lab/src/App.tsx b/artifacts/afrienergy-comms-lab/src/App.tsx
+index 4a36c51..dce4e93 100644
+--- a/artifacts/afrienergy-comms-lab/src/App.tsx
++++ b/artifacts/afrienergy-comms-lab/src/App.tsx
+@@ -23,6 +23,8 @@ import Classroom from '@/pages/Classroom';
+ import Recordings from '@/pages/Recordings';
+ import Certificates from '@/pages/Certificates';
+ import About from '@/pages/About';
++import Partnerships from '@/pages/Partnerships';
++import Privacy from '@/pages/Privacy';
+ import NotFound from '@/pages/not-found';
+ 
+ const queryClient = new QueryClient();
+@@ -112,7 +114,12 @@ function AuthPageShell({ children }: { children: ReactNode }) {
+ function SignInPage() {
+   return (
+     <AuthPageShell>
+-      <SignIn routing="path" path={`${basePath}/sign-in`} signUpUrl={`${basePath}/sign-up`} />
++      <SignIn
++        routing="path"
++        path={`${basePath}/sign-in`}
++        signUpUrl={`${basePath}/sign-up`}
++        fallbackRedirectUrl={`${basePath}/dashboard`}
++      />
+     </AuthPageShell>
+   );
+ }
+@@ -120,23 +127,28 @@ function SignInPage() {
+ function SignUpPage() {
+   return (
+     <AuthPageShell>
+-      <SignUp routing="path" path={`${basePath}/sign-up`} signInUrl={`${basePath}/sign-in`} />
++      <SignUp
++        routing="path"
++        path={`${basePath}/sign-up`}
++        signInUrl={`${basePath}/sign-in`}
++        fallbackRedirectUrl={`${basePath}/dashboard`}
++      />
+     </AuthPageShell>
+   );
+ }
+ 
+-function HomeRedirect() {
+-  return (
+-    <>
+-      <Show when="signed-in">
+-        <Redirect to="/dashboard" />
+-      </Show>
+-      <Show when="signed-out">
+-        <AppLayout><Home /></AppLayout>
+-      </Show>
+-    </>
+-  );
+-}
++/**
++ * The homepage belongs to everyone, signed in or not.
++ *
++ * This used to bounce a signed-in visitor straight to /dashboard. The logo in
++ * the header and footer points here, as a logo should, so that redirect quietly
++ * made the homepage unreachable for anybody with an account — including the
++ * people running the Lab, who have the most reason to look at it.
++ *
++ * Landing on the dashboard after signing in is still right, and still happens:
++ * it is now Clerk's post-sign-in destination rather than a standing rule about
++ * what "/" means for the rest of the session.
++ */
+ 
+ function Protected({ children }: { children: ReactNode }) {
+   return (
+@@ -190,7 +202,7 @@ function Router() {
+         </Route>
+ 
+         {/* Public routes with AppLayout */}
+-        <Route path="/" component={HomeRedirect} />
++        <Route path="/"><AppLayout><Home /></AppLayout></Route>
+         <Route path="/courses">
+           <AppLayout><CourseCatalog /></AppLayout>
+         </Route>
+@@ -203,6 +215,12 @@ function Router() {
+         <Route path="/about">
+           <AppLayout><About /></AppLayout>
+         </Route>
++        <Route path="/partnerships">
++          <AppLayout><Partnerships /></AppLayout>
++        </Route>
++        <Route path="/privacy">
++          <AppLayout><Privacy /></AppLayout>
++        </Route>
+ 
+         {/* Signed-in routes */}
+         <Route path="/dashboard">
+diff --git a/artifacts/afrienergy-comms-lab/src/components/layout/Footer.tsx b/artifacts/afrienergy-comms-lab/src/components/layout/Footer.tsx
+index 7bbd714..5ea6d02 100644
+--- a/artifacts/afrienergy-comms-lab/src/components/layout/Footer.tsx
++++ b/artifacts/afrienergy-comms-lab/src/components/layout/Footer.tsx
+@@ -41,9 +41,8 @@ export function Footer() {
+             <h4 className="font-semibold mb-4 text-sidebar-foreground">Organisation</h4>
+             <ul className="space-y-3">
+               <li><Link href="/about" className="text-sm text-sidebar-foreground/70 hover:text-primary transition-colors">About</Link></li>
+-              <li><a href="#" className="text-sm text-sidebar-foreground/70 hover:text-primary transition-colors">Partnerships</a></li>
+-              <li><a href="#" className="text-sm text-sidebar-foreground/70 hover:text-primary transition-colors">Privacy Policy</a></li>
+-              <li><a href="#" className="text-sm text-sidebar-foreground/70 hover:text-primary transition-colors">Terms of Service</a></li>
++              <li><Link href="/partnerships" className="text-sm text-sidebar-foreground/70 hover:text-primary transition-colors">Partnerships</Link></li>
++              <li><Link href="/privacy" className="text-sm text-sidebar-foreground/70 hover:text-primary transition-colors">Privacy Policy</Link></li>
+             </ul>
+           </div>
+         </div>
+diff --git a/artifacts/afrienergy-comms-lab/src/pages/Partnerships.tsx b/artifacts/afrienergy-comms-lab/src/pages/Partnerships.tsx
+new file mode 100644
+index 0000000..c960f2c
+--- /dev/null
++++ b/artifacts/afrienergy-comms-lab/src/pages/Partnerships.tsx
+@@ -0,0 +1,345 @@
++import { useState } from 'react';
++import { motion } from 'framer-motion';
++import { Check, Loader2 } from 'lucide-react';
++import {
++  useSubmitPartnershipEnquiry,
++  type PartnershipEnquiryInput,
++  type PartnershipEnquiryProblems,
++} from '@workspace/api-client-react';
++import {
++  PARTNERSHIP_INTERESTS,
++  PARTNERSHIP_INTEREST_LABELS,
++  type PartnershipInterest,
++} from '@workspace/domain';
++import { Button } from '@/components/ui/button';
++import { KenteOverlay } from '@/components/KenteOverlay';
++
++/**
++ * The partnerships page.
++ *
++ * Written for one reader: someone senior, short of time, deciding in about
++ * fifteen seconds whether this is a serious outfit worth a reply. So the ways
++ * of working together are named plainly and up front, and the form asks for the
++ * four things needed to reply properly and nothing else.
++ *
++ * The enquiry is sent by email and stored nowhere, so the address is also
++ * printed on the page. If the send fails — and it can — a person who has just
++ * written three paragraphs still has somewhere to put them.
++ */
++
++const CONTACT_EMAIL = 'africaenergypulse@gmail.com';
++
++const fadeUp = {
++  hidden: { opacity: 0, y: 24 },
++  visible: (delay = 0) => ({
++    opacity: 1,
++    y: 0,
++    transition: { duration: 0.7, ease: [0.22, 1, 0.36, 1] as const, delay },
++  }),
++};
++
++const ways = [
++  {
++    n: '01',
++    title: 'Facilitate a class',
++    body: 'Lead a single session in your area of practice. Most of our facilitators teach one class a cohort — enough to make a real contribution without displacing the day job.',
++  },
++  {
++    n: '02',
++    title: 'Host or co-run a programme',
++    body: 'Bring a cohort from your own network — a newsroom, a regulator, a association — and we build the curriculum around what those people actually need.',
++  },
++  {
++    n: '03',
++    title: 'Fund or sponsor a cohort',
++    body: 'Underwrite places for journalists and advocates who could not otherwise attend. Sponsors are named on the programme and receive a report on what the cohort produced.',
++  },
++  {
++    n: '04',
++    title: 'Media or content partnership',
++    body: 'Republish work produced in the Lab, co-commission reporting, or open your archive as teaching material for a module.',
++  },
++];
++
++type FormState = PartnershipEnquiryInput & { honeypot: string };
++
++const EMPTY: FormState = {
++  name: '',
++  organisation: '',
++  email: '',
++  interest: '' as PartnershipInterest,
++  message: '',
++  honeypot: '',
++};
++
++const fieldClass =
++  'w-full rounded-lg border border-border bg-background px-4 py-3 text-sm text-foreground ' +
++  'placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary';
++
++function Problem({ children }: { children?: string }) {
++  if (!children) return null;
++  return (
++    <p role="alert" className="mt-1.5 text-xs font-medium text-destructive">
++      {children}
++    </p>
++  );
++}
++
++export default function Partnerships() {
++  const [form, setForm] = useState<FormState>(EMPTY);
++  const [problems, setProblems] = useState<PartnershipEnquiryProblems>({});
++  const [failure, setFailure] = useState<string | null>(null);
++  const [sent, setSent] = useState(false);
++
++  const { mutateAsync, isPending } = useSubmitPartnershipEnquiry();
++
++  function set<K extends keyof FormState>(key: K, value: FormState[K]) {
++    setForm((f) => ({ ...f, [key]: value }));
++    // Clearing as they type: leaving a message under a field they have just
++    // corrected reads as though the correction did not register.
++    setProblems((p) => (key in p ? { ...p, [key]: undefined } : p));
++  }
++
++  async function onSubmit(event: React.FormEvent) {
++    event.preventDefault();
++    setProblems({});
++    setFailure(null);
++
++    try {
++      await mutateAsync({ data: form });
++      setSent(true);
++    } catch (err) {
++      // 400 comes back as one sentence per field; anything else is a failure to
++      // deliver, which must be said plainly rather than dressed up as success.
++      const status = (err as { status?: number })?.status;
++      const data = (err as { data?: unknown })?.data;
++
++      if (status === 400 && data && typeof data === 'object') {
++        setProblems(data as PartnershipEnquiryProblems);
++        return;
++      }
++
++      const message = (data as { message?: string } | undefined)?.message;
++      setFailure(message ?? 'We could not send that just now. Please email us directly.');
++    }
++  }
++
++  return (
++    <div className="bg-background">
++      <section className="relative overflow-hidden bg-sidebar py-24 md:py-32">
++        <KenteOverlay />
++        <div className="container relative mx-auto px-4 md:px-6">
++          <motion.div initial="hidden" animate="visible" variants={fadeUp}>
++            <p className="mb-4 text-xs font-semibold uppercase tracking-[0.2em] text-primary">
++              Partnerships
++            </p>
++            <h1 className="max-w-4xl font-display text-4xl font-bold leading-[1.05] text-sidebar-foreground md:text-6xl">
++              The Lab runs on people who show up.
++            </h1>
++            <p className="mt-6 max-w-2xl text-base leading-relaxed text-sidebar-foreground/70 md:text-lg">
++              Every facilitator here is a working practitioner giving their time. Every cohort is
++              shaped by organisations who wanted their people, or their peers, to be better at this.
++              If that sounds like you, we would like to hear from you.
++            </p>
++          </motion.div>
++        </div>
++      </section>
++
++      <section className="py-20 md:py-28">
++        <div className="container mx-auto px-4 md:px-6">
++          <h2 className="font-display text-2xl font-bold text-foreground md:text-3xl">
++            Four ways to work together
++          </h2>
++          <div className="mt-12 grid gap-10 md:grid-cols-2 md:gap-x-16 md:gap-y-12">
++            {ways.map((way, i) => (
++              <motion.div
++                key={way.n}
++                initial="hidden"
++                whileInView="visible"
++                viewport={{ once: true, margin: '-80px' }}
++                variants={fadeUp}
++                custom={i * 0.08}
++              >
++                <p className="font-display text-sm font-bold text-primary">{way.n}</p>
++                <h3 className="mt-2 font-display text-lg font-bold text-foreground">{way.title}</h3>
++                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{way.body}</p>
++              </motion.div>
++            ))}
++          </div>
++        </div>
++      </section>
++
++      <section className="border-t border-border bg-muted/30 py-20 md:py-28">
++        <div className="container mx-auto px-4 md:px-6">
++          <div className="mx-auto max-w-2xl">
++            {sent ? (
++              <div className="rounded-2xl border border-border bg-background p-10 text-center">
++                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
++                  <Check className="h-6 w-6 text-primary" />
++                </div>
++                <h2 className="mt-6 font-display text-2xl font-bold text-foreground">
++                  Thank you — that reached us.
++                </h2>
++                <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
++                  We read every enquiry ourselves and reply to {form.email || 'the address you gave'}{' '}
++                  within a few working days. If you do not hear back, write to us at{' '}
++                  <a className="font-medium text-primary hover:underline" href={`mailto:${CONTACT_EMAIL}`}>
++                    {CONTACT_EMAIL}
++                  </a>
++                  .
++                </p>
++              </div>
++            ) : (
++              <>
++                <h2 className="font-display text-2xl font-bold text-foreground md:text-3xl">
++                  Start a conversation
++                </h2>
++                <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
++                  Four questions. We reply to every serious enquiry, and we will tell you honestly
++                  if the timing is wrong rather than leaving you waiting.
++                </p>
++
++                <form onSubmit={onSubmit} className="mt-10 space-y-6" noValidate>
++                  {/* Hidden from people, irresistible to form scrapers. Not
++                      `display:none` — some bots skip those — and kept out of the
++                      tab order and off screen readers. */}
++                  <div aria-hidden="true" className="absolute left-[-9999px] h-px w-px overflow-hidden">
++                    <label htmlFor="company-website">Leave this field empty</label>
++                    <input
++                      id="company-website"
++                      name="company-website"
++                      type="text"
++                      tabIndex={-1}
++                      autoComplete="off"
++                      value={form.honeypot}
++                      onChange={(e) => set('honeypot', e.target.value)}
++                    />
++                  </div>
++
++                  <div className="grid gap-6 sm:grid-cols-2">
++                    <div>
++                      <label htmlFor="name" className="mb-2 block text-sm font-medium text-foreground">
++                        Your name
++                      </label>
++                      <input
++                        id="name"
++                        className={fieldClass}
++                        value={form.name}
++                        onChange={(e) => set('name', e.target.value)}
++                        autoComplete="name"
++                        aria-invalid={!!problems.name}
++                      />
++                      <Problem>{problems.name}</Problem>
++                    </div>
++
++                    <div>
++                      <label htmlFor="organisation" className="mb-2 block text-sm font-medium text-foreground">
++                        Organisation
++                      </label>
++                      <input
++                        id="organisation"
++                        className={fieldClass}
++                        value={form.organisation}
++                        onChange={(e) => set('organisation', e.target.value)}
++                        autoComplete="organization"
++                        aria-invalid={!!problems.organisation}
++                      />
++                      <Problem>{problems.organisation}</Problem>
++                    </div>
++                  </div>
++
++                  <div>
++                    <label htmlFor="email" className="mb-2 block text-sm font-medium text-foreground">
++                      Email
++                    </label>
++                    <input
++                      id="email"
++                      type="email"
++                      className={fieldClass}
++                      value={form.email}
++                      onChange={(e) => set('email', e.target.value)}
++                      autoComplete="email"
++                      aria-invalid={!!problems.email}
++                    />
++                    <Problem>{problems.email}</Problem>
++                  </div>
++
++                  <div>
++                    <label htmlFor="interest" className="mb-2 block text-sm font-medium text-foreground">
++                      What do you have in mind?
++                    </label>
++                    <select
++                      id="interest"
++                      className={fieldClass}
++                      value={form.interest}
++                      onChange={(e) => set('interest', e.target.value as PartnershipInterest)}
++                      aria-invalid={!!problems.interest}
++                    >
++                      <option value="">Choose one</option>
++                      {PARTNERSHIP_INTERESTS.map((key) => (
++                        <option key={key} value={key}>
++                          {PARTNERSHIP_INTEREST_LABELS[key]}
++                        </option>
++                      ))}
++                    </select>
++                    <Problem>{problems.interest}</Problem>
++                  </div>
++
++                  <div>
++                    <label htmlFor="message" className="mb-2 block text-sm font-medium text-foreground">
++                      Tell us a little more
++                    </label>
++                    <textarea
++                      id="message"
++                      rows={6}
++                      className={fieldClass}
++                      placeholder="What you work on, and what you would like to do with the Lab."
++                      value={form.message}
++                      onChange={(e) => set('message', e.target.value)}
++                      aria-invalid={!!problems.message}
++                    />
++                    <Problem>{problems.message}</Problem>
++                  </div>
++
++                  {failure && (
++                    <div
++                      role="alert"
++                      className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm text-foreground"
++                    >
++                      <p className="font-medium">{failure}</p>
++                      <p className="mt-1 text-muted-foreground">
++                        Your message has not been lost from this page — copy it and send it to{' '}
++                        <a className="font-medium text-primary hover:underline" href={`mailto:${CONTACT_EMAIL}`}>
++                          {CONTACT_EMAIL}
++                        </a>
++                        .
++                      </p>
++                    </div>
++                  )}
++
++                  <div className="flex flex-wrap items-center gap-4 pt-2">
++                    <Button
++                      type="submit"
++                      disabled={isPending}
++                      className="rounded-full px-8 font-bold shadow-md shadow-primary/20"
++                    >
++                      {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
++                      {isPending ? 'Sending' : 'Send enquiry'}
++                    </Button>
++                    <p className="text-xs text-muted-foreground">
++                      Or write to{' '}
++                      <a className="font-medium text-primary hover:underline" href={`mailto:${CONTACT_EMAIL}`}>
++                        {CONTACT_EMAIL}
++                      </a>
++                      .
++                    </p>
++                  </div>
++                </form>
++              </>
++            )}
++          </div>
++        </div>
++      </section>
++    </div>
++  );
++}
+diff --git a/artifacts/afrienergy-comms-lab/src/pages/Privacy.tsx b/artifacts/afrienergy-comms-lab/src/pages/Privacy.tsx
+new file mode 100644
+index 0000000..cf2ee2c
+--- /dev/null
++++ b/artifacts/afrienergy-comms-lab/src/pages/Privacy.tsx
+@@ -0,0 +1,202 @@
++import { KenteOverlay } from '@/components/KenteOverlay';
++
++/**
++ * The privacy policy.
++ *
++ * Adapted from the Africa Energy Pulse policy, but not copied: that policy
++ * covers a publication with a newsletter, and this is a learning platform that
++ * holds accounts, attendance, submitted coursework and peer critique. Claiming
++ * to collect less than we do would be worse than having no policy at all.
++ *
++ * So the sections below describe what this application actually stores and
++ * which companies actually see it — including that class material is sent to an
++ * AI provider when a facilitator uses the drafting tool, which is the least
++ * obvious of them and the one a careful reader would most want to know.
++ */
++
++const LAST_UPDATED = '31 August 2026';
++const CONTACT_EMAIL = 'africaenergypulse@gmail.com';
++
++function Section({ n, title, children }: { n: string; title: string; children: React.ReactNode }) {
++  return (
++    <section className="border-t border-border pt-8">
++      <h2 className="font-display text-lg font-bold text-foreground">
++        <span className="mr-3 text-primary">{n}</span>
++        {title}
++      </h2>
++      <div className="mt-4 space-y-4 text-sm leading-relaxed text-muted-foreground">{children}</div>
++    </section>
++  );
++}
++
++function List({ items }: { items: string[] }) {
++  return (
++    <ul className="ml-5 list-disc space-y-2">
++      {items.map((item) => (
++        <li key={item}>{item}</li>
++      ))}
++    </ul>
++  );
++}
++
++export default function Privacy() {
++  return (
++    <div className="bg-background">
++      <section className="relative overflow-hidden bg-sidebar py-20 md:py-28">
++        <KenteOverlay />
++        <div className="container relative mx-auto px-4 md:px-6">
++          <p className="mb-4 text-xs font-semibold uppercase tracking-[0.2em] text-primary">Legal</p>
++          <h1 className="font-display text-4xl font-bold leading-[1.05] text-sidebar-foreground md:text-5xl">
++            Privacy Policy
++          </h1>
++          <p className="mt-4 text-sm text-sidebar-foreground/60">Last updated {LAST_UPDATED}</p>
++        </div>
++      </section>
++
++      <section className="py-16 md:py-24">
++        <div className="container mx-auto px-4 md:px-6">
++          <div className="mx-auto max-w-3xl space-y-10">
++            <p className="text-base leading-relaxed text-foreground">
++              The Afrienergy Comms Lab is committed to protecting your privacy and handling your
++              personal information responsibly. This policy explains what we collect when you use
++              this platform, why we hold it, and what you can ask us to do with it. By creating an
++              account or using this site, you consent to the practices described here.
++            </p>
++
++            <Section n="01" title="Information we collect">
++              <p>When you create an account and take part in a programme, we hold:</p>
++              <List
++                items={[
++                  'Your name and email address, provided when you sign up or when an administrator invites you.',
++                  'Your role on the platform — learner, facilitator, or administrator — and the programmes and classes you are enrolled in or teach.',
++                  'A record of your learning: which live classes you attended, how much of a recording you have watched, your quiz answers and scores, the assignments you submit, and the critique you give and receive from peers.',
++                  'Anything you write in a cohort discussion, which is visible to others in that cohort.',
++                  'Certificates you earn, including the verification code that makes a certificate publicly checkable by anyone you share it with.',
++                  'Basic technical information that any web server records, such as your IP address and browser type, used to keep the service running and secure.',
++                ]}
++              />
++              <p>
++                We do not ask for, and have no use for, your date of birth, your physical address, or
++                any payment details.
++              </p>
++            </Section>
++
++            <Section n="02" title="How we use it">
++              <p>
++                Your information exists to run the programme you signed up for. Specifically, we use
++                it to give you access to your classes and materials, to track your progress towards a
++                certificate, to let facilitators mark and comment on your work, to send you reminders
++                about upcoming classes, and to keep the platform secure and working.
++              </p>
++              <p>
++                We do not use your information to build an advertising profile, and we do not sell it.
++              </p>
++            </Section>
++
++            <Section n="03" title="Who else sees it">
++              <p>
++                We do not sell your personal data. We share only what is necessary with the service
++                providers who make the platform work:
++              </p>
++              <List
++                items={[
++                  'Clerk, which manages sign-in and holds your name, email address and password or sign-in code.',
++                  'Railway, which hosts the application and its database.',
++                  'Brevo, which delivers the emails we send you, such as class reminders and invitations.',
++                  'Anthropic, when a facilitator uses the AI tool to draft quiz questions and assignments. Class material — slides and session notes — is sent to that service for drafting. Learner submissions and personal details are not.',
++                  'Google, where a facilitator connects a Google account so that class recordings can be published to the cohort.',
++                ]}
++              />
++              <p>
++                We may also disclose information where the law requires it, or where it is necessary
++                to protect the rights and safety of our users. If the Lab is ever transferred to
++                another organisation, your information may transfer with it, and we would tell you
++                before that happened.
++              </p>
++              <p>
++                Other people in your cohort can see your name, anything you post in a discussion, and
++                — where a programme uses peer critique — the work you submit for review.
++              </p>
++            </Section>
++
++            <Section n="04" title="Cookies">
++              <p>
++                We use a cookie set by our sign-in provider to keep you signed in as you move between
++                pages. Without it you would have to sign in again on every page, so it cannot be
++                turned off while you are using an account. We do not use advertising or
++                cross-site tracking cookies. You can block or delete cookies in your browser
++                settings, but parts of the platform will stop working if you do.
++              </p>
++            </Section>
++
++            <Section n="05" title="Keeping it safe">
++              <p>
++                We use appropriate technical and organisational measures to protect your information
++                against unauthorised access, alteration, or disclosure. Traffic to and from this site
++                is encrypted, passwords and sign-in codes are handled entirely by our sign-in
++                provider and are never visible to us, and access to the database is limited to the
++                people who administer the platform. No system is perfectly secure, and we do not
++                claim otherwise.
++              </p>
++            </Section>
++
++            <Section n="06" title="How long we keep it">
++              <p>
++                We keep your information for as long as your account is open and you are taking part
++                in a programme, and afterwards only for as long as we need it — chiefly so that a
++                certificate you earned remains verifiable by an employer who checks it. If you ask us
++                to delete your account, we will do so, and we will tell you plainly if that means a
++                certificate you have already shared will stop verifying.
++              </p>
++            </Section>
++
++            <Section n="07" title="Your rights">
++              <p>Depending on your jurisdiction, you have the right to:</p>
++              <List
++                items={[
++                  'Ask what personal information we hold about you, and receive a copy of it.',
++                  'Have information that is wrong corrected.',
++                  'Ask us to delete your account and the information attached to it.',
++                  'Withdraw your consent, and stop using the platform, at any time.',
++                  'Opt out of reminder and announcement emails while keeping your account.',
++                ]}
++              />
++              <p>
++                Write to us at the address below and we will respond. We will not charge you for
++                making a request, and we will not make it difficult.
++              </p>
++            </Section>
++
++            <Section n="08" title="Links to other sites">
++              <p>
++                Reading lists, recordings, and materials shared by facilitators may link to other
++                websites. We are not responsible for the privacy practices of those sites, and we
++                encourage you to read their policies before giving them your information.
++              </p>
++            </Section>
++
++            <Section n="09" title="Changes to this policy">
++              <p>
++                We may update this policy as the platform changes. When we do, we will change the
++                date at the top of this page. If a change materially affects how we use your
++                information, we will tell account holders by email rather than relying on you to
++                notice.
++              </p>
++            </Section>
++
++            <Section n="10" title="Contact us">
++              <p>
++                For any question about this policy, or to make a request about your information,
++                write to{' '}
++                <a className="font-medium text-primary hover:underline" href={`mailto:${CONTACT_EMAIL}`}>
++                  {CONTACT_EMAIL}
++                </a>
++                .
++              </p>
++            </Section>
++          </div>
++        </div>
++      </section>
++    </div>
++  );
++}
+diff --git a/artifacts/api-server/src/app.ts b/artifacts/api-server/src/app.ts
+index 59f5681..a16a6f2 100644
+--- a/artifacts/api-server/src/app.ts
++++ b/artifacts/api-server/src/app.ts
+@@ -20,6 +20,18 @@ const JSON_BODY_LIMIT = "1mb";
+ 
+ const app: Express = express();
+ 
++/**
++ * Railway terminates TLS and forwards to this process, so without this every
++ * request appears to come from the proxy — one address for the whole internet.
++ * Anything that reasons about who is calling, such as the partnership form's
++ * per-address budget, would then treat all visitors as one caller and turn away
++ * the second genuine partner of the day.
++ *
++ * One hop, not `true`: trusting the whole chain would let a caller prepend any
++ * X-Forwarded-For they liked and mint a fresh identity for every request.
++ */
++app.set("trust proxy", 1);
++
+ app.use(
+   pinoHttp({
+     logger,
+diff --git a/artifacts/api-server/src/routes/index.ts b/artifacts/api-server/src/routes/index.ts
+index ca0779b..1dc3e2a 100644
+--- a/artifacts/api-server/src/routes/index.ts
++++ b/artifacts/api-server/src/routes/index.ts
+@@ -11,6 +11,7 @@ import slidesRouter from "./slides";
+ import forumRouter from "./forum";
+ import adminRouter from "./admin";
+ import googleRecordingsRouter from "./googleRecordings";
++import partnershipsRouter from "./partnerships";
+ 
+ const router: IRouter = Router();
+ 
+@@ -26,5 +27,6 @@ router.use(slidesRouter);
+ router.use(forumRouter);
+ router.use(adminRouter);
+ router.use(googleRecordingsRouter);
++router.use(partnershipsRouter);
+ 
+ export default router;
+diff --git a/artifacts/api-server/src/routes/partnerships.test.ts b/artifacts/api-server/src/routes/partnerships.test.ts
+new file mode 100644
+index 0000000..2fec05c
+--- /dev/null
++++ b/artifacts/api-server/src/routes/partnerships.test.ts
+@@ -0,0 +1,152 @@
++import express from "express";
++import type { AddressInfo } from "node:net";
++import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
++
++/**
++ * The partnership form, exercised over real HTTP.
++ *
++ * Reading this route is not enough to trust it. The parts most likely to be
++ * wrong — that a bot is thanked rather than corrected, that a failed send is
++ * never reported as success, that the budget is spent per address and only on
++ * submissions that were actually worth sending — are all about what comes back
++ * on the wire, so that is what these assert.
++ */
++
++const mocks = vi.hoisted(() => ({
++  sendEmail: vi.fn(),
++  emailConfigured: vi.fn(() => true),
++}));
++
++class FakeRejected extends Error {
++  definiteFailure = true as const;
++}
++
++vi.mock("../lib/email", () => ({
++  sendEmail: mocks.sendEmail,
++  emailConfigured: mocks.emailConfigured,
++  EmailRejectedError: FakeRejected,
++}));
++
++vi.mock("../lib/logger", () => ({
++  logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
++}));
++
++const GOOD = {
++  name: "Amina Bello",
++  organisation: "West Africa Energy Desk",
++  email: "amina@example.org",
++  interest: "teach",
++  message: "I would like to run a session on covering gas flaring for reporters.",
++};
++
++let baseUrl = "";
++let server: ReturnType<express.Express["listen"]>;
++
++/** Each test gets a fresh module registry, so the in-memory budget resets. */
++async function start(clientIp = "203.0.113.7") {
++  vi.resetModules();
++  const { default: router } = await import("./partnerships");
++
++  const app = express();
++  app.use(express.json());
++  // Stand in for the proxy header Railway sets, so a test can pretend to be a
++  // different caller and prove the budget is per address rather than global.
++  app.use((req, _res, next) => {
++    Object.defineProperty(req, "ip", { value: (req.headers["x-test-ip"] as string) || clientIp });
++    next();
++  });
++  app.use("/api", router);
++
++  server = app.listen(0);
++  await new Promise((resolve) => server.once("listening", resolve));
++  baseUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
++}
++
++function post(body: unknown, ip?: string) {
++  return fetch(`${baseUrl}/api/partnership-enquiries`, {
++    method: "POST",
++    headers: { "content-type": "application/json", ...(ip ? { "x-test-ip": ip } : {}) },
++    body: JSON.stringify(body),
++  });
++}
++
++beforeEach(async () => {
++  mocks.sendEmail.mockReset().mockResolvedValue(undefined);
++  mocks.emailConfigured.mockReset().mockReturnValue(true);
++  await start();
++});
++
++afterEach(async () => {
++  await new Promise((resolve) => server.close(resolve));
++});
++
++describe("POST /partnership-enquiries", () => {
++  it("accepts a good enquiry and sends exactly one email", async () => {
++    const res = await post(GOOD);
++    expect(res.status).toBe(202);
++    expect(mocks.sendEmail).toHaveBeenCalledTimes(1);
++
++    const sent = mocks.sendEmail.mock.calls[0][0];
++    expect(sent.subject).toContain("West Africa Energy Desk");
++    expect(sent.html).toContain("amina@example.org");
++  });
++
++  it("returns one sentence per bad field and sends nothing", async () => {
++    const res = await post({ ...GOOD, email: "not-an-address", name: "" });
++    expect(res.status).toBe(400);
++
++    const body = (await res.json()) as Record<string, string>;
++    expect(body.email).toBeTruthy();
++    expect(body.name).toBeTruthy();
++    expect(body.organisation).toBeUndefined();
++    expect(mocks.sendEmail).not.toHaveBeenCalled();
++  });
++
++  it("thanks a bot that filled the honeypot, and sends nothing", async () => {
++    // The response must be indistinguishable from success, or the honeypot
++    // tells whoever is probing exactly which field gave them away.
++    const res = await post({ ...GOOD, honeypot: "http://spam.example" });
++    expect(res.status).toBe(202);
++    expect(mocks.sendEmail).not.toHaveBeenCalled();
++  });
++
++  it("never reports a failed send as success", async () => {
++    mocks.sendEmail.mockRejectedValue(new FakeRejected("Brevo said no"));
++    const res = await post(GOOD);
++    expect(res.status).toBe(503);
++    expect(((await res.json()) as { message: string }).message).toMatch(/email us directly/i);
++  });
++
++  it("says so plainly when email is not configured at all", async () => {
++    mocks.emailConfigured.mockReturnValue(false);
++    const res = await post(GOOD);
++    expect(res.status).toBe(503);
++    expect(mocks.sendEmail).not.toHaveBeenCalled();
++  });
++
++  it("turns away a flood from one address after the budget is spent", async () => {
++    for (let i = 0; i < 5; i++) {
++      expect((await post(GOOD)).status).toBe(202);
++    }
++    const res = await post(GOOD);
++    expect(res.status).toBe(429);
++    expect(mocks.sendEmail).toHaveBeenCalledTimes(5);
++  });
++
++  it("budgets each address separately", async () => {
++    // The failure this guards against: behind a proxy every visitor shares one
++    // apparent address, and the second genuine partner of the day is refused.
++    for (let i = 0; i < 5; i++) await post(GOOD, "198.51.100.1");
++    expect((await post(GOOD, "198.51.100.1")).status).toBe(429);
++    expect((await post(GOOD, "198.51.100.2")).status).toBe(202);
++  });
++
++  it("does not spend the budget on submissions it refused anyway", async () => {
++    // Otherwise a person fumbling their email address five times is locked out
++    // before they ever manage to send a valid enquiry.
++    for (let i = 0; i < 8; i++) {
++      expect((await post({ ...GOOD, email: "nope" })).status).toBe(400);
++    }
++    expect((await post(GOOD)).status).toBe(202);
++  });
++});
+diff --git a/artifacts/api-server/src/routes/partnerships.ts b/artifacts/api-server/src/routes/partnerships.ts
+new file mode 100644
+index 0000000..851dacc
+--- /dev/null
++++ b/artifacts/api-server/src/routes/partnerships.ts
+@@ -0,0 +1,155 @@
++import { Router, type IRouter } from "express";
++import {
++  enquiryHtml,
++  enquirySubject,
++  validateEnquiry,
++} from "@workspace/domain";
++import { EmailRejectedError, emailConfigured, sendEmail } from "../lib/email";
++import { logger } from "../lib/logger";
++
++/**
++ * The partnerships form.
++ *
++ * The only endpoint on this server that writes anything without a signed-in
++ * user behind it, which makes it the one an abusive script will find first.
++ * Three things guard it: a hidden field the crude scrapers fill and people
++ * never see, a small per-address budget, and validation that refuses anything
++ * unusable before a mail provider is ever contacted.
++ *
++ * The enquiry is delivered by email and stored nowhere. That was a deliberate
++ * choice, and it sets the standard this route has to meet: if the send fails,
++ * the enquiry is gone. So a failure is never reported as success — the caller
++ * is told plainly, and the page shows a direct address to fall back on.
++ */
++
++const router: IRouter = Router();
++
++/** Where enquiries land. Overridable so it can be changed without a deploy. */
++function recipient(): { email: string; name: string } {
++  return {
++    email: process.env.PARTNERSHIP_EMAIL || "africaenergypulse@gmail.com",
++    name: "Afrienergy Comms Lab",
++  };
++}
++
++/**
++ * A small per-address budget.
++ *
++ * Deliberately modest and in-memory. This is one process, and a restart
++ * clearing the counters costs nothing worth protecting — the point is to stop a
++ * loop from turning one form into thousands of emails, not to be a security
++ * boundary. A genuine partner sends one enquiry and never notices this exists.
++ */
++const WINDOW_MS = 60 * 60 * 1000;
++const MAX_PER_WINDOW = 5;
++/** Bounded, so a flood of distinct addresses cannot grow this without limit. */
++const MAX_TRACKED_CLIENTS = 5000;
++
++const hits = new Map<string, number[]>();
++
++function clientKey(ip: string | undefined): string {
++  return ip ?? "unknown";
++}
++
++function overBudget(key: string, now: number): boolean {
++  const recent = (hits.get(key) ?? []).filter((t) => now - t < WINDOW_MS);
++
++  if (recent.length >= MAX_PER_WINDOW) {
++    hits.set(key, recent);
++    return true;
++  }
++
++  recent.push(now);
++  hits.set(key, recent);
++
++  // Opportunistic sweep, so the map cannot grow forever on a busy day.
++  if (hits.size > MAX_TRACKED_CLIENTS) {
++    for (const [k, times] of hits) {
++      if (times.every((t) => now - t >= WINDOW_MS)) hits.delete(k);
++    }
++  }
++
++  return false;
++}
++
++router.post("/partnership-enquiries", async (req, res) => {
++  const body = (req.body ?? {}) as Record<string, unknown>;
++
++  const result = validateEnquiry({
++    name: typeof body.name === "string" ? body.name : undefined,
++    organisation: typeof body.organisation === "string" ? body.organisation : undefined,
++    email: typeof body.email === "string" ? body.email : undefined,
++    interest: typeof body.interest === "string" ? body.interest : undefined,
++    message: typeof body.message === "string" ? body.message : undefined,
++    honeypot: typeof body.honeypot === "string" ? body.honeypot : undefined,
++  });
++
++  // A bot filled the hidden field. Answer exactly as we answer a real person:
++  // an error here would tell whoever is probing which field gave them away.
++  if (result.spam) {
++    logger.info({ ip: req.ip }, "Dropped a partnership enquiry that tripped the honeypot");
++    res.status(202).json({ message: "Thank you. We will be in touch." });
++    return;
++  }
++
++  if (result.problems) {
++    res.status(400).json(result.problems);
++    return;
++  }
++
++  // Checked after validation on purpose: a malformed submission should get its
++  // list of problems back rather than being spent against the budget.
++  if (overBudget(clientKey(req.ip), Date.now())) {
++    logger.warn({ ip: req.ip }, "Partnership enquiries over budget for this address");
++    res.status(429).json({
++      message: "That is several enquiries in a short time. Please try again later, or email us directly.",
++    });
++    return;
++  }
++
++  const enquiry = result.enquiry;
++
++  // Said out loud rather than swallowed. Without a key the message would vanish
++  // and the sender would be thanked for it, which is the worst of both.
++  if (!emailConfigured()) {
++    logger.error(
++      { organisation: enquiry.organisation },
++      "A partnership enquiry arrived but BREVO_API_KEY is not set, so it could not be delivered",
++    );
++    res.status(503).json({
++      message: "Our contact form is not available right now. Please email us directly.",
++    });
++    return;
++  }
++
++  try {
++    await sendEmail({
++      to: recipient(),
++      subject: enquirySubject(enquiry),
++      html: enquiryHtml(enquiry, new Date()),
++    });
++  } catch (err) {
++    // The full enquiry goes to the log. It is the only remaining copy, and a
++    // partner who took the trouble to write deserves better than silence.
++    logger.error(
++      { err, enquiry },
++      "Could not deliver a partnership enquiry; the text is recorded here",
++    );
++
++    const definite = err instanceof EmailRejectedError;
++    res.status(503).json({
++      message: definite
++        ? "We could not send that just now. Please email us directly."
++        : "That may not have gone through. Please email us directly to be sure.",
++    });
++    return;
++  }
++
++  logger.info(
++    { organisation: enquiry.organisation, interest: enquiry.interest },
++    "Partnership enquiry delivered",
++  );
++  res.status(202).json({ message: "Thank you. We will be in touch." });
++});
++
++export default router;
+diff --git a/lib/api-client-react/src/generated/api.schemas.ts b/lib/api-client-react/src/generated/api.schemas.ts
+index 232adb9..59fe8dd 100644
+--- a/lib/api-client-react/src/generated/api.schemas.ts
++++ b/lib/api-client-react/src/generated/api.schemas.ts
+@@ -5,6 +5,45 @@
+  * API specification
+  * OpenAPI spec version: 0.1.0
+  */
++export type PartnershipEnquiryInputInterest = typeof PartnershipEnquiryInputInterest[keyof typeof PartnershipEnquiryInputInterest];
++
++
++export const PartnershipEnquiryInputInterest = {
++  teach: 'teach',
++  host: 'host',
++  fund: 'fund',
++  media: 'media',
++  other: 'other',
++} as const;
++
++export interface PartnershipEnquiryInput {
++  /** @maxLength 120 */
++  name: string;
++  /** @maxLength 160 */
++  organisation: string;
++  /** @maxLength 320 */
++  email: string;
++  interest: PartnershipEnquiryInputInterest;
++  /**
++     * @minLength 20
++     * @maxLength 4000
++     */
++  message: string;
++  /** A field the form hides from view. A person leaves it empty; the crude scrapers that find this page fill everything. Anything here means the submission is dropped, and 202 is returned regardless so the sender learns nothing about why. */
++  honeypot?: string;
++}
++
++/**
++ * One sentence per field that needs fixing. Absent keys are fine.
++ */
++export interface PartnershipEnquiryProblems {
++  name?: string;
++  organisation?: string;
++  email?: string;
++  interest?: string;
++  message?: string;
++}
++
+ export interface ForumThread {
+   id: number;
+   programId: number;
+diff --git a/lib/api-client-react/src/generated/api.ts b/lib/api-client-react/src/generated/api.ts
+index 48c091b..a40d6c7 100644
+--- a/lib/api-client-react/src/generated/api.ts
++++ b/lib/api-client-react/src/generated/api.ts
+@@ -42,6 +42,8 @@ import type {
+   ListAllEnrollmentsParams,
+   MoreQuestionsInput,
+   MyFeedback,
++  PartnershipEnquiryInput,
++  PartnershipEnquiryProblems,
+   PinInput,
+   PortfolioVisibilityInput,
+   PostInput,
+@@ -4269,3 +4271,75 @@ export const useSetThreadPinned = <TError = ErrorType<ApiMessage>,
+       return useMutation(getSetThreadPinnedMutationOptions(options));
+     }
+ 
++export const getSubmitPartnershipEnquiryUrl = () => {
++
++
++
++
++  return `/api/partnership-enquiries`
++}
++
++/**
++ * Public and unauthenticated. The enquiry is delivered by email and is not stored, so a caller that receives 202 should treat the message as gone from its hands. Rate limited per client address.
++ * @summary Send a partnership enquiry
++ */
++export const submitPartnershipEnquiry = async (partnershipEnquiryInput: PartnershipEnquiryInput, options?: Parameters<typeof customFetch>[1]): Promise<ApiMessage> => {
++
++  return customFetch<ApiMessage>(getSubmitPartnershipEnquiryUrl(),
++  {
++    ...options,
++    method: 'POST',
++    headers: { 'Content-Type': 'application/json', ...options?.headers },
++    body: JSON.stringify(partnershipEnquiryInput)
++  }
++);}
++
++
++
++
++
++export const getSubmitPartnershipEnquiryMutationOptions = <TError = ErrorType<PartnershipEnquiryProblems | ApiMessage>,
++    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitPartnershipEnquiry>>, TError,{data: BodyType<PartnershipEnquiryInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
++): UseMutationOptions<Awaited<ReturnType<typeof submitPartnershipEnquiry>>, TError,{data: BodyType<PartnershipEnquiryInput>}, TContext> => {
++
++const mutationKey = ['submitPartnershipEnquiry'];
++const {mutation: mutationOptions, request: requestOptions} = options ?
++      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
++      options
++      : {...options, mutation: {...options.mutation, mutationKey}}
++      : {mutation: { mutationKey, }, request: undefined};
++
++
++
++
++      const mutationFn: MutationFunction<Awaited<ReturnType<typeof submitPartnershipEnquiry>>, {data: BodyType<PartnershipEnquiryInput>}> = (props) => {
++          const {data} = props ?? {};
++
++          return  submitPartnershipEnquiry(data,requestOptions)
++        }
++
++
++
++
++
++
++  return  { mutationFn, ...mutationOptions }}
++
++    export type SubmitPartnershipEnquiryMutationResult = NonNullable<Awaited<ReturnType<typeof submitPartnershipEnquiry>>>
++    export type SubmitPartnershipEnquiryMutationBody = BodyType<PartnershipEnquiryInput>
++    export type SubmitPartnershipEnquiryMutationError = ErrorType<PartnershipEnquiryProblems | ApiMessage>
++
++    /**
++ * @summary Send a partnership enquiry
++ */
++export const useSubmitPartnershipEnquiry = <TError = ErrorType<PartnershipEnquiryProblems | ApiMessage>,
++    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitPartnershipEnquiry>>, TError,{data: BodyType<PartnershipEnquiryInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
++ ): UseMutationResult<
++        Awaited<ReturnType<typeof submitPartnershipEnquiry>>,
++        TError,
++        {data: BodyType<PartnershipEnquiryInput>},
++        TContext
++      > => {
++      return useMutation(getSubmitPartnershipEnquiryMutationOptions(options));
++    }
++
+diff --git a/lib/api-spec/openapi.yaml b/lib/api-spec/openapi.yaml
+index 8c450cd..e18f5b4 100644
+--- a/lib/api-spec/openapi.yaml
++++ b/lib/api-spec/openapi.yaml
+@@ -18,6 +18,8 @@ tags:
+     description: Enrollment operations
+   - name: admin
+     description: Admin operations
++  - name: partnerships
++    description: Public partnership enquiries
+ paths:
+   /healthz:
+     get:
+@@ -1655,8 +1657,89 @@ paths:
+             application/json:
+               schema:
+                 $ref: "#/components/schemas/ApiMessage"
++  /partnership-enquiries:
++    post:
++      operationId: submitPartnershipEnquiry
++      tags: [partnerships]
++      summary: Send a partnership enquiry
++      description: >-
++        Public and unauthenticated. The enquiry is delivered by email and is not
++        stored, so a caller that receives 202 should treat the message as gone
++        from its hands. Rate limited per client address.
++      requestBody:
++        required: true
++        content:
++          application/json:
++            schema:
++              $ref: "#/components/schemas/PartnershipEnquiryInput"
++      responses:
++        "202":
++          description: Accepted for delivery
++          content:
++            application/json:
++              schema:
++                $ref: "#/components/schemas/ApiMessage"
++        "400":
++          description: One or more fields need fixing
++          content:
++            application/json:
++              schema:
++                $ref: "#/components/schemas/PartnershipEnquiryProblems"
++        "429":
++          description: Too many enquiries from this address
++          content:
++            application/json:
++              schema:
++                $ref: "#/components/schemas/ApiMessage"
++        "503":
++          description: Email is not configured or the provider refused the message
++          content:
++            application/json:
++              schema:
++                $ref: "#/components/schemas/ApiMessage"
+ components:
+   schemas:
++    PartnershipEnquiryInput:
++      type: object
++      required: [name, organisation, email, interest, message]
++      properties:
++        name:
++          type: string
++          maxLength: 120
++        organisation:
++          type: string
++          maxLength: 160
++        email:
++          type: string
++          maxLength: 320
++        interest:
++          type: string
++          enum: [teach, host, fund, media, other]
++        message:
++          type: string
++          minLength: 20
++          maxLength: 4000
++        honeypot:
++          type: string
++          description: >-
++            A field the form hides from view. A person leaves it empty; the
++            crude scrapers that find this page fill everything. Anything here
++            means the submission is dropped, and 202 is returned regardless so
++            the sender learns nothing about why.
++    PartnershipEnquiryProblems:
++      type: object
++      description: One sentence per field that needs fixing. Absent keys are fine.
++      properties:
++        name:
++          type: string
++        organisation:
++          type: string
++        email:
++          type: string
++        interest:
++          type: string
++        message:
++          type: string
+     ForumThread:
+       type: object
+       required: [id, programId, title, body, pinned, authorName, authorRole, replyCount, lastActivityAt, createdAt, mine]
+diff --git a/lib/api-zod/src/generated/api.ts b/lib/api-zod/src/generated/api.ts
+index 4c7e701..5620657 100644
+--- a/lib/api-zod/src/generated/api.ts
++++ b/lib/api-zod/src/generated/api.ts
+@@ -1394,3 +1394,32 @@ export const SetThreadPinnedResponse = zod.object({
+ })
+ 
+ 
++/**
++ * Public and unauthenticated. The enquiry is delivered by email and is not stored, so a caller that receives 202 should treat the message as gone from its hands. Rate limited per client address.
++ * @summary Send a partnership enquiry
++ */
++export const submitPartnershipEnquiryBodyNameMax = 120;
++
++export const submitPartnershipEnquiryBodyOrganisationMax = 160;
++
++export const submitPartnershipEnquiryBodyEmailMax = 320;
++
++export const submitPartnershipEnquiryBodyMessageMin = 20;
++export const submitPartnershipEnquiryBodyMessageMax = 4000;
++
++
++
++export const SubmitPartnershipEnquiryBody = zod.object({
++  "name": zod.string().max(submitPartnershipEnquiryBodyNameMax),
++  "organisation": zod.string().max(submitPartnershipEnquiryBodyOrganisationMax),
++  "email": zod.string().max(submitPartnershipEnquiryBodyEmailMax),
++  "interest": zod.enum(['teach', 'host', 'fund', 'media', 'other']),
++  "message": zod.string().min(submitPartnershipEnquiryBodyMessageMin).max(submitPartnershipEnquiryBodyMessageMax),
++  "honeypot": zod.string().optional().describe('A field the form hides from view. A person leaves it empty; the crude scrapers that find this page fill everything. Anything here means the submission is dropped, and 202 is returned regardless so the sender learns nothing about why.')
++})
++
++export const SubmitPartnershipEnquiryResponse = zod.object({
++  "error": zod.string()
++})
++
++
+diff --git a/lib/api-zod/src/generated/types/index.ts b/lib/api-zod/src/generated/types/index.ts
+index 39a2088..b273bcb 100644
+--- a/lib/api-zod/src/generated/types/index.ts
++++ b/lib/api-zod/src/generated/types/index.ts
+@@ -37,6 +37,9 @@ export * from './joinResult';
+ export * from './listAllEnrollmentsParams';
+ export * from './moreQuestionsInput';
+ export * from './myFeedback';
++export * from './partnershipEnquiryInput';
++export * from './partnershipEnquiryInputInterest';
++export * from './partnershipEnquiryProblems';
+ export * from './pinInput';
+ export * from './portfolioVisibilityInput';
+ export * from './portfolioWork';
+diff --git a/lib/api-zod/src/generated/types/partnershipEnquiryInput.ts b/lib/api-zod/src/generated/types/partnershipEnquiryInput.ts
+new file mode 100644
+index 0000000..1301087
+--- /dev/null
++++ b/lib/api-zod/src/generated/types/partnershipEnquiryInput.ts
+@@ -0,0 +1,25 @@
++/**
++ * Generated by orval v8.23.0 🍺
++ * Do not edit manually.
++ * Api
++ * API specification
++ * OpenAPI spec version: 0.1.0
++ */
++import type { PartnershipEnquiryInputInterest } from './partnershipEnquiryInputInterest';
++
++export interface PartnershipEnquiryInput {
++  /** @maxLength 120 */
++  name: string;
++  /** @maxLength 160 */
++  organisation: string;
++  /** @maxLength 320 */
++  email: string;
++  interest: PartnershipEnquiryInputInterest;
++  /**
++     * @minLength 20
++     * @maxLength 4000
++     */
++  message: string;
++  /** A field the form hides from view. A person leaves it empty; the crude scrapers that find this page fill everything. Anything here means the submission is dropped, and 202 is returned regardless so the sender learns nothing about why. */
++  honeypot?: string;
++}
+diff --git a/lib/api-zod/src/generated/types/partnershipEnquiryInputInterest.ts b/lib/api-zod/src/generated/types/partnershipEnquiryInputInterest.ts
+new file mode 100644
+index 0000000..7a5e965
+--- /dev/null
++++ b/lib/api-zod/src/generated/types/partnershipEnquiryInputInterest.ts
+@@ -0,0 +1,18 @@
++/**
++ * Generated by orval v8.23.0 🍺
++ * Do not edit manually.
++ * Api
++ * API specification
++ * OpenAPI spec version: 0.1.0
++ */
++
++export type PartnershipEnquiryInputInterest = typeof PartnershipEnquiryInputInterest[keyof typeof PartnershipEnquiryInputInterest];
++
++
++export const PartnershipEnquiryInputInterest = {
++  teach: 'teach',
++  host: 'host',
++  fund: 'fund',
++  media: 'media',
++  other: 'other',
++} as const;
+diff --git a/lib/api-zod/src/generated/types/partnershipEnquiryProblems.ts b/lib/api-zod/src/generated/types/partnershipEnquiryProblems.ts
+new file mode 100644
+index 0000000..9804c8e
+--- /dev/null
++++ b/lib/api-zod/src/generated/types/partnershipEnquiryProblems.ts
+@@ -0,0 +1,18 @@
++/**
++ * Generated by orval v8.23.0 🍺
++ * Do not edit manually.
++ * Api
++ * API specification
++ * OpenAPI spec version: 0.1.0
++ */
++
++/**
++ * One sentence per field that needs fixing. Absent keys are fine.
++ */
++export interface PartnershipEnquiryProblems {
++  name?: string;
++  organisation?: string;
++  email?: string;
++  interest?: string;
++  message?: string;
++}
+diff --git a/lib/domain/src/index.ts b/lib/domain/src/index.ts
+index 2556b07..b37dcb0 100644
+--- a/lib/domain/src/index.ts
++++ b/lib/domain/src/index.ts
+@@ -9,3 +9,4 @@ export * from "./courseworkDraft";
+ export * from "./readingList";
+ export * from "./certificateCode";
+ export * from "./invitations";
++export * from "./partnership";
+diff --git a/lib/domain/src/partnership.test.ts b/lib/domain/src/partnership.test.ts
+new file mode 100644
+index 0000000..3cd08ce
+--- /dev/null
++++ b/lib/domain/src/partnership.test.ts
+@@ -0,0 +1,179 @@
++import { describe, expect, it } from "vitest";
++import {
++  MAX_PARTNER_MESSAGE,
++  PARTNERSHIP_INTEREST_LABELS,
++  enquiryHtml,
++  enquirySubject,
++  escapeHtml,
++  isPlausibleEnquiryEmail,
++  normaliseEnquiryEmail,
++  validateEnquiry,
++} from "./partnership";
++
++function good(overrides: Record<string, string> = {}) {
++  return {
++    name: "Amina Bello",
++    organisation: "West Africa Energy Desk",
++    email: "amina@example.org",
++    interest: "teach",
++    message: "I would like to run a session on covering gas flaring for reporters.",
++    ...overrides,
++  };
++}
++
++describe("validateEnquiry", () => {
++  it("accepts a complete enquiry", () => {
++    const result = validateEnquiry(good());
++    expect(result.problems).toBeNull();
++    expect(result.spam).toBe(false);
++    expect(result.enquiry).toMatchObject({
++      name: "Amina Bello",
++      organisation: "West Africa Energy Desk",
++      email: "amina@example.org",
++      interest: "teach",
++    });
++  });
++
++  it("lowercases and trims the reply address", () => {
++    const result = validateEnquiry(good({ email: "  Amina@Example.ORG " }));
++    expect(result.enquiry?.email).toBe("amina@example.org");
++  });
++
++  it("names every missing field rather than only the first", () => {
++    const result = validateEnquiry({});
++    expect(result.problems).not.toBeNull();
++    expect(Object.keys(result.problems ?? {}).sort()).toEqual([
++      "email",
++      "interest",
++      "message",
++      "name",
++      "organisation",
++    ]);
++  });
++
++  it("refuses an interest it does not recognise", () => {
++    // Guards against a tampered form posting a value the email template has no
++    // label for, which would render "undefined" in the subject line.
++    const result = validateEnquiry(good({ interest: "acquisition" }));
++    expect(result.problems?.interest).toBeTruthy();
++  });
++
++  it("asks for more than a one-word message", () => {
++    const result = validateEnquiry(good({ message: "hi" }));
++    expect(result.problems?.message).toBeTruthy();
++  });
++
++  it("refuses a message too long to send", () => {
++    const result = validateEnquiry(good({ message: "a".repeat(MAX_PARTNER_MESSAGE + 1) }));
++    expect(result.problems?.message).toBeTruthy();
++  });
++
++  it("drops a submission that filled the hidden field, without saying why", () => {
++    const result = validateEnquiry(good({ honeypot: "http://spam.example" }));
++    expect(result.spam).toBe(true);
++    expect(result.enquiry).toBeNull();
++    expect(result.problems).toBeNull();
++  });
++
++  it("treats an untouched hidden field as a real person", () => {
++    const result = validateEnquiry(good({ honeypot: "" }));
++    expect(result.spam).toBe(false);
++    expect(result.enquiry).not.toBeNull();
++  });
++
++  it("strips newlines from single-line fields", () => {
++    // A newline in a field that ends up in an email header is the classic
++    // injection route. It must not survive validation.
++    const result = validateEnquiry(
++      good({ name: "Amina\r\nBcc: victim@example.com", organisation: "Desk\nX" }),
++    );
++    expect(result.enquiry?.name).toBe("Amina Bcc: victim@example.com");
++    expect(result.enquiry?.name).not.toContain("\n");
++    expect(result.enquiry?.organisation).toBe("Desk X");
++  });
++
++  it("keeps paragraph breaks in the message but collapses runs of blank lines", () => {
++    const result = validateEnquiry(
++      good({ message: "First paragraph here.\n\n\n\nSecond paragraph here." }),
++    );
++    expect(result.enquiry?.message).toBe("First paragraph here.\n\nSecond paragraph here.");
++  });
++
++  it("strips control characters from the message without fusing words", () => {
++    const VT = String.fromCharCode(0x0b);
++    const NUL = String.fromCharCode(0x00);
++    const DEL = String.fromCharCode(0x7f);
++    const result = validateEnquiry(
++      good({ message: `one${VT}two${NUL}three${DEL}four five six seven eight` }),
++    );
++    expect(result.enquiry?.message).toBe("one two three four five six seven eight");
++    expect(result.enquiry?.message).not.toContain(VT);
++    expect(result.enquiry?.message).not.toContain(NUL);
++    expect(result.enquiry?.message).not.toContain(DEL);
++  });
++});
++
++describe("isPlausibleEnquiryEmail", () => {
++  it.each([
++    ["amina@example.org", true],
++    ["a.b+tag@sub.example.co.uk", true],
++    ["no-at-sign.example.org", false],
++    ["two@@example.org", false],
++    ["missing@tld", false],
++    ["has space@example.org", false],
++    ["", false],
++  ])("%s -> %s", (input, expected) => {
++    expect(isPlausibleEnquiryEmail(input)).toBe(expected);
++  });
++});
++
++describe("normaliseEnquiryEmail", () => {
++  it("is idempotent", () => {
++    const once = normaliseEnquiryEmail("  Amina@Example.ORG ");
++    expect(normaliseEnquiryEmail(once)).toBe(once);
++  });
++});
++
++describe("the notification email", () => {
++  const enquiry = validateEnquiry(good()).enquiry!;
++
++  it("names the organisation and the interest in the subject", () => {
++    const subject = enquirySubject(enquiry);
++    expect(subject).toContain("West Africa Energy Desk");
++    expect(subject).toContain(PARTNERSHIP_INTEREST_LABELS.teach);
++  });
++
++  it("carries the reply address in the body", () => {
++    const html = enquiryHtml(enquiry, new Date("2026-08-31T10:00:00Z"));
++    expect(html).toContain("amina@example.org");
++    expect(html).toContain("2026-08-31T10:00:00.000Z");
++  });
++
++  it("escapes markup that came from the form", () => {
++    // The enquiry is attacker-controlled and lands in Daniel's mail client.
++    const hostile = validateEnquiry(
++      good({
++        organisation: "<script>alert(1)</script>",
++        message: "Please see <img src=x onerror=alert(1)> for details of our work.",
++      }),
++    ).enquiry!;
++
++    const html = enquiryHtml(hostile, new Date());
++    expect(html).not.toContain("<script>");
++    expect(html).not.toContain("<img");
++    expect(html).toContain("&lt;script&gt;");
++  });
++
++  it("renders message paragraphs as line breaks", () => {
++    const multi = validateEnquiry(good({ message: "First line here.\n\nSecond line here." })).enquiry!;
++    expect(enquiryHtml(multi, new Date())).toContain("<br>");
++  });
++});
++
++describe("escapeHtml", () => {
++  it("escapes quotes as well as angle brackets", () => {
++    expect(escapeHtml(`<a href="x">'&</a>`)).toBe(
++      "&lt;a href=&quot;x&quot;&gt;&#39;&amp;&lt;/a&gt;",
++    );
++  });
++});
+diff --git a/lib/domain/src/partnership.ts b/lib/domain/src/partnership.ts
+new file mode 100644
+index 0000000..2c44184
+--- /dev/null
++++ b/lib/domain/src/partnership.ts
+@@ -0,0 +1,241 @@
++/**
++ * Partnership enquiries.
++ *
++ * The one form on this site that anybody at all can submit. Everything else is
++ * behind Clerk; this is open to the entire internet, which makes it the single
++ * most likely thing to be abused. So the rules that decide whether a submission
++ * is worth acting on live here, where they can be tested without a network and
++ * without a mail provider.
++ *
++ * The enquiry is delivered by email and nowhere else — that was a deliberate
++ * choice — which means a rejected submission is simply gone. So validation
++ * refuses only what is genuinely unusable, and every refusal comes back as a
++ * sentence a person can act on rather than a field name.
++ */
++
++export const MAX_PARTNER_NAME = 120;
++export const MAX_PARTNER_ORG = 160;
++export const MAX_PARTNER_EMAIL = 320;
++export const MAX_PARTNER_MESSAGE = 4000;
++export const MIN_PARTNER_MESSAGE = 20;
++
++/**
++ * What the enquirer wants from us. Kept short and concrete: a partnership
++ * conversation goes very differently depending on which of these it is, and
++ * asking up front saves a round of email finding out.
++ */
++export const PARTNERSHIP_INTERESTS = [
++  "teach",
++  "host",
++  "fund",
++  "media",
++  "other",
++] as const;
++
++export type PartnershipInterest = (typeof PARTNERSHIP_INTERESTS)[number];
++
++export const PARTNERSHIP_INTEREST_LABELS: Record<PartnershipInterest, string> = {
++  teach: "Facilitate a class",
++  host: "Host or co-run a programme",
++  fund: "Fund or sponsor a cohort",
++  media: "Media or content partnership",
++  other: "Something else",
++};
++
++export function isPartnershipInterest(value: unknown): value is PartnershipInterest {
++  return typeof value === "string" && (PARTNERSHIP_INTERESTS as readonly string[]).includes(value);
++}
++
++export type PartnershipEnquiry = {
++  name: string;
++  organisation: string;
++  email: string;
++  interest: PartnershipInterest;
++  message: string;
++};
++
++/** Tidy an address for sending and comparing. */
++export function normaliseEnquiryEmail(input: string): string {
++  return input.trim().toLowerCase();
++}
++
++/**
++ * Good enough to catch a typo before an enquiry is sent into the void, without
++ * trying to out-guess what a valid address is. This is the only chance to catch
++ * it: nothing is stored, so a bad address means the reply never lands and
++ * neither of us ever knows why.
++ */
++export function isPlausibleEnquiryEmail(input: string): boolean {
++  const email = normaliseEnquiryEmail(input);
++  if (email.length < 6 || email.length > MAX_PARTNER_EMAIL) return false;
++  if (/\s/.test(email)) return false;
++  return /^[^@]+@[^@.]+(\.[^@.]+)+$/.test(email);
++}
++
++/**
++ * Collapse whitespace and strip control characters.
++ *
++ * A single-line field has no business carrying a newline, and a newline is
++ * exactly what an attempt to forge extra lines in the notification email would
++ * use. Turning the whole control range into spaces closes that off at the point
++ * the value is accepted, rather than at each of the places it is later used.
++ */
++function stripControl(input: string, keepNewline: boolean): string {
++  let out = "";
++  for (const ch of input) {
++    const code = ch.codePointAt(0) ?? 0;
++    if (keepNewline && ch === "\n") {
++      out += ch;
++      continue;
++    }
++    // C0 controls, DEL, and the C1 range. Turned into spaces rather than
++    // dropped, so words either side of one do not silently fuse together.
++    const isControl = code < 0x20 || code === 0x7f || (code >= 0x80 && code <= 0x9f);
++    out += isControl ? " " : ch;
++  }
++  return out;
++}
++
++function clean(input: string): string {
++  return stripControl(input, false).replace(/\s+/g, " ").trim();
++}
++
++/** The same, but newlines survive — a message is meant to have paragraphs. */
++function cleanMultiline(input: string): string {
++  return stripControl(input.replace(/\r\n?/g, "\n"), true)
++    // Horizontal whitespace only, so paragraph breaks are preserved.
++    .replace(/[^\S\n]+/g, " ")
++    .replace(/\n{3,}/g, "\n\n")
++    .trim();
++}
++
++export type EnquiryProblems = Partial<Record<keyof PartnershipEnquiry, string>>;
++
++export type EnquiryResult =
++  | { enquiry: PartnershipEnquiry; problems: null; spam: false }
++  /** Silently dropped: a bot filled the hidden field. Answer 200 anyway. */
++  | { enquiry: null; problems: null; spam: true }
++  | { enquiry: null; problems: EnquiryProblems; spam: false };
++
++/**
++ * Check an enquiry before it is sent.
++ *
++ * `honeypot` is a field the form renders but hides from view. A person never
++ * sees it and so never fills it; the crude form-scrapers that will find this
++ * page fill every input they can see in the HTML. When it comes back with
++ * anything in it we drop the submission and report success, because telling a
++ * bot precisely why it failed is how it learns to pass.
++ */
++export function validateEnquiry(raw: {
++  name?: string;
++  organisation?: string;
++  email?: string;
++  interest?: string;
++  message?: string;
++  honeypot?: string;
++}): EnquiryResult {
++  if (typeof raw.honeypot === "string" && raw.honeypot.trim() !== "") {
++    return { enquiry: null, problems: null, spam: true };
++  }
++
++  const problems: EnquiryProblems = {};
++
++  const name = clean(raw.name ?? "");
++  if (!name) problems.name = "Tell us your name.";
++  else if (name.length > MAX_PARTNER_NAME) problems.name = "That name is too long.";
++
++  const organisation = clean(raw.organisation ?? "");
++  if (!organisation) problems.organisation = "Tell us which organisation you are with.";
++  else if (organisation.length > MAX_PARTNER_ORG) problems.organisation = "That organisation name is too long.";
++
++  const email = normaliseEnquiryEmail(raw.email ?? "");
++  if (!email) problems.email = "We need an email address to reply to.";
++  else if (!isPlausibleEnquiryEmail(email)) problems.email = "That does not look like an email address.";
++
++  const interest = raw.interest ?? "";
++  if (!isPartnershipInterest(interest)) problems.interest = "Choose what you have in mind.";
++
++  const message = cleanMultiline(raw.message ?? "");
++  if (!message) {
++    problems.message = "Tell us a little about what you have in mind.";
++  } else if (message.length < MIN_PARTNER_MESSAGE) {
++    // A one-word message costs a full round of email to make sense of, and the
++    // people on the other end are busy. A sentence or two is not a big ask.
++    problems.message = "A sentence or two would help us reply properly.";
++  } else if (message.length > MAX_PARTNER_MESSAGE) {
++    problems.message = "That is longer than this form can send. Email us directly instead.";
++  }
++
++  if (Object.keys(problems).length > 0) {
++    return { enquiry: null, problems, spam: false };
++  }
++
++  return {
++    enquiry: {
++      name,
++      organisation,
++      email,
++      interest: interest as PartnershipInterest,
++      message,
++    },
++    problems: null,
++    spam: false,
++  };
++}
++
++/** Escape text for safe interpolation into the notification email's HTML. */
++export function escapeHtml(input: string): string {
++  return input
++    .replace(/&/g, "&amp;")
++    .replace(/</g, "&lt;")
++    .replace(/>/g, "&gt;")
++    .replace(/"/g, "&quot;")
++    .replace(/'/g, "&#39;");
++}
++
++/**
++ * The notification email's subject line.
++ *
++ * Named so it is obvious in a crowded inbox what it is and who it is from,
++ * because this is the only copy of the enquiry that will ever exist.
++ */
++export function enquirySubject(enquiry: PartnershipEnquiry): string {
++  return `Partnership enquiry: ${enquiry.organisation} (${PARTNERSHIP_INTEREST_LABELS[enquiry.interest]})`;
++}
++
++/**
++ * The notification email's body.
++ *
++ * Every value that came from the form is escaped. The address to reply to is
++ * spelled out as text rather than only as a link, so it survives forwarding.
++ */
++export function enquiryHtml(enquiry: PartnershipEnquiry, receivedAt: Date): string {
++  const when = receivedAt.toISOString();
++  const rows: [string, string][] = [
++    ["Name", enquiry.name],
++    ["Organisation", enquiry.organisation],
++    ["Email", enquiry.email],
++    ["Interest", PARTNERSHIP_INTEREST_LABELS[enquiry.interest]],
++  ];
++
++  const table = rows
++    .map(
++      ([label, value]) =>
++        `<tr><td style="padding:4px 12px 4px 0;color:#5B6470;">${escapeHtml(label)}</td>` +
++        `<td style="padding:4px 0;color:#07111E;"><strong>${escapeHtml(value)}</strong></td></tr>`,
++    )
++    .join("");
++
++  const body = escapeHtml(enquiry.message).replace(/\n/g, "<br>");
++
++  return [
++    `<div style="font-family:system-ui,sans-serif;line-height:1.5;">`,
++    `<h2 style="color:#07111E;margin:0 0 16px;">New partnership enquiry</h2>`,
++    `<table style="border-collapse:collapse;margin-bottom:20px;">${table}</table>`,
++    `<div style="color:#07111E;">${body}</div>`,
++    `<p style="color:#5B6470;font-size:12px;margin-top:24px;">`,
++    `Sent from the partnerships form at energycommslab.africa on ${escapeHtml(when)}.<br>`,
++    `Reply to ${escapeHtml(enquiry.email)}.`,
++    `</p></div>`,
++  ].join("");
++}
+-- 
+2.43.0
+
