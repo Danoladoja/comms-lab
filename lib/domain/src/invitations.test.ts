@@ -130,11 +130,30 @@ describe("validateInvite", () => {
     expect(invite!.sessionIds).toEqual([]);
   });
 
-  it("explains why admin cannot be invited, and what to do instead", () => {
+  it("refuses an admin invitation sent by an admin, and says who can send one", () => {
+    // The rule changed when super admins arrived: inviting an admin is no
+    // longer impossible, it is simply not this person's to do.
     const { invite, problems } = validateInvite({ email: "ada@example.org", role: "admin" });
     expect(invite).toBeNull();
-    expect(problems[0]).toMatch(/cannot grant admin/);
-    expect(problems[0]).toMatch(/People list/);
+    expect(problems[0]).toMatch(/super admin/i);
+  });
+
+  it("lets a super admin invite an admin", () => {
+    const { invite } = validateInvite({ email: "ada@example.org", role: "admin", actorRole: "superadmin" });
+    expect(invite).toMatchObject({ email: "ada@example.org", role: "admin" });
+  });
+
+  it("nobody invites a super admin, not even a super admin", () => {
+    for (const actorRole of ["superadmin", "admin", undefined]) {
+      const { invite, problems } = validateInvite({ email: "ada@example.org", role: "superadmin", actorRole });
+      expect(invite).toBeNull();
+      expect(problems[0]).toMatch(/People list|Choose a role/i);
+    }
+  });
+
+  it("a facilitator cannot send invitations at all", () => {
+    const { invite } = validateInvite({ email: "ada@example.org", role: "learner", actorRole: "instructor" });
+    expect(invite).toBeNull();
   });
 
   it("rejects a role that is not a role at all", () => {

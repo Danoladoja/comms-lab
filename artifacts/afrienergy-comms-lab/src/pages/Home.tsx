@@ -103,7 +103,7 @@ export default function Home() {
             custom={0.6}
             className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4"
           >
-            <Link href="/sign-up" className="btn-editorial btn-editorial-solid">
+            <Link href="/waitlist" className="btn-editorial btn-editorial-solid">
               Register Interest
             </Link>
             <Link href="/courses" className="btn-editorial btn-editorial-ghost">
@@ -271,7 +271,7 @@ export default function Home() {
             className="text-xs uppercase tracking-[0.35em] mb-6"
             style={{ color: "var(--brand-gold)" }}
           >
-            Join the Lab
+            Join the waitlist
           </motion.p>
           <motion.h2
             variants={fadeUp}
@@ -291,7 +291,7 @@ export default function Home() {
             viewport={{ once: true }}
             custom={0.2}
           >
-            <Link href="/sign-up" className="btn-editorial btn-editorial-solid px-10 py-4">
+            <Link href="/waitlist" className="btn-editorial btn-editorial-solid px-10 py-4">
               Register Your Interest
             </Link>
           </motion.div>

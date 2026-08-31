@@ -11,16 +11,26 @@ import {
   useListAllEnrollments,
   useUpdateEnrollment,
   useListUsers,
+  useListStaff,
+  useListWaitlist,
+  useUpdateWaitlistEntry,
+  useListUnattachedUsers,
+  getListWaitlistQueryKey,
   useUpdateUserRole,
   getListProgramsQueryKey,
   getListProgramSessionsQueryKey,
   getListAllEnrollmentsQueryKey,
   getListUsersQueryKey,
+  getListStaffQueryKey,
   type Program,
   type ProgramStatus,
   type Session,
 } from '@workspace/api-client-react';
 import {
+  ROLE_NOTES,
+  describeWaitlist,
+  canAppointStaff,
+  groupStaff,
   describeFacilitatorChoice,
   facilitatorFields,
   facilitatorInputValue,
@@ -625,10 +635,186 @@ function ProgramsTab({ instructors }: { instructors: { id: number; name: string;
 
 /* ---------- Enrollments tab ---------- */
 
+/** One programme's cohort: everybody on it, and how they are getting on. */
+function CohortSection({
+  programme, rows, onStatus, pending,
+}: {
+  programme: { id: number; title: string; capacity: number; status: string };
+  rows: { id: number; userName: string; userEmail: string; status: string }[];
+  onStatus: (enrollmentId: number, status: string) => void;
+  pending: boolean;
+}) {
+  const [open, setOpen] = useState(true);
+  const active = rows.filter(r => r.status === 'enrolled' || r.status === 'completed').length;
+
+  return (
+    <section className="rounded-xl border border-border bg-card">
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="flex w-full flex-wrap items-center gap-3 p-5 text-left"
+      >
+        <div className="min-w-[200px] flex-1">
+          <h3 className="font-semibold">{programme.title}</h3>
+          <p className="text-xs text-muted-foreground">
+            {active} of {programme.capacity} places taken · {rows.length} on this list ·{' '}
+            {programStatusNote(programme.status)}
+          </p>
+        </div>
+        {open ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+      </button>
+
+      {open && (
+        <div className="border-t border-border">
+          {rows.length === 0 ? (
+            <p className="p-5 text-sm text-muted-foreground">
+              Nobody on this programme yet. Invite a cohort below.
+            </p>
+          ) : (
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border text-left text-xs uppercase tracking-wider text-muted-foreground">
+                  <th className="p-4">Learner</th><th className="p-4">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map(r => (
+                  <tr key={r.id} className="border-b border-border last:border-0">
+                    <td className="p-4">
+                      <p className="font-medium">{r.userName || r.userEmail}</p>
+                      <p className="text-xs text-muted-foreground">{r.userEmail}</p>
+                    </td>
+                    <td className="p-4">
+                      <select
+                        className="rounded-md border border-border bg-background px-2 py-1.5 text-sm"
+                        value={r.status}
+                        disabled={pending}
+                        onChange={ev => onStatus(r.id, ev.target.value)}
+                      >
+                        <option value="enrolled">Enrolled</option>
+                        <option value="waitlisted">Waitlisted</option>
+                        <option value="completed">Completed</option>
+                        <option value="cancelled">Cancelled</option>
+                      </select>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
+    </section>
+  );
+}
+
+/** People who asked for a place through the public form. */
+function WaitlistSection() {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const { data: entries = [], isLoading } = useListWaitlist();
+  const update = useUpdateWaitlistEntry({
+    mutation: {
+      onSuccess: () => qc.invalidateQueries({ queryKey: getListWaitlistQueryKey() }),
+      onError: () => toast({ title: 'Could not update that entry', variant: 'destructive' }),
+    },
+  });
+
+  if (isLoading) return <div className="h-24 animate-pulse rounded-xl border border-border bg-card" />;
+
+  const counts = {
+    waiting: entries.filter(e => e.status === 'waiting').length,
+    invited: entries.filter(e => e.status === 'invited').length,
+    declined: entries.filter(e => e.status === 'declined').length,
+  };
+
+  return (
+    <section className="rounded-xl border border-border bg-card p-5">
+      <h3 className="font-semibold">Waitlist</h3>
+      <p className="mt-0.5 text-xs text-muted-foreground">
+        {entries.length === 0
+          ? 'Nobody has asked for a place yet. The form is on the site under “Join the waitlist”.'
+          : `${describeWaitlist(counts)} Invite them with the tool below, then mark them invited.`}
+      </p>
+
+      {entries.length > 0 && (
+        <ul className="mt-3 divide-y divide-border">
+          {entries.map(e => (
+            <li key={e.id} className="flex flex-wrap items-center gap-3 py-3">
+              <div className="min-w-[200px] flex-1">
+                <p className="text-sm font-medium">{e.name}</p>
+                <p className="text-xs text-muted-foreground">{e.email}</p>
+                <p className="mt-0.5 text-xs text-muted-foreground/80">
+                  {e.programTitle ?? 'Any future cohort'}
+                  {e.note ? ` — ${e.note}` : ''}
+                </p>
+              </div>
+              <select
+                className="rounded-md border border-border bg-background px-2 py-1.5 text-sm"
+                value={e.status}
+                disabled={update.isPending}
+                onChange={ev => update.mutate({ id: e.id, data: { status: ev.target.value as 'waiting' | 'invited' | 'declined' } })}
+              >
+                <option value="waiting">Waiting</option>
+                <option value="invited">Invited</option>
+                <option value="declined">Not this time</option>
+              </select>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+/**
+ * Accounts on no programme at all.
+ *
+ * Everyone who signed up while the door was open. Listed rather than tidied
+ * away automatically, because each one is a real person and deciding what
+ * happens to them is not a job for a script.
+ */
+function UnattachedSection() {
+  const { data: users = [], isLoading } = useListUnattachedUsers();
+
+  if (isLoading || users.length === 0) return null;
+
+  return (
+    <section className="rounded-xl border border-[#B45309]/40 bg-[#FFFBEB] p-5">
+      <h3 className="flex items-center gap-2 font-semibold text-[#7C2D12]">
+        <CircleAlert className="h-4 w-4" aria-hidden />
+        {users.length} account{users.length === 1 ? '' : 's'} on no programme
+      </h3>
+      <p className="mt-0.5 text-xs text-[#7C2D12]/80">
+        These people signed up when anyone could. Enrol them onto a programme with the tool below using
+        their email address, or leave them — they can sign in but see nothing until they are on a cohort.
+        Nothing here changes anybody on its own.
+      </p>
+      <ul className="mt-3 divide-y divide-[#B45309]/20">
+        {users.map(u => (
+          <li key={u.id} className="py-2 text-sm">
+            <span className="font-medium">{u.name || '—'}</span>{' '}
+            <span className="text-muted-foreground">{u.email}</span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+/**
+ * Enrolments, arranged by programme.
+ *
+ * One flat table of every learner on every programme told an admin nothing they
+ * were actually asking: a cohort is the unit of work here. Each programme now
+ * carries its own list, its own count against its places, and the invitation
+ * tool sits underneath them all.
+ */
 function EnrollmentsTab() {
   const qc = useQueryClient();
   const { toast } = useToast();
   const { data: enrollments = [], isLoading } = useListAllEnrollments();
+  const { data: programmes = [] } = useListPrograms();
   const update = useUpdateEnrollment({
     mutation: {
       onSuccess: () => { toast({ title: 'Enrollment updated' }); qc.invalidateQueries({ queryKey: getListAllEnrollmentsQueryKey() }); },
@@ -636,54 +822,98 @@ function EnrollmentsTab() {
     },
   });
 
-  if (isLoading) return <div className="h-32 bg-card border border-border rounded-xl animate-pulse" />;
-  if (enrollments.length === 0) return <p className="text-muted-foreground">No enrollments yet.</p>;
+  const setStatus = (id: number, status: string) =>
+    update.mutate({ id, data: { status: status as 'enrolled' | 'waitlisted' | 'completed' | 'cancelled' } });
+
+  if (isLoading) return <div className="h-32 animate-pulse rounded-xl border border-border bg-card" />;
 
   return (
-    <div className="bg-card border border-border rounded-xl overflow-x-auto">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="border-b border-border text-left text-xs uppercase tracking-wider text-muted-foreground">
-            <th className="p-4">Learner</th><th className="p-4">Program</th><th className="p-4">Status</th>
-          </tr>
-        </thead>
-        <tbody>
-          {enrollments.map(e => (
-            <tr key={e.id} className="border-b border-border last:border-0">
-              <td className="p-4">
-                <p className="font-medium">{e.userName || e.userEmail}</p>
-                <p className="text-xs text-muted-foreground">{e.userEmail}</p>
-              </td>
-              <td className="p-4">{e.programTitle}</td>
-              <td className="p-4">
-                <select
-                  className="border border-border rounded-md px-2 py-1.5 text-sm bg-background"
-                  value={e.status}
-                  onChange={ev => update.mutate({ id: e.id, data: { status: ev.target.value as any } })}
-                >
-                  <option value="enrolled">Enrolled</option>
-                  <option value="waitlisted">Waitlisted</option>
-                  <option value="completed">Completed</option>
-                  <option value="cancelled">Cancelled</option>
-                </select>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <div className="space-y-6">
+      <UnattachedSection />
+
+      {programmes.length === 0 ? (
+        <p className="text-muted-foreground">No programmes yet. Create one under Programs.</p>
+      ) : (
+        programmes.map(p => (
+          <CohortSection
+            key={p.id}
+            programme={p}
+            rows={enrollments.filter(e => e.programId === p.id)}
+            onStatus={setStatus}
+            pending={update.isPending}
+          />
+        ))
+      )}
+
+      <WaitlistSection />
+
+      {/* Inviting a cohort belongs with the cohorts, not with the staff. */}
+      <InviteLearners />
     </div>
   );
 }
 
 /* ---------- People tab ---------- */
 
+function StaffRow({
+  person, canAppoint, onChange, pending,
+}: {
+  person: { id: number; name: string; email: string; role: string; programmes: { programId: number; programTitle: string; sessions: number }[] };
+  canAppoint: boolean;
+  onChange: (role: string) => void;
+  pending: boolean;
+}) {
+  return (
+    <li className="flex flex-wrap items-center gap-3 py-3">
+      <div className="min-w-[200px] flex-1">
+        <p className="text-sm font-medium">{person.name || '—'}</p>
+        <p className="text-xs text-muted-foreground">{person.email}</p>
+        {person.programmes.length > 0 && (
+          <p className="mt-1 text-xs text-muted-foreground/80">
+            {person.programmes
+              .map(p => `${p.programTitle} (${p.sessions} class${p.sessions === 1 ? '' : 'es'})`)
+              .join(' · ')}
+          </p>
+        )}
+      </div>
+      <div className="text-right">
+        <select
+          className="rounded-md border border-border bg-background px-2 py-1.5 text-sm disabled:opacity-50"
+          value={person.role}
+          disabled={!canAppoint || pending}
+          onChange={e => onChange(e.target.value)}
+        >
+          <option value="learner">Learner</option>
+          <option value="instructor">Facilitator</option>
+          <option value="admin">Admin</option>
+          <option value="superadmin">Super admin</option>
+        </select>
+        <p className="mt-0.5 text-xs text-muted-foreground">{ROLE_NOTES[person.role as keyof typeof ROLE_NOTES] ?? ''}</p>
+      </div>
+    </li>
+  );
+}
+
+/**
+ * The people who run the Lab.
+ *
+ * This used to be everyone with an account. On a cohort of fifty that is a wall
+ * of learners an admin has to read past to find the two facilitators, and it
+ * left no way to see who is actually responsible for what. Learners now live
+ * under their programme, in Enrollments, where the question about them is
+ * always "which cohort, and how are they doing".
+ */
 function PeopleTab({ selfId }: { selfId: number | undefined }) {
   const qc = useQueryClient();
   const { toast } = useToast();
-  const { data: users = [], isLoading } = useListUsers();
+  const { data, isLoading } = useListStaff();
   const update = useUpdateUserRole({
     mutation: {
-      onSuccess: () => { toast({ title: 'Role updated' }); qc.invalidateQueries({ queryKey: getListUsersQueryKey() }); },
+      onSuccess: () => {
+        toast({ title: 'Role updated' });
+        qc.invalidateQueries({ queryKey: getListStaffQueryKey() });
+        qc.invalidateQueries({ queryKey: getListUsersQueryKey() });
+      },
       onError: (err) => toast({
         title: 'Could not update role',
         description: (err as unknown as { error?: string })?.error,
@@ -692,47 +922,88 @@ function PeopleTab({ selfId }: { selfId: number | undefined }) {
     },
   });
 
-  if (isLoading) return <div className="h-32 bg-card border border-border rounded-xl animate-pulse" />;
+  if (isLoading || !data) return <div className="h-32 animate-pulse rounded-xl border border-border bg-card" />;
+
+  const canAppoint = canAppointStaff(data.you.role);
+  const { administrators, facilitators } = groupStaff(data.staff);
+  const teaching = facilitators.filter(f => f.programmes.length > 0);
+  const unassigned = facilitators.filter(f => f.programmes.length === 0);
+
+  const setRole = (id: number, role: string) =>
+    update.mutate({ id, data: { role: role as 'learner' | 'instructor' | 'admin' | 'superadmin' } });
 
   return (
-    <div className="space-y-4">
-      <InviteLearners />
+    <div className="space-y-6">
+      <InviteFacilitator canInviteAdmin={canAppoint} />
 
-      <InviteFacilitator />
+      {!canAppoint && (
+        <p className="rounded-lg border border-border bg-card px-4 py-3 text-xs text-muted-foreground">
+          Only a super admin can change what someone is allowed to do. You can see the team here and
+          assign classes under Programs.
+        </p>
+      )}
 
-      <p className="text-sm text-muted-foreground">
-        Anyone who signed up on their own appears here. Change a role to give someone the Teaching area, then
-        assign their classes under Programs.
+      <section className="rounded-xl border border-border bg-card p-5">
+        <h3 className="font-semibold">Administrators</h3>
+        <p className="mt-0.5 text-xs text-muted-foreground">
+          Super admins appoint staff. Admins run everything else. Nobody can change their own role.
+        </p>
+        <ul className="mt-2 divide-y divide-border">
+          {administrators.map(p => (
+            <StaffRow
+              key={p.id}
+              person={p}
+              canAppoint={canAppoint && p.id !== selfId}
+              pending={update.isPending}
+              onChange={role => setRole(p.id, role)}
+            />
+          ))}
+        </ul>
+      </section>
+
+      <section className="rounded-xl border border-border bg-card p-5">
+        <h3 className="font-semibold">Facilitators</h3>
+        <p className="mt-0.5 text-xs text-muted-foreground">
+          Shown with the programmes they are teaching. Assign classes under Programs.
+        </p>
+
+        {teaching.length === 0 && unassigned.length === 0 && (
+          <p className="mt-3 text-sm text-muted-foreground">No facilitators yet. Invite one above.</p>
+        )}
+
+        <ul className="mt-2 divide-y divide-border">
+          {teaching.map(p => (
+            <StaffRow
+              key={p.id}
+              person={p}
+              canAppoint={canAppoint && p.id !== selfId}
+              pending={update.isPending}
+              onChange={role => setRole(p.id, role)}
+            />
+          ))}
+        </ul>
+
+        {unassigned.length > 0 && (
+          <div className="mt-4 border-t border-border pt-3">
+            <p className="text-xs font-medium text-muted-foreground">Not teaching anything yet</p>
+            <ul className="divide-y divide-border">
+              {unassigned.map(p => (
+                <StaffRow
+                  key={p.id}
+                  person={p}
+                  canAppoint={canAppoint && p.id !== selfId}
+                  pending={update.isPending}
+                  onChange={role => setRole(p.id, role)}
+                />
+              ))}
+            </ul>
+          </div>
+        )}
+      </section>
+
+      <p className="text-xs text-muted-foreground">
+        Learners are not listed here. They belong to a programme, and live under Enrollments.
       </p>
-      <div className="bg-card border border-border rounded-xl overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-border text-left text-xs uppercase tracking-wider text-muted-foreground">
-              <th className="p-4">Name</th><th className="p-4">Email</th><th className="p-4">Role</th>
-            </tr>
-          </thead>
-          <tbody>
-            {users.map(u => (
-              <tr key={u.id} className="border-b border-border last:border-0">
-                <td className="p-4 font-medium">{u.name || '—'}</td>
-                <td className="p-4 text-muted-foreground">{u.email}</td>
-                <td className="p-4">
-                  <select
-                    className="border border-border rounded-md px-2 py-1.5 text-sm bg-background disabled:opacity-50"
-                    value={u.role}
-                    disabled={u.id === selfId}
-                    onChange={e => update.mutate({ id: u.id, data: { role: e.target.value as any } })}
-                  >
-                    <option value="learner">Learner</option>
-                    <option value="instructor">Facilitator</option>
-                    <option value="admin">Admin</option>
-                  </select>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
     </div>
   );
 }

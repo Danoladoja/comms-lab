@@ -25,6 +25,7 @@ import Certificates from '@/pages/Certificates';
 import About from '@/pages/About';
 import Partnerships from '@/pages/Partnerships';
 import Privacy from '@/pages/Privacy';
+import Waitlist from '@/pages/Waitlist';
 import NotFound from '@/pages/not-found';
 
 const queryClient = new QueryClient();
@@ -124,7 +125,24 @@ function SignInPage() {
   );
 }
 
+/**
+ * Sign-up is by invitation only.
+ *
+ * An invitation link carries a one-time ticket in its address; that, and only
+ * that, is somebody the Lab actually invited. They get the real form. Everyone
+ * else arriving at /sign-up — a bookmark, a guessed address, a link from an old
+ * post — is told plainly how to join and sent to the waitlist, because an
+ * account attached to no programme is what filled the People list with
+ * strangers in the first place.
+ */
+function hasInvitationTicket(): boolean {
+  if (typeof window === 'undefined') return false;
+  const params = new URLSearchParams(window.location.search);
+  return params.has('__clerk_ticket') || params.has('__clerk_invitation_token');
+}
+
 function SignUpPage() {
+  if (!hasInvitationTicket()) return <InvitationOnlyPage />;
   return (
     <AuthPageShell>
       <SignUp
@@ -133,6 +151,31 @@ function SignUpPage() {
         signInUrl={`${basePath}/sign-in`}
         fallbackRedirectUrl={`${basePath}/dashboard`}
       />
+    </AuthPageShell>
+  );
+}
+
+function InvitationOnlyPage() {
+  return (
+    <AuthPageShell>
+      <div className="w-full max-w-md rounded-2xl bg-[#F4F0E8] p-8 text-center text-[#07111E]">
+        <h1 className="mb-3 font-display text-2xl font-bold">The Lab runs by invitation</h1>
+        <p className="text-sm opacity-80">
+          Places on each cohort are limited, so accounts are created from an invitation rather than by
+          signing up. Join the waitlist and we will write to you when a place opens.
+        </p>
+        <div className="mt-6 flex flex-col gap-2">
+          <a
+            href={`${basePath}/waitlist`}
+            className="rounded-md bg-[#07111E] px-4 py-2.5 text-sm font-semibold text-[#F4F0E8]"
+          >
+            Join the waitlist
+          </a>
+          <a href={`${basePath}/sign-in`} className="text-sm underline underline-offset-2">
+            Already have an account? Sign in
+          </a>
+        </div>
+      </div>
     </AuthPageShell>
   );
 }
@@ -188,7 +231,8 @@ function Router() {
         {/* Full-screen routes without Navbar/Footer */}
         <Route path="/sign-in/*?" component={SignInPage} />
         <Route path="/sign-up/*?" component={SignUpPage} />
-        <Route path="/register"><Redirect to="/sign-up" /></Route>
+        <Route path="/register"><Redirect to="/waitlist" /></Route>
+        <Route path="/join"><Redirect to="/waitlist" /></Route>
         <Route path="/login"><Redirect to="/sign-in" /></Route>
         <Route path="/certificate/:id">
           <Protected><CertificatePage /></Protected>
@@ -220,6 +264,9 @@ function Router() {
         </Route>
         <Route path="/privacy">
           <AppLayout><Privacy /></AppLayout>
+        </Route>
+        <Route path="/waitlist">
+          <AppLayout><Waitlist /></AppLayout>
         </Route>
 
         {/* Signed-in routes */}

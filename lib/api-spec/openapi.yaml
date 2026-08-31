@@ -1303,6 +1303,130 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiMessage"
+  /waitlist:
+    post:
+      operationId: joinWaitlist
+      tags: [waitlist]
+      summary: Ask for a place on a programme
+      description: >-
+        Public. The way into the Lab now that sign-up is closed: no account is
+        created, and an admin invites people from this list as places open.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WaitlistSignupBody"
+      responses:
+        "201":
+          description: On the list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlainMessage"
+        "400":
+          description: Something in the form needs correcting
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlainMessage"
+        "429":
+          description: Too many attempts from this address
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlainMessage"
+  /admin/waitlist:
+    get:
+      operationId: listWaitlist
+      tags: [admin]
+      summary: People waiting for a place
+      responses:
+        "200":
+          description: Waitlist entries, newest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/WaitlistEntry"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+  /admin/waitlist/{id}:
+    patch:
+      operationId: updateWaitlistEntry
+      tags: [admin]
+      summary: Mark a waitlist entry as invited or set aside
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WaitlistEntryUpdate"
+      responses:
+        "200":
+          description: The new state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WaitlistEntryState"
+        "404":
+          description: No longer on the list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlainMessage"
+  /admin/unattached-users:
+    get:
+      operationId: listUnattachedUsers
+      tags: [admin]
+      summary: Accounts that are on no programme
+      description: >-
+        Learner accounts with no enrolment — everyone who signed up while the
+        door was open. Listed so an admin can deal with each by hand; nothing
+        here changes anybody.
+      responses:
+        "200":
+          description: Unattached accounts, newest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/UnattachedUser"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+  /admin/staff:
+    get:
+      operationId: listStaff
+      tags: [admin]
+      summary: Facilitators and administrators
+      responses:
+        "200":
+          description: The people who run the Lab
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StaffList"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
   /admin/invitations:
     get:
       operationId: listInvitations
@@ -2038,10 +2162,11 @@ components:
       required: [email]
       properties:
         email: { type: string, maxLength: 320 }
-        # Admin is deliberately not accepted here — see the server.
+        # Admin is accepted only from a super admin; the server decides, and a
+        # super admin is never invitable by anyone. See the server.
         role:
           type: string
-          enum: [instructor, learner]
+          enum: [admin, instructor, learner]
         sessionIds:
           type: array
           maxItems: 20
@@ -2059,7 +2184,7 @@ components:
         clerkUserId: { type: string }
         email: { type: string }
         name: { type: string }
-        role: { type: string, enum: [learner, instructor, admin] }
+        role: { type: string, enum: [learner, instructor, admin, superadmin] }
     JoinResult:
       type: object
       required: [sessionId, joinedAt, countedAsOnTime]
@@ -2598,7 +2723,7 @@ components:
       type: object
       required: [role]
       properties:
-        role: { type: string, enum: [learner, instructor, admin] }
+        role: { type: string, enum: [learner, instructor, admin, superadmin] }
     Program:
       type: object
       required: [id, tag, title, description, startDate, format, duration, capacity, status, enrolledCount]
@@ -2694,6 +2819,85 @@ components:
         recordingUrl: { type: string }
         instructorId: { type: ["integer", "null"] }
         guestFacilitator: { type: ["string", "null"] }
+    PlainMessage:
+      type: object
+      required: [message]
+      properties:
+        message: { type: string }
+    WaitlistSignupBody:
+      type: object
+      required: [name, email]
+      properties:
+        name: { type: string, minLength: 2, maxLength: 120 }
+        email: { type: string, maxLength: 320 }
+        # The programme id as text, or "any" for whatever runs next.
+        programme: { type: string }
+        note: { type: string, maxLength: 1000 }
+        # Hidden field. A person leaves it empty; a crude script fills it.
+        trap: { type: string }
+    WaitlistEntry:
+      type: object
+      required: [id, name, email, status]
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        email: { type: string }
+        programId: { type: ["integer", "null"] }
+        programTitle: { type: ["string", "null"] }
+        note: { type: string }
+        status: { type: string, enum: [waiting, invited, declined] }
+        createdAt: { type: string, format: date-time }
+    WaitlistEntryUpdate:
+      type: object
+      required: [status]
+      properties:
+        status: { type: string, enum: [waiting, invited, declined] }
+    WaitlistEntryState:
+      type: object
+      required: [id, status]
+      properties:
+        id: { type: integer }
+        status: { type: string, enum: [waiting, invited, declined] }
+    UnattachedUser:
+      type: object
+      required: [id, name, email, role]
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        email: { type: string }
+        role: { type: string }
+        createdAt: { type: string, format: date-time }
+    StaffMember:
+      type: object
+      required: [id, name, email, role, programmes]
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        email: { type: string }
+        role: { type: string, enum: [learner, instructor, admin, superadmin] }
+        programmes:
+          type: array
+          items:
+            type: object
+            required: [programId, programTitle, sessions]
+            properties:
+              programId: { type: integer }
+              programTitle: { type: string }
+              sessions: { type: integer }
+    StaffList:
+      type: object
+      required: [you, staff]
+      properties:
+        you:
+          type: object
+          required: [role]
+          properties:
+            id: { type: ["integer", "null"] }
+            role: { type: string }
+        staff:
+          type: array
+          items:
+            $ref: "#/components/schemas/StaffMember"
     SessionUpdate:
       type: object
       properties:

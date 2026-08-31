@@ -6,10 +6,10 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type UserRoleUpdateRole = typeof UserRoleUpdateRole[keyof typeof UserRoleUpdateRole];
+export type StaffMemberRole = typeof StaffMemberRole[keyof typeof StaffMemberRole];
 
 
-export const UserRoleUpdateRole = {
+export const StaffMemberRole = {
   learner: 'learner',
   instructor: 'instructor',
   admin: 'admin',

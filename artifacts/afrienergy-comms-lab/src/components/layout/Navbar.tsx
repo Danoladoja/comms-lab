@@ -118,7 +118,7 @@ export function Navbar() {
                     Sign in
                   </Link>
                   <Button asChild className="rounded-full font-bold px-6 shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30 transition-all">
-                    <Link href="/sign-up">Join the Lab</Link>
+                    <Link href="/waitlist">Join the waitlist</Link>
                   </Button>
                 </>
               )}
@@ -171,11 +171,11 @@ export function Navbar() {
           ) : (
             <>
               <Link
-                href="/sign-up"
+                href="/waitlist"
                 onClick={() => setMobileMenuOpen(false)}
                 className="text-lg font-medium px-4 py-2 bg-primary text-primary-foreground text-center rounded-md"
               >
-                Join the Lab
+                Join the waitlist
               </Link>
               <Link
                 href="/sign-in"

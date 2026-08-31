@@ -25,7 +25,7 @@ export const GetMeResponse = zod.object({
   "clerkUserId": zod.string(),
   "email": zod.string(),
   "name": zod.string(),
-  "role": zod.enum(['learner', 'instructor', 'admin'])
+  "role": zod.enum(['learner', 'instructor', 'admin', 'superadmin'])
 })
 
 
@@ -1140,9 +1140,104 @@ export const ListUsersResponseItem = zod.object({
   "clerkUserId": zod.string(),
   "email": zod.string(),
   "name": zod.string(),
-  "role": zod.enum(['learner', 'instructor', 'admin'])
+  "role": zod.enum(['learner', 'instructor', 'admin', 'superadmin'])
 })
 export const ListUsersResponse = zod.array(ListUsersResponseItem)
+
+
+/**
+ * Public. The way into the Lab now that sign-up is closed: no account is created, and an admin invites people from this list as places open.
+ * @summary Ask for a place on a programme
+ */
+export const joinWaitlistBodyNameMin = 2;
+export const joinWaitlistBodyNameMax = 120;
+
+export const joinWaitlistBodyEmailMax = 320;
+
+export const joinWaitlistBodyNoteMax = 1000;
+
+
+
+export const JoinWaitlistBody = zod.object({
+  "name": zod.string().min(joinWaitlistBodyNameMin).max(joinWaitlistBodyNameMax),
+  "email": zod.string().max(joinWaitlistBodyEmailMax),
+  "programme": zod.string().optional(),
+  "note": zod.string().max(joinWaitlistBodyNoteMax).optional(),
+  "trap": zod.string().optional()
+})
+
+export const JoinWaitlistResponse = zod.object({
+  "message": zod.string()
+})
+
+
+/**
+ * @summary People waiting for a place
+ */
+export const ListWaitlistResponseItem = zod.object({
+  "id": zod.int(),
+  "name": zod.string(),
+  "email": zod.string(),
+  "programId": zod.int().nullish(),
+  "programTitle": zod.string().nullish(),
+  "note": zod.string().optional(),
+  "status": zod.enum(['waiting', 'invited', 'declined']),
+  "createdAt": zod.coerce.date().optional()
+})
+export const ListWaitlistResponse = zod.array(ListWaitlistResponseItem)
+
+
+/**
+ * @summary Mark a waitlist entry as invited or set aside
+ */
+export const UpdateWaitlistEntryParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const UpdateWaitlistEntryBody = zod.object({
+  "status": zod.enum(['waiting', 'invited', 'declined'])
+})
+
+export const UpdateWaitlistEntryResponse = zod.object({
+  "id": zod.int(),
+  "status": zod.enum(['waiting', 'invited', 'declined'])
+})
+
+
+/**
+ * Learner accounts with no enrolment — everyone who signed up while the door was open. Listed so an admin can deal with each by hand; nothing here changes anybody.
+ * @summary Accounts that are on no programme
+ */
+export const ListUnattachedUsersResponseItem = zod.object({
+  "id": zod.int(),
+  "name": zod.string(),
+  "email": zod.string(),
+  "role": zod.string(),
+  "createdAt": zod.coerce.date().optional()
+})
+export const ListUnattachedUsersResponse = zod.array(ListUnattachedUsersResponseItem)
+
+
+/**
+ * @summary Facilitators and administrators
+ */
+export const ListStaffResponse = zod.object({
+  "you": zod.object({
+  "id": zod.int().nullish(),
+  "role": zod.string()
+}),
+  "staff": zod.array(zod.object({
+  "id": zod.int(),
+  "name": zod.string(),
+  "email": zod.string(),
+  "role": zod.enum(['learner', 'instructor', 'admin', 'superadmin']),
+  "programmes": zod.array(zod.object({
+  "programId": zod.int(),
+  "programTitle": zod.string(),
+  "sessions": zod.int()
+}))
+}))
+})
 
 
 /**
@@ -1172,7 +1267,7 @@ export const inviteFacilitatorBodySessionIdsMax = 20;
 
 export const InviteFacilitatorBody = zod.object({
   "email": zod.string().max(inviteFacilitatorBodyEmailMax),
-  "role": zod.enum(['instructor', 'learner']).optional(),
+  "role": zod.enum(['admin', 'instructor', 'learner']).optional(),
   "sessionIds": zod.array(zod.int()).max(inviteFacilitatorBodySessionIdsMax).optional()
 })
 
@@ -1205,7 +1300,7 @@ export const UpdateUserRoleParams = zod.object({
 })
 
 export const UpdateUserRoleBody = zod.object({
-  "role": zod.enum(['learner', 'instructor', 'admin'])
+  "role": zod.enum(['learner', 'instructor', 'admin', 'superadmin'])
 })
 
 export const UpdateUserRoleResponse = zod.object({
@@ -1213,7 +1308,7 @@ export const UpdateUserRoleResponse = zod.object({
   "clerkUserId": zod.string(),
   "email": zod.string(),
   "name": zod.string(),
-  "role": zod.enum(['learner', 'instructor', 'admin'])
+  "role": zod.enum(['learner', 'instructor', 'admin', 'superadmin'])
 })
 
 

@@ -4,8 +4,8 @@ import {
 } from "@workspace/db";
 import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { UpdateUserRoleBody, UpdateEnrollmentBody, InviteFacilitatorBody } from "@workspace/api-zod";
-import { validateInvite, describeInvite } from "@workspace/domain";
-import { requireRole, getCurrentUser } from "../lib/auth";
+import { checkRoleChange, validateInvite, describeInvite } from "@workspace/domain";
+import { currentRole, requireRole, getCurrentUser } from "../lib/auth";
 import { sendInvitation, revokeInvitation, invitesConfigured } from "../lib/clerkInvites";
 import { sendWaitlistPromotion } from "../lib/enrollmentEmails";
 import { logger } from "../lib/logger";
@@ -13,6 +13,57 @@ import { logger } from "../lib/logger";
 const router: IRouter = Router();
 
 router.use("/admin", requireRole("admin"));
+
+/**
+ * The staff.
+ *
+ * People used to list everybody with an account, learners included, which on a
+ * cohort of fifty was a wall of names an admin had to read past to find the two
+ * facilitators. Learners belong to their programme and are managed there; this
+ * is the list of people who run the Lab.
+ */
+router.get("/admin/staff", async (req, res) => {
+  const rows = await db
+    .select({
+      id: usersTable.id,
+      email: usersTable.email,
+      name: usersTable.name,
+      role: usersTable.role,
+    })
+    .from(usersTable)
+    .where(inArray(usersTable.role, ["instructor", "admin", "superadmin"]))
+    .orderBy(asc(usersTable.id));
+
+  // The classes each facilitator is actually running, so an admin can see who
+  // is carrying what without opening every programme in turn.
+  const teaching = await db
+    .select({
+      instructorId: sessionsTable.instructorId,
+      programId: programsTable.id,
+      programTitle: programsTable.title,
+      sessions: sql<number>`count(*)::int`,
+    })
+    .from(sessionsTable)
+    .innerJoin(programsTable, eq(sessionsTable.programId, programsTable.id))
+    .where(sql`${sessionsTable.instructorId} is not null`)
+    .groupBy(sessionsTable.instructorId, programsTable.id, programsTable.title);
+
+  // The effective role, so the first admin of an older Lab shows as the super
+  // admin they are treated as everywhere else.
+  const mine = await currentRole(req);
+  const me = await getCurrentUser(req);
+
+  res.json({
+    you: { id: me?.id ?? null, role: mine ?? "learner" },
+    staff: rows.map((r) => ({
+      ...r,
+      role: r.id === me?.id ? (mine ?? r.role) : r.role,
+      programmes: teaching
+        .filter((t) => t.instructorId === r.id)
+        .map((t) => ({ programId: t.programId, programTitle: t.programTitle, sessions: t.sessions })),
+    })),
+  });
+});
 
 router.get("/admin/users", async (_req, res) => {
   const rows = await db
@@ -36,45 +87,36 @@ router.patch("/admin/users/:id/role", async (req, res) => {
     return;
   }
   const me = await getCurrentUser(req);
+  const myRole = await currentRole(req);
 
-  // Two guards the interface already applies, applied again here because the
-  // interface is not the security boundary and a direct call bypasses it.
-  //
-  // Changing your own role is refused outright: stepping down is something
-  // another admin does for you. And the last admin cannot be demoted by anyone,
-  // because there is no way back — the "first user becomes admin" rule only
-  // fires on an empty database, so a programme with no admin needs someone with
-  // database access to repair it.
-  if (me && me.id === id) {
-    res.status(400).json({ error: "You cannot change your own role. Ask another admin to do it." });
-    return;
-  }
-
-  // Counting admins and then demoting one has to happen under a lock, or two
-  // admins demoting each other at the same instant both read "2 admins", both
-  // pass the check, and the programme is left with none. It is the same lock
-  // the first-user bootstrap takes, because they guard the same invariant:
-  // there is always exactly one way to have an admin, and it must not be lost.
+  // Counting super admins and then demoting one has to happen under a lock, or
+  // two of them demoting each other at the same instant both read "2", both
+  // pass, and the Lab is left with nobody able to appoint anyone. It is the
+  // same lock the first-user bootstrap takes, because it guards the same thing:
+  // there must always be someone who can hand out the roles.
   const outcome = await db.transaction(async (tx) => {
     await tx.execute(sql`select pg_advisory_xact_lock(981431)`);
 
     const [target] = await tx.select().from(usersTable).where(eq(usersTable.id, id));
     if (!target) return { ok: false as const, status: 404, error: "User not found", row: null };
 
-    if (target.role === "admin" && parsed.data.role !== "admin") {
-      const [{ admins }] = await tx
-        .select({ admins: sql<number>`count(*)::int` })
-        .from(usersTable)
-        .where(eq(usersTable.role, "admin"));
-      if (admins <= 1) {
-        return {
-          ok: false as const,
-          status: 400,
-          error: "This is the only admin. Make someone else an admin first, or nobody can reach this console.",
-          row: null,
-        };
-      }
-    }
+    const [{ superadmins }] = await tx
+      .select({ superadmins: sql<number>`count(*)::int` })
+      .from(usersTable)
+      .where(eq(usersTable.role, "superadmin"));
+
+    const check = checkRoleChange({
+      actorRole: myRole,
+      actorId: me?.id ?? null,
+      targetId: id,
+      targetRole: target.role,
+      nextRole: parsed.data.role,
+      // An older Lab has no stored super admin and the first admin standing in
+      // for one. Counting that person keeps the "last super admin" guard honest
+      // rather than letting the only one demote themselves out of existence.
+      superadmins: superadmins > 0 ? superadmins : (myRole === "superadmin" ? 1 : 0),
+    });
+    if (!check.ok) return { ok: false as const, status: 403, error: check.problem, row: null };
 
     const rows = await tx.update(usersTable).set({ role: parsed.data.role }).where(eq(usersTable.id, id)).returning();
     return { ok: true as const, status: 200, error: "", row: rows[0] };
@@ -85,6 +127,7 @@ router.patch("/admin/users/:id/role", async (req, res) => {
     return;
   }
   const u = outcome.row;
+  logger.info({ userId: u.id, role: u.role, by: me?.id }, "Role changed");
   res.json({ id: u.id, clerkUserId: u.clerkUserId, email: u.email, name: u.name, role: u.role });
 });
 
@@ -188,8 +231,11 @@ router.post("/admin/invitations", async (req, res) => {
   const parsed = InviteFacilitatorBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
-  const { invite, problems } = validateInvite(parsed.data);
-  if (!invite) { res.status(400).json({ error: problems.join(" ") }); return; }
+  // Who is asking decides what they may hand out: a super admin can invite an
+  // admin, an admin cannot, and nobody invites a super admin by email.
+  const myRole = await currentRole(req);
+  const { invite, problems } = validateInvite({ ...parsed.data, actorRole: myRole ?? undefined });
+  if (!invite) { res.status(403).json({ error: problems.join(" ") }); return; }
 
   const me = await getCurrentUser(req);
 
@@ -238,7 +284,14 @@ router.post("/admin/invitations", async (req, res) => {
     }
   }
 
-  const sent = await sendInvitation({ email: invite.email, role: invite.role });
+  // Clerk is told "facilitator" even for an admin invitation. The admin role is
+  // applied on arrival from the pending-invitation row below, which only this
+  // server writes — so a forwarded link, or Clerk dashboard access, still
+  // cannot make somebody an admin here.
+  const sent = await sendInvitation({
+    email: invite.email,
+    role: invite.role === "admin" ? "instructor" : invite.role,
+  });
   if (!sent.ok) { res.status(400).json({ error: sent.error }); return; }
 
   const values = {

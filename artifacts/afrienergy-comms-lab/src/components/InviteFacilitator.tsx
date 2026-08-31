@@ -19,10 +19,15 @@ import { Mail, X, Check, Clock } from 'lucide-react';
  * classes — in one action, and the facilitator's entire involvement is clicking
  * a link in their inbox.
  */
-export default function InviteFacilitator() {
+export default function InviteFacilitator({ canInviteAdmin = false }: { canInviteAdmin?: boolean }) {
   const qc = useQueryClient();
   const { toast } = useToast();
   const [email, setEmail] = useState('');
+  const [name, setName] = useState('');
+  // Only a super admin sees this choice, and the server checks again: an
+  // invitation that could grant admin on the strength of a hidden form field
+  // would be no protection at all.
+  const [role, setRole] = useState<'instructor' | 'admin'>('instructor');
   const [programId, setProgramId] = useState<number | null>(null);
   const [chosen, setChosen] = useState<number[]>([]);
 
@@ -50,7 +55,7 @@ export default function InviteFacilitator() {
           title: 'Invitation sent',
           description: `${email} will arrive as a facilitator with their classes already assigned.`,
         });
-        setEmail(''); setChosen([]); refresh();
+        setEmail(''); setName(''); setChosen([]); refresh();
       },
       onError: (err) => toast({
         title: 'Could not send that invitation',
@@ -81,33 +86,59 @@ export default function InviteFacilitator() {
     <div className="space-y-4">
       <div className="bg-card border border-border rounded-xl p-4 space-y-3">
         <div>
-          <h3 className="text-sm font-semibold">Invite a facilitator</h3>
+          <h3 className="text-sm font-semibold">
+            {canInviteAdmin ? 'Invite a facilitator or admin' : 'Invite a facilitator'}
+          </h3>
           <p className="text-xs text-muted-foreground mt-0.5">
-            They get one email with one link. No password to invent, and they arrive as a facilitator with
-            their classes already assigned — not as a learner waiting to be promoted.
+            They get one email with one link. No password to invent, and they arrive in the role you
+            choose — a facilitator with their classes already assigned, or an admin.
           </p>
         </div>
 
         <div className="flex flex-wrap gap-2">
+          <Input
+            value={name}
+            onChange={e => setName(e.target.value)}
+            placeholder="Their name"
+            className="text-sm flex-1 min-w-[160px]"
+            aria-label="Their name"
+          />
           <Input
             type="email"
             value={email}
             onChange={e => setEmail(e.target.value)}
             placeholder="their.name@organisation.org"
             className="text-sm flex-1 min-w-[240px]"
-            aria-label="Facilitator email address"
+            aria-label="Email address"
           />
+          {canInviteAdmin && (
+            <select
+              className="rounded-md border border-border bg-background px-2 py-1.5 text-sm"
+              value={role}
+              onChange={e => setRole(e.target.value as 'instructor' | 'admin')}
+              aria-label="Role"
+            >
+              <option value="instructor">Facilitator</option>
+              <option value="admin">Admin</option>
+            </select>
+          )}
           <Button
             size="sm"
             disabled={!email.trim() || invite.isPending}
-            onClick={() => invite.mutate({ data: { email: email.trim(), role: 'instructor', sessionIds: chosen } })}
+            onClick={() => invite.mutate({
+              data: {
+                email: email.trim(),
+                role: canInviteAdmin ? role : 'instructor',
+                sessionIds: role === 'admin' ? [] : chosen,
+              },
+            })}
           >
             <Mail className="w-4 h-4 mr-1.5" aria-hidden />
             {invite.isPending ? 'Sending…' : 'Send invitation'}
           </Button>
         </div>
 
-        <div className="space-y-2 border-t border-border pt-3">
+        <div className={`space-y-2 border-t border-border pt-3 ${role === 'admin' ? 'hidden' : ''}`}>
           <p className="text-xs font-medium">
             Which classes will they teach?
             <span className="font-normal text-muted-foreground"> — optional, and you can assign more later</span>

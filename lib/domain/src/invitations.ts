@@ -12,9 +12,13 @@
  * read back off an account.
  */
 
-export type Role = "learner" | "instructor" | "admin";
+// A type-only import, so this stays a one-way dependency at runtime: staffRoles
+// takes the Role type from here, and only the type.
+import { rolesInvitableBy } from "./staffRoles";
 
-export const ROLES: Role[] = ["learner", "instructor", "admin"];
+export type Role = "learner" | "instructor" | "admin" | "superadmin";
+
+export const ROLES: Role[] = ["learner", "instructor", "admin", "superadmin"];
 
 /**
  * What an emailed invitation may grant.
@@ -26,6 +30,19 @@ export const ROLES: Role[] = ["learner", "instructor", "admin"];
  * already known to the system, in the People list.
  */
 export const INVITABLE_ROLES: Role[] = ["instructor", "learner"];
+
+/**
+ * A super admin may invite an admin, and that is deliberately NOT done by
+ * widening the list above.
+ *
+ * The rule that link-borne metadata can never make somebody an admin still
+ * holds exactly as written. An invited admin arrives as a facilitator as far as
+ * Clerk is concerned, and is raised to admin by `claimInvitation` reading our
+ * own pending-invitation row — a record only this server can write, created
+ * only by a super admin. Clerk dashboard access, which is a different privilege
+ * from being an admin here, still cannot mint one.
+ */
+export const CONSOLE_GRANTABLE_ROLES: Role[] = ["admin", "instructor", "learner"];
 
 export function isRole(value: unknown): value is Role {
   return typeof value === "string" && (ROLES as string[]).includes(value);
@@ -49,6 +66,11 @@ export function isInvitableRole(value: unknown): value is Role {
 export function roleFromPublicMetadata(metadata: unknown): Role | null {
   if (!metadata || typeof metadata !== "object") return null;
   const value = (metadata as Record<string, unknown>).role;
+  // Super admin is never read off an account, whatever is written there. It is
+  // granted in the console by somebody who already holds it, acting on a person
+  // they can see — so metadata, which Clerk dashboard access can also write, is
+  // not a route to the one role that can appoint every other.
+  if (value === "superadmin") return null;
   return isRole(value) ? value : null;
 }
 
@@ -107,6 +129,12 @@ export function validateInvite(raw: {
   email?: string;
   role?: string;
   sessionIds?: number[];
+  /**
+   * Who is sending it. A super admin may invite an admin; anybody else may not,
+   * and nobody may invite a super admin. Defaults to an admin, so a caller that
+   * says nothing gets the narrower rule rather than the wider one.
+   */
+  actorRole?: string;
 }): { invite: InviteRequest | null; problems: InviteProblem[] } {
   const problems: InviteProblem[] = [];
   const email = normaliseEmail(raw.email ?? "");
@@ -118,11 +146,14 @@ export function validateInvite(raw: {
   }
 
   const role = raw.role ?? "instructor";
-  if (!isInvitableRole(role)) {
+  const allowed = rolesInvitableBy(raw.actorRole ?? "admin") as string[];
+  if (!allowed.includes(role)) {
     problems.push(
-      isRole(role)
-        ? "An invitation cannot grant admin. Invite them, then change the role in the People list."
-        : "Choose a role for the invitation.",
+      role === "superadmin"
+        ? "A super admin is appointed in the People list, never by an emailed link."
+        : isRole(role)
+          ? "Only a super admin can invite an admin. Ask them, or invite this person as a facilitator."
+          : "Choose a role for the invitation.",
     );
   }
 

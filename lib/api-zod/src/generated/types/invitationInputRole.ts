@@ -10,6 +10,7 @@ export type InvitationInputRole = typeof InvitationInputRole[keyof typeof Invita
 
 
 export const InvitationInputRole = {
+  admin: 'admin',
   instructor: 'instructor',
   learner: 'learner',
 } as const;

@@ -164,6 +164,7 @@ export type InvitationInputRole = typeof InvitationInputRole[keyof typeof Invita
 
 
 export const InvitationInputRole = {
+  admin: 'admin',
   instructor: 'instructor',
   learner: 'learner',
 } as const;
@@ -187,6 +188,7 @@ export const UserRole = {
   learner: 'learner',
   instructor: 'instructor',
   admin: 'admin',
+  superadmin: 'superadmin',
 } as const;
 
 export interface User {
@@ -639,6 +641,7 @@ export const UserRoleUpdateRole = {
   learner: 'learner',
   instructor: 'instructor',
   admin: 'admin',
+  superadmin: 'superadmin',
 } as const;
 
 export interface UserRoleUpdate {
@@ -787,6 +790,116 @@ export interface SessionInput {
   instructorId?: number | null;
   /** @nullable */
   guestFacilitator?: string | null;
+}
+
+export interface PlainMessage {
+  message: string;
+}
+
+export interface WaitlistSignupBody {
+  /**
+     * @minLength 2
+     * @maxLength 120
+     */
+  name: string;
+  /** @maxLength 320 */
+  email: string;
+  programme?: string;
+  /** @maxLength 1000 */
+  note?: string;
+  trap?: string;
+}
+
+export type WaitlistEntryStatus = typeof WaitlistEntryStatus[keyof typeof WaitlistEntryStatus];
+
+
+export const WaitlistEntryStatus = {
+  waiting: 'waiting',
+  invited: 'invited',
+  declined: 'declined',
+} as const;
+
+export interface WaitlistEntry {
+  id: number;
+  name: string;
+  email: string;
+  /** @nullable */
+  programId?: number | null;
+  /** @nullable */
+  programTitle?: string | null;
+  note?: string;
+  status: WaitlistEntryStatus;
+  createdAt?: string;
+}
+
+export type WaitlistEntryUpdateStatus = typeof WaitlistEntryUpdateStatus[keyof typeof WaitlistEntryUpdateStatus];
+
+
+export const WaitlistEntryUpdateStatus = {
+  waiting: 'waiting',
+  invited: 'invited',
+  declined: 'declined',
+} as const;
+
+export interface WaitlistEntryUpdate {
+  status: WaitlistEntryUpdateStatus;
+}
+
+export type WaitlistEntryStateStatus = typeof WaitlistEntryStateStatus[keyof typeof WaitlistEntryStateStatus];
+
+
+export const WaitlistEntryStateStatus = {
+  waiting: 'waiting',
+  invited: 'invited',
+  declined: 'declined',
+} as const;
+
+export interface WaitlistEntryState {
+  id: number;
+  status: WaitlistEntryStateStatus;
+}
+
+export interface UnattachedUser {
+  id: number;
+  name: string;
+  email: string;
+  role: string;
+  createdAt?: string;
+}
+
+export type StaffMemberRole = typeof StaffMemberRole[keyof typeof StaffMemberRole];
+
+
+export const StaffMemberRole = {
+  learner: 'learner',
+  instructor: 'instructor',
+  admin: 'admin',
+  superadmin: 'superadmin',
+} as const;
+
+export type StaffMemberProgrammesItem = {
+  programId: number;
+  programTitle: string;
+  sessions: number;
+};
+
+export interface StaffMember {
+  id: number;
+  name: string;
+  email: string;
+  role: StaffMemberRole;
+  programmes: StaffMemberProgrammesItem[];
+}
+
+export type StaffListYou = {
+  /** @nullable */
+  id?: number | null;
+  role: string;
+};
+
+export interface StaffList {
+  you: StaffListYou;
+  staff: StaffMember[];
 }
 
 export interface SessionUpdate {

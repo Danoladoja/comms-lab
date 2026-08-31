@@ -3,15 +3,22 @@ import { clerkClient, getAuth } from "@clerk/express";
 import {
   db, usersTable, sessionsTable, pendingInvitationsTable, enrollmentsTable, type User,
 } from "@workspace/db";
-import { and, eq, inArray, isNull, sql } from "drizzle-orm";
-import { generateCertificateCode, invitableRoleFromPublicMetadata, planAssignments } from "@workspace/domain";
+import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
+import {
+  effectiveRole,
+  generateCertificateCode,
+  invitableRoleFromPublicMetadata,
+  planAssignments,
+  satisfiesRole,
+} from "@workspace/domain";
 import { logger } from "./logger";
 
 const userCache = new WeakMap<Request, User>();
 
 /**
  * Returns the local user for the signed-in Clerk session, JIT-provisioning
- * a row on first sight. The very first user ever provisioned becomes admin.
+ * a row on first sight. The very first user ever provisioned becomes the super
+ * admin — the person setting the Lab up is the one who appoints everyone else.
  * Returns null when not signed in.
  */
 export async function getCurrentUser(req: Request): Promise<User | null> {
@@ -49,7 +56,7 @@ export async function getCurrentUser(req: Request): Promise<User | null> {
     const [{ count }] = await tx.select({ count: sql<number>`count(*)::int` }).from(usersTable);
     // The bootstrap rule wins over an invitation: the first person into an
     // empty database is the owner, whatever they were invited as.
-    const role = count === 0 ? "admin" : (invitedRole ?? "learner");
+    const role = count === 0 ? "superadmin" : (invitedRole ?? "learner");
     return tx
       .insert(usersTable)
       .values({ clerkUserId, email, name, role })
@@ -131,6 +138,15 @@ async function claimInvitation(user: User, email: string): Promise<void> {
         .onConflictDoNothing({ target: [enrollmentsTable.userId, enrollmentsTable.programId] })
         .returning();
       enrolled = !!row;
+    }
+
+    // An invited admin is raised here rather than by anything Clerk carries.
+    // This row is written only by this server, and only a super admin can cause
+    // one to say "admin" — so link-borne metadata still cannot make an admin,
+    // and nothing at all can make a super admin.
+    if (invite.role === "admin" && user.role !== "admin" && user.role !== "superadmin") {
+      await db.update(usersTable).set({ role: "admin" }).where(eq(usersTable.id, user.id));
+      logger.info({ userId: user.id }, "Invited admin arrived and was given the role");
     }
 
     await db
@@ -225,6 +241,38 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
   next();
 }
 
+/**
+ * The role this person actually holds, super admin included.
+ *
+ * Kept apart from the stored row because of one case: a Lab set up before super
+ * admins existed has admins and no super admin, and nobody able to appoint one.
+ * There, the first admin is treated as the super admin until a real one is
+ * appointed. The two extra rows this reads are cached for the request.
+ */
+const roleCache = new WeakMap<Request, string>();
+
+export async function currentRole(req: Request): Promise<string | null> {
+  const cached = roleCache.get(req);
+  if (cached) return cached;
+
+  const user = await getCurrentUser(req);
+  if (!user) return null;
+
+  const staff = await db
+    .select({ id: usersTable.id, role: usersTable.role })
+    .from(usersTable)
+    .where(inArray(usersTable.role, ["admin", "superadmin"]))
+    .orderBy(asc(usersTable.id));
+
+  const role = effectiveRole(user, {
+    superadminExists: staff.some((s) => s.role === "superadmin"),
+    firstAdminId: staff[0]?.id ?? null,
+  });
+
+  roleCache.set(req, role);
+  return role;
+}
+
 export function requireRole(...roles: string[]) {
   return async (req: Request, res: Response, next: NextFunction) => {
     const user = await getCurrentUser(req);
@@ -232,7 +280,12 @@ export function requireRole(...roles: string[]) {
       res.status(401).json({ error: "Unauthorized" });
       return;
     }
-    if (!roles.includes(user.role)) {
+    // Asking for the effective role rather than the stored one, so a super
+    // admin passes every admin check without being written down twice.
+    const role = roles.includes("superadmin") || roles.includes("admin")
+      ? await currentRole(req)
+      : user.role;
+    if (!satisfiesRole(role, roles)) {
       res.status(403).json({ error: "Forbidden" });
       return;
     }

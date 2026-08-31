@@ -259,7 +259,7 @@ export default function About() {
             className="text-xs uppercase tracking-[0.35em] mb-6"
             style={{ color: "var(--brand-gold)" }}
           >
-            Join the Lab
+            Join the waitlist
           </motion.p>
           <motion.h2
             variants={fadeUp}
@@ -280,7 +280,7 @@ export default function About() {
             custom={0.2}
             className="flex flex-col sm:flex-row items-center justify-center gap-4"
           >
-            <Link href="/sign-up" className="btn-editorial btn-editorial-solid px-10 py-4">
+            <Link href="/waitlist" className="btn-editorial btn-editorial-solid px-10 py-4">
               Register Your Interest
             </Link>
             <Link href="/courses" className="btn-editorial btn-editorial-ghost px-10 py-4">

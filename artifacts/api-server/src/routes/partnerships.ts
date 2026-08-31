@@ -5,6 +5,7 @@ import {
   validateEnquiry,
 } from "@workspace/domain";
 import { EmailRejectedError, emailConfigured, sendEmail } from "../lib/email";
+import { createBudget } from "../lib/rateBudget";
 import { logger } from "../lib/logger";
 
 /**
@@ -32,45 +33,8 @@ function recipient(): { email: string; name: string } {
   };
 }
 
-/**
- * A small per-address budget.
- *
- * Deliberately modest and in-memory. This is one process, and a restart
- * clearing the counters costs nothing worth protecting — the point is to stop a
- * loop from turning one form into thousands of emails, not to be a security
- * boundary. A genuine partner sends one enquiry and never notices this exists.
- */
-const WINDOW_MS = 60 * 60 * 1000;
-const MAX_PER_WINDOW = 5;
-/** Bounded, so a flood of distinct addresses cannot grow this without limit. */
-const MAX_TRACKED_CLIENTS = 5000;
-
-const hits = new Map<string, number[]>();
-
-function clientKey(ip: string | undefined): string {
-  return ip ?? "unknown";
-}
-
-function overBudget(key: string, now: number): boolean {
-  const recent = (hits.get(key) ?? []).filter((t) => now - t < WINDOW_MS);
-
-  if (recent.length >= MAX_PER_WINDOW) {
-    hits.set(key, recent);
-    return true;
-  }
-
-  recent.push(now);
-  hits.set(key, recent);
-
-  // Opportunistic sweep, so the map cannot grow forever on a busy day.
-  if (hits.size > MAX_TRACKED_CLIENTS) {
-    for (const [k, times] of hits) {
-      if (times.every((t) => now - t >= WINDOW_MS)) hits.delete(k);
-    }
-  }
-
-  return false;
-}
+/** See lib/rateBudget: this and the waitlist share one implementation. */
+export const partnershipBudget = createBudget({ windowMs: 60 * 60 * 1000, max: 5 });
 
 router.post("/partnership-enquiries", async (req, res) => {
   const body = (req.body ?? {}) as Record<string, unknown>;
@@ -99,7 +63,7 @@ router.post("/partnership-enquiries", async (req, res) => {
 
   // Checked after validation on purpose: a malformed submission should get its
   // list of problems back rather than being spent against the budget.
-  if (overBudget(clientKey(req.ip), Date.now())) {
+  if (partnershipBudget.overBudget(req.ip ?? "unknown")) {
     logger.warn({ ip: req.ip }, "Partnership enquiries over budget for this address");
     res.status(429).json({
       message: "That is several enquiries in a short time. Please try again later, or email us directly.",

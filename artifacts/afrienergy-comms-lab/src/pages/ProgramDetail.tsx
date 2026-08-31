@@ -161,7 +161,7 @@ export default function ProgramDetail() {
               </Button>
             ) : (
               <Button asChild className="w-full font-bold">
-                <Link href="/sign-up">Sign up to Reserve</Link>
+                <Link href="/waitlist">Join the waitlist</Link>
               </Button>
             )}
           </div>

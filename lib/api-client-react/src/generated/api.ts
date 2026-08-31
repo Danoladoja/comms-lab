@@ -47,6 +47,7 @@ import type {
   PartnershipEnquiryInput,
   PartnershipEnquiryProblems,
   PinInput,
+  PlainMessage,
   PortfolioVisibilityInput,
   PostInput,
   Program,
@@ -77,11 +78,17 @@ import type {
   SessionUpdate,
   SlideDeck,
   SlidesVisibilityInput,
+  StaffList,
   ThreadDetail,
   ThreadInput,
   ThreadList,
+  UnattachedUser,
   User,
-  UserRoleUpdate
+  UserRoleUpdate,
+  WaitlistEntry,
+  WaitlistEntryState,
+  WaitlistEntryUpdate,
+  WaitlistSignupBody
 } from './api.schemas';
 
 import { customFetch } from '../custom-fetch';
@@ -3443,6 +3450,382 @@ export function useListUsers<TData = Awaited<ReturnType<typeof listUsers>>, TErr
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getListUsersQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getJoinWaitlistUrl = () => {
+
+
+
+
+  return `/api/waitlist`
+}
+
+/**
+ * Public. The way into the Lab now that sign-up is closed: no account is created, and an admin invites people from this list as places open.
+ * @summary Ask for a place on a programme
+ */
+export const joinWaitlist = async (waitlistSignupBody: WaitlistSignupBody, options?: Parameters<typeof customFetch>[1]): Promise<PlainMessage> => {
+
+  return customFetch<PlainMessage>(getJoinWaitlistUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(waitlistSignupBody)
+  }
+);}
+
+
+
+
+
+export const getJoinWaitlistMutationOptions = <TError = ErrorType<PlainMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof joinWaitlist>>, TError,{data: BodyType<WaitlistSignupBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof joinWaitlist>>, TError,{data: BodyType<WaitlistSignupBody>}, TContext> => {
+
+const mutationKey = ['joinWaitlist'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof joinWaitlist>>, {data: BodyType<WaitlistSignupBody>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  joinWaitlist(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type JoinWaitlistMutationResult = NonNullable<Awaited<ReturnType<typeof joinWaitlist>>>
+    export type JoinWaitlistMutationBody = BodyType<WaitlistSignupBody>
+    export type JoinWaitlistMutationError = ErrorType<PlainMessage>
+
+    /**
+ * @summary Ask for a place on a programme
+ */
+export const useJoinWaitlist = <TError = ErrorType<PlainMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof joinWaitlist>>, TError,{data: BodyType<WaitlistSignupBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof joinWaitlist>>,
+        TError,
+        {data: BodyType<WaitlistSignupBody>},
+        TContext
+      > => {
+      return useMutation(getJoinWaitlistMutationOptions(options));
+    }
+
+export const getListWaitlistUrl = () => {
+
+
+
+
+  return `/api/admin/waitlist`
+}
+
+/**
+ * @summary People waiting for a place
+ */
+export const listWaitlist = async ( options?: Parameters<typeof customFetch>[1]): Promise<WaitlistEntry[]> => {
+
+  return customFetch<WaitlistEntry[]>(getListWaitlistUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListWaitlistQueryKey = () => {
+    return [
+    `/api/admin/waitlist`
+    ] as const;
+    }
+
+
+export const getListWaitlistQueryOptions = <TData = Awaited<ReturnType<typeof listWaitlist>>, TError = ErrorType<ApiMessage>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listWaitlist>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListWaitlistQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listWaitlist>>> = ({ signal }) => listWaitlist({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listWaitlist>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListWaitlistQueryResult = NonNullable<Awaited<ReturnType<typeof listWaitlist>>>
+export type ListWaitlistQueryError = ErrorType<ApiMessage>
+
+
+/**
+ * @summary People waiting for a place
+ */
+
+export function useListWaitlist<TData = Awaited<ReturnType<typeof listWaitlist>>, TError = ErrorType<ApiMessage>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listWaitlist>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListWaitlistQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpdateWaitlistEntryUrl = (id: number,) => {
+
+
+
+
+  return `/api/admin/waitlist/${id}`
+}
+
+/**
+ * @summary Mark a waitlist entry as invited or set aside
+ */
+export const updateWaitlistEntry = async (id: number,
+    waitlistEntryUpdate: WaitlistEntryUpdate, options?: Parameters<typeof customFetch>[1]): Promise<WaitlistEntryState> => {
+
+  return customFetch<WaitlistEntryState>(getUpdateWaitlistEntryUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(waitlistEntryUpdate)
+  }
+);}
+
+
+
+
+
+export const getUpdateWaitlistEntryMutationOptions = <TError = ErrorType<PlainMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateWaitlistEntry>>, TError,{id: number;data: BodyType<WaitlistEntryUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateWaitlistEntry>>, TError,{id: number;data: BodyType<WaitlistEntryUpdate>}, TContext> => {
+
+const mutationKey = ['updateWaitlistEntry'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateWaitlistEntry>>, {id: number;data: BodyType<WaitlistEntryUpdate>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateWaitlistEntry(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateWaitlistEntryMutationResult = NonNullable<Awaited<ReturnType<typeof updateWaitlistEntry>>>
+    export type UpdateWaitlistEntryMutationBody = BodyType<WaitlistEntryUpdate>
+    export type UpdateWaitlistEntryMutationError = ErrorType<PlainMessage>
+
+    /**
+ * @summary Mark a waitlist entry as invited or set aside
+ */
+export const useUpdateWaitlistEntry = <TError = ErrorType<PlainMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateWaitlistEntry>>, TError,{id: number;data: BodyType<WaitlistEntryUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateWaitlistEntry>>,
+        TError,
+        {id: number;data: BodyType<WaitlistEntryUpdate>},
+        TContext
+      > => {
+      return useMutation(getUpdateWaitlistEntryMutationOptions(options));
+    }
+
+export const getListUnattachedUsersUrl = () => {
+
+
+
+
+  return `/api/admin/unattached-users`
+}
+
+/**
+ * Learner accounts with no enrolment — everyone who signed up while the door was open. Listed so an admin can deal with each by hand; nothing here changes anybody.
+ * @summary Accounts that are on no programme
+ */
+export const listUnattachedUsers = async ( options?: Parameters<typeof customFetch>[1]): Promise<UnattachedUser[]> => {
+
+  return customFetch<UnattachedUser[]>(getListUnattachedUsersUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListUnattachedUsersQueryKey = () => {
+    return [
+    `/api/admin/unattached-users`
+    ] as const;
+    }
+
+
+export const getListUnattachedUsersQueryOptions = <TData = Awaited<ReturnType<typeof listUnattachedUsers>>, TError = ErrorType<ApiMessage>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listUnattachedUsers>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListUnattachedUsersQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listUnattachedUsers>>> = ({ signal }) => listUnattachedUsers({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listUnattachedUsers>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListUnattachedUsersQueryResult = NonNullable<Awaited<ReturnType<typeof listUnattachedUsers>>>
+export type ListUnattachedUsersQueryError = ErrorType<ApiMessage>
+
+
+/**
+ * @summary Accounts that are on no programme
+ */
+
+export function useListUnattachedUsers<TData = Awaited<ReturnType<typeof listUnattachedUsers>>, TError = ErrorType<ApiMessage>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listUnattachedUsers>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListUnattachedUsersQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListStaffUrl = () => {
+
+
+
+
+  return `/api/admin/staff`
+}
+
+/**
+ * @summary Facilitators and administrators
+ */
+export const listStaff = async ( options?: Parameters<typeof customFetch>[1]): Promise<StaffList> => {
+
+  return customFetch<StaffList>(getListStaffUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListStaffQueryKey = () => {
+    return [
+    `/api/admin/staff`
+    ] as const;
+    }
+
+
+export const getListStaffQueryOptions = <TData = Awaited<ReturnType<typeof listStaff>>, TError = ErrorType<ApiMessage>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listStaff>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListStaffQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listStaff>>> = ({ signal }) => listStaff({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listStaff>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListStaffQueryResult = NonNullable<Awaited<ReturnType<typeof listStaff>>>
+export type ListStaffQueryError = ErrorType<ApiMessage>
+
+
+/**
+ * @summary Facilitators and administrators
+ */
+
+export function useListStaff<TData = Awaited<ReturnType<typeof listStaff>>, TError = ErrorType<ApiMessage>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listStaff>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListStaffQueryOptions(options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 
