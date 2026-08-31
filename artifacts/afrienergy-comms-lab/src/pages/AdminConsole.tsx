@@ -20,7 +20,12 @@ import {
   type ProgramStatus,
   type Session,
 } from '@workspace/api-client-react';
-import { programStatusNote } from '@workspace/domain';
+import {
+  programStatusNote,
+  sessionDateTimeFromInput,
+  sessionDateTimeInput,
+  sessionMinutes,
+} from '@workspace/domain';
 import CourseworkStudio from '@/components/CourseworkStudio';
 import InviteFacilitator from '@/components/InviteFacilitator';
 import InviteLearners from '@/components/InviteLearners';
@@ -54,6 +59,16 @@ function SessionRow({ session, instructors, onChanged }: {
   const [recordingUrl, setRecordingUrl] = useState(session.recordingUrl ?? '');
   const [instructorId, setInstructorId] = useState<string>(session.instructorId ? String(session.instructorId) : '');
   const [coursework, setCoursework] = useState<'none' | 'open'>('none');
+  const [editing, setEditing] = useState(false);
+
+  /** The details themselves — what it is called, when it runs, how long for. */
+  const detailsFromSession = () => ({
+    title: session.title,
+    description: session.description ?? '',
+    startsAt: sessionDateTimeInput(session.startsAt as unknown as string),
+    durationMins: String(session.durationMins),
+  });
+  const [details, setDetails] = useState(detailsFromSession);
 
   const startsAtMs = session.startsAt ? new Date(session.startsAt as unknown as string).getTime() : null;
   const isPast = startsAtMs !== null && Date.now() > startsAtMs + session.durationMins * 60 * 1000;
@@ -61,7 +76,7 @@ function SessionRow({ session, instructors, onChanged }: {
 
   const update = useUpdateSession({
     mutation: {
-      onSuccess: () => { toast({ title: 'Session saved' }); onChanged(); },
+      onSuccess: () => { toast({ title: 'Session saved' }); setEditing(false); onChanged(); },
       onError: () => toast({ title: 'Could not save session', variant: 'destructive' }),
     },
   });
@@ -75,17 +90,111 @@ function SessionRow({ session, instructors, onChanged }: {
   return (
     <div className="border border-border rounded-lg p-4 space-y-3 bg-background">
       <div className="flex items-start justify-between gap-3">
-        <div>
+        <div className="min-w-0">
           <p className="font-medium text-sm">{session.title}</p>
           <p className="text-xs text-muted-foreground">{formatSessionDate(session.startsAt as unknown as string)} · {session.durationMins} min</p>
+          {session.description && (
+            <p className="text-xs text-muted-foreground/80 mt-1 line-clamp-2">{session.description}</p>
+          )}
         </div>
-        <Button
-          variant="ghost" size="icon" className="text-muted-foreground hover:text-destructive"
-          onClick={() => { if (confirm('Delete this session?')) remove.mutate({ id: session.id }); }}
-        >
-          <Trash2 className="w-4 h-4" />
-        </Button>
+        <div className="flex items-center gap-1 flex-shrink-0">
+          <Button
+            variant="outline" size="sm"
+            onClick={() => {
+              // Opening reloads from the session, so a half-finished edit that
+              // was abandoned never comes back to surprise anybody.
+              if (!editing) setDetails(detailsFromSession());
+              setEditing(!editing);
+            }}
+          >
+            <Pencil className="w-4 h-4 mr-1.5" />{editing ? 'Done' : 'Edit'}
+          </Button>
+          <Button
+            variant="ghost" size="icon" className="text-muted-foreground hover:text-destructive"
+            onClick={() => { if (confirm('Delete this session?')) remove.mutate({ id: session.id }); }}
+          >
+            <Trash2 className="w-4 h-4" />
+          </Button>
+        </div>
       </div>
+
+      {editing && (
+        <div className="space-y-3 rounded-lg border border-border bg-card p-4">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+            <div className="md:col-span-3">
+              <label className="mb-1 block text-xs font-medium text-muted-foreground" htmlFor={`title-${session.id}`}>
+                Title
+              </label>
+              <Input
+                id={`title-${session.id}`}
+                className="text-sm"
+                value={details.title}
+                onChange={e => setDetails({ ...details, title: e.target.value })}
+              />
+            </div>
+            <div className="md:col-span-2">
+              <label className="mb-1 block text-xs font-medium text-muted-foreground" htmlFor={`when-${session.id}`}>
+                Date and time
+              </label>
+              <Input
+                id={`when-${session.id}`}
+                type="datetime-local"
+                className="text-sm"
+                value={details.startsAt}
+                onChange={e => setDetails({ ...details, startsAt: e.target.value })}
+              />
+              <p className="mt-1 text-xs text-muted-foreground">
+                Your own clock. Leave it empty if the date is still to be announced.
+              </p>
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-muted-foreground" htmlFor={`mins-${session.id}`}>
+                Minutes
+              </label>
+              <Input
+                id={`mins-${session.id}`}
+                type="number"
+                className="text-sm"
+                value={details.durationMins}
+                onChange={e => setDetails({ ...details, durationMins: e.target.value })}
+              />
+            </div>
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-muted-foreground" htmlFor={`desc-${session.id}`}>
+              What this class covers
+            </label>
+            <Textarea
+              id={`desc-${session.id}`}
+              className="text-sm"
+              rows={3}
+              value={details.description}
+              onChange={e => setDetails({ ...details, description: e.target.value })}
+            />
+            <p className="mt-1 text-xs text-muted-foreground">Learners read this on the programme page.</p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              size="sm"
+              disabled={!details.title.trim() || update.isPending}
+              onClick={() => update.mutate({
+                id: session.id,
+                data: {
+                  title: details.title.trim(),
+                  description: details.description.trim(),
+                  startsAt: sessionDateTimeFromInput(details.startsAt),
+                  durationMins: sessionMinutes(details.durationMins),
+                },
+              })}
+            >
+              {update.isPending ? 'Saving...' : 'Save details'}
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => { setDetails(detailsFromSession()); setEditing(false); }}>
+              Cancel
+            </Button>
+          </div>
+        </div>
+      )}
       {/* Past class with nowhere to watch it: the one state that actually
           holds learners up, so it is said out loud rather than implied. */}
       {isPast && !recordingUrl && (
@@ -214,8 +323,8 @@ function ProgramSessions({ programId, instructors }: { programId: number; instru
                 data: {
                   title: title.trim(),
                   sortOrder: sessions.length + 1,
-                  startsAt: startsAt ? new Date(startsAt).toISOString() : null,
-                  durationMins: Math.max(5, Number(duration) || 90),
+                  startsAt: sessionDateTimeFromInput(startsAt),
+                  durationMins: sessionMinutes(duration),
                 },
               })}
             >
