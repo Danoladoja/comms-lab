@@ -372,19 +372,32 @@ function ProgramCard({ program, instructors }: { program: Program; instructors: 
   );
 }
 
+/** A blank creation form, kept in one place so opening and closing agree. */
+const EMPTY_PROGRAM = {
+  tag: '', title: '', description: '', startDate: '', format: 'Cohort', duration: '', capacity: '30',
+};
+
 function ProgramsTab({ instructors }: { instructors: { id: number; name: string; email: string }[] }) {
   const qc = useQueryClient();
   const { toast } = useToast();
   const { data: programs = [], isLoading } = useListPrograms();
   const [showCreate, setShowCreate] = useState(false);
-  const [form, setForm] = useState({ tag: '', title: '', description: '', startDate: '', format: 'Cohort', duration: '', capacity: '30' });
+  const [form, setForm] = useState(EMPTY_PROGRAM);
 
   const create = useCreateProgram({
     mutation: {
-      onSuccess: () => {
-        toast({ title: 'Program created as a draft' });
-        setShowCreate(false);
-        setForm({ tag: '', title: '', description: '', startDate: '', format: 'Cohort', duration: '', capacity: '30' });
+      onSuccess: (_created, variables) => {
+        // Which button was pressed decides what the admin is told. "Saved" and
+        // "live on the site" are very different things to a person adding a
+        // programme, and the message is the only place they find out which.
+        const published =
+          (variables as { data?: { status?: string } } | undefined)?.data?.status === 'published';
+        toast({
+          title: published
+            ? 'Program published — it is now on the public catalogue'
+            : 'Program saved as a draft — nobody can see it yet',
+        });
+        closeCreate();
         qc.invalidateQueries({ queryKey: getListProgramsQueryKey() });
       },
       onError: () => toast({ title: 'Could not create program', variant: 'destructive' }),
@@ -392,6 +405,22 @@ function ProgramsTab({ instructors }: { instructors: { id: number; name: string;
   });
 
   const canCreate = form.tag && form.title && form.description && form.startDate && form.duration;
+
+  /** Put the panel away and forget what was typed, so it opens clean next time. */
+  function closeCreate() {
+    setShowCreate(false);
+    setForm(EMPTY_PROGRAM);
+  }
+
+  function submit(status: 'draft' | 'published') {
+    create.mutate({
+      data: {
+        tag: form.tag, title: form.title, description: form.description,
+        startDate: form.startDate, format: form.format, duration: form.duration,
+        capacity: Math.max(1, Number(form.capacity) || 30), status,
+      },
+    });
+  }
 
   return (
     <div className="space-y-4">
@@ -414,18 +443,23 @@ function ProgramsTab({ instructors }: { instructors: { id: number; name: string;
             <Input type="number" placeholder="Capacity" value={form.capacity} onChange={e => setForm({ ...form, capacity: e.target.value })} />
           </div>
           <Textarea placeholder="Description" value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} />
-          <Button
-            size="sm" disabled={!canCreate || create.isPending}
-            onClick={() => create.mutate({
-              data: {
-                tag: form.tag, title: form.title, description: form.description,
-                startDate: form.startDate, format: form.format, duration: form.duration,
-                capacity: Math.max(1, Number(form.capacity) || 30), status: 'draft',
-              },
-            })}
-          >
-            {create.isPending ? 'Creating...' : 'Create Draft'}
-          </Button>
+          <div className="flex flex-wrap items-center gap-2 pt-1">
+            <Button size="sm" disabled={!canCreate || create.isPending} onClick={() => submit('published')}>
+              {create.isPending ? 'Saving...' : 'Publish'}
+            </Button>
+            <Button size="sm" variant="outline" disabled={!canCreate || create.isPending} onClick={() => submit('draft')}>
+              Save as draft
+            </Button>
+            {/* A way out that does not create anything. Without it the only exit
+                is the New Program button, which reads like a second attempt. */}
+            <Button size="sm" variant="ghost" disabled={create.isPending} onClick={closeCreate}>
+              Close
+            </Button>
+            <p className="w-full text-xs text-muted-foreground">
+              Publishing puts the program on the public catalogue straight away. A draft stays
+              hidden until you publish it from its card.
+            </p>
+          </div>
         </div>
       )}
       {isLoading ? (
