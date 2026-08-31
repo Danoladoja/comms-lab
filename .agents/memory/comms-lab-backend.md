@@ -1,6 +1,6 @@
 ---
 name: Comms Lab backend decisions
-description: Durable decisions for the Afrienergy Comms Lab auth/roles/enrollment backend.
+description: Durable decisions for the Ananse Comms Lab auth/roles/enrollment backend.
 ---
 
 - **Admin bootstrap:** the first user ever JIT-provisioned becomes admin (guarded by a pg advisory lock). Test/demo users must be deleted before the real owner signs in, or they steal the admin seat.

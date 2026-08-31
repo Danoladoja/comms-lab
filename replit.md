@@ -1,4 +1,4 @@
-# AfriEnergy Comms Lab
+# Ananse Comms Lab
 
 A cohort-based learning platform for the journalists, communicators and advocates
 telling Africa's energy story. Learners join live classes, produce a piece of

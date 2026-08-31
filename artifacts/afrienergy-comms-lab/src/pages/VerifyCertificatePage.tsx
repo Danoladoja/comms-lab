@@ -32,7 +32,7 @@ export default function VerifyCertificatePage() {
           Check the link or ID and try again.
         </p>
         <Button asChild variant="outline" className="bg-transparent border-white/25 text-[#F4F0E8] hover:bg-white/10">
-          <Link href="/"><Home className="w-4 h-4 mr-2" aria-hidden />Afrienergy Comms Lab</Link>
+          <Link href="/"><Home className="w-4 h-4 mr-2" aria-hidden />Ananse Comms Lab</Link>
         </Button>
       </div>
     );
@@ -45,7 +45,7 @@ export default function VerifyCertificatePage() {
       <div className="container mx-auto max-w-5xl">
         <div className="flex flex-col sm:flex-row justify-between items-center gap-3 mb-8">
           <Button variant="ghost" asChild className="text-[#F4F0E8]/80 hover:text-white hover:bg-white/10">
-            <Link href="/"><Home className="w-4 h-4 mr-2" aria-hidden />Afrienergy Comms Lab</Link>
+            <Link href="/"><Home className="w-4 h-4 mr-2" aria-hidden />Ananse Comms Lab</Link>
           </Button>
           <div className="inline-flex items-center gap-2 rounded-full bg-emerald-500/15 border border-emerald-400/40 text-emerald-200 px-4 py-1.5 text-sm font-bold">
             <BadgeCheck className="w-4 h-4" aria-hidden />
@@ -101,7 +101,7 @@ export default function VerifyCertificatePage() {
         )}
 
         <p className="text-center text-xs text-[#F4F0E8]/60 mt-10 max-w-xl mx-auto">
-          Issued by Afrienergy Comms Lab and verified against our records.
+          Issued by Ananse Comms Lab and verified against our records.
           Certificate ID <span className="font-mono">{cert.certificateId}</span>.
         </p>
       </div>

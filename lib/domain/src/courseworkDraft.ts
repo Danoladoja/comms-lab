@@ -85,7 +85,7 @@ function houseVoice(): string[] {
 }
 
 const WHO_YOU_ARE = [
-  "You write coursework for AfriEnergy Comms Lab, a programme training journalists,",
+  "You write coursework for Ananse Comms Lab, a programme training journalists,",
   "communicators and advocates who report on Africa's energy sector.",
 ];
 

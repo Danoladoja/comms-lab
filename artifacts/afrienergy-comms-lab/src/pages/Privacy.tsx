@@ -57,7 +57,7 @@ export default function Privacy() {
         <div className="container mx-auto px-4 md:px-6">
           <div className="mx-auto max-w-3xl space-y-10">
             <p className="text-base leading-relaxed text-foreground">
-              The Afrienergy Comms Lab is committed to protecting your privacy and handling your
+              The Ananse Comms Lab is committed to protecting your privacy and handling your
               personal information responsibly. This policy explains what we collect when you use
               this platform, why we hold it, and what you can ask us to do with it. By creating an
               account or using this site, you consent to the practices described here.

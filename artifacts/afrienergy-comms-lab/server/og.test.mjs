@@ -22,8 +22,8 @@ const CERT = {
 
 const SHELL = `<!DOCTYPE html><html><head>
     <!-- og-meta:start -->
-    <title>Afrienergy Comms Lab</title>
-    <meta property="og:title" content="Afrienergy Comms Lab" />
+    <title>Ananse Comms Lab</title>
+    <meta property="og:title" content="Ananse Comms Lab" />
     <!-- og-meta:end -->
   </head><body><div id="root"></div></body></html>`;
 
@@ -32,7 +32,7 @@ const SHELL = `<!DOCTYPE html><html><head>
 test('injectMeta replaces the marked block and keeps the rest', () => {
   const out = injectMeta(SHELL, '<title>NEW</title>');
   assert.ok(out.includes('<title>NEW</title>'));
-  assert.ok(!out.includes('content="Afrienergy Comms Lab"'));
+  assert.ok(!out.includes('content="Ananse Comms Lab"'));
   assert.ok(out.includes('<div id="root">'));
 });
 
@@ -128,7 +128,7 @@ test('valid certificate link serves certificate-specific OG tags', async () => {
   assert.ok(html.includes('content="https://afrienergy.replit.app/verify/AECL-001-0007/og-image.png"'));
   assert.ok(html.includes('content="https://afrienergy.replit.app/verify/AECL-001-0007"'));
   assert.ok(html.includes('rel="canonical" href="https://afrienergy.replit.app/verify/AECL-001-0007"'));
-  assert.ok(!html.includes('<meta property="og:title" content="Afrienergy Comms Lab" />')); // default replaced
+  assert.ok(!html.includes('<meta property="og:title" content="Ananse Comms Lab" />')); // default replaced
 });
 
 test('valid certificate image route serves a personalized cacheable PNG', async () => {
@@ -151,7 +151,7 @@ test('invalid certificate link falls back to generic site metadata', async () =>
   const res = await fetch(`http://127.0.0.1:${serverPort}/verify/AECL-999-9999`);
   const html = await res.text();
   assert.equal(res.status, 200);
-  assert.ok(html.includes('content="Afrienergy Comms Lab"'));
+  assert.ok(html.includes('content="Ananse Comms Lab"'));
   assert.ok(!html.includes('Certificate of Completion'));
 });
 

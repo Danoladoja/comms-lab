@@ -28,7 +28,7 @@ const router: IRouter = Router();
 function recipient(): { email: string; name: string } {
   return {
     email: process.env.PARTNERSHIP_EMAIL || "africaenergypulse@gmail.com",
-    name: "Afrienergy Comms Lab",
+    name: "Ananse Comms Lab",
   };
 }
 

@@ -74,7 +74,7 @@ export default function About() {
             className="mt-8 text-base md:text-lg leading-relaxed max-w-2xl"
             style={{ color: 'var(--brand-on-ink-muted)' }}
           >
-            The Afrienergy Comms Lab trains energy communicators, policy advocates, and strategic
+            The Ananse Comms Lab trains energy communicators, policy advocates, and strategic
             storytellers for Africa's energy transition. We are not a university. We are a lab
             where practitioners learn by doing.
           </motion.p>

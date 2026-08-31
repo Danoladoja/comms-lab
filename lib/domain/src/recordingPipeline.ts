@@ -146,7 +146,7 @@ export function videoDetailsFor(args: {
     args.instructorName ? `Led by ${args.instructorName}.` : null,
     when ? `Recorded ${when}.` : null,
     "",
-    "AfriEnergy Comms Lab. This recording is unlisted and intended for enrolled learners.",
+    "Ananse Comms Lab. This recording is unlisted and intended for enrolled learners.",
   ]
     .filter((line) => line !== null)
     .join("\n");

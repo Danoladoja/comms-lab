@@ -53,7 +53,7 @@ async function brevo(path: string, init: RequestInit = {}): Promise<Response> {
 async function getSender(): Promise<{ email: string; name: string }> {
   if (cachedSender) return cachedSender;
 
-  const name = process.env.BREVO_SENDER_NAME || "Afrienergy Comms Lab";
+  const name = process.env.BREVO_SENDER_NAME || "Ananse Comms Lab";
   const configured = process.env.BREVO_SENDER_EMAIL?.trim();
   if (configured) {
     cachedSender = { email: configured, name };

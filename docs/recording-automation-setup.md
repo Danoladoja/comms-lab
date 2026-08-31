@@ -30,7 +30,7 @@ around Google Cloud.
 1. Go to **console.cloud.google.com**
 2. Sign in with the account above
 3. Top bar → project dropdown → **New Project**
-4. Name it `AfriEnergy Comms Lab` and click **Create**
+4. Name it `Ananse Comms Lab` and click **Create**
 
 ## Step 2 — Turn on the three APIs
 
@@ -47,7 +47,7 @@ each of these (search the name, click it, click **Enable**):
 
 - User type: **Internal** if your Workspace covers everyone who'll use this;
   **External** otherwise
-- App name: `AfriEnergy Comms Lab`
+- App name: `Ananse Comms Lab`
 - Support email and developer email: your address
 - Save and continue through the scopes step — you don't need to add any by hand,
   the app asks for what it needs

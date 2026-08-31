@@ -1,4 +1,4 @@
-// Production server for the Afrienergy Comms Lab SPA.
+// Production server for the Ananse Comms Lab SPA.
 // Serves the built static bundle from dist/public and injects certificate
 // Open Graph meta tags into the HTML shell for /verify/:certificateId so
 // link crawlers (LinkedIn, etc.) see a rich preview. Invalid or unearned

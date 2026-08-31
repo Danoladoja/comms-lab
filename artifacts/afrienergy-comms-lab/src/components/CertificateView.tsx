@@ -23,7 +23,7 @@ export default function CertificateView({ cert }: { cert: CertificateLike }) {
       <div className="absolute bottom-0 right-0 w-28 h-28 border-b-8 border-r-8 border-[#F97316] rounded-br-lg" />
 
       <div className="text-center space-y-3 relative z-10">
-        <p className="font-display font-bold text-xl tracking-tight">Afrienergy Comms Lab</p>
+        <p className="font-display font-bold text-xl tracking-tight">Ananse Comms Lab</p>
         <h1 className="text-3xl md:text-5xl font-display font-bold text-[#C2410C] uppercase tracking-widest">Certificate of Completion</h1>
         <p className="text-[#5B6470] uppercase tracking-widest text-xs">This is to certify that</p>
       </div>

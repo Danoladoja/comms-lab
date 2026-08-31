@@ -1,16 +1,24 @@
 import { Link } from 'wouter';
 import { Twitter, Linkedin, Github } from 'lucide-react';
 
+const basePath = import.meta.env.BASE_URL.replace(/\/$/, '');
+
 export function Footer() {
   return (
     <footer className="bg-sidebar border-t border-sidebar-border text-sidebar-foreground pt-16 pb-8">
       <div className="container mx-auto px-4 md:px-6">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-12 mb-12">
           <div className="col-span-1 md:col-span-2">
-            <Link href="/" className="flex items-center mb-4">
-              <span className="font-display font-bold text-lg tracking-tight">
-                Afrienergy Comms Lab
-              </span>
+            {/* The all-white lockup: the footer is near-black, where the deep
+                green of the coloured mark would all but disappear. */}
+            <Link href="/" className="mb-5 flex items-center" aria-label="Ananse Comms Lab — home">
+              <img
+                src={`${basePath}/logo-white.png`}
+                alt="Ananse Comms Lab"
+                width={456}
+                height={160}
+                className="h-11 w-auto"
+              />
             </Link>
             <p className="text-sm text-sidebar-foreground/70 mb-6 leading-relaxed max-w-sm">
               Powering Africa's Energy Leaders. We exist to build the minds that will drive the continent's energy transition, sustainable infrastructure, and policy advocacy.
@@ -48,7 +56,7 @@ export function Footer() {
         </div>
 
         <div className="pt-8 border-t border-sidebar-border text-center text-sm text-sidebar-foreground/50">
-          <p>&copy; {new Date().getFullYear()} Afrienergy Comms Lab. All rights reserved.</p>
+          <p>&copy; {new Date().getFullYear()} Ananse Comms Lab. All rights reserved.</p>
         </div>
       </div>
     </footer>

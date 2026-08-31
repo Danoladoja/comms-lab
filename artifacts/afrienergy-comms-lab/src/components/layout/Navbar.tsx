@@ -56,13 +56,25 @@ export function Navbar() {
     >
       <div className="container mx-auto px-4 md:px-6">
         <div className="flex items-center justify-between">
-          <Link href="/" className="flex items-center group">
-            <span className="font-display font-bold text-lg tracking-tight text-foreground hidden sm:block">
-              Afrienergy Comms Lab
-            </span>
-            <span className="font-display font-bold text-lg tracking-tight text-foreground sm:hidden">
-              Afrienergy
-            </span>
+          {/* The full lockup where there is room for it, and the woven mark
+              alone on a phone, where the wordmark would shrink past reading.
+              Width and height are declared so the header does not jolt while
+              the image loads. */}
+          <Link href="/" className="flex items-center group" aria-label="Ananse Comms Lab — home">
+            <img
+              src={`${basePath}/logo.png`}
+              alt="Ananse Comms Lab"
+              width={456}
+              height={160}
+              className="hidden h-10 w-auto sm:block"
+            />
+            <img
+              src={`${basePath}/logo-mark.png`}
+              alt="Ananse Comms Lab"
+              width={148}
+              height={160}
+              className="h-9 w-auto sm:hidden"
+            />
           </Link>
 
           {/* Desktop Nav */}

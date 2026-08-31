@@ -83,7 +83,7 @@ async function runOnce(): Promise<void> {
                     Open my classroom
                   </a>
                 </p>
-                <p style="color: #5B6470; font-size: 12px;">Afrienergy Comms Lab · Africa's learning hub for energy communicators</p>
+                <p style="color: #5B6470; font-size: 12px;">Ananse Comms Lab · Africa's learning hub for energy communicators</p>
               </div>`,
           });
         } catch (err) {
