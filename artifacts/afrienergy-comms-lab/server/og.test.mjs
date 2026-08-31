@@ -8,8 +8,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { buildCertificateMeta, escapeHtml, injectMeta } from './og.mjs';
-import { renderCertificateImage } from './og-image.mjs';
+import { buildCertificateMeta, escapeHtml, injectMeta, renderCertificateImage } from '@workspace/og';
 
 const dirname = path.dirname(fileURLToPath(import.meta.url));
 

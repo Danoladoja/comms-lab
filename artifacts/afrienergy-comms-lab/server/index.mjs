@@ -7,14 +7,14 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import express from 'express';
-import { renderCertificateImage } from './og-image.mjs';
+import { renderCertificateImage } from '@workspace/og';
 import {
   buildCertificateMeta,
   fetchCertificate,
   injectMeta,
   requestOrigin,
   resolveApiBases,
-} from './og.mjs';
+} from '@workspace/og';
 
 const dirname = path.dirname(fileURLToPath(import.meta.url));
 // PUBLIC_DIR override exists for integration tests; production uses dist/public.

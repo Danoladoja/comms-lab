@@ -19,6 +19,13 @@ portfolio.
   `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI` and `GOOGLE_TOKEN_SECRET`.
   Without them the app runs fine and recordings are pasted in by hand. See
   `docs/recording-automation-setup.md`.
+- Email needs `BREVO_API_KEY`, and optionally `BREVO_SENDER_EMAIL` and
+  `BREVO_SENDER_NAME`. Without it the app runs and each skipped send is logged
+  as a warning.
+- Serving the web app from the API process needs the web build to exist.
+  `WEB_DIST` overrides where it is looked for; without it three sensible
+  locations are tried. No build found means the API runs alone, which is normal
+  in development.
 - Facilitator invitations need `CLERK_SECRET_KEY` (already required for auth) and
   use `APP_BASE_URL` to build the link people land on. Without `APP_BASE_URL`
   Clerk falls back to its own account portal, which works but looks less like
@@ -53,6 +60,7 @@ portfolio.
 | Drafting rules | `lib/domain/src/courseworkDraft.ts` — the brief given to the model, and the checking of what comes back |
 | Reading list rules | `lib/domain/src/readingList.ts` — URL tidying and per-row validation |
 | Slide handling | `lib/domain/src/slideText.ts` (assembly, quality) + `artifacts/api-server/src/lib/slides/` (pptx parsing, Claude call) |
+| Serving the web app | `artifacts/api-server/src/web.ts` — static files, the SPA fallback, and the certificate preview routes |
 | Invitations and roles | `lib/domain/src/invitations.ts` — what an emailed link may grant, and how a role is read off an account |
 | What the drafter reads | `lib/domain/src/courseworkSource.ts` — combining the deck and the pasted transcript, and how the budget is split |
 | Recording rules | `lib/domain/src/recordingPipeline.ts` — when to look, what to name it, when to give up |
@@ -110,6 +118,19 @@ portfolio.
   learners silently at the 70% pass mark, so a person must have looked.
   `validateDraft` drops questions with an out-of-range key, duplicate options or
   too few choices, and reports every repair rather than hiding it.
+- **One process serves the API and the web app.** The browser calls `/api/...`
+  on its own origin. Split across two hosts those calls land on the web server,
+  which has no `/api` route, and the app is dead on arrival: signed out, every
+  request returning the HTML shell instead of data. One origin removes the whole
+  class of problem, keeps the Clerk session cookie working with no proxy or
+  header forwarding, and costs one service to run rather than two.
+- **The SPA fallback never answers a request under `/api`.** An unknown endpoint
+  returns a JSON 404. A client that asked for JSON and got a 200 with an HTML
+  page would parse the page as data and fail somewhere far from the cause.
+- **Email talks to Brevo directly, not through a Replit connector.** The
+  connector runtime only exists inside Replit; anywhere else every send failed
+  while the app looked healthy. There is no longer any Replit-specific code in
+  the server.
 - **Facilitators are invited, not asked to sign up.** The people teaching are
   senior practitioners working pro bono; making them invent a password before
   they can see their own class spends that goodwill badly. The admin invites by
@@ -209,6 +230,14 @@ portfolio.
 
 ## Gotchas
 
+- **Deploying anywhere: build the web app before starting the API**, or the API
+  starts alone and every page 404s. `pnpm run build` at the repo root does both
+  in the right order. `PORT`, `BASE_PATH` and `VITE_CLERK_PUBLISHABLE_KEY` must
+  be present at BUILD time, not only at runtime — the Vite config throws without
+  the first two, and the Clerk key is compiled into the bundle.
+- **`packageManager` is pinned in package.json** because builders otherwise
+  guess pnpm 9, which cannot read `overrides` from `pnpm-workspace.yaml` and
+  refuses the frozen install.
 - **Always regenerate after editing `openapi.yaml`**:
   `pnpm --filter @workspace/api-spec run codegen`. CI fails if the generated
   clients are out of date.
