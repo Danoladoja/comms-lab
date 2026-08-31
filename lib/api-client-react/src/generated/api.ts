@@ -42,6 +42,8 @@ import type {
   ListAllEnrollmentsParams,
   MoreQuestionsInput,
   MyFeedback,
+  PartnershipEnquiryInput,
+  PartnershipEnquiryProblems,
   PinInput,
   PortfolioVisibilityInput,
   PostInput,
@@ -4267,5 +4269,77 @@ export const useSetThreadPinned = <TError = ErrorType<ApiMessage>,
         TContext
       > => {
       return useMutation(getSetThreadPinnedMutationOptions(options));
+    }
+
+export const getSubmitPartnershipEnquiryUrl = () => {
+
+
+
+
+  return `/api/partnership-enquiries`
+}
+
+/**
+ * Public and unauthenticated. The enquiry is delivered by email and is not stored, so a caller that receives 202 should treat the message as gone from its hands. Rate limited per client address.
+ * @summary Send a partnership enquiry
+ */
+export const submitPartnershipEnquiry = async (partnershipEnquiryInput: PartnershipEnquiryInput, options?: Parameters<typeof customFetch>[1]): Promise<ApiMessage> => {
+
+  return customFetch<ApiMessage>(getSubmitPartnershipEnquiryUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(partnershipEnquiryInput)
+  }
+);}
+
+
+
+
+
+export const getSubmitPartnershipEnquiryMutationOptions = <TError = ErrorType<PartnershipEnquiryProblems | ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitPartnershipEnquiry>>, TError,{data: BodyType<PartnershipEnquiryInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof submitPartnershipEnquiry>>, TError,{data: BodyType<PartnershipEnquiryInput>}, TContext> => {
+
+const mutationKey = ['submitPartnershipEnquiry'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof submitPartnershipEnquiry>>, {data: BodyType<PartnershipEnquiryInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  submitPartnershipEnquiry(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SubmitPartnershipEnquiryMutationResult = NonNullable<Awaited<ReturnType<typeof submitPartnershipEnquiry>>>
+    export type SubmitPartnershipEnquiryMutationBody = BodyType<PartnershipEnquiryInput>
+    export type SubmitPartnershipEnquiryMutationError = ErrorType<PartnershipEnquiryProblems | ApiMessage>
+
+    /**
+ * @summary Send a partnership enquiry
+ */
+export const useSubmitPartnershipEnquiry = <TError = ErrorType<PartnershipEnquiryProblems | ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitPartnershipEnquiry>>, TError,{data: BodyType<PartnershipEnquiryInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof submitPartnershipEnquiry>>,
+        TError,
+        {data: BodyType<PartnershipEnquiryInput>},
+        TContext
+      > => {
+      return useMutation(getSubmitPartnershipEnquiryMutationOptions(options));
     }
 

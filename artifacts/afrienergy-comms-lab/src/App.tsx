@@ -23,6 +23,8 @@ import Classroom from '@/pages/Classroom';
 import Recordings from '@/pages/Recordings';
 import Certificates from '@/pages/Certificates';
 import About from '@/pages/About';
+import Partnerships from '@/pages/Partnerships';
+import Privacy from '@/pages/Privacy';
 import NotFound from '@/pages/not-found';
 
 const queryClient = new QueryClient();
@@ -112,7 +114,12 @@ function AuthPageShell({ children }: { children: ReactNode }) {
 function SignInPage() {
   return (
     <AuthPageShell>
-      <SignIn routing="path" path={`${basePath}/sign-in`} signUpUrl={`${basePath}/sign-up`} />
+      <SignIn
+        routing="path"
+        path={`${basePath}/sign-in`}
+        signUpUrl={`${basePath}/sign-up`}
+        fallbackRedirectUrl={`${basePath}/dashboard`}
+      />
     </AuthPageShell>
   );
 }
@@ -120,23 +127,28 @@ function SignInPage() {
 function SignUpPage() {
   return (
     <AuthPageShell>
-      <SignUp routing="path" path={`${basePath}/sign-up`} signInUrl={`${basePath}/sign-in`} />
+      <SignUp
+        routing="path"
+        path={`${basePath}/sign-up`}
+        signInUrl={`${basePath}/sign-in`}
+        fallbackRedirectUrl={`${basePath}/dashboard`}
+      />
     </AuthPageShell>
   );
 }
 
-function HomeRedirect() {
-  return (
-    <>
-      <Show when="signed-in">
-        <Redirect to="/dashboard" />
-      </Show>
-      <Show when="signed-out">
-        <AppLayout><Home /></AppLayout>
-      </Show>
-    </>
-  );
-}
+/**
+ * The homepage belongs to everyone, signed in or not.
+ *
+ * This used to bounce a signed-in visitor straight to /dashboard. The logo in
+ * the header and footer points here, as a logo should, so that redirect quietly
+ * made the homepage unreachable for anybody with an account — including the
+ * people running the Lab, who have the most reason to look at it.
+ *
+ * Landing on the dashboard after signing in is still right, and still happens:
+ * it is now Clerk's post-sign-in destination rather than a standing rule about
+ * what "/" means for the rest of the session.
+ */
 
 function Protected({ children }: { children: ReactNode }) {
   return (
@@ -190,7 +202,7 @@ function Router() {
         </Route>
 
         {/* Public routes with AppLayout */}
-        <Route path="/" component={HomeRedirect} />
+        <Route path="/"><AppLayout><Home /></AppLayout></Route>
         <Route path="/courses">
           <AppLayout><CourseCatalog /></AppLayout>
         </Route>
@@ -202,6 +214,12 @@ function Router() {
         </Route>
         <Route path="/about">
           <AppLayout><About /></AppLayout>
+        </Route>
+        <Route path="/partnerships">
+          <AppLayout><Partnerships /></AppLayout>
+        </Route>
+        <Route path="/privacy">
+          <AppLayout><Privacy /></AppLayout>
         </Route>
 
         {/* Signed-in routes */}

@@ -18,6 +18,8 @@ tags:
     description: Enrollment operations
   - name: admin
     description: Admin operations
+  - name: partnerships
+    description: Public partnership enquiries
 paths:
   /healthz:
     get:
@@ -1655,8 +1657,89 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiMessage"
+  /partnership-enquiries:
+    post:
+      operationId: submitPartnershipEnquiry
+      tags: [partnerships]
+      summary: Send a partnership enquiry
+      description: >-
+        Public and unauthenticated. The enquiry is delivered by email and is not
+        stored, so a caller that receives 202 should treat the message as gone
+        from its hands. Rate limited per client address.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PartnershipEnquiryInput"
+      responses:
+        "202":
+          description: Accepted for delivery
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "400":
+          description: One or more fields need fixing
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PartnershipEnquiryProblems"
+        "429":
+          description: Too many enquiries from this address
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "503":
+          description: Email is not configured or the provider refused the message
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
 components:
   schemas:
+    PartnershipEnquiryInput:
+      type: object
+      required: [name, organisation, email, interest, message]
+      properties:
+        name:
+          type: string
+          maxLength: 120
+        organisation:
+          type: string
+          maxLength: 160
+        email:
+          type: string
+          maxLength: 320
+        interest:
+          type: string
+          enum: [teach, host, fund, media, other]
+        message:
+          type: string
+          minLength: 20
+          maxLength: 4000
+        honeypot:
+          type: string
+          description: >-
+            A field the form hides from view. A person leaves it empty; the
+            crude scrapers that find this page fill everything. Anything here
+            means the submission is dropped, and 202 is returned regardless so
+            the sender learns nothing about why.
+    PartnershipEnquiryProblems:
+      type: object
+      description: One sentence per field that needs fixing. Absent keys are fine.
+      properties:
+        name:
+          type: string
+        organisation:
+          type: string
+        email:
+          type: string
+        interest:
+          type: string
+        message:
+          type: string
     ForumThread:
       type: object
       required: [id, programId, title, body, pinned, authorName, authorRole, replyCount, lastActivityAt, createdAt, mine]

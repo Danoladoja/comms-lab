@@ -11,6 +11,7 @@ import slidesRouter from "./slides";
 import forumRouter from "./forum";
 import adminRouter from "./admin";
 import googleRecordingsRouter from "./googleRecordings";
+import partnershipsRouter from "./partnerships";
 
 const router: IRouter = Router();
 
@@ -26,5 +27,6 @@ router.use(slidesRouter);
 router.use(forumRouter);
 router.use(adminRouter);
 router.use(googleRecordingsRouter);
+router.use(partnershipsRouter);
 
 export default router;

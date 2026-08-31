@@ -5,6 +5,45 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+export type PartnershipEnquiryInputInterest = typeof PartnershipEnquiryInputInterest[keyof typeof PartnershipEnquiryInputInterest];
+
+
+export const PartnershipEnquiryInputInterest = {
+  teach: 'teach',
+  host: 'host',
+  fund: 'fund',
+  media: 'media',
+  other: 'other',
+} as const;
+
+export interface PartnershipEnquiryInput {
+  /** @maxLength 120 */
+  name: string;
+  /** @maxLength 160 */
+  organisation: string;
+  /** @maxLength 320 */
+  email: string;
+  interest: PartnershipEnquiryInputInterest;
+  /**
+     * @minLength 20
+     * @maxLength 4000
+     */
+  message: string;
+  /** A field the form hides from view. A person leaves it empty; the crude scrapers that find this page fill everything. Anything here means the submission is dropped, and 202 is returned regardless so the sender learns nothing about why. */
+  honeypot?: string;
+}
+
+/**
+ * One sentence per field that needs fixing. Absent keys are fine.
+ */
+export interface PartnershipEnquiryProblems {
+  name?: string;
+  organisation?: string;
+  email?: string;
+  interest?: string;
+  message?: string;
+}
+
 export interface ForumThread {
   id: number;
   programId: number;

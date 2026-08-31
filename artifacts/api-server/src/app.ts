@@ -20,6 +20,18 @@ const JSON_BODY_LIMIT = "1mb";
 
 const app: Express = express();
 
+/**
+ * Railway terminates TLS and forwards to this process, so without this every
+ * request appears to come from the proxy — one address for the whole internet.
+ * Anything that reasons about who is calling, such as the partnership form's
+ * per-address budget, would then treat all visitors as one caller and turn away
+ * the second genuine partner of the day.
+ *
+ * One hop, not `true`: trusting the whole chain would let a caller prepend any
+ * X-Forwarded-For they liked and mint a fresh identity for every request.
+ */
+app.set("trust proxy", 1);
+
 app.use(
   pinoHttp({
     logger,

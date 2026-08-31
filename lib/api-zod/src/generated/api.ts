@@ -1394,3 +1394,32 @@ export const SetThreadPinnedResponse = zod.object({
 })
 
 
+/**
+ * Public and unauthenticated. The enquiry is delivered by email and is not stored, so a caller that receives 202 should treat the message as gone from its hands. Rate limited per client address.
+ * @summary Send a partnership enquiry
+ */
+export const submitPartnershipEnquiryBodyNameMax = 120;
+
+export const submitPartnershipEnquiryBodyOrganisationMax = 160;
+
+export const submitPartnershipEnquiryBodyEmailMax = 320;
+
+export const submitPartnershipEnquiryBodyMessageMin = 20;
+export const submitPartnershipEnquiryBodyMessageMax = 4000;
+
+
+
+export const SubmitPartnershipEnquiryBody = zod.object({
+  "name": zod.string().max(submitPartnershipEnquiryBodyNameMax),
+  "organisation": zod.string().max(submitPartnershipEnquiryBodyOrganisationMax),
+  "email": zod.string().max(submitPartnershipEnquiryBodyEmailMax),
+  "interest": zod.enum(['teach', 'host', 'fund', 'media', 'other']),
+  "message": zod.string().min(submitPartnershipEnquiryBodyMessageMin).max(submitPartnershipEnquiryBodyMessageMax),
+  "honeypot": zod.string().optional().describe('A field the form hides from view. A person leaves it empty; the crude scrapers that find this page fill everything. Anything here means the submission is dropped, and 202 is returned regardless so the sender learns nothing about why.')
+})
+
+export const SubmitPartnershipEnquiryResponse = zod.object({
+  "error": zod.string()
+})
+
+

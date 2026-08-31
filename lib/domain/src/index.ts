@@ -9,3 +9,4 @@ export * from "./courseworkDraft";
 export * from "./readingList";
 export * from "./certificateCode";
 export * from "./invitations";
+export * from "./partnership";
