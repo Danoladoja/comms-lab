@@ -4271,6 +4271,229 @@ export const useSetThreadPinned = <TError = ErrorType<ApiMessage>,
       return useMutation(getSetThreadPinnedMutationOptions(options));
     }
 
+export const getGetProgramThumbnailUrl = (id: number,) => {
+
+
+
+
+  return `/api/programs/${id}/thumbnail`
+}
+
+/**
+ * Public and unauthenticated: the catalogue shows thumbnails to visitors who have not signed in. Served with the media type read from the file's own bytes at upload, never one the uploader supplied.
+ * @summary The programme's thumbnail image
+ */
+export const getProgramThumbnail = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<Blob> => {
+
+  return customFetch<Blob>(getGetProgramThumbnailUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetProgramThumbnailQueryKey = (id: number,) => {
+    return [
+    `/api/programs/${id}/thumbnail`
+    ] as const;
+    }
+
+
+export const getGetProgramThumbnailQueryOptions = <TData = Awaited<ReturnType<typeof getProgramThumbnail>>, TError = ErrorType<ApiMessage>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getProgramThumbnail>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetProgramThumbnailQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getProgramThumbnail>>> = ({ signal }) => getProgramThumbnail(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getProgramThumbnail>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetProgramThumbnailQueryResult = NonNullable<Awaited<ReturnType<typeof getProgramThumbnail>>>
+export type GetProgramThumbnailQueryError = ErrorType<ApiMessage>
+
+
+/**
+ * @summary The programme's thumbnail image
+ */
+
+export function useGetProgramThumbnail<TData = Awaited<ReturnType<typeof getProgramThumbnail>>, TError = ErrorType<ApiMessage>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getProgramThumbnail>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetProgramThumbnailQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUploadProgramThumbnailUrl = (id: number,) => {
+
+
+
+
+  return `/api/programs/${id}/thumbnail`
+}
+
+/**
+ * Admin only. The image arrives as raw bytes rather than a multipart form, matching how slide decks are uploaded. A second upload replaces the first. On success the programme's thumbnailUrl is set to this endpoint.
+ * @summary Upload or replace the programme's thumbnail
+ */
+export const uploadProgramThumbnail = async (id: number,
+    uploadProgramThumbnailBody: Blob, options?: Parameters<typeof customFetch>[1]): Promise<Program> => {
+
+  return customFetch<Program>(getUploadProgramThumbnailUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/octet-stream', ...options?.headers },
+    body: uploadProgramThumbnailBody
+  }
+);}
+
+
+
+
+
+export const getUploadProgramThumbnailMutationOptions = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof uploadProgramThumbnail>>, TError,{id: number;data: BodyType<Blob>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof uploadProgramThumbnail>>, TError,{id: number;data: BodyType<Blob>}, TContext> => {
+
+const mutationKey = ['uploadProgramThumbnail'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof uploadProgramThumbnail>>, {id: number;data: BodyType<Blob>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  uploadProgramThumbnail(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UploadProgramThumbnailMutationResult = NonNullable<Awaited<ReturnType<typeof uploadProgramThumbnail>>>
+    export type UploadProgramThumbnailMutationBody = BodyType<Blob>
+    export type UploadProgramThumbnailMutationError = ErrorType<ApiMessage>
+
+    /**
+ * @summary Upload or replace the programme's thumbnail
+ */
+export const useUploadProgramThumbnail = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof uploadProgramThumbnail>>, TError,{id: number;data: BodyType<Blob>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof uploadProgramThumbnail>>,
+        TError,
+        {id: number;data: BodyType<Blob>},
+        TContext
+      > => {
+      return useMutation(getUploadProgramThumbnailMutationOptions(options));
+    }
+
+export const getDeleteProgramThumbnailUrl = (id: number,) => {
+
+
+
+
+  return `/api/programs/${id}/thumbnail`
+}
+
+/**
+ * Admin only. Clears thumbnailUrl as well as the stored image.
+ * @summary Remove the programme's thumbnail
+ */
+export const deleteProgramThumbnail = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<Program> => {
+
+  return customFetch<Program>(getDeleteProgramThumbnailUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteProgramThumbnailMutationOptions = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteProgramThumbnail>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteProgramThumbnail>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['deleteProgramThumbnail'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteProgramThumbnail>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  deleteProgramThumbnail(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteProgramThumbnailMutationResult = NonNullable<Awaited<ReturnType<typeof deleteProgramThumbnail>>>
+
+    export type DeleteProgramThumbnailMutationError = ErrorType<ApiMessage>
+
+    /**
+ * @summary Remove the programme's thumbnail
+ */
+export const useDeleteProgramThumbnail = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteProgramThumbnail>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteProgramThumbnail>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getDeleteProgramThumbnailMutationOptions(options));
+    }
+
 export const getSubmitPartnershipEnquiryUrl = () => {
 
 

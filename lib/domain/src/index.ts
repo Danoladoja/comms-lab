@@ -10,3 +10,4 @@ export * from "./readingList";
 export * from "./certificateCode";
 export * from "./invitations";
 export * from "./partnership";
+export * from "./imageUpload";

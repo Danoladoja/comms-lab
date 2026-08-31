@@ -108,4 +108,33 @@ const bodyErrors: ErrorRequestHandler = (err, _req, res, next) => {
 };
 app.use(bodyErrors);
 
+/**
+ * The last word on anything that went wrong inside a route.
+ *
+ * Without this, an unhandled error reaches Express's default handler, which
+ * answers with an HTML page containing the stack trace — and, for a database
+ * failure, the full SQL statement. That page is returned to whoever made the
+ * request, and some of these endpoints are public and unauthenticated, so it is
+ * an invitation to go looking. It also breaks any caller expecting JSON.
+ *
+ * The detail is not lost; it goes to the log, where the people who can act on
+ * it will see it and the person who tripped it will not.
+ */
+const apiErrors: ErrorRequestHandler = (err, req, res, next) => {
+  if (res.headersSent) { next(err); return; }
+
+  logger.error({ err, method: req.method, url: req.url?.split("?")[0] }, "Unhandled error");
+
+  const status = Number((err as { status?: number; statusCode?: number })?.status
+    ?? (err as { statusCode?: number })?.statusCode);
+  // A 4xx that a route threw deliberately is the caller's business; anything
+  // else is ours, and gets a flat 500 with nothing behind it.
+  const code = Number.isInteger(status) && status >= 400 && status < 500 ? status : 500;
+
+  res.status(code).json({
+    error: code === 500 ? "Something went wrong. Please try again." : "That request could not be completed.",
+  });
+};
+app.use(apiErrors);
+
 export default app;

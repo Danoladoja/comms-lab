@@ -22,13 +22,14 @@ import {
 import CourseworkStudio from '@/components/CourseworkStudio';
 import InviteFacilitator from '@/components/InviteFacilitator';
 import RecordingsAdmin from '@/components/RecordingsAdmin';
+import ProgramThumbnail from '@/components/ProgramThumbnail';
 import { isMeasurableRecording } from '@/lib/embed';
 import { useCurrentUser } from '@/lib/useCurrentUser';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { ChevronDown, ChevronUp, Plus, Trash2, CircleAlert } from 'lucide-react';
+import { ChevronDown, ChevronUp, Plus, Trash2, CircleAlert, Pencil } from 'lucide-react';
 
 const TABS = ['Programs', 'Enrollments', 'People', 'Recordings'] as const;
 type Tab = (typeof TABS)[number];
@@ -226,10 +227,91 @@ function ProgramSessions({ programId, instructors }: { programId: number; instru
 
 /* ---------- Programs tab ---------- */
 
+/**
+ * Editing everything about a programme except its sessions.
+ *
+ * Status and capacity stay as the inline controls on the card: they are changed
+ * often and one at a time, and burying them behind an Edit button would make
+ * the commonest actions the slowest. Everything else — the words a prospective
+ * learner reads, and the picture they see first — lives here.
+ */
+function ProgramEditor({ program, onDone }: { program: Program; onDone: () => void }) {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const [form, setForm] = useState({
+    title: program.title,
+    tag: program.tag,
+    description: program.description,
+    startDate: program.startDate,
+    format: program.format,
+    duration: program.duration,
+  });
+  const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(program.thumbnailUrl ?? null);
+
+  const save = useUpdateProgram({
+    mutation: {
+      onSuccess: () => {
+        toast({ title: 'Programme updated' });
+        qc.invalidateQueries({ queryKey: getListProgramsQueryKey() });
+        onDone();
+      },
+      onError: () => toast({ title: 'Could not save those changes', variant: 'destructive' }),
+    },
+  });
+
+  const complete = form.title && form.tag && form.description && form.startDate && form.duration;
+
+  return (
+    <div className="mt-4 space-y-3 border-t border-border pt-4">
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+        <Input placeholder="Title" value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} />
+        <Input placeholder="Focus area" value={form.tag} onChange={e => setForm({ ...form, tag: e.target.value })} />
+        <Input placeholder="Start (e.g. Nov 2026)" value={form.startDate} onChange={e => setForm({ ...form, startDate: e.target.value })} />
+        <Input placeholder="Duration (e.g. 4 weeks)" value={form.duration} onChange={e => setForm({ ...form, duration: e.target.value })} />
+        <select
+          className="border border-border rounded-md px-3 py-2 text-sm bg-background"
+          value={form.format} onChange={e => setForm({ ...form, format: e.target.value })}
+        >
+          <option>Cohort</option><option>Masterclass</option><option>Intensive</option>
+        </select>
+      </div>
+      <Textarea
+        placeholder="Description"
+        value={form.description}
+        onChange={e => setForm({ ...form, description: e.target.value })}
+      />
+
+      {/* The image saves itself the moment it is chosen, so it sits outside the
+          Save button: nothing is lost if the admin closes the editor after
+          changing only the picture. */}
+      <ProgramThumbnail
+        programId={program.id}
+        thumbnailUrl={thumbnailUrl}
+        onChanged={(url) => {
+          setThumbnailUrl(url);
+          qc.invalidateQueries({ queryKey: getListProgramsQueryKey() });
+        }}
+      />
+
+      <div className="flex items-center gap-2">
+        <Button
+          size="sm"
+          disabled={!complete || save.isPending}
+          onClick={() => save.mutate({ id: program.id, data: { ...form } })}
+        >
+          {save.isPending ? 'Saving...' : 'Save changes'}
+        </Button>
+        <Button variant="ghost" size="sm" onClick={onDone}>Cancel</Button>
+      </div>
+    </div>
+  );
+}
+
 function ProgramCard({ program, instructors }: { program: Program; instructors: { id: number; name: string; email: string }[] }) {
   const qc = useQueryClient();
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState(false);
   const [capacity, setCapacity] = useState(String(program.capacity));
 
   const update = useUpdateProgram({
@@ -242,6 +324,15 @@ function ProgramCard({ program, instructors }: { program: Program; instructors: 
   return (
     <div className="bg-card border border-border rounded-xl p-5">
       <div className="flex flex-wrap items-center gap-3">
+        {/* A glance at the picture the catalogue is actually showing, so a
+            missing or wrong thumbnail is obvious from the list. */}
+        {program.thumbnailUrl && (
+          <img
+            src={program.thumbnailUrl}
+            alt=""
+            className="h-12 w-20 shrink-0 rounded-md border border-border object-cover"
+          />
+        )}
         <div className="flex-1 min-w-[200px]">
           <p className="text-xs uppercase tracking-widest text-[#C2410C] font-medium">{program.tag}</p>
           <h3 className="font-semibold">{program.title}</h3>
@@ -267,10 +358,14 @@ function ProgramCard({ program, instructors }: { program: Program; instructors: 
           />
           <span className="text-xs text-muted-foreground">places</span>
         </div>
+        <Button variant="outline" size="sm" onClick={() => setEditing(!editing)}>
+          <Pencil className="w-4 h-4 mr-1.5" />{editing ? 'Close' : 'Edit'}
+        </Button>
         <Button variant="outline" size="sm" onClick={() => setOpen(!open)}>
           Sessions {open ? <ChevronUp className="w-4 h-4 ml-1" /> : <ChevronDown className="w-4 h-4 ml-1" />}
         </Button>
       </div>
+      {editing && <ProgramEditor program={program} onDone={() => setEditing(false)} />}
       {open && <ProgramSessions programId={program.id} instructors={instructors} />}
     </div>
   );

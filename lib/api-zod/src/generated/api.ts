@@ -1395,6 +1395,63 @@ export const SetThreadPinnedResponse = zod.object({
 
 
 /**
+ * Public and unauthenticated: the catalogue shows thumbnails to visitors who have not signed in. Served with the media type read from the file's own bytes at upload, never one the uploader supplied.
+ * @summary The programme's thumbnail image
+ */
+export const GetProgramThumbnailParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const GetProgramThumbnailResponse = zod.unknown()
+
+
+/**
+ * Admin only. The image arrives as raw bytes rather than a multipart form, matching how slide decks are uploaded. A second upload replaces the first. On success the programme's thumbnailUrl is set to this endpoint.
+ * @summary Upload or replace the programme's thumbnail
+ */
+export const UploadProgramThumbnailParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const UploadProgramThumbnailResponse = zod.object({
+  "id": zod.int(),
+  "tag": zod.string(),
+  "title": zod.string(),
+  "description": zod.string(),
+  "startDate": zod.string(),
+  "format": zod.string(),
+  "duration": zod.string(),
+  "thumbnailUrl": zod.string().nullish(),
+  "capacity": zod.int(),
+  "status": zod.enum(['draft', 'published', 'archived']),
+  "enrolledCount": zod.int()
+})
+
+
+/**
+ * Admin only. Clears thumbnailUrl as well as the stored image.
+ * @summary Remove the programme's thumbnail
+ */
+export const DeleteProgramThumbnailParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const DeleteProgramThumbnailResponse = zod.object({
+  "id": zod.int(),
+  "tag": zod.string(),
+  "title": zod.string(),
+  "description": zod.string(),
+  "startDate": zod.string(),
+  "format": zod.string(),
+  "duration": zod.string(),
+  "thumbnailUrl": zod.string().nullish(),
+  "capacity": zod.int(),
+  "status": zod.enum(['draft', 'published', 'archived']),
+  "enrolledCount": zod.int()
+})
+
+
+/**
  * Public and unauthenticated. The enquiry is delivered by email and is not stored, so a caller that receives 202 should treat the message as gone from its hands. Rate limited per client address.
  * @summary Send a partnership enquiry
  */

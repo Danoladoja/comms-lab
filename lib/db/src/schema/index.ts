@@ -1,5 +1,6 @@
 export * from "./users";
 export * from "./programs";
+export * from "./programThumbnails";
 export * from "./sessions";
 export * from "./enrollments";
 export * from "./attendance";

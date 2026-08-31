@@ -12,11 +12,13 @@ import forumRouter from "./forum";
 import adminRouter from "./admin";
 import googleRecordingsRouter from "./googleRecordings";
 import partnershipsRouter from "./partnerships";
+import programThumbnailsRouter from "./programThumbnails";
 
 const router: IRouter = Router();
 
 router.use(healthRouter);
 router.use(meRouter);
+router.use(programThumbnailsRouter);
 router.use(programsRouter);
 router.use(sessionsRouter);
 router.use(enrollmentsRouter);

@@ -1,2 +1,19 @@
 User-agent: *
 Allow: /
+
+# Signed-in surfaces. Nothing here is reachable without an account, but saying
+# so keeps them out of crawl budgets and out of search results.
+Disallow: /dashboard
+Disallow: /classroom/
+Disallow: /admin
+Disallow: /teach
+Disallow: /recordings
+Disallow: /certificates
+Disallow: /sign-in
+Disallow: /sign-up
+
+# A shared certificate should be indexable: that is the point of it being
+# publicly verifiable.
+Allow: /verify/
+
+Sitemap: https://energycommslab.africa/sitemap.xml

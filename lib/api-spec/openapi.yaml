@@ -1657,6 +1657,114 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiMessage"
+  /programs/{id}/thumbnail:
+    get:
+      operationId: getProgramThumbnail
+      tags: [programs]
+      summary: The programme's thumbnail image
+      description: >-
+        Public and unauthenticated: the catalogue shows thumbnails to visitors
+        who have not signed in. Served with the media type read from the file's
+        own bytes at upload, never one the uploader supplied.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: The image
+          content:
+            image/*:
+              schema:
+                type: string
+                format: binary
+        "404":
+          description: No thumbnail for this programme
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+    post:
+      operationId: uploadProgramThumbnail
+      tags: [programs]
+      summary: Upload or replace the programme's thumbnail
+      description: >-
+        Admin only. The image arrives as raw bytes rather than a multipart form,
+        matching how slide decks are uploaded. A second upload replaces the
+        first. On success the programme's thumbnailUrl is set to this endpoint.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/octet-stream:
+            schema:
+              type: string
+              format: binary
+      responses:
+        "201":
+          description: Stored
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Program"
+        "400":
+          description: Not a usable image
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "403":
+          description: Not an admin
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "404":
+          description: Programme not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "413":
+          description: Image too large
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+    delete:
+      operationId: deleteProgramThumbnail
+      tags: [programs]
+      summary: Remove the programme's thumbnail
+      description: Admin only. Clears thumbnailUrl as well as the stored image.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Removed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Program"
+        "403":
+          description: Not an admin
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "404":
+          description: Programme not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
   /partnership-enquiries:
     post:
       operationId: submitPartnershipEnquiry

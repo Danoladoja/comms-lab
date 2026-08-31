@@ -56,8 +56,11 @@ export function Navbar() {
     >
       <div className="container mx-auto px-4 md:px-6">
         <div className="flex items-center justify-between">
-          {/* The full lockup where there is room for it, and the woven mark
-              alone on a phone, where the wordmark would shrink past reading.
+          {/* The full lockup at every width. Dropping to the mark alone on a
+              phone meant the site never said its own name on the screen most
+              first-time visitors arrive on, which is the one place it matters
+              most. It fits: at 40px tall the lockup is about 114px wide, well
+              inside the room a phone header has beside a menu button.
               Width and height are declared so the header does not jolt while
               the image loads. */}
           <Link href="/" className="flex items-center group" aria-label="Ananse Comms Lab — home">
@@ -66,14 +69,7 @@ export function Navbar() {
               alt="Ananse Comms Lab"
               width={456}
               height={160}
-              className="hidden h-10 w-auto sm:block"
-            />
-            <img
-              src={`${basePath}/logo-mark.png`}
-              alt="Ananse Comms Lab"
-              width={148}
-              height={160}
-              className="h-9 w-auto sm:hidden"
+              className="h-10 w-auto md:h-12"
             />
           </Link>
 
