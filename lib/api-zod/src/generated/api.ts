@@ -1626,10 +1626,69 @@ export const SubmitPartnershipEnquiryResponse = zod.object({
 
 
 /**
- * @summary Get the strategic communications simulation for a module
+ * @summary List simulation definitions owned by the signed-in user
  */
-export const GetSimulationStudioParams = zod.object({
-  "sessionId": zod.coerce.number().int()
+
+
+
+
+
+
+
+
+
+export const ListSimulationsResponseItem = zod.object({
+  "id": zod.int(),
+  "title": zod.string(),
+  "sectorTopic": zod.string(),
+  "objective": zod.string(),
+  "difficulty": zod.enum(['foundation', 'intermediate', 'advanced']),
+  "durationMinutes": zod.int(),
+  "participantPerspective": zod.string(),
+  "mode": zod.enum(['autonomous', 'facilitated']),
+  "openingBrief": zod.string(),
+  "stakeholderGroups": zod.array(zod.object({
+  "id": zod.string().min(1),
+  "name": zod.string().min(1),
+  "roleName": zod.string().min(1),
+  "confidentialBrief": zod.string()
+})),
+  "initialDevelopment": zod.object({
+  "id": zod.string().min(1),
+  "title": zod.string().min(1),
+  "content": zod.string(),
+  "responsePrompt": zod.string(),
+  "source": zod.string().optional(),
+  "channel": zod.enum(['wire', 'social', 'broadcast', 'internal', 'call', 'regulator', 'community']).optional()
+}),
+  "evaluationDimensions": zod.array(zod.object({
+  "name": zod.string().min(1),
+  "description": zod.string().min(1)
+})),
+  "debriefQuestions": zod.array(zod.string()),
+  "createdAt": zod.coerce.date()
+})
+export const ListSimulationsResponse = zod.array(ListSimulationsResponseItem)
+
+
+/**
+ * @summary Generate a standalone simulation scenario from a launch brief
+ */
+
+
+export const generateSimulationBodyDurationMinutesMin = 5;
+export const generateSimulationBodyDurationMinutesMax = 240;
+
+
+
+
+export const GenerateSimulationBody = zod.object({
+  "sectorTopic": zod.string().min(1),
+  "objective": zod.string().min(1),
+  "difficulty": zod.enum(['foundation', 'intermediate', 'advanced']),
+  "durationMinutes": zod.int().min(generateSimulationBodyDurationMinutesMin).max(generateSimulationBodyDurationMinutesMax),
+  "participantPerspective": zod.string().min(1),
+  "mode": zod.enum(['autonomous', 'facilitated'])
 })
 
 
@@ -1641,43 +1700,129 @@ export const GetSimulationStudioParams = zod.object({
 
 
 
-export const GetSimulationStudioResponse = zod.object({
-  "sessionId": zod.int(),
-  "definition": zod.union([zod.object({
-  "title": zod.string().min(1),
-  "context": zod.string(),
-  "learningObjective": zod.string(),
+export const GenerateSimulationResponse = zod.object({
+  "id": zod.int(),
+  "title": zod.string(),
+  "sectorTopic": zod.string(),
+  "objective": zod.string(),
+  "difficulty": zod.enum(['foundation', 'intermediate', 'advanced']),
+  "durationMinutes": zod.int(),
+  "participantPerspective": zod.string(),
+  "mode": zod.enum(['autonomous', 'facilitated']),
   "openingBrief": zod.string(),
-  "groups": zod.array(zod.object({
+  "stakeholderGroups": zod.array(zod.object({
   "id": zod.string().min(1),
   "name": zod.string().min(1),
-  "roleName": zod.string(),
+  "roleName": zod.string().min(1),
   "confidentialBrief": zod.string()
 })),
-  "injects": zod.array(zod.object({
+  "initialDevelopment": zod.object({
   "id": zod.string().min(1),
   "title": zod.string().min(1),
   "content": zod.string(),
   "responsePrompt": zod.string(),
-  "responseMinutes": zod.int().min(1)
+  "source": zod.string().optional(),
+  "channel": zod.enum(['wire', 'social', 'broadcast', 'internal', 'call', 'regulator', 'community']).optional()
+}),
+  "evaluationDimensions": zod.array(zod.object({
+  "name": zod.string().min(1),
+  "description": zod.string().min(1)
 })),
   "debriefQuestions": zod.array(zod.string()),
-  "published": zod.boolean()
-}).and(zod.object({
-  "sessionId": zod.int()
-})),zod.null()]),
-  "run": zod.union([zod.object({
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Get an owned simulation definition
+ */
+export const GetSimulationParams = zod.object({
+  "simulationId": zod.coerce.number().int()
+})
+
+
+
+
+
+
+
+
+
+
+export const GetSimulationResponse = zod.object({
   "id": zod.int(),
-  "sessionId": zod.int(),
-  "status": zod.enum(['draft', 'live', 'debrief', 'ended']),
-  "startedAt": zod.coerce.date().nullable(),
-  "debriefAt": zod.coerce.date().nullable(),
-  "endedAt": zod.coerce.date().nullable()
+  "title": zod.string(),
+  "sectorTopic": zod.string(),
+  "objective": zod.string(),
+  "difficulty": zod.enum(['foundation', 'intermediate', 'advanced']),
+  "durationMinutes": zod.int(),
+  "participantPerspective": zod.string(),
+  "mode": zod.enum(['autonomous', 'facilitated']),
+  "openingBrief": zod.string(),
+  "stakeholderGroups": zod.array(zod.object({
+  "id": zod.string().min(1),
+  "name": zod.string().min(1),
+  "roleName": zod.string().min(1),
+  "confidentialBrief": zod.string()
+})),
+  "initialDevelopment": zod.object({
+  "id": zod.string().min(1),
+  "title": zod.string().min(1),
+  "content": zod.string(),
+  "responsePrompt": zod.string(),
+  "source": zod.string().optional(),
+  "channel": zod.enum(['wire', 'social', 'broadcast', 'internal', 'call', 'regulator', 'community']).optional()
+}),
+  "evaluationDimensions": zod.array(zod.object({
+  "name": zod.string().min(1),
+  "description": zod.string().min(1)
+})),
+  "debriefQuestions": zod.array(zod.string()),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Create a solo autonomous run or a facilitated room
+ */
+export const CreateSimulationRunBody = zod.object({
+  "simulationId": zod.int()
+})
+
+
+
+
+
+export const createSimulationRunResponseDebriefOneScoreMin = 0;
+export const createSimulationRunResponseDebriefOneScoreMax = 100;
+
+
+
+
+
+
+export const CreateSimulationRunResponse = zod.object({
+  "id": zod.int(),
+  "simulationId": zod.int(),
+  "mode": zod.enum(['autonomous', 'facilitated']),
+  "isOwner": zod.boolean(),
+  "status": zod.enum(['active', 'completed']),
+  "joinCode": zod.string().nullable(),
+  "currentDevelopment": zod.union([zod.object({
+  "id": zod.string().min(1),
+  "title": zod.string().min(1),
+  "content": zod.string(),
+  "responsePrompt": zod.string(),
+  "source": zod.string().optional(),
+  "channel": zod.enum(['wire', 'social', 'broadcast', 'internal', 'call', 'regulator', 'community']).optional()
 }),zod.null()]),
-  "releases": zod.array(zod.object({
-  "injectId": zod.string(),
-  "sortOrder": zod.int(),
-  "releasedAt": zod.coerce.date()
+  "developments": zod.array(zod.object({
+  "id": zod.string().min(1),
+  "title": zod.string().min(1),
+  "content": zod.string(),
+  "responsePrompt": zod.string(),
+  "source": zod.string().optional(),
+  "channel": zod.enum(['wire', 'social', 'broadcast', 'internal', 'call', 'regulator', 'community']).optional()
 })),
   "responses": zod.array(zod.object({
   "injectId": zod.string(),
@@ -1687,193 +1832,378 @@ export const GetSimulationStudioResponse = zod.object({
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })),
-  "assignments": zod.array(zod.object({
-  "userId": zod.int(),
-  "groupId": zod.string().min(1)
-}).and(zod.object({
-  "assignedAt": zod.coerce.date()
-}))),
-  "participants": zod.array(zod.object({
-  "userId": zod.int(),
-  "name": zod.string()
-}))
+  "debrief": zod.union([zod.object({
+  "score": zod.int().min(createSimulationRunResponseDebriefOneScoreMin).max(createSimulationRunResponseDebriefOneScoreMax),
+  "headline": zod.string().optional(),
+  "strengths": zod.array(zod.string()),
+  "risks": zod.array(zod.string()),
+  "stakeholderImpact": zod.string(),
+  "recommendations": zod.array(zod.string())
+}),zod.null()]),
+  "openingBrief": zod.string(),
+  "stakeholderGroups": zod.array(zod.object({
+  "id": zod.string().min(1),
+  "name": zod.string().min(1),
+  "roleName": zod.string().min(1),
+  "confidentialBrief": zod.string()
+})),
+  "participantGroupId": zod.string().nullable()
 })
 
 
 /**
- * @summary Create or replace a module simulation definition
+ * @summary Join a facilitated room with its join code
  */
-export const UpsertSimulationDefinitionParams = zod.object({
-  "sessionId": zod.coerce.number().int()
+export const joinSimulationRunBodyJoinCodeMax = 24;
+
+
+
+export const JoinSimulationRunBody = zod.object({
+  "joinCode": zod.string().min(1).max(joinSimulationRunBodyJoinCodeMax)
 })
 
 
 
 
 
+export const joinSimulationRunResponseDebriefOneScoreMin = 0;
+export const joinSimulationRunResponseDebriefOneScoreMax = 100;
 
 
 
 
-export const UpsertSimulationDefinitionBody = zod.object({
-  "title": zod.string().min(1),
-  "context": zod.string(),
-  "learningObjective": zod.string(),
-  "openingBrief": zod.string(),
-  "groups": zod.array(zod.object({
-  "id": zod.string().min(1),
-  "name": zod.string().min(1),
-  "roleName": zod.string(),
-  "confidentialBrief": zod.string()
-})),
-  "injects": zod.array(zod.object({
+
+
+export const JoinSimulationRunResponse = zod.object({
+  "id": zod.int(),
+  "simulationId": zod.int(),
+  "mode": zod.enum(['autonomous', 'facilitated']),
+  "isOwner": zod.boolean(),
+  "status": zod.enum(['active', 'completed']),
+  "joinCode": zod.string().nullable(),
+  "currentDevelopment": zod.union([zod.object({
   "id": zod.string().min(1),
   "title": zod.string().min(1),
   "content": zod.string(),
   "responsePrompt": zod.string(),
-  "responseMinutes": zod.int().min(1)
-})),
-  "debriefQuestions": zod.array(zod.string()),
-  "published": zod.boolean()
-})
-
-
-
-
-
-
-
-
-
-export const UpsertSimulationDefinitionResponse = zod.object({
-  "title": zod.string().min(1),
-  "context": zod.string(),
-  "learningObjective": zod.string(),
-  "openingBrief": zod.string(),
-  "groups": zod.array(zod.object({
-  "id": zod.string().min(1),
-  "name": zod.string().min(1),
-  "roleName": zod.string(),
-  "confidentialBrief": zod.string()
-})),
-  "injects": zod.array(zod.object({
+  "source": zod.string().optional(),
+  "channel": zod.enum(['wire', 'social', 'broadcast', 'internal', 'call', 'regulator', 'community']).optional()
+}),zod.null()]),
+  "developments": zod.array(zod.object({
   "id": zod.string().min(1),
   "title": zod.string().min(1),
   "content": zod.string(),
   "responsePrompt": zod.string(),
-  "responseMinutes": zod.int().min(1)
+  "source": zod.string().optional(),
+  "channel": zod.enum(['wire', 'social', 'broadcast', 'internal', 'call', 'regulator', 'community']).optional()
 })),
-  "debriefQuestions": zod.array(zod.string()),
-  "published": zod.boolean()
-}).and(zod.object({
-  "sessionId": zod.int()
-}))
-
-
-/**
- * @summary Start the published simulation for a module
- */
-export const StartSimulationRunParams = zod.object({
-  "sessionId": zod.coerce.number().int()
-})
-
-export const StartSimulationRunResponse = zod.object({
-  "id": zod.int(),
-  "sessionId": zod.int(),
-  "status": zod.enum(['draft', 'live', 'debrief', 'ended']),
-  "startedAt": zod.coerce.date().nullable(),
-  "debriefAt": zod.coerce.date().nullable(),
-  "endedAt": zod.coerce.date().nullable()
-})
-
-
-/**
- * @summary Assign enrolled learners to one simulation group
- */
-export const AssignSimulationGroupsParams = zod.object({
-  "sessionId": zod.coerce.number().int()
-})
-
-
-
-
-export const AssignSimulationGroupsBody = zod.object({
-  "assignments": zod.array(zod.object({
-  "userId": zod.int(),
-  "groupId": zod.string().min(1)
-}))
-})
-
-
-
-
-export const AssignSimulationGroupsResponseItem = zod.object({
-  "userId": zod.int(),
-  "groupId": zod.string().min(1)
-}).and(zod.object({
-  "assignedAt": zod.coerce.date()
-}))
-export const AssignSimulationGroupsResponse = zod.array(AssignSimulationGroupsResponseItem)
-
-
-/**
- * @summary Release the next configured simulation inject
- */
-export const ReleaseNextSimulationInjectParams = zod.object({
-  "sessionId": zod.coerce.number().int()
-})
-
-export const ReleaseNextSimulationInjectResponse = zod.object({
-  "injectId": zod.string(),
-  "sortOrder": zod.int(),
-  "releasedAt": zod.coerce.date()
-})
-
-
-/**
- * @summary Open the simulation debrief or end the run
- */
-export const TransitionSimulationRunParams = zod.object({
-  "sessionId": zod.coerce.number().int()
-})
-
-export const TransitionSimulationRunBody = zod.object({
-  "status": zod.enum(['debrief', 'ended'])
-})
-
-export const TransitionSimulationRunResponse = zod.object({
-  "id": zod.int(),
-  "sessionId": zod.int(),
-  "status": zod.enum(['draft', 'live', 'debrief', 'ended']),
-  "startedAt": zod.coerce.date().nullable(),
-  "debriefAt": zod.coerce.date().nullable(),
-  "endedAt": zod.coerce.date().nullable()
-})
-
-
-/**
- * @summary Create or update this learner group's response to a released inject
- */
-
-
-
-export const UpsertSimulationResponseParams = zod.object({
-  "sessionId": zod.coerce.number().int(),
-  "injectId": zod.coerce.string().min(1)
-})
-
-export const UpsertSimulationResponseBody = zod.object({
-  "body": zod.string(),
-  "expectedUpdatedAt": zod.coerce.date().nullish()
-})
-
-export const UpsertSimulationResponseResponse = zod.object({
+  "responses": zod.array(zod.object({
   "injectId": zod.string(),
   "groupId": zod.string(),
   "body": zod.string(),
   "authorId": zod.int(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
+})),
+  "debrief": zod.union([zod.object({
+  "score": zod.int().min(joinSimulationRunResponseDebriefOneScoreMin).max(joinSimulationRunResponseDebriefOneScoreMax),
+  "headline": zod.string().optional(),
+  "strengths": zod.array(zod.string()),
+  "risks": zod.array(zod.string()),
+  "stakeholderImpact": zod.string(),
+  "recommendations": zod.array(zod.string())
+}),zod.null()]),
+  "openingBrief": zod.string(),
+  "stakeholderGroups": zod.array(zod.object({
+  "id": zod.string().min(1),
+  "name": zod.string().min(1),
+  "roleName": zod.string().min(1),
+  "confidentialBrief": zod.string()
+})),
+  "participantGroupId": zod.string().nullable()
+})
+
+
+/**
+ * @summary Get a run available to its owner or participant
+ */
+export const GetSimulationRunParams = zod.object({
+  "runId": zod.coerce.number().int()
+})
+
+
+
+
+
+export const getSimulationRunResponseDebriefOneScoreMin = 0;
+export const getSimulationRunResponseDebriefOneScoreMax = 100;
+
+
+
+
+
+
+export const GetSimulationRunResponse = zod.object({
+  "id": zod.int(),
+  "simulationId": zod.int(),
+  "mode": zod.enum(['autonomous', 'facilitated']),
+  "isOwner": zod.boolean(),
+  "status": zod.enum(['active', 'completed']),
+  "joinCode": zod.string().nullable(),
+  "currentDevelopment": zod.union([zod.object({
+  "id": zod.string().min(1),
+  "title": zod.string().min(1),
+  "content": zod.string(),
+  "responsePrompt": zod.string(),
+  "source": zod.string().optional(),
+  "channel": zod.enum(['wire', 'social', 'broadcast', 'internal', 'call', 'regulator', 'community']).optional()
+}),zod.null()]),
+  "developments": zod.array(zod.object({
+  "id": zod.string().min(1),
+  "title": zod.string().min(1),
+  "content": zod.string(),
+  "responsePrompt": zod.string(),
+  "source": zod.string().optional(),
+  "channel": zod.enum(['wire', 'social', 'broadcast', 'internal', 'call', 'regulator', 'community']).optional()
+})),
+  "responses": zod.array(zod.object({
+  "injectId": zod.string(),
+  "groupId": zod.string(),
+  "body": zod.string(),
+  "authorId": zod.int(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})),
+  "debrief": zod.union([zod.object({
+  "score": zod.int().min(getSimulationRunResponseDebriefOneScoreMin).max(getSimulationRunResponseDebriefOneScoreMax),
+  "headline": zod.string().optional(),
+  "strengths": zod.array(zod.string()),
+  "risks": zod.array(zod.string()),
+  "stakeholderImpact": zod.string(),
+  "recommendations": zod.array(zod.string())
+}),zod.null()]),
+  "openingBrief": zod.string(),
+  "stakeholderGroups": zod.array(zod.object({
+  "id": zod.string().min(1),
+  "name": zod.string().min(1),
+  "roleName": zod.string().min(1),
+  "confidentialBrief": zod.string()
+})),
+  "participantGroupId": zod.string().nullable()
+})
+
+
+/**
+ * @summary Submit the current development response
+ */
+export const SubmitSimulationResponseParams = zod.object({
+  "runId": zod.coerce.number().int()
+})
+
+
+
+
+export const SubmitSimulationResponseBody = zod.object({
+  "body": zod.string().min(1)
+})
+
+
+
+
+
+export const submitSimulationResponseResponseDebriefOneScoreMin = 0;
+export const submitSimulationResponseResponseDebriefOneScoreMax = 100;
+
+
+
+
+
+
+export const SubmitSimulationResponseResponse = zod.object({
+  "id": zod.int(),
+  "simulationId": zod.int(),
+  "mode": zod.enum(['autonomous', 'facilitated']),
+  "isOwner": zod.boolean(),
+  "status": zod.enum(['active', 'completed']),
+  "joinCode": zod.string().nullable(),
+  "currentDevelopment": zod.union([zod.object({
+  "id": zod.string().min(1),
+  "title": zod.string().min(1),
+  "content": zod.string(),
+  "responsePrompt": zod.string(),
+  "source": zod.string().optional(),
+  "channel": zod.enum(['wire', 'social', 'broadcast', 'internal', 'call', 'regulator', 'community']).optional()
+}),zod.null()]),
+  "developments": zod.array(zod.object({
+  "id": zod.string().min(1),
+  "title": zod.string().min(1),
+  "content": zod.string(),
+  "responsePrompt": zod.string(),
+  "source": zod.string().optional(),
+  "channel": zod.enum(['wire', 'social', 'broadcast', 'internal', 'call', 'regulator', 'community']).optional()
+})),
+  "responses": zod.array(zod.object({
+  "injectId": zod.string(),
+  "groupId": zod.string(),
+  "body": zod.string(),
+  "authorId": zod.int(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})),
+  "debrief": zod.union([zod.object({
+  "score": zod.int().min(submitSimulationResponseResponseDebriefOneScoreMin).max(submitSimulationResponseResponseDebriefOneScoreMax),
+  "headline": zod.string().optional(),
+  "strengths": zod.array(zod.string()),
+  "risks": zod.array(zod.string()),
+  "stakeholderImpact": zod.string(),
+  "recommendations": zod.array(zod.string())
+}),zod.null()]),
+  "openingBrief": zod.string(),
+  "stakeholderGroups": zod.array(zod.object({
+  "id": zod.string().min(1),
+  "name": zod.string().min(1),
+  "roleName": zod.string().min(1),
+  "confidentialBrief": zod.string()
+})),
+  "participantGroupId": zod.string().nullable()
+})
+
+
+/**
+ * @summary Generate the next development after the participant response
+ */
+export const AdvanceSimulationRunParams = zod.object({
+  "runId": zod.coerce.number().int()
+})
+
+
+
+
+
+export const advanceSimulationRunResponseDebriefOneScoreMin = 0;
+export const advanceSimulationRunResponseDebriefOneScoreMax = 100;
+
+
+
+
+
+
+export const AdvanceSimulationRunResponse = zod.object({
+  "id": zod.int(),
+  "simulationId": zod.int(),
+  "mode": zod.enum(['autonomous', 'facilitated']),
+  "isOwner": zod.boolean(),
+  "status": zod.enum(['active', 'completed']),
+  "joinCode": zod.string().nullable(),
+  "currentDevelopment": zod.union([zod.object({
+  "id": zod.string().min(1),
+  "title": zod.string().min(1),
+  "content": zod.string(),
+  "responsePrompt": zod.string(),
+  "source": zod.string().optional(),
+  "channel": zod.enum(['wire', 'social', 'broadcast', 'internal', 'call', 'regulator', 'community']).optional()
+}),zod.null()]),
+  "developments": zod.array(zod.object({
+  "id": zod.string().min(1),
+  "title": zod.string().min(1),
+  "content": zod.string(),
+  "responsePrompt": zod.string(),
+  "source": zod.string().optional(),
+  "channel": zod.enum(['wire', 'social', 'broadcast', 'internal', 'call', 'regulator', 'community']).optional()
+})),
+  "responses": zod.array(zod.object({
+  "injectId": zod.string(),
+  "groupId": zod.string(),
+  "body": zod.string(),
+  "authorId": zod.int(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})),
+  "debrief": zod.union([zod.object({
+  "score": zod.int().min(advanceSimulationRunResponseDebriefOneScoreMin).max(advanceSimulationRunResponseDebriefOneScoreMax),
+  "headline": zod.string().optional(),
+  "strengths": zod.array(zod.string()),
+  "risks": zod.array(zod.string()),
+  "stakeholderImpact": zod.string(),
+  "recommendations": zod.array(zod.string())
+}),zod.null()]),
+  "openingBrief": zod.string(),
+  "stakeholderGroups": zod.array(zod.object({
+  "id": zod.string().min(1),
+  "name": zod.string().min(1),
+  "roleName": zod.string().min(1),
+  "confidentialBrief": zod.string()
+})),
+  "participantGroupId": zod.string().nullable()
+})
+
+
+/**
+ * @summary Complete a run and generate its AI debrief
+ */
+export const CompleteSimulationRunParams = zod.object({
+  "runId": zod.coerce.number().int()
+})
+
+
+
+
+
+export const completeSimulationRunResponseDebriefOneScoreMin = 0;
+export const completeSimulationRunResponseDebriefOneScoreMax = 100;
+
+
+
+
+
+
+export const CompleteSimulationRunResponse = zod.object({
+  "id": zod.int(),
+  "simulationId": zod.int(),
+  "mode": zod.enum(['autonomous', 'facilitated']),
+  "isOwner": zod.boolean(),
+  "status": zod.enum(['active', 'completed']),
+  "joinCode": zod.string().nullable(),
+  "currentDevelopment": zod.union([zod.object({
+  "id": zod.string().min(1),
+  "title": zod.string().min(1),
+  "content": zod.string(),
+  "responsePrompt": zod.string(),
+  "source": zod.string().optional(),
+  "channel": zod.enum(['wire', 'social', 'broadcast', 'internal', 'call', 'regulator', 'community']).optional()
+}),zod.null()]),
+  "developments": zod.array(zod.object({
+  "id": zod.string().min(1),
+  "title": zod.string().min(1),
+  "content": zod.string(),
+  "responsePrompt": zod.string(),
+  "source": zod.string().optional(),
+  "channel": zod.enum(['wire', 'social', 'broadcast', 'internal', 'call', 'regulator', 'community']).optional()
+})),
+  "responses": zod.array(zod.object({
+  "injectId": zod.string(),
+  "groupId": zod.string(),
+  "body": zod.string(),
+  "authorId": zod.int(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})),
+  "debrief": zod.union([zod.object({
+  "score": zod.int().min(completeSimulationRunResponseDebriefOneScoreMin).max(completeSimulationRunResponseDebriefOneScoreMax),
+  "headline": zod.string().optional(),
+  "strengths": zod.array(zod.string()),
+  "risks": zod.array(zod.string()),
+  "stakeholderImpact": zod.string(),
+  "recommendations": zod.array(zod.string())
+}),zod.null()]),
+  "openingBrief": zod.string(),
+  "stakeholderGroups": zod.array(zod.object({
+  "id": zod.string().min(1),
+  "name": zod.string().min(1),
+  "roleName": zod.string().min(1),
+  "confidentialBrief": zod.string()
+})),
+  "participantGroupId": zod.string().nullable()
 })
 
 

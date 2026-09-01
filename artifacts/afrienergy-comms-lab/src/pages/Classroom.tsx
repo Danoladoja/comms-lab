@@ -15,14 +15,13 @@ import { QuizPanel, AssignmentPanel } from '@/components/CourseworkDialogs';
 import { CritiqueQueue, MyFeedbackPanel } from '@/components/CritiquePanel';
 import TrackedReplay from '@/components/TrackedReplay';
 import { ReadingListView } from '@/components/ReadingListEditor';
-import SimulationLearnerView from '@/components/SimulationLearnerView';
 import {
   ArrowLeft, Video, PlayCircle, CheckCircle2, Lock, Radio, Clock,
   FileQuestion, ClipboardList, CalendarClock, MessagesSquare, FileText, BookOpen,
   MonitorPlay,
 } from 'lucide-react';
 
-type Tab = '' | 'assignment' | 'critique' | 'feedback' | 'quiz' | 'reading' | 'simulation';
+type Tab = '' | 'assignment' | 'critique' | 'feedback' | 'quiz' | 'reading';
 
 function formatSessionDate(iso: string | null | undefined) {
   if (!iso) return 'Date to be announced';
@@ -324,13 +323,6 @@ export default function Classroom() {
                 <BookOpen className="w-4 h-4 mr-1.5" aria-hidden />Reading list
                 {readings.length > 0 && <span className="ml-1.5 text-xs font-bold">{readings.length}</span>}
               </Button>
-              <Button
-                variant={tab === 'simulation' ? 'default' : 'outline'}
-                onClick={() => setTab(t => (t === 'simulation' ? '' : 'simulation'))}
-                aria-pressed={tab === 'simulation'}
-              >
-                <MonitorPlay className="w-4 h-4 mr-1.5" aria-hidden />Simulation
-              </Button>
             </nav>
           </aside>
 
@@ -401,17 +393,6 @@ export default function Classroom() {
             </section>
           )}
 
-          {tab === 'simulation' && (
-            <section className="lg:col-span-3 bg-card border border-border rounded-2xl p-6">
-              <div className="mb-4">
-                <h2 className="font-display font-bold">Simulation Studio</h2>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Participate in the live strategic communications simulation.
-                </p>
-              </div>
-              <SimulationLearnerView sessionId={session.id} />
-            </section>
-          )}
         </div>
       )}
     </div>

@@ -985,98 +985,6 @@ export interface SimulationGroup {
   confidentialBrief: string;
 }
 
-export interface SimulationInject {
-  /** @minLength 1 */
-  id: string;
-  /** @minLength 1 */
-  title: string;
-  content: string;
-  responsePrompt: string;
-  /** @minimum 1 */
-  responseMinutes: number;
-}
-
-export interface SimulationDefinitionInput {
-  /** @minLength 1 */
-  title: string;
-  context: string;
-  learningObjective: string;
-  openingBrief: string;
-  groups: SimulationGroup[];
-  injects: SimulationInject[];
-  debriefQuestions: string[];
-  published: boolean;
-}
-
-export type SimulationDefinition = SimulationDefinitionInput & {
-  sessionId: number;
-};
-
-export type SimulationRunStatus = typeof SimulationRunStatus[keyof typeof SimulationRunStatus];
-
-
-export const SimulationRunStatus = {
-  draft: 'draft',
-  live: 'live',
-  debrief: 'debrief',
-  ended: 'ended',
-} as const;
-
-export interface SimulationRun {
-  id: number;
-  sessionId: number;
-  status: SimulationRunStatus;
-  /** @nullable */
-  startedAt: string | null;
-  /** @nullable */
-  debriefAt: string | null;
-  /** @nullable */
-  endedAt: string | null;
-}
-
-export interface SimulationGroupAssignmentInput {
-  userId: number;
-  /** @minLength 1 */
-  groupId: string;
-}
-
-export interface SimulationGroupAssignmentsInput {
-  assignments: SimulationGroupAssignmentInput[];
-}
-
-export type SimulationGroupAssignment = SimulationGroupAssignmentInput & {
-  assignedAt: string;
-};
-
-export interface SimulationInjectRelease {
-  injectId: string;
-  sortOrder: number;
-  releasedAt: string;
-}
-
-export type SimulationTransitionInputStatus = typeof SimulationTransitionInputStatus[keyof typeof SimulationTransitionInputStatus];
-
-
-export const SimulationTransitionInputStatus = {
-  debrief: 'debrief',
-  ended: 'ended',
-} as const;
-
-export interface SimulationTransitionInput {
-  status: SimulationTransitionInputStatus;
-}
-
-export interface SimulationResponseInput {
-  body: string;
-  /** @nullable */
-  expectedUpdatedAt?: string | null;
-}
-
-export interface SimulationParticipant {
-  userId: number;
-  name: string;
-}
-
 export interface SimulationResponse {
   injectId: string;
   groupId: string;
@@ -1086,15 +994,192 @@ export interface SimulationResponse {
   updatedAt: string;
 }
 
-export interface SimulationStudio {
-  sessionId: number;
-  definition: SimulationDefinition | null;
-  run: SimulationRun | null;
-  releases: SimulationInjectRelease[];
-  responses: SimulationResponse[];
-  assignments: SimulationGroupAssignment[];
-  participants: SimulationParticipant[];
+export type SimulationLaunchBriefDifficulty = typeof SimulationLaunchBriefDifficulty[keyof typeof SimulationLaunchBriefDifficulty];
+
+
+export const SimulationLaunchBriefDifficulty = {
+  foundation: 'foundation',
+  intermediate: 'intermediate',
+  advanced: 'advanced',
+} as const;
+
+export type SimulationLaunchBriefMode = typeof SimulationLaunchBriefMode[keyof typeof SimulationLaunchBriefMode];
+
+
+export const SimulationLaunchBriefMode = {
+  autonomous: 'autonomous',
+  facilitated: 'facilitated',
+} as const;
+
+export interface SimulationLaunchBrief {
+  /** @minLength 1 */
+  sectorTopic: string;
+  /** @minLength 1 */
+  objective: string;
+  difficulty: SimulationLaunchBriefDifficulty;
+  /**
+     * @minimum 5
+     * @maximum 240
+     */
+  durationMinutes: number;
+  /** @minLength 1 */
+  participantPerspective: string;
+  mode: SimulationLaunchBriefMode;
 }
+
+export interface StudioStakeholderGroup {
+  /** @minLength 1 */
+  id: string;
+  /** @minLength 1 */
+  name: string;
+  /** @minLength 1 */
+  roleName: string;
+  confidentialBrief: string;
+}
+
+export type StudioDevelopmentChannel = typeof StudioDevelopmentChannel[keyof typeof StudioDevelopmentChannel];
+
+
+export const StudioDevelopmentChannel = {
+  wire: 'wire',
+  social: 'social',
+  broadcast: 'broadcast',
+  internal: 'internal',
+  call: 'call',
+  regulator: 'regulator',
+  community: 'community',
+} as const;
+
+export interface StudioDevelopment {
+  /** @minLength 1 */
+  id: string;
+  /** @minLength 1 */
+  title: string;
+  content: string;
+  responsePrompt: string;
+  source?: string;
+  channel?: StudioDevelopmentChannel;
+}
+
+export interface SimulationEvaluationDimension {
+  /** @minLength 1 */
+  name: string;
+  /** @minLength 1 */
+  description: string;
+}
+
+export type StudioSimulationDifficulty = typeof StudioSimulationDifficulty[keyof typeof StudioSimulationDifficulty];
+
+
+export const StudioSimulationDifficulty = {
+  foundation: 'foundation',
+  intermediate: 'intermediate',
+  advanced: 'advanced',
+} as const;
+
+export type StudioSimulationMode = typeof StudioSimulationMode[keyof typeof StudioSimulationMode];
+
+
+export const StudioSimulationMode = {
+  autonomous: 'autonomous',
+  facilitated: 'facilitated',
+} as const;
+
+export interface StudioSimulation {
+  id: number;
+  title: string;
+  sectorTopic: string;
+  objective: string;
+  difficulty: StudioSimulationDifficulty;
+  durationMinutes: number;
+  participantPerspective: string;
+  mode: StudioSimulationMode;
+  openingBrief: string;
+  stakeholderGroups: StudioStakeholderGroup[];
+  initialDevelopment: StudioDevelopment;
+  evaluationDimensions: SimulationEvaluationDimension[];
+  debriefQuestions: string[];
+  createdAt: string;
+}
+
+export interface SimulationRunInput {
+  simulationId: number;
+}
+
+export interface SimulationJoinInput {
+  /**
+     * @minLength 1
+     * @maxLength 24
+     */
+  joinCode: string;
+}
+
+export interface SimulationResponseSubmission {
+  /** @minLength 1 */
+  body: string;
+}
+
+export interface SimulationDebrief {
+  /**
+     * @minimum 0
+     * @maximum 100
+     */
+  score: number;
+  headline?: string;
+  strengths: string[];
+  risks: string[];
+  stakeholderImpact: string;
+  recommendations: string[];
+}
+
+export type StudioSimulationRunMode = typeof StudioSimulationRunMode[keyof typeof StudioSimulationRunMode];
+
+
+export const StudioSimulationRunMode = {
+  autonomous: 'autonomous',
+  facilitated: 'facilitated',
+} as const;
+
+export type StudioSimulationRunStatus = typeof StudioSimulationRunStatus[keyof typeof StudioSimulationRunStatus];
+
+
+export const StudioSimulationRunStatus = {
+  active: 'active',
+  completed: 'completed',
+} as const;
+
+export interface StudioSimulationRun {
+  id: number;
+  simulationId: number;
+  mode: StudioSimulationRunMode;
+  isOwner: boolean;
+  status: StudioSimulationRunStatus;
+  /** @nullable */
+  joinCode: string | null;
+  currentDevelopment: StudioDevelopment | null;
+  developments: StudioDevelopment[];
+  responses: SimulationResponse[];
+  debrief: SimulationDebrief | null;
+  openingBrief: string;
+  stakeholderGroups: StudioStakeholderGroup[];
+  /** @nullable */
+  participantGroupId: string | null;
+}
+
+/**
+ * Invalid request
+ */
+export type BadRequestResponse = ApiMessage;
+
+/**
+ * Upstream service error
+ */
+export type ApiErrorResponse = ApiMessage;
+
+/**
+ * Too many attempts
+ */
+export type TooManyRequestsResponse = ApiMessage;
 
 /**
  * Not signed in

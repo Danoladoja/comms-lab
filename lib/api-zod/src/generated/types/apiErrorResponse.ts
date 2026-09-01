@@ -5,9 +5,9 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { ApiMessage } from './apiMessage';
 
-export interface SimulationResponseInput {
-  body: string;
-  /** @nullable */
-  expectedUpdatedAt?: Date | null;
-}
+/**
+ * Upstream service error
+ */
+export type ApiErrorResponse = ApiMessage;

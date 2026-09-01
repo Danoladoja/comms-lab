@@ -5,9 +5,9 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { ApiMessage } from './apiMessage';
 
-export interface SimulationGroupAssignmentInput {
-  userId: number;
-  /** @minLength 1 */
-  groupId: string;
-}
+/**
+ * Too many attempts
+ */
+export type TooManyRequestsResponse = ApiMessage;

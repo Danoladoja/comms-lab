@@ -5,8 +5,9 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { ApiMessage } from './apiMessage';
 
-export interface SimulationParticipant {
-  userId: number;
-  name: string;
-}
+/**
+ * Invalid request
+ */
+export type BadRequestResponse = ApiMessage;

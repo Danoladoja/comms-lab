@@ -28,6 +28,10 @@ import Privacy from '@/pages/Privacy';
 import Waitlist from '@/pages/Waitlist';
 import NotFound from '@/pages/not-found';
 
+import StudioHome from '@/pages/studio/StudioHome';
+import ScenarioBriefing from '@/pages/studio/ScenarioBriefing';
+import SimulationRun from '@/pages/studio/SimulationRun';
+
 const queryClient = new QueryClient();
 
 // REQUIRED — copy verbatim. Resolves the key from window.location.hostname so the
@@ -270,6 +274,19 @@ function Router() {
         </Route>
 
         {/* Signed-in routes */}
+        <Route path="/studio/scenarios/:id">
+          {(params) => (
+            <Protected><ScenarioBriefing id={params.id} /></Protected>
+          )}
+        </Route>
+        <Route path="/studio/run/:id">
+          {(params) => (
+            <Protected><SimulationRun id={params.id} /></Protected>
+          )}
+        </Route>
+        <Route path="/studio">
+          <Protected><StudioHome /></Protected>
+        </Route>
         <Route path="/dashboard">
           <Protected><AppLayout><LearnerDashboard /></AppLayout></Protected>
         </Route>

@@ -6,13 +6,12 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface SimulationInject {
+export interface StudioStakeholderGroup {
   /** @minLength 1 */
   id: string;
   /** @minLength 1 */
-  title: string;
-  content: string;
-  responsePrompt: string;
-  /** @minimum 1 */
-  responseMinutes: number;
+  name: string;
+  /** @minLength 1 */
+  roleName: string;
+  confidentialBrief: string;
 }

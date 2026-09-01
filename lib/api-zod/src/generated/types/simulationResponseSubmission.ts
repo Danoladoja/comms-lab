@@ -6,8 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface SimulationInjectRelease {
-  injectId: string;
-  sortOrder: number;
-  releasedAt: Date;
+export interface SimulationResponseSubmission {
+  /** @minLength 1 */
+  body: string;
 }
