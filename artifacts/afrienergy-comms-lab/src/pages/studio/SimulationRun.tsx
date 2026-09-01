@@ -158,9 +158,9 @@ export default function SimulationRun({ id }: { id?: string }) {
       <StudioLayout backTo="/studio">
         <div className="flex-1 flex flex-col items-center justify-center p-6 text-center bg-[#030811]">
           <ShieldAlert className="w-12 h-12 text-red-500 mb-4" />
-          <h2 className="font-mono text-sm uppercase tracking-widest text-white mb-2">Invalid Stream Request</h2>
+          <h2 className="font-mono text-sm uppercase tracking-widest text-white mb-2">We cannot find that exercise</h2>
           <Button onClick={() => setLocation('/studio')} variant="outline" className="mt-6 border-white/20 text-white rounded-none uppercase tracking-widest text-xs">
-            Return to Console
+            Back to the Studio
           </Button>
         </div>
       </StudioLayout>
@@ -173,7 +173,7 @@ export default function SimulationRun({ id }: { id?: string }) {
         <div className="flex-1 flex items-center justify-center bg-[#030811]">
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-center gap-4 text-[#f97316]">
             <Loader2 className="w-10 h-10 animate-spin" />
-            <p className="font-mono font-bold uppercase tracking-[0.2em] text-[10px] animate-pulse">Establishing Secure Uplink...</p>
+            <p className="font-mono font-bold uppercase tracking-[0.2em] text-[10px] animate-pulse">Opening the exercise</p>
           </motion.div>
         </div>
       </StudioLayout>
@@ -195,7 +195,7 @@ export default function SimulationRun({ id }: { id?: string }) {
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
             <div className={cn("w-2 h-2 rounded-full animate-pulse", t.accentBg)} />
-            <span className={cn("text-[10px] font-bold uppercase tracking-[0.2em]", t.accentText)}>Live Feed</span>
+            <span className={cn("text-[10px] font-bold uppercase tracking-[0.2em]", t.accentText)}>What is happening</span>
           </div>
           <div className="h-4 w-px bg-white/20 mx-2" />
           <span className="font-mono text-xs text-white/50">{run.simulationId.toString().padStart(6, '0')}</span>
@@ -203,7 +203,7 @@ export default function SimulationRun({ id }: { id?: string }) {
 
         {run.mode === 'facilitated' && (
           <div className={cn("px-3 py-1 text-[9px] uppercase tracking-[0.2em] font-bold border", t.panelBorder, t.accentText)}>
-            Facilitated Mode
+            Room
           </div>
         )}
       </header>
@@ -272,7 +272,7 @@ export default function SimulationRun({ id }: { id?: string }) {
             {hasRespondedToCurrent && !isOwner && run.mode === 'facilitated' && run.status === 'active' && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className={cn("flex flex-col items-center justify-center p-12 border border-dashed", t.panelBorder)}>
                 <RefreshCw className={cn("w-6 h-6 animate-spin mb-4", t.accentText)} />
-                <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-white/50 text-center">Holding for Host authorization...</p>
+                <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-white/50 text-center">Waiting for the facilitator</p>
               </motion.div>
             )}
 
@@ -284,7 +284,7 @@ export default function SimulationRun({ id }: { id?: string }) {
         {/* Right Panel: Terminal */}
         <div className={cn("w-full lg:w-[420px] shrink-0 flex flex-col z-10 shadow-2xl lg:shadow-none border-t lg:border-t-0", t.terminalBg, t.panelBorder)}>
           <div className={cn("h-14 border-b flex items-center justify-between px-6 shrink-0", t.panelBorder)}>
-            <span className={cn("text-[10px] uppercase tracking-[0.2em]", t.accentText, t.headerStyle)}>Action Terminal</span>
+            <span className={cn("text-[10px] uppercase tracking-[0.2em]", t.accentText, t.headerStyle)}>Your response</span>
             <span className="text-white/30 text-[10px] font-mono uppercase">User: {run.participantGroupId || 'Local'}</span>
           </div>
 
@@ -292,24 +292,24 @@ export default function SimulationRun({ id }: { id?: string }) {
             {isCompleted ? (
               <div className="flex-1 flex flex-col items-center justify-center text-center">
                 <CheckCircle2 className={cn("w-12 h-12 mb-6", t.accentText)} />
-                <h3 className={cn("text-lg mb-2", t.headerStyle)}>Scenario Terminated</h3>
-                <p className="text-white/40 font-mono text-xs mb-8">Debrief report has been generated.</p>
+                <h3 className={cn("text-lg mb-2", t.headerStyle)}>Exercise finished</h3>
+                <p className="text-white/40 font-mono text-xs mb-8">Your debrief is ready.</p>
                 <Button onClick={() => refetch()} className={cn("uppercase tracking-widest text-xs rounded-none h-12 w-full", t.btn)}>
-                  View Report
+                  See the debrief
                 </Button>
               </div>
             ) : !currentDev ? (
                <div className="flex-1 flex flex-col items-center justify-center text-center">
                 <Loader2 className={cn("w-8 h-8 animate-spin mb-4", t.accentText)} />
-                <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-white/50">Awaiting inject data...</p>
+                <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-white/50">Waiting for the first development</p>
               </div>
             ) : hasRespondedToCurrent || (isOwner && run.mode === 'facilitated') ? (
               <div className="flex-1 flex flex-col gap-6">
                 {run.mode === 'facilitated' && isOwner && run.joinCode && (
                   <div className={cn("border p-5", t.panelBorder, t.devBox)}>
-                    <div className={cn("text-[10px] uppercase tracking-widest mb-2 font-bold", t.accentText)}>Session Key</div>
+                    <div className={cn("text-[10px] uppercase tracking-widest mb-2 font-bold", t.accentText)}>Room code</div>
                     <p className="font-mono text-3xl tracking-[0.25em] text-white">{run.joinCode}</p>
-                    <p className="text-white/40 text-[10px] uppercase tracking-wider mt-3 font-mono">Distribute for entry.</p>
+                    <p className="text-white/40 text-[10px] uppercase tracking-wider mt-3 font-mono">Read this out. Anyone signed in can join with it.</p>
                   </div>
                 )}
 
@@ -317,12 +317,12 @@ export default function SimulationRun({ id }: { id?: string }) {
                   {hasRespondedToCurrent ? (
                     <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="mb-8">
                       <CheckCircle2 className="w-12 h-12 text-white/20 mx-auto mb-4" />
-                      <p className={cn("text-sm", t.headerStyle)}>Action Logged</p>
+                      <p className={cn("text-sm", t.headerStyle)}>Your response is in</p>
                     </motion.div>
                   ) : (
                     <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="mb-8">
                       <Users className={cn("w-12 h-12 mx-auto mb-4", t.accentText)} />
-                      <p className={cn("text-sm", t.headerStyle)}>Host Controls Active</p>
+                      <p className={cn("text-sm", t.headerStyle)}>You are running this room</p>
                     </motion.div>
                   )}
 
@@ -340,7 +340,7 @@ export default function SimulationRun({ id }: { id?: string }) {
                         className={cn("w-full uppercase tracking-[0.2em] text-[10px] h-14 rounded-none font-bold", t.btn)}
                       >
                         {advanceRun.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Zap className="w-4 h-4 mr-2" />}
-                        Compute Next State
+                        What happens next
                       </Button>
                       <Button
                         onClick={handleComplete}
@@ -349,7 +349,7 @@ export default function SimulationRun({ id }: { id?: string }) {
                         className={cn("w-full uppercase tracking-[0.2em] text-[10px] h-14 rounded-none border-white/20 text-white hover:bg-white/5", !anyoneAnswered && "opacity-50")}
                       >
                         {completeRun.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
-                        Terminate & Debrief
+                        End and debrief
                       </Button>
                     </div>
                   )}
@@ -358,7 +358,7 @@ export default function SimulationRun({ id }: { id?: string }) {
             ) : (
               <div className="flex-1 flex flex-col">
                 <div className={cn("p-5 border mb-6", t.panelBorder, "bg-white/[0.02]")}>
-                  <h4 className={cn("text-[10px] uppercase tracking-[0.2em] mb-3 font-bold", t.accentText)}>Required Action</h4>
+                  <h4 className={cn("text-[10px] uppercase tracking-[0.2em] mb-3 font-bold", t.accentText)}>What you need to do</h4>
                   <p className="text-white/90 text-sm font-mono leading-relaxed">{currentDev.responsePrompt}</p>
                 </div>
 
@@ -366,7 +366,7 @@ export default function SimulationRun({ id }: { id?: string }) {
                   <Textarea
                     value={responseBody}
                     onChange={(e) => setResponseBody(e.target.value)}
-                    placeholder="ENTER RESPONSE PROTOCOL..."
+                    placeholder="Write what you would actually send, and to whom."
                     className={cn(
                       "flex-1 resize-none bg-black/40 text-white font-mono text-sm leading-relaxed p-5 rounded-none border-b-0 placeholder:text-white/20 focus-visible:ring-1",
                       t.panelBorder, "focus-visible:ring-current", t.accentText
@@ -380,7 +380,7 @@ export default function SimulationRun({ id }: { id?: string }) {
                     {submitResponse.isPending ? (
                       <Loader2 className="w-4 h-4 animate-spin" />
                     ) : (
-                      <><Send className="w-4 h-4 mr-2" /> Transmit</>
+                      <><Send className="w-4 h-4 mr-2" /> Send</>
                     )}
                   </Button>
                 </div>
@@ -409,7 +409,7 @@ function DebriefView({ run, onExit }: { run: any, onExit: () => void }) {
           <div className="bg-[#f97316] p-8 md:p-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
             <div>
               <div className="flex items-center gap-2 text-black/50 text-[10px] font-mono uppercase tracking-[0.2em] mb-2 font-bold">
-                <Target className="w-3 h-3" /> Operation Debrief
+                <Target className="w-3 h-3" /> Debrief
               </div>
               <h2 className="font-display text-3xl md:text-4xl font-black text-[#030811] uppercase tracking-tight">
                 {debrief.headline || 'After-Action Report'}
@@ -478,7 +478,7 @@ function DebriefView({ run, onExit }: { run: any, onExit: () => void }) {
 
             <div className="pt-8 border-t border-white/10">
               <Button onClick={onExit} className="w-full h-14 bg-white text-[#030811] hover:bg-white/90 font-bold uppercase tracking-[0.2em] text-[10px] rounded-none transition-all active:scale-[0.99]">
-                Sign Off & Return to Console
+                Back to the Studio
               </Button>
             </div>
           </div>

@@ -26,7 +26,7 @@ export function StudioAccessGate({ children }: { children: ReactNode }) {
             className="flex flex-col items-center gap-4 text-[#f97316]"
           >
             <Loader2 className="h-10 w-10 animate-spin" />
-            <span className="font-display font-bold uppercase tracking-[0.2em] text-[10px]">Verifying Clearance...</span>
+            <span className="font-display font-bold uppercase tracking-[0.2em] text-[10px]">Checking your access</span>
           </motion.div>
         </div>
       </StudioLayout>
@@ -69,9 +69,9 @@ export function StudioAccessGate({ children }: { children: ReactNode }) {
               <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-none border border-[#f97316]/30 bg-[#f97316]/5 text-[#f97316]">
                 <LockKeyhole className="h-6 w-6" />
               </div>
-              <h1 className="font-display text-2xl font-bold uppercase tracking-[0.1em] text-white mb-2">Restricted Access</h1>
+              <h1 className="font-display text-2xl font-bold uppercase tracking-[0.1em] text-white mb-2">The Studio is invitation only</h1>
               <p className="text-[11px] font-mono text-white/50 uppercase tracking-widest">
-                Enter your clearance code to proceed
+                Enter your access code to come in.
               </p>
             </div>
 
@@ -80,7 +80,7 @@ export function StudioAccessGate({ children }: { children: ReactNode }) {
                 <Input
                   value={code}
                   onChange={(event) => setCode(event.target.value.toUpperCase())}
-                  placeholder="XXXX-XXXX"
+                  placeholder="Your access code"
                   autoComplete="one-time-code"
                   className="h-14 border-white/20 bg-[#07111e]/50 text-center font-mono tracking-[0.3em] text-xl text-white placeholder:text-white/20 focus-visible:ring-1 focus-visible:ring-[#f97316] rounded-none"
                   minLength={6}
@@ -94,7 +94,7 @@ export function StudioAccessGate({ children }: { children: ReactNode }) {
                 )}
                 {access.isError && !message && (
                   <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center text-[10px] font-mono text-red-400 mt-2 uppercase tracking-wider">
-                    System offline. Cannot verify clearance.
+                    We could not check your access just now. Try again in a moment.
                   </motion.p>
                 )}
               </div>

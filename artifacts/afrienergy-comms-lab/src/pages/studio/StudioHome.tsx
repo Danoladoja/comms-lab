@@ -42,6 +42,17 @@ const FADE_UP = {
   transition: { duration: 0.3, ease: "easeOut" as const }
 };
 
+/**
+ * What the server actually said went wrong.
+ *
+ * These calls fail for reasons a person can do something about: the AI is
+ * busy, the daily allowance is spent, the room code was mistyped. "Generation
+ * failed" told them none of it, so they pressed the button again.
+ */
+function reason(err: any, fallback: string): string {
+  return err?.error || err?.data?.error || err?.message || fallback;
+}
+
 export default function StudioHome() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
@@ -75,11 +86,11 @@ export default function StudioHome() {
   function onSubmitGenerate(data: z.infer<typeof generateSchema>) {
     generateSim.mutate({ data }, {
       onSuccess: (res) => {
-        toast({ title: "Scenario Generated", description: "Your simulation environment is ready." });
+        toast({ title: "Your exercise is ready", description: "Read the brief, then begin when you are." });
         setLocation(`/studio/scenarios/${res.id}`);
       },
-      onError: () => {
-        toast({ title: "Generation failed", description: "Failed to generate scenario. Please try again.", variant: "destructive" });
+      onError: (err: any) => {
+        toast({ title: "Could not write the exercise", description: reason(err, "Something went wrong. Try again."), variant: "destructive" });
       }
     });
   }
@@ -87,11 +98,11 @@ export default function StudioHome() {
   function onSubmitJoin(data: z.infer<typeof joinSchema>) {
     joinSim.mutate({ data }, {
       onSuccess: (res) => {
-        toast({ title: "Room Joined", description: "Entering simulation..." });
+        toast({ title: "You are in", description: "Taking you to the room." });
         setLocation(`/studio/run/${res.id}`);
       },
-      onError: () => {
-        toast({ title: "Join failed", description: "Failed to join room. Please check the access code.", variant: "destructive" });
+      onError: (err: any) => {
+        toast({ title: "Could not join", description: reason(err, "Check the room code and try again."), variant: "destructive" });
       }
     });
   }
@@ -102,8 +113,8 @@ export default function StudioHome() {
         setCreatedAccessCode(code);
         setCopied(false);
       },
-      onError: () => {
-        toast({ title: "Code creation failed", description: "A learner access code could not be created.", variant: "destructive" });
+      onError: (err: any) => {
+        toast({ title: "Could not make a code", description: reason(err, "Try again in a moment."), variant: "destructive" });
       },
     });
   }
@@ -117,17 +128,17 @@ export default function StudioHome() {
     <StudioLayout>
       <div className="flex-1 flex flex-col lg:flex-row h-full overflow-hidden z-10">
 
-        {/* Left Column: Command Console */}
+        {/* Left: writing a new exercise, and joining a room. */}
         <div className="lg:w-7/12 flex flex-col border-r border-white/5 bg-[#030811] relative h-full overflow-y-auto">
           <div className="p-8 md:p-12 max-w-2xl w-full mx-auto">
 
             <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mb-10">
               <div className="flex items-center gap-2 mb-3">
                 <div className="w-2 h-2 bg-[#f97316] rounded-full animate-pulse" />
-                <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-[#f97316]">System Online</span>
+                <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-[#f97316]">Ready</span>
               </div>
-              <h1 className="font-display text-4xl font-bold tracking-tight text-white mb-3">Command Console</h1>
-              <p className="text-white/50 text-sm leading-relaxed">Initialize a new autonomous scenario or patch into a live facilitated operation.</p>
+              <h1 className="font-display text-4xl font-bold tracking-tight text-white mb-3">Simulation Studio</h1>
+              <p className="text-white/50 text-sm leading-relaxed">Write a new exercise to work through on your own, or join a room somebody else is running.</p>
             </motion.div>
 
             {studioAccess?.isAdmin && (
@@ -138,7 +149,7 @@ export default function StudioHome() {
                     <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2 mb-1">
                       <KeyRound className="w-4 h-4 text-[#f97316]" /> Learner Access
                     </h3>
-                    <p className="text-xs text-white/50">Generate a one-time clearance code for a remote learner.</p>
+                    <p className="text-xs text-white/50">Create a one-time code so a learner can use the Studio.</p>
                   </div>
 
                   {createdAccessCode ? (
@@ -156,7 +167,7 @@ export default function StudioHome() {
                   ) : (
                     <Button onClick={handleCreateAccessCode} disabled={createAccessCode.isPending} className="bg-[#f97316] text-[#030811] hover:bg-[#ea6d0a] rounded-none uppercase tracking-wider text-xs h-10 px-6">
                       {createAccessCode.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}
-                      Generate Code
+                      Make a code
                     </Button>
                   )}
                 </div>
@@ -168,13 +179,13 @@ export default function StudioHome() {
                 onClick={() => setActiveTab('new')}
                 className={cn("px-6 py-2.5 text-[11px] font-bold uppercase tracking-widest transition-all rounded-none", activeTab === 'new' ? 'bg-[#f97316] text-[#030811]' : 'text-white/50 hover:text-white')}
               >
-                Initialize
+                New exercise
               </button>
               <button
                 onClick={() => setActiveTab('join')}
                 className={cn("px-6 py-2.5 text-[11px] font-bold uppercase tracking-widest transition-all rounded-none", activeTab === 'join' ? 'bg-[#f97316] text-[#030811]' : 'text-white/50 hover:text-white')}
               >
-                Patch In
+                Join a room
               </button>
             </div>
 
@@ -193,7 +204,7 @@ export default function StudioHome() {
                           name="sectorTopic"
                           render={({ field }) => (
                             <FormItem>
-                              <FormLabel className="text-[10px] uppercase text-white/50 font-bold tracking-[0.15em]">Vector / Subject</FormLabel>
+                              <FormLabel className="text-[10px] uppercase text-white/50 font-bold tracking-[0.15em]">What is it about</FormLabel>
                               <FormControl>
                                 <Input placeholder="e.g. Subsea pipeline breach off the coast of Lagos" className="bg-[#030811] border-white/10 text-white placeholder:text-white/20 focus-visible:ring-1 focus-visible:ring-[#f97316] focus-visible:border-[#f97316] rounded-none h-12" {...field} />
                               </FormControl>
@@ -207,7 +218,7 @@ export default function StudioHome() {
                           name="objective"
                           render={({ field }) => (
                             <FormItem>
-                              <FormLabel className="text-[10px] uppercase text-white/50 font-bold tracking-[0.15em]">Mission Objective</FormLabel>
+                              <FormLabel className="text-[10px] uppercase text-white/50 font-bold tracking-[0.15em]">What should they get better at</FormLabel>
                               <FormControl>
                                 <Textarea placeholder="e.g. Practice stakeholder communication and media holding statements under high pressure." className="bg-[#030811] border-white/10 text-white placeholder:text-white/20 focus-visible:ring-1 focus-visible:ring-[#f97316] focus-visible:border-[#f97316] rounded-none min-h-[100px] resize-none" {...field} />
                               </FormControl>
@@ -222,7 +233,7 @@ export default function StudioHome() {
                             name="participantPerspective"
                             render={({ field }) => (
                               <FormItem>
-                                <FormLabel className="text-[10px] uppercase text-white/50 font-bold tracking-[0.15em]">Assigned Role</FormLabel>
+                                <FormLabel className="text-[10px] uppercase text-white/50 font-bold tracking-[0.15em]">Whose job are they doing</FormLabel>
                                 <FormControl>
                                   <Input placeholder="e.g. Comms Director" className="bg-[#030811] border-white/10 text-white placeholder:text-white/20 focus-visible:ring-1 focus-visible:ring-[#f97316] focus-visible:border-[#f97316] rounded-none h-12" {...field} />
                                 </FormControl>
@@ -236,16 +247,16 @@ export default function StudioHome() {
                             name="mode"
                             render={({ field }) => (
                               <FormItem>
-                                <FormLabel className="text-[10px] uppercase text-white/50 font-bold tracking-[0.15em]">Protocol Mode</FormLabel>
+                                <FormLabel className="text-[10px] uppercase text-white/50 font-bold tracking-[0.15em]">How it runs</FormLabel>
                                 <Select onValueChange={field.onChange} defaultValue={field.value}>
                                   <FormControl>
                                     <SelectTrigger className="bg-[#030811] border-white/10 text-white focus:ring-1 focus:ring-[#f97316] rounded-none h-12">
-                                      <SelectValue placeholder="Select mode" />
+                                      <SelectValue placeholder="Choose one" />
                                     </SelectTrigger>
                                   </FormControl>
                                   <SelectContent className="bg-[#07111e] border-white/10 text-white rounded-none">
-                                    <SelectItem value="autonomous">Autonomous (AI-Driven)</SelectItem>
-                                    <SelectItem value="facilitated">Facilitated (Live Host)</SelectItem>
+                                    <SelectItem value="autonomous">On their own</SelectItem>
+                                    <SelectItem value="facilitated">With a room</SelectItem>
                                   </SelectContent>
                                 </Select>
                                 <FormMessage className="text-xs text-red-400 font-mono" />
@@ -260,17 +271,17 @@ export default function StudioHome() {
                             name="difficulty"
                             render={({ field }) => (
                               <FormItem>
-                                <FormLabel className="text-[10px] uppercase text-white/50 font-bold tracking-[0.15em]">Threat Level</FormLabel>
+                                <FormLabel className="text-[10px] uppercase text-white/50 font-bold tracking-[0.15em]">Level</FormLabel>
                                 <Select onValueChange={field.onChange} defaultValue={field.value}>
                                   <FormControl>
                                     <SelectTrigger className="bg-[#030811] border-white/10 text-white focus:ring-1 focus:ring-[#f97316] rounded-none h-12">
-                                      <SelectValue placeholder="Select difficulty" />
+                                      <SelectValue placeholder="Choose one" />
                                     </SelectTrigger>
                                   </FormControl>
                                   <SelectContent className="bg-[#07111e] border-white/10 text-white rounded-none">
-                                    <SelectItem value="foundation">Foundation (Level 1)</SelectItem>
-                                    <SelectItem value="intermediate">Intermediate (Level 2)</SelectItem>
-                                    <SelectItem value="advanced">Advanced (Level 3)</SelectItem>
+                                    <SelectItem value="foundation">Foundation</SelectItem>
+                                    <SelectItem value="intermediate">Intermediate</SelectItem>
+                                    <SelectItem value="advanced">Advanced</SelectItem>
                                   </SelectContent>
                                 </Select>
                                 <FormMessage className="text-xs text-red-400 font-mono" />
@@ -283,7 +294,7 @@ export default function StudioHome() {
                             name="durationMinutes"
                             render={({ field }) => (
                               <FormItem>
-                                <FormLabel className="text-[10px] uppercase text-white/50 font-bold tracking-[0.15em]">Duration (Mins)</FormLabel>
+                                <FormLabel className="text-[10px] uppercase text-white/50 font-bold tracking-[0.15em]">How long, in minutes</FormLabel>
                                 <FormControl>
                                   <Input type="number" min={5} max={240} className="bg-[#030811] border-white/10 text-white focus-visible:ring-1 focus-visible:ring-[#f97316] focus-visible:border-[#f97316] rounded-none h-12" {...field} />
                                 </FormControl>
@@ -318,7 +329,7 @@ export default function StudioHome() {
                     <div className="absolute bottom-0 left-0 w-2 h-2 border-b border-l border-[#f97316]" />
                     <div className="absolute bottom-0 right-0 w-2 h-2 border-b border-r border-[#f97316]" />
 
-                    <h2 className="text-[#f97316] font-mono text-sm uppercase tracking-widest mb-6 text-center">Establish Connection</h2>
+                    <h2 className="text-[#f97316] font-mono text-sm uppercase tracking-widest mb-6 text-center">Join a room</h2>
 
                     <Form {...joinForm}>
                       <form onSubmit={joinForm.handleSubmit(onSubmitJoin)} className="space-y-6">
@@ -331,7 +342,7 @@ export default function StudioHome() {
                                 <div className="relative">
                                   <Hash className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-white/30" />
                                   <Input
-                                    placeholder="ENTER CODE" maxLength={12} autoCapitalize="characters" autoCorrect="off" spellCheck={false}
+                                    placeholder="KD7X9M" maxLength={12} autoCapitalize="characters" autoCorrect="off" spellCheck={false}
                                     className="bg-black/50 border-[#f97316]/30 text-[#f97316] placeholder:text-[#f97316]/20 h-16 pl-12 text-2xl tracking-[0.3em] font-mono focus-visible:ring-1 focus-visible:ring-[#f97316] rounded-none text-center"
                                     {...field}
                                   />
@@ -379,8 +390,8 @@ export default function StudioHome() {
             ) : !simulations || simulations.length === 0 ? (
               <div className="h-full flex flex-col items-center justify-center text-white/30 text-center px-8">
                 <Activity className="w-12 h-12 mb-4 opacity-20" />
-                <p className="text-sm font-mono uppercase tracking-widest mb-1">No Records Found</p>
-                <p className="text-xs">Database is currently empty.</p>
+                <p className="text-sm font-mono uppercase tracking-widest mb-1">Nothing here yet</p>
+                <p className="text-xs">Write your first exercise on the left.</p>
               </div>
             ) : (
               <div className="space-y-4">
@@ -397,7 +408,7 @@ export default function StudioHome() {
 
                         <div className="flex justify-between items-start mb-3">
                           <h3 className="font-bold text-white/90 text-base line-clamp-1 group-hover:text-[#f97316] transition-colors font-display tracking-wide">
-                            {sim.title || sim.sectorTopic || 'Untitled Operation'}
+                            {sim.title || sim.sectorTopic || 'Untitled exercise'}
                           </h3>
                           <span className={cn(
                             "shrink-0 text-[9px] font-bold uppercase tracking-[0.2em] px-2 py-1 border rounded-none ml-3",

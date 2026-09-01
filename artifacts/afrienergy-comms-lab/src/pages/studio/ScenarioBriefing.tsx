@@ -20,7 +20,7 @@ export default function ScenarioBriefing({ id }: { id?: string }) {
 
   useEffect(() => {
     if (error) {
-      toast({ title: "Decryption Failed", description: "Could not retrieve dossier contents.", variant: "destructive" });
+      toast({ title: "Could not open the brief", description: "Try again, or go back to the Studio.", variant: "destructive" });
       setLocation('/studio');
     }
   }, [error, setLocation, toast]);
@@ -28,11 +28,11 @@ export default function ScenarioBriefing({ id }: { id?: string }) {
   const handleLaunch = () => {
     createRun.mutate({ data: { simulationId: numericId } }, {
       onSuccess: (res) => {
-        toast({ title: "Operation Sanctioned", description: "Connecting to secure grid..." });
+        toast({ title: "Starting", description: "Taking you in." });
         setLocation(`/studio/run/${res.id}`);
       },
       onError: () => {
-        toast({ title: "Launch aborted", description: "Failed to initialize operational environment.", variant: "destructive" });
+        toast({ title: "Could not start", description: "Try again in a moment.", variant: "destructive" });
       }
     });
   };
@@ -42,10 +42,10 @@ export default function ScenarioBriefing({ id }: { id?: string }) {
       <StudioLayout backTo="/studio">
         <div className="flex-1 flex flex-col items-center justify-center p-6 text-center">
           <ShieldAlert className="w-12 h-12 text-red-500 mb-4" />
-          <h2 className="font-display text-xl font-bold text-white mb-2 uppercase tracking-widest">Invalid Sector Reference</h2>
-          <p className="text-white/50 text-xs font-mono uppercase tracking-widest mb-6">The provided coordinates are corrupted.</p>
+          <h2 className="font-display text-xl font-bold text-white mb-2 uppercase tracking-widest">We cannot find that exercise</h2>
+          <p className="text-white/50 text-xs font-mono uppercase tracking-widest mb-6">The link may be wrong, or the exercise may have been removed.</p>
           <Button onClick={() => setLocation('/studio')} variant="outline" className="border-white/20 text-white hover:bg-white/10 rounded-none uppercase tracking-widest text-xs">
-            Abort Sequence
+            Back to the Studio
           </Button>
         </div>
       </StudioLayout>
@@ -62,7 +62,7 @@ export default function ScenarioBriefing({ id }: { id?: string }) {
             className="flex flex-col items-center gap-4 text-[#f97316]"
           >
             <Loader2 className="w-10 h-10 animate-spin" />
-            <p className="font-mono font-bold uppercase tracking-[0.3em] text-[10px] animate-pulse">Decrypting Dossier...</p>
+            <p className="font-mono font-bold uppercase tracking-[0.3em] text-[10px] animate-pulse">Opening the brief</p>
           </motion.div>
         </div>
       </StudioLayout>
@@ -73,7 +73,7 @@ export default function ScenarioBriefing({ id }: { id?: string }) {
     <StudioLayout backTo="/studio">
       <div className="container max-w-4xl mx-auto py-12 px-6 z-10 relative">
 
-        {/* Dossier styling wrapper */}
+        {/* The brief, laid out like something handed to you. */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -87,7 +87,7 @@ export default function ScenarioBriefing({ id }: { id?: string }) {
 
           <div className="flex items-center gap-3 text-white/40 text-[10px] font-mono uppercase tracking-[0.2em] mb-10 pb-4 border-b border-white/5">
             <ShieldAlert className="w-4 h-4 text-[#f97316]" />
-            <span>Operation Dossier #{sim.id.toString().padStart(4, '0')}</span>
+            <span>Exercise {sim.id}</span>
             <span className="ml-auto text-white/20">{new Date().toISOString().split('T')[0]}</span>
           </div>
 
@@ -113,7 +113,7 @@ export default function ScenarioBriefing({ id }: { id?: string }) {
               <Clock className="w-3.5 h-3.5" /> Window: {sim.durationMinutes}m
             </div>
             <div className="flex items-center gap-1.5 bg-white/5 border border-white/10 text-white/80 px-3 py-1.5 uppercase tracking-[0.15em] text-[10px] font-bold">
-              <Users className="w-3.5 h-3.5" /> Protocol: {sim.mode}
+              <Users className="w-3.5 h-3.5" /> {sim.mode === 'facilitated' ? 'With a room' : 'On your own'}
             </div>
             <div className="flex items-center gap-1.5 bg-white/5 border border-white/10 text-white/80 px-3 py-1.5 uppercase tracking-[0.15em] text-[10px] font-bold">
               <FileText className="w-3.5 h-3.5" /> Assign: {sim.participantPerspective}
@@ -128,7 +128,7 @@ export default function ScenarioBriefing({ id }: { id?: string }) {
                 transition={{ delay: 0.4 }}
               >
                 <h2 className="text-[#f97316] font-mono uppercase tracking-[0.2em] text-[10px] mb-4 flex items-center gap-2">
-                  <span className="w-1.5 h-1.5 bg-[#f97316] rounded-full" /> Mission Objective
+                  <span className="w-1.5 h-1.5 bg-[#f97316] rounded-full" /> What you are practising
                 </h2>
                 <p className="text-white/90 text-sm md:text-base leading-relaxed font-sans">{sim.objective}</p>
               </motion.section>
@@ -156,7 +156,7 @@ export default function ScenarioBriefing({ id }: { id?: string }) {
             >
               <div>
                 <h3 className="text-white/50 font-mono uppercase tracking-[0.2em] text-[10px] mb-4 border-b border-white/10 pb-2">
-                  Key Subjects
+                  Who is involved
                 </h3>
                 <div className="space-y-3">
                   {sim.stakeholderGroups?.map((group: any) => (
@@ -178,7 +178,7 @@ export default function ScenarioBriefing({ id }: { id?: string }) {
                   {createRun.isPending ? (
                     <><Loader2 className="w-5 h-5 mr-3 animate-spin" /> Authorizing...</>
                   ) : (
-                    <><Zap className="w-5 h-5 mr-3" /> Initiate Run</>
+                    <><Zap className="w-5 h-5 mr-3" /> Begin</>
                   )}
                 </Button>
 

@@ -32,7 +32,7 @@ export function StudioLayout({ children, backTo }: { children: ReactNode; backTo
 
         <nav className="flex items-center gap-6">
           <Link href="/dashboard" className="flex items-center gap-2 text-[10px] text-white/50 hover:text-white transition-colors outline-none focus-visible:text-white font-bold uppercase tracking-[0.15em]">
-            <span>Exit Studio</span>
+            <span>Leave the Studio</span>
             <LogOut className="w-3 h-3" />
           </Link>
         </nav>
