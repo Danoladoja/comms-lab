@@ -41,6 +41,7 @@ import {
   sessionMinutes,
 } from '@workspace/domain';
 import CourseworkStudio from '@/components/CourseworkStudio';
+import SimulationStaffStudio from '@/components/SimulationStaffStudio';
 import InviteFacilitator from '@/components/InviteFacilitator';
 import InviteLearners from '@/components/InviteLearners';
 import RecordingsAdmin from '@/components/RecordingsAdmin';
@@ -53,7 +54,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { ChevronDown, ChevronUp, Plus, Trash2, CircleAlert, Pencil } from 'lucide-react';
 
-const TABS = ['Programs', 'Enrollments', 'People', 'Recordings'] as const;
+const TABS = ['Programs', 'Simulation Studio', 'Enrollments', 'People', 'Recordings'] as const;
 type Tab = (typeof TABS)[number];
 
 function formatSessionDate(iso: string | null | undefined) {
@@ -1026,6 +1027,73 @@ function PeopleTab({ selfId }: { selfId: number | undefined }) {
   );
 }
 
+/* ---------- Simulation Studio tab ---------- */
+
+function ProgrammeSimulations({ program }: { program: Program }) {
+  const { data: sessions = [], isLoading } = useListProgramSessions(program.id);
+  const [openSessionId, setOpenSessionId] = useState<number | null>(null);
+
+  return (
+    <section className="bg-card border border-border rounded-2xl overflow-hidden">
+      <div className="px-5 py-4 border-b border-border">
+        <h2 className="font-display font-bold">{program.title}</h2>
+      </div>
+      <div className="divide-y divide-border">
+        {isLoading ? (
+          <div className="p-5 text-sm text-muted-foreground">Loading modules…</div>
+        ) : sessions.length === 0 ? (
+          <div className="p-5 text-sm text-muted-foreground">No modules have been added to this programme.</div>
+        ) : sessions.map(session => (
+          <div key={session.id} className="p-5">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="font-semibold">{session.title}</p>
+                <p className="text-xs text-muted-foreground mt-1">{formatSessionDate(session.startsAt)}</p>
+              </div>
+              <Button
+                size="sm"
+                variant={openSessionId === session.id ? 'secondary' : 'outline'}
+                onClick={() => setOpenSessionId(openSessionId === session.id ? null : session.id)}
+              >
+                {openSessionId === session.id ? 'Close Studio' : 'Open Simulation Studio'}
+              </Button>
+            </div>
+            {openSessionId === session.id && (
+              <div className="mt-5 pt-5 border-t border-border">
+                <SimulationStaffStudio sessionId={session.id} />
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function SimulationsTab() {
+  const { data: programs = [], isLoading } = useListPrograms();
+
+  if (isLoading) {
+    return <div className="h-32 bg-muted/40 rounded-2xl animate-pulse" />;
+  }
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-xl font-display font-bold">Simulation Studio</h2>
+        <p className="text-sm text-muted-foreground mt-1">
+          Choose a module to prepare and run its strategic communications simulation.
+        </p>
+      </div>
+      {programs.length === 0 ? (
+        <p className="text-sm text-muted-foreground">Create a programme and its modules before preparing a simulation.</p>
+      ) : programs.map(program => (
+        <ProgrammeSimulations key={program.id} program={program} />
+      ))}
+    </div>
+  );
+}
+
 /* ---------- Console ---------- */
 
 export default function AdminConsole() {
@@ -1065,6 +1133,7 @@ export default function AdminConsole() {
       </div>
 
       {tab === 'Programs' && <ProgramsTab instructors={instructors} />}
+      {tab === 'Simulation Studio' && <SimulationsTab />}
       {tab === 'Enrollments' && <EnrollmentsTab />}
       {tab === 'People' && <PeopleTab selfId={user?.id} />}
       {tab === 'Recordings' && <RecordingsAdmin />}

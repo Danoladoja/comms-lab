@@ -25,7 +25,7 @@ export default function SimulationStaffStudio({ sessionId }: { sessionId: number
   const qc = useQueryClient();
   const { toast } = useToast();
 
-  const { data: studio, isLoading } = useGetSimulationStudio(sessionId, {
+  const { data: studio, isLoading, isError } = useGetSimulationStudio(sessionId, {
     query: {
       queryKey: getGetSimulationStudioQueryKey(sessionId),
       refetchInterval: (query) => {
@@ -38,6 +38,13 @@ export default function SimulationStaffStudio({ sessionId }: { sessionId: number
   const [editing, setEditing] = useState(false);
 
   if (isLoading) return <div className="h-20 bg-muted/40 rounded-lg animate-pulse" />;
+  if (isError) {
+    return (
+      <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+        The Simulation Studio could not load because this environment does not have the latest database schema.
+      </div>
+    );
+  }
 
   const definition = studio?.definition;
   const run = studio?.run;
