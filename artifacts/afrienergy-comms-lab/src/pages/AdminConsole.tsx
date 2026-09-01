@@ -63,7 +63,7 @@ function formatSessionDate(iso: string | null | undefined) {
   });
 }
 
-/* ---------- Sessions manager for one program ---------- */
+/* ---------- Modules manager for one program ---------- */
 
 function SessionRow({ session, instructors, onChanged }: {
   session: Session; instructors: { id: number; name: string; email: string }[]; onChanged: () => void;
@@ -92,14 +92,14 @@ function SessionRow({ session, instructors, onChanged }: {
 
   const update = useUpdateSession({
     mutation: {
-      onSuccess: () => { toast({ title: 'Session saved' }); setEditing(false); onChanged(); },
-      onError: () => toast({ title: 'Could not save session', variant: 'destructive' }),
+      onSuccess: () => { toast({ title: 'Module saved' }); setEditing(false); onChanged(); },
+      onError: () => toast({ title: 'Could not save module', variant: 'destructive' }),
     },
   });
   const remove = useDeleteSession({
     mutation: {
-      onSuccess: () => { toast({ title: 'Session deleted' }); onChanged(); },
-      onError: () => toast({ title: 'Could not delete session', variant: 'destructive' }),
+      onSuccess: () => { toast({ title: 'Module deleted' }); onChanged(); },
+      onError: () => toast({ title: 'Could not delete module', variant: 'destructive' }),
     },
   });
 
@@ -127,7 +127,7 @@ function SessionRow({ session, instructors, onChanged }: {
           </Button>
           <Button
             variant="ghost" size="icon" className="text-muted-foreground hover:text-destructive"
-            onClick={() => { if (confirm('Delete this session?')) remove.mutate({ id: session.id }); }}
+            onClick={() => { if (confirm('Delete this module? Its slides, quiz and assignment go with it.')) remove.mutate({ id: session.id }); }}
           >
             <Trash2 className="w-4 h-4" />
           </Button>
@@ -178,7 +178,7 @@ function SessionRow({ session, instructors, onChanged }: {
           </div>
           <div>
             <label className="mb-1 block text-xs font-medium text-muted-foreground" htmlFor={`desc-${session.id}`}>
-              What this class covers
+              What this module covers
             </label>
             <Textarea
               id={`desc-${session.id}`}
@@ -327,8 +327,8 @@ function ProgramSessions({ programId, instructors }: { programId: number; instru
 
   const create = useCreateSession({
     mutation: {
-      onSuccess: () => { setTitle(''); setStartsAt(''); toast({ title: 'Session added' }); onChanged(); },
-      onError: () => toast({ title: 'Could not add session', variant: 'destructive' }),
+      onSuccess: () => { setTitle(''); setStartsAt(''); toast({ title: 'Module added' }); onChanged(); },
+      onError: () => toast({ title: 'Could not add module', variant: 'destructive' }),
     },
   });
 
@@ -336,9 +336,9 @@ function ProgramSessions({ programId, instructors }: { programId: number; instru
     <div className="space-y-3 mt-4">
       {sessions.map(s => <SessionRow key={s.id} session={s} instructors={instructors} onChanged={onChanged} />)}
       <div className="border border-dashed border-border rounded-lg p-4">
-        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Add a session</p>
+        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Add a module</p>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
-          <Input value={title} onChange={e => setTitle(e.target.value)} placeholder="Session title" className="md:col-span-2 text-sm" />
+          <Input value={title} onChange={e => setTitle(e.target.value)} placeholder="Module title" className="md:col-span-2 text-sm" />
           <Input type="datetime-local" value={startsAt} onChange={e => setStartsAt(e.target.value)} className="text-sm" />
           <div className="flex gap-2">
             <Input type="number" value={duration} onChange={e => setDuration(e.target.value)} placeholder="Minutes" className="text-sm" />
@@ -366,7 +366,7 @@ function ProgramSessions({ programId, instructors }: { programId: number; instru
 /* ---------- Programs tab ---------- */
 
 /**
- * Editing everything about a programme except its sessions.
+ * Editing everything about a programme except its modules.
  *
  * Status and capacity stay as the inline controls on the card: they are changed
  * often and one at a time, and burying them behind an Edit button would make
@@ -524,7 +524,7 @@ function ProgramCard({ program, instructors }: { program: Program; instructors: 
           <Pencil className="w-4 h-4 mr-1.5" />{editing ? 'Done' : 'Edit'}
         </Button>
         <Button variant="outline" size="sm" onClick={() => setOpen(!open)}>
-          Sessions {open ? <ChevronUp className="w-4 h-4 ml-1" /> : <ChevronDown className="w-4 h-4 ml-1" />}
+          Modules {open ? <ChevronUp className="w-4 h-4 ml-1" /> : <ChevronDown className="w-4 h-4 ml-1" />}
         </Button>
       </div>
       {editing && <ProgramEditor program={program} onDone={() => setEditing(false)} />}
@@ -856,12 +856,13 @@ function EnrollmentsTab() {
 /* ---------- People tab ---------- */
 
 function StaffRow({
-  person, canAppoint, onChange, pending,
+  person, canAppoint, onChange, pending, isFounder,
 }: {
   person: { id: number; name: string; email: string; role: string; programmes: { programId: number; programTitle: string; sessions: number }[] };
   canAppoint: boolean;
   onChange: (role: string) => void;
   pending: boolean;
+  isFounder?: boolean;
 }) {
   return (
     <li className="flex flex-wrap items-center gap-3 py-3">
@@ -871,7 +872,7 @@ function StaffRow({
         {person.programmes.length > 0 && (
           <p className="mt-1 text-xs text-muted-foreground/80">
             {person.programmes
-              .map(p => `${p.programTitle} (${p.sessions} class${p.sessions === 1 ? '' : 'es'})`)
+              .map(p => `${p.programTitle} (${p.sessions} module${p.sessions === 1 ? '' : 's'})`)
               .join(' · ')}
           </p>
         )}
@@ -880,7 +881,7 @@ function StaffRow({
         <select
           className="rounded-md border border-border bg-background px-2 py-1.5 text-sm disabled:opacity-50"
           value={person.role}
-          disabled={!canAppoint || pending}
+          disabled={!canAppoint || pending || isFounder}
           onChange={e => onChange(e.target.value)}
         >
           <option value="learner">Learner</option>
@@ -888,7 +889,9 @@ function StaffRow({
           <option value="admin">Admin</option>
           <option value="superadmin">Super admin</option>
         </select>
-        <p className="mt-0.5 text-xs text-muted-foreground">{ROLE_NOTES[person.role as keyof typeof ROLE_NOTES] ?? ''}</p>
+        <p className="mt-0.5 text-xs text-muted-foreground">
+          {isFounder ? 'Set up the Lab. This role cannot be changed.' : (ROLE_NOTES[person.role as keyof typeof ROLE_NOTES] ?? '')}
+        </p>
       </div>
     </li>
   );
@@ -954,6 +957,7 @@ function PeopleTab({ selfId }: { selfId: number | undefined }) {
               key={p.id}
               person={p}
               canAppoint={canAppoint && p.id !== selfId}
+              isFounder={p.id === data.founderId}
               pending={update.isPending}
               onChange={role => setRole(p.id, role)}
             />
@@ -977,6 +981,7 @@ function PeopleTab({ selfId }: { selfId: number | undefined }) {
               key={p.id}
               person={p}
               canAppoint={canAppoint && p.id !== selfId}
+              isFounder={p.id === data.founderId}
               pending={update.isPending}
               onChange={role => setRole(p.id, role)}
             />
@@ -992,6 +997,7 @@ function PeopleTab({ selfId }: { selfId: number | undefined }) {
                   key={p.id}
                   person={p}
                   canAppoint={canAppoint && p.id !== selfId}
+                  isFounder={p.id === data.founderId}
                   pending={update.isPending}
                   onChange={role => setRole(p.id, role)}
                 />
@@ -1029,7 +1035,7 @@ export default function AdminConsole() {
     <div className="container mx-auto px-4 md:px-6 py-12">
       <div className="mb-8">
         <h1 className="text-3xl md:text-4xl font-display font-bold mb-2">Admin Console</h1>
-        <p className="text-muted-foreground">Manage programs, sessions, enrollments, people, and class recordings.</p>
+        <p className="text-muted-foreground">Manage programs, modules, enrollments, people, and class recordings.</p>
       </div>
 
       <div className="flex gap-1 border-b border-border mb-8">

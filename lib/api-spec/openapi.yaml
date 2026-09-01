@@ -2888,6 +2888,9 @@ components:
       type: object
       required: [you, staff]
       properties:
+        # The first staff account. Its role is fixed, so the Lab cannot end up
+        # with its owner locked out.
+        founderId: { type: ["integer", "null"] }
         you:
           type: object
           required: [role]

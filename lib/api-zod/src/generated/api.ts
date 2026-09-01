@@ -1222,6 +1222,7 @@ export const ListUnattachedUsersResponse = zod.array(ListUnattachedUsersResponse
  * @summary Facilitators and administrators
  */
 export const ListStaffResponse = zod.object({
+  "founderId": zod.int().nullish(),
   "you": zod.object({
   "id": zod.int().nullish(),
   "role": zod.string()

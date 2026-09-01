@@ -898,6 +898,8 @@ export type StaffListYou = {
 };
 
 export interface StaffList {
+  /** @nullable */
+  founderId?: number | null;
   you: StaffListYou;
   staff: StaffMember[];
 }

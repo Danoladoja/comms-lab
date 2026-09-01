@@ -99,26 +99,48 @@ describe("checkRoleChange", () => {
 });
 
 describe("effectiveRole", () => {
-  it("a Lab set up before super admins existed still has one", () => {
-    // Otherwise nobody could appoint anybody and the console would be stuck.
-    expect(effectiveRole({ id: 1, role: "admin" }, { superadminExists: false, firstAdminId: 1 })).toBe("superadmin");
+  it("the founder is a super admin whatever their row says", () => {
+    expect(effectiveRole({ id: 1, role: "admin" }, { founderId: 1 })).toBe("superadmin");
   });
 
-  it("the fallback stops the moment a real super admin exists", () => {
-    expect(effectiveRole({ id: 1, role: "admin" }, { superadminExists: true, firstAdminId: 1 })).toBe("admin");
+  it("stays a super admin after appointing somebody else", () => {
+    // The trap this rule exists for: the founder promoted a colleague, the
+    // stand-in fallback stopped applying, and they could no longer undo it.
+    expect(effectiveRole({ id: 1, role: "admin" }, { founderId: 1 })).toBe("superadmin");
   });
 
-  it("never lifts anybody but the first admin", () => {
-    expect(effectiveRole({ id: 7, role: "admin" }, { superadminExists: false, firstAdminId: 1 })).toBe("admin");
-    expect(effectiveRole({ id: 7, role: "learner" }, { superadminExists: false, firstAdminId: 7 })).toBe("learner");
+  it("lifts nobody else", () => {
+    expect(effectiveRole({ id: 7, role: "admin" }, { founderId: 1 })).toBe("admin");
+    expect(effectiveRole({ id: 7, role: "learner" }, { founderId: 1 })).toBe("learner");
   });
 
-  it("leaves a stored super admin alone", () => {
-    expect(effectiveRole({ id: 9, role: "superadmin" }, { superadminExists: true, firstAdminId: 1 })).toBe("superadmin");
+  it("leaves an appointed super admin alone", () => {
+    expect(effectiveRole({ id: 9, role: "superadmin" }, { founderId: 1 })).toBe("superadmin");
   });
 
-  it("copes with a Lab that has no admins at all", () => {
-    expect(effectiveRole({ id: 3, role: "learner" }, { superadminExists: false, firstAdminId: null })).toBe("learner");
+  it("copes with a Lab that has no founder to find", () => {
+    expect(effectiveRole({ id: 3, role: "learner" }, { founderId: null })).toBe("learner");
+  });
+});
+
+describe("protecting the founder", () => {
+  const base = {
+    actorRole: "superadmin", actorId: 9, targetId: 1, targetRole: "admin",
+    nextRole: "learner", superadmins: 2, founderId: 1,
+  };
+
+  it("an appointed super admin cannot demote the founder", () => {
+    const result = checkRoleChange(base);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.problem).toMatch(/set the Lab up/i);
+  });
+
+  it("not even to another staff role", () => {
+    expect(checkRoleChange({ ...base, nextRole: "superadmin" }).ok).toBe(false);
+  });
+
+  it("everybody else can still be changed", () => {
+    expect(checkRoleChange({ ...base, targetId: 5 }).ok).toBe(true);
   });
 });
 

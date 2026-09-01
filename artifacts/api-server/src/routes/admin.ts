@@ -5,7 +5,7 @@ import {
 import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { UpdateUserRoleBody, UpdateEnrollmentBody, InviteFacilitatorBody } from "@workspace/api-zod";
 import { checkRoleChange, validateInvite, describeInvite } from "@workspace/domain";
-import { currentRole, requireRole, getCurrentUser } from "../lib/auth";
+import { currentRole, founderId, requireRole, getCurrentUser } from "../lib/auth";
 import { sendInvitation, revokeInvitation, invitesConfigured } from "../lib/clerkInvites";
 import { sendWaitlistPromotion } from "../lib/enrollmentEmails";
 import { logger } from "../lib/logger";
@@ -55,6 +55,9 @@ router.get("/admin/staff", async (req, res) => {
 
   res.json({
     you: { id: me?.id ?? null, role: mine ?? "learner" },
+    // Marked so the console can show the founder's role as fixed rather than
+    // offering a control that will be refused.
+    founderId: await founderId(),
     staff: rows.map((r) => ({
       ...r,
       role: r.id === me?.id ? (mine ?? r.role) : r.role,
@@ -88,6 +91,7 @@ router.patch("/admin/users/:id/role", async (req, res) => {
   }
   const me = await getCurrentUser(req);
   const myRole = await currentRole(req);
+  const founder = await founderId();
 
   // Counting super admins and then demoting one has to happen under a lock, or
   // two of them demoting each other at the same instant both read "2", both
@@ -115,6 +119,7 @@ router.patch("/admin/users/:id/role", async (req, res) => {
       // for one. Counting that person keeps the "last super admin" guard honest
       // rather than letting the only one demote themselves out of existence.
       superadmins: superadmins > 0 ? superadmins : (myRole === "superadmin" ? 1 : 0),
+      founderId: founder,
     });
     if (!check.ok) return { ok: false as const, status: 403, error: check.problem, row: null };
 

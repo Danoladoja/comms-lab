@@ -156,7 +156,7 @@ export default function Teach() {
       <div className="mb-10">
         <h1 className="text-3xl md:text-4xl font-display font-bold mb-2">Teaching</h1>
         <p className="text-muted-foreground max-w-2xl">
-          Your sessions are listed below. Open the room from here when it is time to teach, and add the recording
+          Your modules are listed below. Open the room from here when it is time to teach, and add the recording
           link afterwards.
         </p>
       </div>
@@ -167,7 +167,7 @@ export default function Teach() {
         <div className="mb-8 rounded-xl border border-amber-300 bg-amber-50 p-4 max-w-4xl">
           <p className="font-semibold text-amber-900 flex items-center gap-2 mb-1">
             <CircleAlert className="w-4 h-4" aria-hidden />
-            {missingRecordings.length} past session{missingRecordings.length === 1 ? '' : 's'} without a recording
+            {missingRecordings.length} past module{missingRecordings.length === 1 ? '' : 's'} without a recording
           </p>
           <p className="text-sm text-amber-900/80">
             Learners who could not attend cannot finish these modules until the recording is up.
@@ -179,7 +179,7 @@ export default function Teach() {
         <div className="h-40 bg-card border border-border rounded-xl animate-pulse" />
       ) : sessions.length === 0 ? (
         <div className="bg-card border border-border rounded-2xl p-10 text-center text-muted-foreground">
-          No sessions assigned to you yet. The team will assign you to sessions once your program is scheduled.
+          No modules assigned to you yet. The team will assign you once your programme is scheduled.
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5 max-w-4xl">

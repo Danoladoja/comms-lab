@@ -93,6 +93,8 @@ export function checkRoleChange(input: {
   nextRole: string;
   /** How many super admins exist right now, counted under a lock. */
   superadmins: number;
+  /** The first account. Its role is fixed; see effectiveRole. */
+  founderId?: number | null;
 }): RoleChangeCheck {
   if (!canAppointStaff(input.actorRole)) {
     return { ok: false, problem: "Only a super admin can change what someone is allowed to do." };
@@ -102,6 +104,12 @@ export function checkRoleChange(input: {
   }
   if (!(ROLE_LABELS as Record<string, string>)[input.nextRole]) {
     return { ok: false, problem: "That is not a role." };
+  }
+  // The founder's role is not anybody's to change, including a super admin they
+  // appointed themselves. It is the one guarantee that the Lab cannot end up
+  // with its owner locked out of it.
+  if (input.founderId != null && input.targetId === input.founderId) {
+    return { ok: false, problem: "This is the account that set the Lab up. Its role cannot be changed." };
   }
   if (input.targetRole === "superadmin" && input.nextRole !== "superadmin" && input.superadmins <= 1) {
     return {
@@ -113,30 +121,24 @@ export function checkRoleChange(input: {
 }
 
 /**
- * The role somebody actually holds, allowing for a Lab set up before super
- * admins existed.
+ * The role somebody actually holds, allowing for who set the Lab up.
  *
- * On such a Lab every admin row says "admin" and there is no super admin at
- * all, which would leave nobody able to appoint anyone. So where none exists,
- * the first admin — the account that set the Lab up — is treated as the super
- * admin. Nothing is written: the moment a real super admin is appointed, this
- * fallback stops applying.
+ * The founder — the first account, the person who built this — is always a
+ * super admin, whatever their row says. That is not a courtesy. Without it the
+ * founder appoints a colleague, the fallback that had been standing in for a
+ * super admin stops applying, and they are locked out of the one thing only a
+ * super admin can do: undoing the appointment. That happened, on the live Lab,
+ * within an hour of the tier existing.
+ *
+ * Nothing is written to the database. The rule is read afresh every time, so it
+ * cannot drift out of step with the row it overrides.
  */
 export function effectiveRole(
   user: { id: number; role: string },
-  context: { superadminExists: boolean; firstAdminId: number | null },
+  context: { founderId: number | null },
 ): string {
   if (user.role === "superadmin") return "superadmin";
-  // Only an admin is ever lifted. Checking the id alone would hand the tier to
-  // whoever happened to be passed in, which a test caught doing exactly that.
-  if (
-    user.role === "admin" &&
-    !context.superadminExists &&
-    context.firstAdminId !== null &&
-    user.id === context.firstAdminId
-  ) {
-    return "superadmin";
-  }
+  if (context.founderId !== null && user.id === context.founderId) return "superadmin";
   return user.role;
 }
 

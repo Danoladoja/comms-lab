@@ -79,7 +79,7 @@ export default function Classroom() {
       },
       onError: () => toast({
         title: 'Cannot join yet',
-        description: 'This session is not open for joining right now.',
+        description: 'This module is not open for joining right now.',
         variant: 'destructive',
       }),
     },
@@ -189,7 +189,7 @@ export default function Classroom() {
                     <>
                       <CalendarClock className="w-12 h-12 text-[#F97316] mb-4" aria-hidden />
                       <h2 className="font-display font-bold text-xl mb-1">
-                        {win.state === 'unscheduled' ? 'Session not scheduled yet' : 'Starts soon'}
+                        {win.state === 'unscheduled' ? 'Not scheduled yet' : 'Starts soon'}
                       </h2>
                       <p className="text-sm text-[#F4F0E8]/80 max-w-md">
                         {win.state === 'unscheduled'

@@ -92,11 +92,11 @@ export default function ProgramDetail() {
       </section>
 
       <div className="container mx-auto px-4 md:px-6 py-12 grid grid-cols-1 lg:grid-cols-3 gap-10">
-        {/* Sessions */}
+        {/* Modules */}
         <div className="lg:col-span-2">
-          <h2 className="text-2xl font-display font-bold mb-6">Live Sessions</h2>
+          <h2 className="text-2xl font-display font-bold mb-6">Modules</h2>
           {sessions.length === 0 ? (
-            <p className="text-muted-foreground">The session schedule will be published soon.</p>
+            <p className="text-muted-foreground">The module schedule will be published soon.</p>
           ) : (
             <ol className="space-y-4">
               {sessions.map((s, i) => (
@@ -105,6 +105,9 @@ export default function ProgramDetail() {
                     {i + 1}
                   </div>
                   <div className="flex-1 min-w-0">
+                    {/* Named as well as numbered: on a cohort programme these
+                        are modules of a course, not a list of appointments. */}
+                    <p className="text-xs uppercase tracking-widest text-muted-foreground">Module {i + 1}</p>
                     <h3 className="font-semibold">{s.title}</h3>
                     {s.description && <p className="text-sm text-muted-foreground line-clamp-2">{s.description}</p>}
                     <p className="text-xs text-muted-foreground mt-1">

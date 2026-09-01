@@ -9,6 +9,8 @@ import type { StaffListYou } from './staffListYou';
 import type { StaffMember } from './staffMember';
 
 export interface StaffList {
+  /** @nullable */
+  founderId?: number | null;
   you: StaffListYou;
   staff: StaffMember[];
 }

@@ -244,10 +244,12 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
 /**
  * The role this person actually holds, super admin included.
  *
- * Kept apart from the stored row because of one case: a Lab set up before super
- * admins existed has admins and no super admin, and nobody able to appoint one.
- * There, the first admin is treated as the super admin until a real one is
- * appointed. The two extra rows this reads are cached for the request.
+ * The founder — the first staff account, the person who set the Lab up — is
+ * always treated as a super admin. Without that, appointing a colleague costs
+ * the founder the ability to undo the appointment, which is how the live Lab
+ * locked its owner out within an hour of the tier existing.
+ *
+ * The two extra rows this reads are cached for the request.
  */
 const roleCache = new WeakMap<Request, string>();
 
@@ -258,19 +260,23 @@ export async function currentRole(req: Request): Promise<string | null> {
   const user = await getCurrentUser(req);
   if (!user) return null;
 
-  const staff = await db
-    .select({ id: usersTable.id, role: usersTable.role })
-    .from(usersTable)
-    .where(inArray(usersTable.role, ["admin", "superadmin"]))
-    .orderBy(asc(usersTable.id));
-
-  const role = effectiveRole(user, {
-    superadminExists: staff.some((s) => s.role === "superadmin"),
-    firstAdminId: staff[0]?.id ?? null,
-  });
-
+  const role = effectiveRole(user, { founderId: await founderId() });
   roleCache.set(req, role);
   return role;
+}
+
+/**
+ * The first staff account, by id. Learners are excluded so that a Lab whose
+ * lowest-numbered row happens to be a learner does not hand them everything.
+ */
+export async function founderId(): Promise<number | null> {
+  const [first] = await db
+    .select({ id: usersTable.id })
+    .from(usersTable)
+    .where(inArray(usersTable.role, ["admin", "superadmin"]))
+    .orderBy(asc(usersTable.id))
+    .limit(1);
+  return first?.id ?? null;
 }
 
 export function requireRole(...roles: string[]) {
