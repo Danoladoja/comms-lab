@@ -15,6 +15,8 @@ import { QuizEditor, AssignmentEditor } from '@/components/AdminCourseworkEditor
 import ReadingListEditor from '@/components/ReadingListEditor';
 import { Sparkles, Loader, CircleAlert, Lightbulb, History, Scissors } from 'lucide-react';
 
+import SimulationStaffStudio from '@/components/SimulationStaffStudio';
+
 /**
  * Everything a facilitator does to prepare one module: the material, and the
  * coursework that comes out of it.
@@ -176,6 +178,13 @@ export default function CourseworkStudio({ sessionId }: { sessionId: number }) {
           Reading list <span className="font-normal normal-case tracking-normal">— ungraded</span>
         </h4>
         <ReadingListEditor sessionId={sessionId} />
+      </section>
+
+      <section className="pt-4 border-t border-border">
+        <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-4">
+          Simulation Studio
+        </h4>
+        <SimulationStaffStudio sessionId={sessionId} />
       </section>
     </div>
   );

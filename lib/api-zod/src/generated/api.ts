@@ -1614,3 +1614,255 @@ export const SubmitPartnershipEnquiryResponse = zod.object({
 })
 
 
+/**
+ * @summary Get the strategic communications simulation for a module
+ */
+export const GetSimulationStudioParams = zod.object({
+  "sessionId": zod.coerce.number().int()
+})
+
+
+
+
+
+
+
+
+
+
+export const GetSimulationStudioResponse = zod.object({
+  "sessionId": zod.int(),
+  "definition": zod.union([zod.object({
+  "title": zod.string().min(1),
+  "context": zod.string(),
+  "learningObjective": zod.string(),
+  "openingBrief": zod.string(),
+  "groups": zod.array(zod.object({
+  "id": zod.string().min(1),
+  "name": zod.string().min(1),
+  "roleName": zod.string(),
+  "confidentialBrief": zod.string()
+})),
+  "injects": zod.array(zod.object({
+  "id": zod.string().min(1),
+  "title": zod.string().min(1),
+  "content": zod.string(),
+  "responsePrompt": zod.string(),
+  "responseMinutes": zod.int().min(1)
+})),
+  "debriefQuestions": zod.array(zod.string()),
+  "published": zod.boolean()
+}).and(zod.object({
+  "sessionId": zod.int()
+})),zod.null()]),
+  "run": zod.union([zod.object({
+  "id": zod.int(),
+  "sessionId": zod.int(),
+  "status": zod.enum(['draft', 'live', 'debrief', 'ended']),
+  "startedAt": zod.coerce.date().nullable(),
+  "debriefAt": zod.coerce.date().nullable(),
+  "endedAt": zod.coerce.date().nullable()
+}),zod.null()]),
+  "releases": zod.array(zod.object({
+  "injectId": zod.string(),
+  "sortOrder": zod.int(),
+  "releasedAt": zod.coerce.date()
+})),
+  "responses": zod.array(zod.object({
+  "injectId": zod.string(),
+  "groupId": zod.string(),
+  "body": zod.string(),
+  "authorId": zod.int(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})),
+  "assignments": zod.array(zod.object({
+  "userId": zod.int(),
+  "groupId": zod.string().min(1)
+}).and(zod.object({
+  "assignedAt": zod.coerce.date()
+}))),
+  "participants": zod.array(zod.object({
+  "userId": zod.int(),
+  "name": zod.string()
+}))
+})
+
+
+/**
+ * @summary Create or replace a module simulation definition
+ */
+export const UpsertSimulationDefinitionParams = zod.object({
+  "sessionId": zod.coerce.number().int()
+})
+
+
+
+
+
+
+
+
+
+export const UpsertSimulationDefinitionBody = zod.object({
+  "title": zod.string().min(1),
+  "context": zod.string(),
+  "learningObjective": zod.string(),
+  "openingBrief": zod.string(),
+  "groups": zod.array(zod.object({
+  "id": zod.string().min(1),
+  "name": zod.string().min(1),
+  "roleName": zod.string(),
+  "confidentialBrief": zod.string()
+})),
+  "injects": zod.array(zod.object({
+  "id": zod.string().min(1),
+  "title": zod.string().min(1),
+  "content": zod.string(),
+  "responsePrompt": zod.string(),
+  "responseMinutes": zod.int().min(1)
+})),
+  "debriefQuestions": zod.array(zod.string()),
+  "published": zod.boolean()
+})
+
+
+
+
+
+
+
+
+
+export const UpsertSimulationDefinitionResponse = zod.object({
+  "title": zod.string().min(1),
+  "context": zod.string(),
+  "learningObjective": zod.string(),
+  "openingBrief": zod.string(),
+  "groups": zod.array(zod.object({
+  "id": zod.string().min(1),
+  "name": zod.string().min(1),
+  "roleName": zod.string(),
+  "confidentialBrief": zod.string()
+})),
+  "injects": zod.array(zod.object({
+  "id": zod.string().min(1),
+  "title": zod.string().min(1),
+  "content": zod.string(),
+  "responsePrompt": zod.string(),
+  "responseMinutes": zod.int().min(1)
+})),
+  "debriefQuestions": zod.array(zod.string()),
+  "published": zod.boolean()
+}).and(zod.object({
+  "sessionId": zod.int()
+}))
+
+
+/**
+ * @summary Start the published simulation for a module
+ */
+export const StartSimulationRunParams = zod.object({
+  "sessionId": zod.coerce.number().int()
+})
+
+export const StartSimulationRunResponse = zod.object({
+  "id": zod.int(),
+  "sessionId": zod.int(),
+  "status": zod.enum(['draft', 'live', 'debrief', 'ended']),
+  "startedAt": zod.coerce.date().nullable(),
+  "debriefAt": zod.coerce.date().nullable(),
+  "endedAt": zod.coerce.date().nullable()
+})
+
+
+/**
+ * @summary Assign enrolled learners to one simulation group
+ */
+export const AssignSimulationGroupsParams = zod.object({
+  "sessionId": zod.coerce.number().int()
+})
+
+
+
+
+export const AssignSimulationGroupsBody = zod.object({
+  "assignments": zod.array(zod.object({
+  "userId": zod.int(),
+  "groupId": zod.string().min(1)
+}))
+})
+
+
+
+
+export const AssignSimulationGroupsResponseItem = zod.object({
+  "userId": zod.int(),
+  "groupId": zod.string().min(1)
+}).and(zod.object({
+  "assignedAt": zod.coerce.date()
+}))
+export const AssignSimulationGroupsResponse = zod.array(AssignSimulationGroupsResponseItem)
+
+
+/**
+ * @summary Release the next configured simulation inject
+ */
+export const ReleaseNextSimulationInjectParams = zod.object({
+  "sessionId": zod.coerce.number().int()
+})
+
+export const ReleaseNextSimulationInjectResponse = zod.object({
+  "injectId": zod.string(),
+  "sortOrder": zod.int(),
+  "releasedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Open the simulation debrief or end the run
+ */
+export const TransitionSimulationRunParams = zod.object({
+  "sessionId": zod.coerce.number().int()
+})
+
+export const TransitionSimulationRunBody = zod.object({
+  "status": zod.enum(['debrief', 'ended'])
+})
+
+export const TransitionSimulationRunResponse = zod.object({
+  "id": zod.int(),
+  "sessionId": zod.int(),
+  "status": zod.enum(['draft', 'live', 'debrief', 'ended']),
+  "startedAt": zod.coerce.date().nullable(),
+  "debriefAt": zod.coerce.date().nullable(),
+  "endedAt": zod.coerce.date().nullable()
+})
+
+
+/**
+ * @summary Create or update this learner group's response to a released inject
+ */
+
+
+
+export const UpsertSimulationResponseParams = zod.object({
+  "sessionId": zod.coerce.number().int(),
+  "injectId": zod.coerce.string().min(1)
+})
+
+export const UpsertSimulationResponseBody = zod.object({
+  "body": zod.string(),
+  "expectedUpdatedAt": zod.coerce.date().nullish()
+})
+
+export const UpsertSimulationResponseResponse = zod.object({
+  "injectId": zod.string(),
+  "groupId": zod.string(),
+  "body": zod.string(),
+  "authorId": zod.int(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+

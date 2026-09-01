@@ -1969,7 +1969,165 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiMessage"
+  /sessions/{sessionId}/simulation:
+    get:
+      operationId: getSimulationStudio
+      tags: [enrollments]
+      summary: Get the strategic communications simulation for a module
+      parameters:
+        - $ref: "#/components/parameters/SessionId"
+      responses:
+        "200":
+          description: Role-appropriate simulation studio
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SimulationStudio" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+    put:
+      operationId: upsertSimulationDefinition
+      tags: [admin]
+      summary: Create or replace a module simulation definition
+      parameters:
+        - $ref: "#/components/parameters/SessionId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SimulationDefinitionInput" }
+      responses:
+        "200":
+          description: Saved definition
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SimulationDefinition" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /sessions/{sessionId}/simulation/run/start:
+    post:
+      operationId: startSimulationRun
+      tags: [admin]
+      summary: Start the published simulation for a module
+      parameters:
+        - $ref: "#/components/parameters/SessionId"
+      responses:
+        "200":
+          description: Live run
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SimulationRun" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /sessions/{sessionId}/simulation/assignments:
+    put:
+      operationId: assignSimulationGroups
+      tags: [admin]
+      summary: Assign enrolled learners to one simulation group
+      parameters:
+        - $ref: "#/components/parameters/SessionId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SimulationGroupAssignmentsInput" }
+      responses:
+        "200":
+          description: Saved assignments
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/SimulationGroupAssignment" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /sessions/{sessionId}/simulation/injects/release:
+    post:
+      operationId: releaseNextSimulationInject
+      tags: [admin]
+      summary: Release the next configured simulation inject
+      parameters:
+        - $ref: "#/components/parameters/SessionId"
+      responses:
+        "200":
+          description: Released inject
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SimulationInjectRelease" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /sessions/{sessionId}/simulation/transition:
+    post:
+      operationId: transitionSimulationRun
+      tags: [admin]
+      summary: Open the simulation debrief or end the run
+      parameters:
+        - $ref: "#/components/parameters/SessionId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SimulationTransitionInput" }
+      responses:
+        "200":
+          description: Updated run
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SimulationRun" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /sessions/{sessionId}/simulation/responses/{injectId}:
+    put:
+      operationId: upsertSimulationResponse
+      tags: [enrollments]
+      summary: Create or update this learner group's response to a released inject
+      parameters:
+        - $ref: "#/components/parameters/SessionId"
+        - name: injectId
+          in: path
+          required: true
+          schema: { type: string, minLength: 1 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SimulationResponseInput" }
+      responses:
+        "200":
+          description: Saved group response
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SimulationResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
 components:
+  parameters:
+    SessionId:
+      name: sessionId
+      in: path
+      required: true
+      schema: { type: integer }
+  responses:
+    Unauthorized:
+      description: Not signed in
+      content: { application/json: { schema: { $ref: "#/components/schemas/ApiMessage" } } }
+    Forbidden:
+      description: Forbidden
+      content: { application/json: { schema: { $ref: "#/components/schemas/ApiMessage" } } }
+    NotFound:
+      description: Not found
+      content: { application/json: { schema: { $ref: "#/components/schemas/ApiMessage" } } }
+    Conflict:
+      description: Current state does not allow this action
+      content: { application/json: { schema: { $ref: "#/components/schemas/ApiMessage" } } }
   schemas:
     BulkInviteEntry:
       type: object
@@ -2938,3 +3096,116 @@ components:
       required: [status]
       properties:
         status: { type: string, enum: [enrolled, waitlisted, cancelled, completed] }
+    SimulationGroup:
+      type: object
+      required: [id, name, roleName, confidentialBrief]
+      properties:
+        id: { type: string, minLength: 1 }
+        name: { type: string, minLength: 1 }
+        roleName: { type: string }
+        confidentialBrief: { type: string }
+    SimulationInject:
+      type: object
+      required: [id, title, content, responsePrompt, responseMinutes]
+      properties:
+        id: { type: string, minLength: 1 }
+        title: { type: string, minLength: 1 }
+        content: { type: string }
+        responsePrompt: { type: string }
+        responseMinutes: { type: integer, minimum: 1 }
+    SimulationDefinitionInput:
+      type: object
+      required: [title, context, learningObjective, openingBrief, groups, injects, debriefQuestions, published]
+      properties:
+        title: { type: string, minLength: 1 }
+        context: { type: string }
+        learningObjective: { type: string }
+        openingBrief: { type: string }
+        groups: { type: array, items: { $ref: "#/components/schemas/SimulationGroup" } }
+        injects: { type: array, items: { $ref: "#/components/schemas/SimulationInject" } }
+        debriefQuestions: { type: array, items: { type: string } }
+        published: { type: boolean }
+    SimulationDefinition:
+      allOf:
+        - $ref: "#/components/schemas/SimulationDefinitionInput"
+        - type: object
+          required: [sessionId]
+          properties: { sessionId: { type: integer } }
+    SimulationRun:
+      type: object
+      required: [id, sessionId, status, startedAt, debriefAt, endedAt]
+      properties:
+        id: { type: integer }
+        sessionId: { type: integer }
+        status: { type: string, enum: [draft, live, debrief, ended] }
+        startedAt: { type: ["string", "null"], format: date-time }
+        debriefAt: { type: ["string", "null"], format: date-time }
+        endedAt: { type: ["string", "null"], format: date-time }
+    SimulationGroupAssignmentInput:
+      type: object
+      required: [userId, groupId]
+      properties:
+        userId: { type: integer }
+        groupId: { type: string, minLength: 1 }
+    SimulationGroupAssignmentsInput:
+      type: object
+      required: [assignments]
+      properties:
+        assignments: { type: array, items: { $ref: "#/components/schemas/SimulationGroupAssignmentInput" } }
+    SimulationGroupAssignment:
+      allOf:
+        - $ref: "#/components/schemas/SimulationGroupAssignmentInput"
+        - type: object
+          required: [assignedAt]
+          properties: { assignedAt: { type: string, format: date-time } }
+    SimulationInjectRelease:
+      type: object
+      required: [injectId, sortOrder, releasedAt]
+      properties:
+        injectId: { type: string }
+        sortOrder: { type: integer }
+        releasedAt: { type: string, format: date-time }
+    SimulationTransitionInput:
+      type: object
+      required: [status]
+      properties:
+        status: { type: string, enum: [debrief, ended] }
+    SimulationResponseInput:
+      type: object
+      required: [body]
+      properties:
+        body: { type: string }
+        expectedUpdatedAt: { type: ["string", "null"], format: date-time }
+    SimulationParticipant:
+      type: object
+      required: [userId, name]
+      properties:
+        userId: { type: integer }
+        name: { type: string }
+    SimulationResponse:
+      type: object
+      required: [injectId, groupId, body, authorId, createdAt, updatedAt]
+      properties:
+        injectId: { type: string }
+        groupId: { type: string }
+        body: { type: string }
+        authorId: { type: integer }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    SimulationStudio:
+      type: object
+      required: [sessionId, definition, run, releases, responses, assignments, participants]
+      properties:
+        sessionId: { type: integer }
+        definition:
+          oneOf:
+            - $ref: "#/components/schemas/SimulationDefinition"
+            - type: "null"
+        run:
+          oneOf:
+            - $ref: "#/components/schemas/SimulationRun"
+            - type: "null"
+        releases: { type: array, items: { $ref: "#/components/schemas/SimulationInjectRelease" } }
+        responses: { type: array, items: { $ref: "#/components/schemas/SimulationResponse" } }
+        assignments: { type: array, items: { $ref: "#/components/schemas/SimulationGroupAssignment" } }
+        participants: { type: array, items: { $ref: "#/components/schemas/SimulationParticipant" } }

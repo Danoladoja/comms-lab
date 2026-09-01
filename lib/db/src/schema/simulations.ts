@@ -1,0 +1,69 @@
+import { pgTable, text, serial, integer, boolean, timestamp, jsonb, uniqueIndex, index } from "drizzle-orm/pg-core";
+import { createInsertSchema } from "drizzle-zod";
+import { z } from "zod/v4";
+import { sessionsTable } from "./sessions";
+import { usersTable } from "./users";
+
+export type SimulationGroup = { id: string; name: string; roleName: string; confidentialBrief: string };
+export type SimulationInject = { id: string; title: string; content: string; responsePrompt: string; responseMinutes: number };
+
+export const simulationDefinitionsTable = pgTable("simulation_definitions", {
+  id: serial("id").primaryKey(),
+  sessionId: integer("session_id").notNull().references(() => sessionsTable.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  context: text("context").notNull().default(""),
+  learningObjective: text("learning_objective").notNull().default(""),
+  openingBrief: text("opening_brief").notNull().default(""),
+  groups: jsonb("groups").$type<SimulationGroup[]>().notNull().default([]),
+  injects: jsonb("injects").$type<SimulationInject[]>().notNull().default([]),
+  debriefQuestions: jsonb("debrief_questions").$type<string[]>().notNull().default([]),
+  published: boolean("published").notNull().default(false),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+}, (t) => [uniqueIndex("simulation_definitions_session_unique").on(t.sessionId)]);
+
+export const simulationRunsTable = pgTable("simulation_runs", {
+  id: serial("id").primaryKey(),
+  sessionId: integer("session_id").notNull().references(() => sessionsTable.id, { onDelete: "cascade" }),
+  definitionId: integer("definition_id").notNull().references(() => simulationDefinitionsTable.id, { onDelete: "restrict" }),
+  status: text("status").notNull().default("draft"),
+  startedAt: timestamp("started_at", { withTimezone: true }),
+  debriefAt: timestamp("debrief_at", { withTimezone: true }),
+  endedAt: timestamp("ended_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+}, (t) => [uniqueIndex("simulation_runs_session_unique").on(t.sessionId)]);
+
+export const simulationInjectReleasesTable = pgTable("simulation_inject_releases", {
+  id: serial("id").primaryKey(),
+  runId: integer("run_id").notNull().references(() => simulationRunsTable.id, { onDelete: "cascade" }),
+  injectId: text("inject_id").notNull(),
+  sortOrder: integer("sort_order").notNull(),
+  releasedAt: timestamp("released_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [uniqueIndex("simulation_inject_releases_run_inject_unique").on(t.runId, t.injectId)]);
+
+export const simulationGroupAssignmentsTable = pgTable("simulation_group_assignments", {
+  id: serial("id").primaryKey(),
+  runId: integer("run_id").notNull().references(() => simulationRunsTable.id, { onDelete: "cascade" }),
+  userId: integer("user_id").notNull().references(() => usersTable.id, { onDelete: "cascade" }),
+  groupId: text("group_id").notNull(),
+  assignedAt: timestamp("assigned_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("simulation_group_assignments_run_user_unique").on(t.runId, t.userId),
+  index("simulation_group_assignments_run_group_idx").on(t.runId, t.groupId),
+]);
+
+export const simulationResponsesTable = pgTable("simulation_responses", {
+  id: serial("id").primaryKey(),
+  runId: integer("run_id").notNull().references(() => simulationRunsTable.id, { onDelete: "cascade" }),
+  groupId: text("group_id").notNull(),
+  injectId: text("inject_id").notNull(),
+  body: text("body").notNull(),
+  authorId: integer("author_id").notNull().references(() => usersTable.id, { onDelete: "restrict" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+}, (t) => [uniqueIndex("simulation_responses_run_group_inject_unique").on(t.runId, t.groupId, t.injectId)]);
+
+export const insertSimulationDefinitionSchema = createInsertSchema(simulationDefinitionsTable).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertSimulationDefinition = z.infer<typeof insertSimulationDefinitionSchema>;
+export type SimulationDefinition = typeof simulationDefinitionsTable.$inferSelect;

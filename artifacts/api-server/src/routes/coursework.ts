@@ -18,7 +18,7 @@ async function loadSession(sessionId: number) {
   return session ?? null;
 }
 
-function isStaffFor(user: User, session: { instructorId: number | null }) {
+export function isStaffFor(user: User, session: { instructorId: number | null }) {
   return user.role === "admin" || (user.role === "instructor" && session.instructorId === user.id);
 }
 
@@ -27,7 +27,7 @@ function isStaffFor(user: User, session: { instructorId: number | null }) {
  * program and the module is unlocked. Staff always may.
  * Returns an error string, or null when access is allowed.
  */
-async function learnerAccessError(user: User, session: { id: number; programId: number; instructorId: number | null }): Promise<string | null> {
+export async function learnerAccessError(user: User, session: { id: number; programId: number; instructorId: number | null }): Promise<string | null> {
   if (isStaffFor(user, session)) return null;
   const [enrollment] = await db
     .select({ id: enrollmentsTable.id })
