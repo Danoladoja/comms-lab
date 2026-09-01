@@ -20,3 +20,6 @@ description: Durable decisions for the Ananse Comms Lab auth/roles/enrollment ba
 - **Simulation Studio:** Studio remains separate from enrolment, modules, and live classes, but admission is restricted: admins enter automatically; learners need an accepted learner invitation or one-time Studio access code.
   **Why:** Studio must stay independently usable without becoming available to every signed-in learner; facilitated-room join codes grant run participation and must never double as product admission.
   **How to apply:** enforce admission on every Studio API route and mirror it in the UI; keep confidential roles server-redacted, room controls owner-only, and Studio outside course/certificate completion. Apply Studio schema from Railway, not this workspace.
+- **Adaptive Studio atmosphere:** vary the presentation by scenario: operational/crisis, media/newsroom, and executive/leadership exercises should feel distinct while retaining one interaction model and Ananse identity.
+  **Why:** the user confirmed that all three immersive directions fit, but in different scenarios; a single fixed visual theme undersells the exercise context.
+  **How to apply:** derive atmosphere from scenario content, use motion and graphical signals to reinforce urgency, and always honor reduced-motion preferences.
