@@ -180,7 +180,7 @@ export default function CourseworkStudio({ sessionId }: { sessionId: number }) {
         <ReadingListEditor sessionId={sessionId} />
       </section>
 
-      <section className="pt-4 border-t border-border">
+      <section id={`simulation-studio-${sessionId}`} className="pt-4 border-t border-border scroll-mt-24">
         <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-4">
           Simulation Studio
         </h4>

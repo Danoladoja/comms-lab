@@ -122,6 +122,20 @@ function SessionCard({ session, onSaved }: { session: SessionDetail; onSaved: ()
           {showCoursework ? 'Hide slides & coursework' : 'Slides & coursework'}
         </Button>
 
+        <Button
+          size="sm"
+          variant="outline"
+          className="w-full"
+          onClick={() => {
+            setShowCoursework(true);
+            requestAnimationFrame(() => requestAnimationFrame(() => {
+              document.getElementById(`simulation-studio-${session.id}`)?.scrollIntoView({ behavior: 'smooth' });
+            }));
+          }}
+        >
+          Simulation Studio
+        </Button>
+
         {showCoursework && <CourseworkStudio sessionId={session.id} />}
       </div>
     </div>

@@ -309,6 +309,18 @@ function SessionRow({ session, instructors, onChanged }: {
         >
           Slides & coursework
         </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => {
+            setCoursework('open');
+            requestAnimationFrame(() => requestAnimationFrame(() => {
+              document.getElementById(`simulation-studio-${session.id}`)?.scrollIntoView({ behavior: 'smooth' });
+            }));
+          }}
+        >
+          Simulation Studio
+        </Button>
       </div>
       {coursework === 'open' && <CourseworkStudio sessionId={session.id} />}
     </div>
