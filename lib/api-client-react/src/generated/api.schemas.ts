@@ -1096,6 +1096,177 @@ export interface SimulationStudio {
   participants: SimulationParticipant[];
 }
 
+export type SimulationLaunchBriefDifficulty = typeof SimulationLaunchBriefDifficulty[keyof typeof SimulationLaunchBriefDifficulty];
+
+
+export const SimulationLaunchBriefDifficulty = {
+  beginner: 'beginner',
+  intermediate: 'intermediate',
+  advanced: 'advanced',
+} as const;
+
+export type SimulationLaunchBriefMode = typeof SimulationLaunchBriefMode[keyof typeof SimulationLaunchBriefMode];
+
+
+export const SimulationLaunchBriefMode = {
+  autonomous: 'autonomous',
+  facilitated: 'facilitated',
+} as const;
+
+export interface SimulationLaunchBrief {
+  /** @minLength 1 */
+  sectorTopic: string;
+  /** @minLength 1 */
+  objective: string;
+  difficulty: SimulationLaunchBriefDifficulty;
+  /**
+     * @minimum 5
+     * @maximum 240
+     */
+  durationMinutes: number;
+  /** @minLength 1 */
+  participantPerspective: string;
+  mode: SimulationLaunchBriefMode;
+}
+
+export interface StudioStakeholderGroup {
+  /** @minLength 1 */
+  id: string;
+  /** @minLength 1 */
+  name: string;
+  /** @minLength 1 */
+  roleName: string;
+  confidentialBrief: string;
+}
+
+export interface StudioDevelopment {
+  /** @minLength 1 */
+  id: string;
+  /** @minLength 1 */
+  title: string;
+  content: string;
+  responsePrompt: string;
+}
+
+export interface SimulationEvaluationDimension {
+  /** @minLength 1 */
+  name: string;
+  /** @minLength 1 */
+  description: string;
+}
+
+export type StudioSimulationDifficulty = typeof StudioSimulationDifficulty[keyof typeof StudioSimulationDifficulty];
+
+
+export const StudioSimulationDifficulty = {
+  beginner: 'beginner',
+  intermediate: 'intermediate',
+  advanced: 'advanced',
+} as const;
+
+export type StudioSimulationMode = typeof StudioSimulationMode[keyof typeof StudioSimulationMode];
+
+
+export const StudioSimulationMode = {
+  autonomous: 'autonomous',
+  facilitated: 'facilitated',
+} as const;
+
+export interface StudioSimulation {
+  id: number;
+  title: string;
+  sectorTopic: string;
+  objective: string;
+  difficulty: StudioSimulationDifficulty;
+  durationMinutes: number;
+  participantPerspective: string;
+  mode: StudioSimulationMode;
+  openingBrief: string;
+  stakeholderGroups: StudioStakeholderGroup[];
+  initialDevelopment: StudioDevelopment;
+  evaluationDimensions: SimulationEvaluationDimension[];
+  debriefQuestions: string[];
+  createdAt: string;
+}
+
+export interface SimulationRunInput {
+  simulationId: number;
+}
+
+export interface SimulationJoinInput {
+  /**
+     * @minLength 32
+     * @maxLength 32
+     * @pattern ^[A-F0-9]{32}$
+     */
+  joinCode: string;
+}
+
+export interface SimulationResponseSubmission {
+  /** @minLength 1 */
+  body: string;
+}
+
+export interface SimulationDebrief {
+  /**
+     * @minimum 0
+     * @maximum 100
+     */
+  score: number;
+  strengths: string[];
+  risks: string[];
+  stakeholderImpact: string;
+  recommendations: string[];
+}
+
+export type StudioSimulationRunMode = typeof StudioSimulationRunMode[keyof typeof StudioSimulationRunMode];
+
+
+export const StudioSimulationRunMode = {
+  autonomous: 'autonomous',
+  facilitated: 'facilitated',
+} as const;
+
+export type StudioSimulationRunStatus = typeof StudioSimulationRunStatus[keyof typeof StudioSimulationRunStatus];
+
+
+export const StudioSimulationRunStatus = {
+  active: 'active',
+  completed: 'completed',
+} as const;
+
+export interface StudioSimulationRun {
+  id: number;
+  simulationId: number;
+  mode: StudioSimulationRunMode;
+  status: StudioSimulationRunStatus;
+  /** @nullable */
+  joinCode: string | null;
+  currentDevelopment: StudioDevelopment | null;
+  developments: StudioDevelopment[];
+  responses: SimulationResponse[];
+  debrief: SimulationDebrief | null;
+  openingBrief: string;
+  stakeholderGroups: StudioStakeholderGroup[];
+  /** @nullable */
+  participantGroupId: string | null;
+}
+
+/**
+ * Invalid request
+ */
+export type BadRequestResponse = ApiMessage;
+
+/**
+ * Upstream service error
+ */
+export type ApiErrorResponse = ApiMessage;
+
+/**
+ * Too many attempts
+ */
+export type TooManyRequestsResponse = ApiMessage;
+
 /**
  * Not signed in
  */

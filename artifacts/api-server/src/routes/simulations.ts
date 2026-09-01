@@ -74,19 +74,21 @@ router.put("/sessions/:sessionId/simulation", async (req, res): Promise<void> =>
   if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
   if (!body.success) { res.status(400).json({ error: body.error.message }); return; }
   const session = await sessionFor(params.data.sessionId); if (!session) { res.status(404).json({ error: "Module not found" }); return; }
-  if (!await staff(req, session)) { res.status(403).json({ error: "Forbidden" }); return; }
+  const staffUser = await staff(req, session);
+  if (!staffUser) { res.status(403).json({ error: "Forbidden" }); return; }
   if (!hasDistinctStableIds(body.data.groups) || !hasDistinctStableIds(body.data.injects)) { res.status(400).json({ error: "Group and inject ids must be unique" }); return; }
   const [run] = await db.select().from(simulationRunsTable).where(eq(simulationRunsTable.sessionId, session.id));
   if (run && run.status !== "draft") { res.status(409).json({ error: "A started simulation definition cannot be changed" }); return; }
   const values = { ...body.data };
-  const [saved] = await db.insert(simulationDefinitionsTable).values({ sessionId: session.id, ...values }).onConflictDoUpdate({ target: simulationDefinitionsTable.sessionId, set: values }).returning();
+  const [saved] = await db.insert(simulationDefinitionsTable).values({ sessionId: session.id, ownerId: staffUser.id, ...values }).onConflictDoUpdate({ target: simulationDefinitionsTable.sessionId, set: values }).returning();
   res.json(UpsertSimulationDefinitionResponse.parse(saved));
 });
 
 router.post("/sessions/:sessionId/simulation/run/start", async (req, res): Promise<void> => {
   const params = StartSimulationRunParams.safeParse(req.params); if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
   const session = await sessionFor(params.data.sessionId); if (!session) { res.status(404).json({ error: "Module not found" }); return; }
-  if (!await staff(req, session)) { res.status(403).json({ error: "Forbidden" }); return; }
+  const staffUser = await staff(req, session);
+  if (!staffUser) { res.status(403).json({ error: "Forbidden" }); return; }
   const result = await db.transaction(async (tx) => {
     // The definition row exists before a run can start, so it also serialises
     // two first-start requests where there is no run row yet to lock.
@@ -109,13 +111,15 @@ router.put("/sessions/:sessionId/simulation/assignments", async (req, res): Prom
   const params = AssignSimulationGroupsParams.safeParse(req.params); const body = AssignSimulationGroupsBody.safeParse(req.body);
   if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
   if (!body.success) { res.status(400).json({ error: body.error.message }); return; }
-  const session = await sessionFor(params.data.sessionId); if (!session) { res.status(404).json({ error: "Module not found" }); return; } if (!await staff(req, session)) { res.status(403).json({ error: "Forbidden" }); return; }
+  const session = await sessionFor(params.data.sessionId); if (!session) { res.status(404).json({ error: "Module not found" }); return; }
+  const staffUser = await staff(req, session);
+  if (!staffUser) { res.status(403).json({ error: "Forbidden" }); return; }
   const saved = await db.transaction(async (tx) => {
     await tx.execute(sql`select id from simulation_definitions where session_id = ${session.id} for update`);
     let [run] = await tx.select().from(simulationRunsTable).where(eq(simulationRunsTable.sessionId, session.id));
     const [definition] = await tx.select().from(simulationDefinitionsTable).where(eq(simulationDefinitionsTable.sessionId, session.id));
     if (!definition) return null;
-    if (!run) run = (await tx.insert(simulationRunsTable).values({ sessionId: session.id, definitionId: definition.id }).returning())[0];
+    if (!run) run = (await tx.insert(simulationRunsTable).values({ sessionId: session.id, ownerId: staffUser.id, definitionId: definition.id, status: "draft" }).returning())[0];
     await tx.execute(sql`select id from simulation_runs where id = ${run.id} for update`);
     if (!canAssignSimulationGroups(run.status as SimulationStatus) || !body.data.assignments.every((a) => definition.groups.some((g) => g.id === a.groupId))) return null;
     const ids = body.data.assignments.map((a) => a.userId);

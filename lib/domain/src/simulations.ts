@@ -1,6 +1,44 @@
 import { satisfiesRole } from "./staffRoles";
 
 export type SimulationStatus = "draft" | "live" | "debrief" | "ended";
+export type StudioMode = "autonomous" | "facilitated";
+export type StudioRunStatus = "active" | "completed";
+
+export function mayCreateStudioRun(mode: StudioMode, ownerId: number, participantId: number): boolean {
+  return mode === "facilitated" || ownerId === participantId;
+}
+
+export function mayJoinFacilitatedRun(mode: StudioMode, status: StudioRunStatus, hasJoinCode: boolean): boolean {
+  return mode === "facilitated" && status === "active" && hasJoinCode;
+}
+
+export function mayAdvanceStudioRun(status: StudioRunStatus, hasSubmittedResponse: boolean): boolean {
+  return status === "active" && hasSubmittedResponse;
+}
+
+export function mayCompleteStudioRun(status: StudioRunStatus): boolean {
+  return status === "active";
+}
+
+export function mayControlStudioRun(mode: StudioMode, ownerId: number, userId: number): boolean {
+  return mode === "autonomous" ? ownerId === userId : ownerId === userId;
+}
+
+export function hasSecureJoinCodeFormat(joinCode: string): boolean {
+  return /^[A-F0-9]{32}$/.test(joinCode);
+}
+
+export function operationLeaseIsActive(startedAt: Date | null, now: Date, leaseMs: number): boolean {
+  return startedAt !== null && startedAt.getTime() > now.getTime() - leaseMs;
+}
+
+export function responseVersionMatches(claimedVersion: number, currentVersion: number): boolean {
+  return claimedVersion === currentVersion;
+}
+
+export function maySeeConfidentialBrief(viewerGroupId: string | null, briefGroupId: string): boolean {
+  return viewerGroupId === briefGroupId;
+}
 
 export function canTransitionSimulation(from: SimulationStatus, to: SimulationStatus): boolean {
   return (from === "draft" && to === "live")

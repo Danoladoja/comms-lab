@@ -6,33 +6,52 @@ import { usersTable } from "./users";
 
 export type SimulationGroup = { id: string; name: string; roleName: string; confidentialBrief: string };
 export type SimulationInject = { id: string; title: string; content: string; responsePrompt: string; responseMinutes: number };
+export type SimulationDevelopment = { id: string; title: string; content: string; responsePrompt: string };
+export type SimulationEvaluationDimension = { name: string; description: string };
+export type SimulationDebrief = { score: number; strengths: string[]; risks: string[]; stakeholderImpact: string; recommendations: string[] };
 
 export const simulationDefinitionsTable = pgTable("simulation_definitions", {
   id: serial("id").primaryKey(),
-  sessionId: integer("session_id").notNull().references(() => sessionsTable.id, { onDelete: "cascade" }),
+  ownerId: integer("owner_id").notNull().references(() => usersTable.id, { onDelete: "cascade" }),
+  /** Optional legacy/module reuse link; Studio access never relies on this. */
+  sessionId: integer("session_id").references(() => sessionsTable.id, { onDelete: "set null" }),
+  mode: text("mode").notNull().default("autonomous"),
   title: text("title").notNull(),
+  difficulty: text("difficulty").notNull().default("intermediate"),
+  durationMinutes: integer("duration_minutes").notNull().default(30),
+  participantPerspective: text("participant_perspective").notNull().default("participant"),
   context: text("context").notNull().default(""),
   learningObjective: text("learning_objective").notNull().default(""),
   openingBrief: text("opening_brief").notNull().default(""),
   groups: jsonb("groups").$type<SimulationGroup[]>().notNull().default([]),
   injects: jsonb("injects").$type<SimulationInject[]>().notNull().default([]),
   debriefQuestions: jsonb("debrief_questions").$type<string[]>().notNull().default([]),
+  evaluationDimensions: jsonb("evaluation_dimensions").$type<SimulationEvaluationDimension[]>().notNull().default([]),
   published: boolean("published").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
-}, (t) => [uniqueIndex("simulation_definitions_session_unique").on(t.sessionId)]);
+}, (t) => [index("simulation_definitions_owner_idx").on(t.ownerId), uniqueIndex("simulation_definitions_session_unique").on(t.sessionId)]);
 
 export const simulationRunsTable = pgTable("simulation_runs", {
   id: serial("id").primaryKey(),
-  sessionId: integer("session_id").notNull().references(() => sessionsTable.id, { onDelete: "cascade" }),
+  ownerId: integer("owner_id").notNull().references(() => usersTable.id, { onDelete: "cascade" }),
+  sessionId: integer("session_id").references(() => sessionsTable.id, { onDelete: "set null" }),
   definitionId: integer("definition_id").notNull().references(() => simulationDefinitionsTable.id, { onDelete: "restrict" }),
-  status: text("status").notNull().default("draft"),
+  mode: text("mode").notNull().default("autonomous"),
+  status: text("status").notNull().default("active"),
+  joinCode: text("join_code"),
+  operationToken: text("operation_token"),
+  operationStartedAt: timestamp("operation_started_at", { withTimezone: true }),
+  responseVersion: integer("response_version").notNull().default(0),
+  currentDevelopment: jsonb("current_development").$type<SimulationDevelopment | null>(),
+  developments: jsonb("developments").$type<SimulationDevelopment[]>().notNull().default([]),
+  debrief: jsonb("debrief").$type<SimulationDebrief | null>(),
   startedAt: timestamp("started_at", { withTimezone: true }),
   debriefAt: timestamp("debrief_at", { withTimezone: true }),
   endedAt: timestamp("ended_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
-}, (t) => [uniqueIndex("simulation_runs_session_unique").on(t.sessionId)]);
+}, (t) => [uniqueIndex("simulation_runs_session_unique").on(t.sessionId), uniqueIndex("simulation_runs_join_code_unique").on(t.joinCode), index("simulation_runs_owner_idx").on(t.ownerId)]);
 
 export const simulationInjectReleasesTable = pgTable("simulation_inject_releases", {
   id: serial("id").primaryKey(),

@@ -20,11 +20,13 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  ApiErrorResponse,
   ApiMessage,
   AssignmentDetail,
   AssignmentInput,
   AssignmentSubmission,
   AssignmentSubmissionInput,
+  BadRequestResponse,
   BulkInviteBody,
   BulkInviteResult,
   Certificate,
@@ -84,17 +86,24 @@ import type {
   SimulationGroupAssignment,
   SimulationGroupAssignmentsInput,
   SimulationInjectRelease,
+  SimulationJoinInput,
+  SimulationLaunchBrief,
   SimulationResponse,
   SimulationResponseInput,
+  SimulationResponseSubmission,
   SimulationRun,
+  SimulationRunInput,
   SimulationStudio,
   SimulationTransitionInput,
   SlideDeck,
   SlidesVisibilityInput,
   StaffList,
+  StudioSimulation,
+  StudioSimulationRun,
   ThreadDetail,
   ThreadInput,
   ThreadList,
+  TooManyRequestsResponse,
   UnattachedUser,
   UnauthorizedResponse,
   User,
@@ -5070,7 +5079,7 @@ export const getGetSimulationStudioQueryKey = (sessionId: number,) => {
     }
 
 
-export const getGetSimulationStudioQueryOptions = <TData = Awaited<ReturnType<typeof getSimulationStudio>>, TError = ErrorType<UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | ConflictResponse>>(sessionId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSimulationStudio>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export const getGetSimulationStudioQueryOptions = <TData = Awaited<ReturnType<typeof getSimulationStudio>>, TError = ErrorType<UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | ConflictResponse | TooManyRequestsResponse>>(sessionId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSimulationStudio>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
@@ -5089,14 +5098,14 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 }
 
 export type GetSimulationStudioQueryResult = NonNullable<Awaited<ReturnType<typeof getSimulationStudio>>>
-export type GetSimulationStudioQueryError = ErrorType<UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | ConflictResponse>
+export type GetSimulationStudioQueryError = ErrorType<UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | ConflictResponse | TooManyRequestsResponse>
 
 
 /**
  * @summary Get the strategic communications simulation for a module
  */
 
-export function useGetSimulationStudio<TData = Awaited<ReturnType<typeof getSimulationStudio>>, TError = ErrorType<UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | ConflictResponse>>(
+export function useGetSimulationStudio<TData = Awaited<ReturnType<typeof getSimulationStudio>>, TError = ErrorType<UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | ConflictResponse | TooManyRequestsResponse>>(
  sessionId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSimulationStudio>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
@@ -5544,5 +5553,663 @@ export const useUpsertSimulationResponse = <TError = ErrorType<UnauthorizedRespo
         TContext
       > => {
       return useMutation(getUpsertSimulationResponseMutationOptions(options));
+    }
+
+export const getListSimulationsUrl = () => {
+
+
+
+
+  return `/api/simulations`
+}
+
+/**
+ * @summary List simulation definitions owned by the signed-in user
+ */
+export const listSimulations = async ( options?: Parameters<typeof customFetch>[1]): Promise<StudioSimulation[]> => {
+
+  return customFetch<StudioSimulation[]>(getListSimulationsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListSimulationsQueryKey = () => {
+    return [
+    `/api/simulations`
+    ] as const;
+    }
+
+
+export const getListSimulationsQueryOptions = <TData = Awaited<ReturnType<typeof listSimulations>>, TError = ErrorType<UnauthorizedResponse>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listSimulations>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListSimulationsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listSimulations>>> = ({ signal }) => listSimulations({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listSimulations>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListSimulationsQueryResult = NonNullable<Awaited<ReturnType<typeof listSimulations>>>
+export type ListSimulationsQueryError = ErrorType<UnauthorizedResponse>
+
+
+/**
+ * @summary List simulation definitions owned by the signed-in user
+ */
+
+export function useListSimulations<TData = Awaited<ReturnType<typeof listSimulations>>, TError = ErrorType<UnauthorizedResponse>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listSimulations>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListSimulationsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGenerateSimulationUrl = () => {
+
+
+
+
+  return `/api/simulations/generate`
+}
+
+/**
+ * @summary Generate a standalone simulation scenario from a launch brief
+ */
+export const generateSimulation = async (simulationLaunchBrief: SimulationLaunchBrief, options?: Parameters<typeof customFetch>[1]): Promise<StudioSimulation> => {
+
+  return customFetch<StudioSimulation>(getGenerateSimulationUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(simulationLaunchBrief)
+  }
+);}
+
+
+
+
+
+export const getGenerateSimulationMutationOptions = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ApiErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof generateSimulation>>, TError,{data: BodyType<SimulationLaunchBrief>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof generateSimulation>>, TError,{data: BodyType<SimulationLaunchBrief>}, TContext> => {
+
+const mutationKey = ['generateSimulation'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof generateSimulation>>, {data: BodyType<SimulationLaunchBrief>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  generateSimulation(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type GenerateSimulationMutationResult = NonNullable<Awaited<ReturnType<typeof generateSimulation>>>
+    export type GenerateSimulationMutationBody = BodyType<SimulationLaunchBrief>
+    export type GenerateSimulationMutationError = ErrorType<BadRequestResponse | UnauthorizedResponse | ApiErrorResponse>
+
+    /**
+ * @summary Generate a standalone simulation scenario from a launch brief
+ */
+export const useGenerateSimulation = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ApiErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof generateSimulation>>, TError,{data: BodyType<SimulationLaunchBrief>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof generateSimulation>>,
+        TError,
+        {data: BodyType<SimulationLaunchBrief>},
+        TContext
+      > => {
+      return useMutation(getGenerateSimulationMutationOptions(options));
+    }
+
+export const getGetSimulationUrl = (simulationId: number,) => {
+
+
+
+
+  return `/api/simulations/${simulationId}`
+}
+
+/**
+ * @summary Get an owned simulation definition
+ */
+export const getSimulation = async (simulationId: number, options?: Parameters<typeof customFetch>[1]): Promise<StudioSimulation> => {
+
+  return customFetch<StudioSimulation>(getGetSimulationUrl(simulationId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetSimulationQueryKey = (simulationId: number,) => {
+    return [
+    `/api/simulations/${simulationId}`
+    ] as const;
+    }
+
+
+export const getGetSimulationQueryOptions = <TData = Awaited<ReturnType<typeof getSimulation>>, TError = ErrorType<UnauthorizedResponse | NotFoundResponse>>(simulationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSimulation>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetSimulationQueryKey(simulationId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getSimulation>>> = ({ signal }) => getSimulation(simulationId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: simulationId !== null && simulationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getSimulation>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetSimulationQueryResult = NonNullable<Awaited<ReturnType<typeof getSimulation>>>
+export type GetSimulationQueryError = ErrorType<UnauthorizedResponse | NotFoundResponse>
+
+
+/**
+ * @summary Get an owned simulation definition
+ */
+
+export function useGetSimulation<TData = Awaited<ReturnType<typeof getSimulation>>, TError = ErrorType<UnauthorizedResponse | NotFoundResponse>>(
+ simulationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSimulation>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetSimulationQueryOptions(simulationId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateSimulationRunUrl = () => {
+
+
+
+
+  return `/api/simulation-runs`
+}
+
+/**
+ * @summary Create a solo autonomous run or a facilitated room
+ */
+export const createSimulationRun = async (simulationRunInput: SimulationRunInput, options?: Parameters<typeof customFetch>[1]): Promise<StudioSimulationRun> => {
+
+  return customFetch<StudioSimulationRun>(getCreateSimulationRunUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(simulationRunInput)
+  }
+);}
+
+
+
+
+
+export const getCreateSimulationRunMutationOptions = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ForbiddenResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createSimulationRun>>, TError,{data: BodyType<SimulationRunInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createSimulationRun>>, TError,{data: BodyType<SimulationRunInput>}, TContext> => {
+
+const mutationKey = ['createSimulationRun'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createSimulationRun>>, {data: BodyType<SimulationRunInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createSimulationRun(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateSimulationRunMutationResult = NonNullable<Awaited<ReturnType<typeof createSimulationRun>>>
+    export type CreateSimulationRunMutationBody = BodyType<SimulationRunInput>
+    export type CreateSimulationRunMutationError = ErrorType<BadRequestResponse | UnauthorizedResponse | ForbiddenResponse>
+
+    /**
+ * @summary Create a solo autonomous run or a facilitated room
+ */
+export const useCreateSimulationRun = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ForbiddenResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createSimulationRun>>, TError,{data: BodyType<SimulationRunInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createSimulationRun>>,
+        TError,
+        {data: BodyType<SimulationRunInput>},
+        TContext
+      > => {
+      return useMutation(getCreateSimulationRunMutationOptions(options));
+    }
+
+export const getJoinSimulationRunUrl = () => {
+
+
+
+
+  return `/api/simulation-runs/join`
+}
+
+/**
+ * @summary Join a facilitated room with its join code
+ */
+export const joinSimulationRun = async (simulationJoinInput: SimulationJoinInput, options?: Parameters<typeof customFetch>[1]): Promise<StudioSimulationRun> => {
+
+  return customFetch<StudioSimulationRun>(getJoinSimulationRunUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(simulationJoinInput)
+  }
+);}
+
+
+
+
+
+export const getJoinSimulationRunMutationOptions = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | NotFoundResponse | ConflictResponse | TooManyRequestsResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof joinSimulationRun>>, TError,{data: BodyType<SimulationJoinInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof joinSimulationRun>>, TError,{data: BodyType<SimulationJoinInput>}, TContext> => {
+
+const mutationKey = ['joinSimulationRun'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof joinSimulationRun>>, {data: BodyType<SimulationJoinInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  joinSimulationRun(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type JoinSimulationRunMutationResult = NonNullable<Awaited<ReturnType<typeof joinSimulationRun>>>
+    export type JoinSimulationRunMutationBody = BodyType<SimulationJoinInput>
+    export type JoinSimulationRunMutationError = ErrorType<BadRequestResponse | UnauthorizedResponse | NotFoundResponse | ConflictResponse | TooManyRequestsResponse>
+
+    /**
+ * @summary Join a facilitated room with its join code
+ */
+export const useJoinSimulationRun = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | NotFoundResponse | ConflictResponse | TooManyRequestsResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof joinSimulationRun>>, TError,{data: BodyType<SimulationJoinInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof joinSimulationRun>>,
+        TError,
+        {data: BodyType<SimulationJoinInput>},
+        TContext
+      > => {
+      return useMutation(getJoinSimulationRunMutationOptions(options));
+    }
+
+export const getGetSimulationRunUrl = (runId: number,) => {
+
+
+
+
+  return `/api/simulation-runs/${runId}`
+}
+
+/**
+ * @summary Get a run available to its owner or participant
+ */
+export const getSimulationRun = async (runId: number, options?: Parameters<typeof customFetch>[1]): Promise<StudioSimulationRun> => {
+
+  return customFetch<StudioSimulationRun>(getGetSimulationRunUrl(runId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetSimulationRunQueryKey = (runId: number,) => {
+    return [
+    `/api/simulation-runs/${runId}`
+    ] as const;
+    }
+
+
+export const getGetSimulationRunQueryOptions = <TData = Awaited<ReturnType<typeof getSimulationRun>>, TError = ErrorType<UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>>(runId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSimulationRun>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetSimulationRunQueryKey(runId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getSimulationRun>>> = ({ signal }) => getSimulationRun(runId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: runId !== null && runId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getSimulationRun>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetSimulationRunQueryResult = NonNullable<Awaited<ReturnType<typeof getSimulationRun>>>
+export type GetSimulationRunQueryError = ErrorType<UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>
+
+
+/**
+ * @summary Get a run available to its owner or participant
+ */
+
+export function useGetSimulationRun<TData = Awaited<ReturnType<typeof getSimulationRun>>, TError = ErrorType<UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>>(
+ runId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSimulationRun>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetSimulationRunQueryOptions(runId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getSubmitSimulationResponseUrl = (runId: number,) => {
+
+
+
+
+  return `/api/simulation-runs/${runId}/response`
+}
+
+/**
+ * @summary Submit the current development response
+ */
+export const submitSimulationResponse = async (runId: number,
+    simulationResponseSubmission: SimulationResponseSubmission, options?: Parameters<typeof customFetch>[1]): Promise<StudioSimulationRun> => {
+
+  return customFetch<StudioSimulationRun>(getSubmitSimulationResponseUrl(runId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(simulationResponseSubmission)
+  }
+);}
+
+
+
+
+
+export const getSubmitSimulationResponseMutationOptions = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ForbiddenResponse | ConflictResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitSimulationResponse>>, TError,{runId: number;data: BodyType<SimulationResponseSubmission>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof submitSimulationResponse>>, TError,{runId: number;data: BodyType<SimulationResponseSubmission>}, TContext> => {
+
+const mutationKey = ['submitSimulationResponse'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof submitSimulationResponse>>, {runId: number;data: BodyType<SimulationResponseSubmission>}> = (props) => {
+          const {runId,data} = props ?? {};
+
+          return  submitSimulationResponse(runId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SubmitSimulationResponseMutationResult = NonNullable<Awaited<ReturnType<typeof submitSimulationResponse>>>
+    export type SubmitSimulationResponseMutationBody = BodyType<SimulationResponseSubmission>
+    export type SubmitSimulationResponseMutationError = ErrorType<BadRequestResponse | UnauthorizedResponse | ForbiddenResponse | ConflictResponse>
+
+    /**
+ * @summary Submit the current development response
+ */
+export const useSubmitSimulationResponse = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ForbiddenResponse | ConflictResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitSimulationResponse>>, TError,{runId: number;data: BodyType<SimulationResponseSubmission>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof submitSimulationResponse>>,
+        TError,
+        {runId: number;data: BodyType<SimulationResponseSubmission>},
+        TContext
+      > => {
+      return useMutation(getSubmitSimulationResponseMutationOptions(options));
+    }
+
+export const getAdvanceSimulationRunUrl = (runId: number,) => {
+
+
+
+
+  return `/api/simulation-runs/${runId}/advance`
+}
+
+/**
+ * @summary Generate the next development after the participant response
+ */
+export const advanceSimulationRun = async (runId: number, options?: Parameters<typeof customFetch>[1]): Promise<StudioSimulationRun> => {
+
+  return customFetch<StudioSimulationRun>(getAdvanceSimulationRunUrl(runId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getAdvanceSimulationRunMutationOptions = <TError = ErrorType<UnauthorizedResponse | ForbiddenResponse | ConflictResponse | ApiErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof advanceSimulationRun>>, TError,{runId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof advanceSimulationRun>>, TError,{runId: number}, TContext> => {
+
+const mutationKey = ['advanceSimulationRun'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof advanceSimulationRun>>, {runId: number}> = (props) => {
+          const {runId} = props ?? {};
+
+          return  advanceSimulationRun(runId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AdvanceSimulationRunMutationResult = NonNullable<Awaited<ReturnType<typeof advanceSimulationRun>>>
+
+    export type AdvanceSimulationRunMutationError = ErrorType<UnauthorizedResponse | ForbiddenResponse | ConflictResponse | ApiErrorResponse>
+
+    /**
+ * @summary Generate the next development after the participant response
+ */
+export const useAdvanceSimulationRun = <TError = ErrorType<UnauthorizedResponse | ForbiddenResponse | ConflictResponse | ApiErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof advanceSimulationRun>>, TError,{runId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof advanceSimulationRun>>,
+        TError,
+        {runId: number},
+        TContext
+      > => {
+      return useMutation(getAdvanceSimulationRunMutationOptions(options));
+    }
+
+export const getCompleteSimulationRunUrl = (runId: number,) => {
+
+
+
+
+  return `/api/simulation-runs/${runId}/complete`
+}
+
+/**
+ * @summary Complete a run and generate its AI debrief
+ */
+export const completeSimulationRun = async (runId: number, options?: Parameters<typeof customFetch>[1]): Promise<StudioSimulationRun> => {
+
+  return customFetch<StudioSimulationRun>(getCompleteSimulationRunUrl(runId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getCompleteSimulationRunMutationOptions = <TError = ErrorType<UnauthorizedResponse | ForbiddenResponse | ConflictResponse | ApiErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof completeSimulationRun>>, TError,{runId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof completeSimulationRun>>, TError,{runId: number}, TContext> => {
+
+const mutationKey = ['completeSimulationRun'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof completeSimulationRun>>, {runId: number}> = (props) => {
+          const {runId} = props ?? {};
+
+          return  completeSimulationRun(runId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CompleteSimulationRunMutationResult = NonNullable<Awaited<ReturnType<typeof completeSimulationRun>>>
+
+    export type CompleteSimulationRunMutationError = ErrorType<UnauthorizedResponse | ForbiddenResponse | ConflictResponse | ApiErrorResponse>
+
+    /**
+ * @summary Complete a run and generate its AI debrief
+ */
+export const useCompleteSimulationRun = <TError = ErrorType<UnauthorizedResponse | ForbiddenResponse | ConflictResponse | ApiErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof completeSimulationRun>>, TError,{runId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof completeSimulationRun>>,
+        TError,
+        {runId: number},
+        TContext
+      > => {
+      return useMutation(getCompleteSimulationRunMutationOptions(options));
     }
 

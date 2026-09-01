@@ -1986,6 +1986,7 @@ paths:
         "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/NotFound" }
         "409": { $ref: "#/components/responses/Conflict" }
+        "429": { $ref: "#/components/responses/TooManyRequests" }
     put:
       operationId: upsertSimulationDefinition
       tags: [admin]
@@ -2108,14 +2109,165 @@ paths:
         "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/NotFound" }
         "409": { $ref: "#/components/responses/Conflict" }
+  /simulations:
+    get:
+      operationId: listSimulations
+      tags: [enrollments]
+      summary: List simulation definitions owned by the signed-in user
+      responses:
+        "200":
+          description: Owned definitions
+          content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/StudioSimulation" } } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+  /simulations/generate:
+    post:
+      operationId: generateSimulation
+      tags: [enrollments]
+      summary: Generate a standalone simulation scenario from a launch brief
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/SimulationLaunchBrief" } } }
+      responses:
+        "201":
+          description: AI-generated scenario
+          content: { application/json: { schema: { $ref: "#/components/schemas/StudioSimulation" } } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "502": { $ref: "#/components/responses/ApiError" }
+  /simulations/{simulationId}:
+    get:
+      operationId: getSimulation
+      tags: [enrollments]
+      summary: Get an owned simulation definition
+      parameters:
+        - $ref: "#/components/parameters/SimulationId"
+      responses:
+        "200":
+          description: Simulation definition
+          content: { application/json: { schema: { $ref: "#/components/schemas/StudioSimulation" } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /simulation-runs:
+    post:
+      operationId: createSimulationRun
+      tags: [enrollments]
+      summary: Create a solo autonomous run or a facilitated room
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/SimulationRunInput" } } }
+      responses:
+        "201":
+          description: Created simulation run
+          content: { application/json: { schema: { $ref: "#/components/schemas/StudioSimulationRun" } } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+  /simulation-runs/join:
+    post:
+      operationId: joinSimulationRun
+      tags: [enrollments]
+      summary: Join a facilitated room with its join code
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/SimulationJoinInput" } } }
+      responses:
+        "200":
+          description: Joined run
+          content: { application/json: { schema: { $ref: "#/components/schemas/StudioSimulationRun" } } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "429": { $ref: "#/components/responses/TooManyRequests" }
+  /simulation-runs/{runId}:
+    get:
+      operationId: getSimulationRun
+      tags: [enrollments]
+      summary: Get a run available to its owner or participant
+      parameters:
+        - $ref: "#/components/parameters/SimulationRunId"
+      responses:
+        "200":
+          description: Safe participant view of a run
+          content: { application/json: { schema: { $ref: "#/components/schemas/StudioSimulationRun" } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /simulation-runs/{runId}/response:
+    post:
+      operationId: submitSimulationResponse
+      tags: [enrollments]
+      summary: Submit the current development response
+      parameters:
+        - $ref: "#/components/parameters/SimulationRunId"
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/SimulationResponseSubmission" } } }
+      responses:
+        "200":
+          description: Updated run
+          content: { application/json: { schema: { $ref: "#/components/schemas/StudioSimulationRun" } } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /simulation-runs/{runId}/advance:
+    post:
+      operationId: advanceSimulationRun
+      tags: [enrollments]
+      summary: Generate the next development after the participant response
+      parameters:
+        - $ref: "#/components/parameters/SimulationRunId"
+      responses:
+        "200":
+          description: Advanced run
+          content: { application/json: { schema: { $ref: "#/components/schemas/StudioSimulationRun" } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "502": { $ref: "#/components/responses/ApiError" }
+  /simulation-runs/{runId}/complete:
+    post:
+      operationId: completeSimulationRun
+      tags: [enrollments]
+      summary: Complete a run and generate its AI debrief
+      parameters:
+        - $ref: "#/components/parameters/SimulationRunId"
+      responses:
+        "200":
+          description: Completed run and debrief
+          content: { application/json: { schema: { $ref: "#/components/schemas/StudioSimulationRun" } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "502": { $ref: "#/components/responses/ApiError" }
 components:
   parameters:
+    SimulationId:
+      name: simulationId
+      in: path
+      required: true
+      schema: { type: integer }
+    SimulationRunId:
+      name: runId
+      in: path
+      required: true
+      schema: { type: integer }
     SessionId:
       name: sessionId
       in: path
       required: true
       schema: { type: integer }
   responses:
+    BadRequest:
+      description: Invalid request
+      content: { application/json: { schema: { $ref: "#/components/schemas/ApiMessage" } } }
+    ApiError:
+      description: Upstream service error
+      content: { application/json: { schema: { $ref: "#/components/schemas/ApiMessage" } } }
+    TooManyRequests:
+      description: Too many attempts
+      content: { application/json: { schema: { $ref: "#/components/schemas/ApiMessage" } } }
     Unauthorized:
       description: Not signed in
       content: { application/json: { schema: { $ref: "#/components/schemas/ApiMessage" } } }
@@ -3209,3 +3361,99 @@ components:
         responses: { type: array, items: { $ref: "#/components/schemas/SimulationResponse" } }
         assignments: { type: array, items: { $ref: "#/components/schemas/SimulationGroupAssignment" } }
         participants: { type: array, items: { $ref: "#/components/schemas/SimulationParticipant" } }
+    SimulationLaunchBrief:
+      type: object
+      required: [sectorTopic, objective, difficulty, durationMinutes, participantPerspective, mode]
+      properties:
+        sectorTopic: { type: string, minLength: 1 }
+        objective: { type: string, minLength: 1 }
+        difficulty: { type: string, enum: [beginner, intermediate, advanced] }
+        durationMinutes: { type: integer, minimum: 5, maximum: 240 }
+        participantPerspective: { type: string, minLength: 1 }
+        mode: { type: string, enum: [autonomous, facilitated] }
+    StudioStakeholderGroup:
+      type: object
+      required: [id, name, roleName, confidentialBrief]
+      properties:
+        id: { type: string, minLength: 1 }
+        name: { type: string, minLength: 1 }
+        roleName: { type: string, minLength: 1 }
+        confidentialBrief: { type: string }
+    StudioDevelopment:
+      type: object
+      required: [id, title, content, responsePrompt]
+      properties:
+        id: { type: string, minLength: 1 }
+        title: { type: string, minLength: 1 }
+        content: { type: string }
+        responsePrompt: { type: string }
+    SimulationEvaluationDimension:
+      type: object
+      required: [name, description]
+      properties:
+        name: { type: string, minLength: 1 }
+        description: { type: string, minLength: 1 }
+    StudioSimulation:
+      type: object
+      required: [id, title, sectorTopic, objective, difficulty, durationMinutes, participantPerspective, mode, openingBrief, stakeholderGroups, initialDevelopment, evaluationDimensions, debriefQuestions, createdAt]
+      properties:
+        id: { type: integer }
+        title: { type: string }
+        sectorTopic: { type: string }
+        objective: { type: string }
+        difficulty: { type: string, enum: [beginner, intermediate, advanced] }
+        durationMinutes: { type: integer }
+        participantPerspective: { type: string }
+        mode: { type: string, enum: [autonomous, facilitated] }
+        openingBrief: { type: string }
+        stakeholderGroups: { type: array, items: { $ref: "#/components/schemas/StudioStakeholderGroup" } }
+        initialDevelopment: { $ref: "#/components/schemas/StudioDevelopment" }
+        evaluationDimensions: { type: array, items: { $ref: "#/components/schemas/SimulationEvaluationDimension" } }
+        debriefQuestions: { type: array, items: { type: string } }
+        createdAt: { type: string, format: date-time }
+    SimulationRunInput:
+      type: object
+      required: [simulationId]
+      properties:
+        simulationId: { type: integer }
+    SimulationJoinInput:
+      type: object
+      required: [joinCode]
+      properties:
+        joinCode: { type: string, minLength: 32, maxLength: 32, pattern: "^[A-F0-9]{32}$" }
+    SimulationResponseSubmission:
+      type: object
+      required: [body]
+      properties:
+        body: { type: string, minLength: 1 }
+    SimulationDebrief:
+      type: object
+      required: [score, strengths, risks, stakeholderImpact, recommendations]
+      properties:
+        score: { type: integer, minimum: 0, maximum: 100 }
+        strengths: { type: array, items: { type: string } }
+        risks: { type: array, items: { type: string } }
+        stakeholderImpact: { type: string }
+        recommendations: { type: array, items: { type: string } }
+    StudioSimulationRun:
+      type: object
+      required: [id, simulationId, mode, status, joinCode, currentDevelopment, developments, responses, debrief, openingBrief, stakeholderGroups, participantGroupId]
+      properties:
+        id: { type: integer }
+        simulationId: { type: integer }
+        mode: { type: string, enum: [autonomous, facilitated] }
+        status: { type: string, enum: [active, completed] }
+        joinCode: { type: ["string", "null"] }
+        currentDevelopment:
+          oneOf:
+            - $ref: "#/components/schemas/StudioDevelopment"
+            - type: "null"
+        developments: { type: array, items: { $ref: "#/components/schemas/StudioDevelopment" } }
+        responses: { type: array, items: { $ref: "#/components/schemas/SimulationResponse" } }
+        debrief:
+          oneOf:
+            - $ref: "#/components/schemas/SimulationDebrief"
+            - type: "null"
+        openingBrief: { type: string }
+        stakeholderGroups: { type: array, items: { $ref: "#/components/schemas/StudioStakeholderGroup" } }
+        participantGroupId: { type: ["string", "null"] }
