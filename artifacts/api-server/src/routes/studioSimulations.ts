@@ -62,6 +62,20 @@ async function studioAccess(user: Awaited<ReturnType<typeof getCurrentUser>>) {
   }
   return { allowed: false, isAdmin: false, source: null };
 }
+/**
+ * The gate, applied to each Studio route by name.
+ *
+ * Deliberately not `router.use(requireStudioAccess)`. This router is mounted
+ * without a path prefix, alongside the rest of the API, so a bare `use` runs
+ * for **every** request that reaches it and does not match a route here, and
+ * this router sits above reviews, presence, slides, the forum, the admin API
+ * and the public partnership form. A catch-all here refused all of those for
+ * every learner, and refused the public enquiry form for everyone, while
+ * leaving admins untouched, which is the worst possible shape for a bug: it
+ * looks fine to whoever is testing it.
+ *
+ * Naming each route costs one word per line and cannot reach past the Studio.
+ */
 async function requireStudioAccess(req: Request, res: Response, next: NextFunction) {
   const user = await getCurrentUser(req);
   if (!user) { res.status(401).json(message("Unauthorized")); return; }
@@ -231,16 +245,14 @@ router.post("/studio/access-codes", async (req, res): Promise<void> => {
   res.status(201).json(CreateStudioAccessCodeResponse.parse({ code }));
 });
 
-router.use(requireStudioAccess);
-
-router.get("/simulations", async (req, res): Promise<void> => {
+router.get("/simulations", requireStudioAccess, async (req, res): Promise<void> => {
   const user = await getCurrentUser(req);
   if (!user) { res.status(401).json(message("Unauthorized")); return; }
   const definitions = await db.select().from(simulationDefinitionsTable).where(eq(simulationDefinitionsTable.ownerId, user.id)).orderBy(asc(simulationDefinitionsTable.createdAt));
   res.json(ListSimulationsResponse.parse(definitions.map(definitionView)));
 });
 
-router.post("/simulations/generate", async (req, res): Promise<void> => {
+router.post("/simulations/generate", requireStudioAccess, async (req, res): Promise<void> => {
   const user = await getCurrentUser(req);
   if (!user) { res.status(401).json(message("Unauthorized")); return; }
   const body = GenerateSimulationBody.safeParse(req.body);
@@ -273,7 +285,7 @@ router.post("/simulations/generate", async (req, res): Promise<void> => {
   res.status(201).json(GenerateSimulationResponse.parse(definitionView(saved)));
 });
 
-router.get("/simulations/:simulationId", async (req, res): Promise<void> => {
+router.get("/simulations/:simulationId", requireStudioAccess, async (req, res): Promise<void> => {
   const user = await getCurrentUser(req);
   if (!user) { res.status(401).json(message("Unauthorized")); return; }
   const params = GetSimulationParams.safeParse(req.params);
@@ -283,7 +295,7 @@ router.get("/simulations/:simulationId", async (req, res): Promise<void> => {
   res.json(GetSimulationResponse.parse(definitionView(definition)));
 });
 
-router.post("/simulation-runs", async (req, res): Promise<void> => {
+router.post("/simulation-runs", requireStudioAccess, async (req, res): Promise<void> => {
   const user = await getCurrentUser(req);
   if (!user) { res.status(401).json(message("Unauthorized")); return; }
   const body = CreateSimulationRunBody.safeParse(req.body);
@@ -302,7 +314,7 @@ router.post("/simulation-runs", async (req, res): Promise<void> => {
   res.status(201).json(CreateSimulationRunResponse.parse(await runView(run, user.id)));
 });
 
-router.post("/simulation-runs/join", async (req, res): Promise<void> => {
+router.post("/simulation-runs/join", requireStudioAccess, async (req, res): Promise<void> => {
   const user = await getCurrentUser(req);
   if (!user) { res.status(401).json(message("Unauthorized")); return; }
   const body = JoinSimulationRunBody.safeParse(req.body);
@@ -332,7 +344,7 @@ router.post("/simulation-runs/join", async (req, res): Promise<void> => {
   res.json(JoinSimulationRunResponse.parse(await runView(run, user.id)));
 });
 
-router.get("/simulation-runs/:runId", async (req, res): Promise<void> => {
+router.get("/simulation-runs/:runId", requireStudioAccess, async (req, res): Promise<void> => {
   const user = await getCurrentUser(req);
   if (!user) { res.status(401).json(message("Unauthorized")); return; }
   const params = GetSimulationRunParams.safeParse(req.params);
@@ -344,7 +356,7 @@ router.get("/simulation-runs/:runId", async (req, res): Promise<void> => {
   res.json(GetSimulationRunResponse.parse(view));
 });
 
-router.post("/simulation-runs/:runId/response", async (req, res): Promise<void> => {
+router.post("/simulation-runs/:runId/response", requireStudioAccess, async (req, res): Promise<void> => {
   const user = await getCurrentUser(req);
   if (!user) { res.status(401).json(message("Unauthorized")); return; }
   const params = SubmitSimulationResponseParams.safeParse(req.params); const body = SubmitSimulationResponseBody.safeParse(req.body);
@@ -370,7 +382,7 @@ router.post("/simulation-runs/:runId/response", async (req, res): Promise<void> 
   res.json(SubmitSimulationResponseResponse.parse(await runView(outcome.run, user.id)));
 });
 
-router.post("/simulation-runs/:runId/advance", async (req, res): Promise<void> => {
+router.post("/simulation-runs/:runId/advance", requireStudioAccess, async (req, res): Promise<void> => {
   const user = await getCurrentUser(req);
   if (!user) { res.status(401).json(message("Unauthorized")); return; }
   const params = AdvanceSimulationRunParams.safeParse(req.params);
@@ -418,7 +430,7 @@ router.post("/simulation-runs/:runId/advance", async (req, res): Promise<void> =
   res.json(AdvanceSimulationRunResponse.parse(await runView(updated, user.id)));
 });
 
-router.post("/simulation-runs/:runId/complete", async (req, res): Promise<void> => {
+router.post("/simulation-runs/:runId/complete", requireStudioAccess, async (req, res): Promise<void> => {
   const user = await getCurrentUser(req);
   if (!user) { res.status(401).json(message("Unauthorized")); return; }
   const params = CompleteSimulationRunParams.safeParse(req.params);
