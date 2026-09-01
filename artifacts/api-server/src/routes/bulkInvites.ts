@@ -9,7 +9,8 @@ import {
 import { and, eq, sql } from "drizzle-orm";
 import { generateCertificateCode, isPlausibleEmail, normaliseEmail } from "@workspace/domain";
 import { getCurrentUser, requireRole } from "../lib/auth";
-import { invitesConfigured, revokeInvitation, sendInvitation } from "../lib/clerkInvites";
+import { invitesConfigured, revokeInvitation } from "../lib/clerkInvites";
+import { deliverInvitation } from "../lib/invitationDelivery";
 import { readSheet } from "../lib/sheet";
 import { sendAdminEnrollment } from "../lib/enrollmentEmails";
 import { logger } from "../lib/logger";
@@ -158,7 +159,14 @@ router.post("/admin/invitations/bulk", requireRole("admin"), async (req, res) =>
         replacing = true;
       }
 
-      const sent = await sendInvitation({ email, role: "learner" });
+      // The letter comes from us, around Clerk's link; see lib/invitationDelivery.
+      const sent = await deliverInvitation({
+        email,
+        role: "learner",
+        name,
+        programmeTitle: program.title,
+        programmeStart: program.startDate,
+      });
       if (!sent.ok) {
         record("failed", sent.error);
         continue;
@@ -169,7 +177,7 @@ router.post("/admin/invitations/bulk", requireRole("admin"), async (req, res) =>
         role: "learner",
         sessionIds: [],
         programId,
-        clerkInvitationId: sent.invitation.id,
+        clerkInvitationId: sent.invitationId,
         invitedByUserId: me?.id ?? null,
         createdAt: new Date(),
         acceptedAt: null,
@@ -184,7 +192,7 @@ router.post("/admin/invitations/bulk", requireRole("admin"), async (req, res) =>
       } catch (err) {
         // The link is already in the post. Take it back rather than leaving a
         // live invitation with nothing recording it.
-        await revokeInvitation(sent.invitation.id);
+        await revokeInvitation(sent.invitationId);
         logger.error({ err, email }, "Could not record a bulk invitation; withdrew it again");
         record("failed", "Could not record that invitation, so it was withdrawn. Try again.");
         continue;

@@ -6,7 +6,8 @@ import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { UpdateUserRoleBody, UpdateEnrollmentBody, InviteFacilitatorBody } from "@workspace/api-zod";
 import { checkRoleChange, validateInvite, describeInvite } from "@workspace/domain";
 import { currentRole, founderId, requireRole, getCurrentUser } from "../lib/auth";
-import { sendInvitation, revokeInvitation, invitesConfigured } from "../lib/clerkInvites";
+import { revokeInvitation, invitesConfigured } from "../lib/clerkInvites";
+import { deliverInvitation } from "../lib/invitationDelivery";
 import { sendWaitlistPromotion } from "../lib/enrollmentEmails";
 import { logger } from "../lib/logger";
 
@@ -293,9 +294,12 @@ router.post("/admin/invitations", async (req, res) => {
   // applied on arrival from the pending-invitation row below, which only this
   // server writes — so a forwarded link, or Clerk dashboard access, still
   // cannot make somebody an admin here.
-  const sent = await sendInvitation({
+  const sent = await deliverInvitation({
     email: invite.email,
     role: invite.role === "admin" ? "instructor" : invite.role,
+    // The letter says admin where that is what they were invited as, so nobody
+    // is told one thing and handed another — only Clerk's metadata is narrowed.
+    describeAs: invite.role,
   });
   if (!sent.ok) { res.status(400).json({ error: sent.error }); return; }
 
@@ -303,7 +307,7 @@ router.post("/admin/invitations", async (req, res) => {
     email: invite.email,
     role: invite.role,
     sessionIds: invite.sessionIds,
-    clerkInvitationId: sent.invitation.id,
+    clerkInvitationId: sent.invitationId,
     invitedByUserId: me?.id ?? null,
     // Re-inviting is a fresh invitation, and dates it as one: otherwise it keeps
     // the original date, sorts to the bottom of the admin's list, and reports
@@ -325,7 +329,7 @@ router.post("/admin/invitations", async (req, res) => {
   } catch (err) {
     // The link is already in the post. Take it back rather than leaving a live
     // invitation with nothing recording it.
-    await revokeInvitation(sent.invitation.id);
+    await revokeInvitation(sent.invitationId);
     logger.error({ err, email: invite.email }, "Could not record an invitation; withdrew it again");
     res.status(500).json({ error: "Could not record that invitation, so it has been withdrawn. Try again." });
     return;

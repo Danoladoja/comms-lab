@@ -17,3 +17,4 @@ export * from "./sessionTime";
 export * from "./facilitator";
 export * from "./waitlist";
 export * from "./staffRoles";
+export * from "./invitationEmail";

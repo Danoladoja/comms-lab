@@ -41,6 +41,7 @@ const mocks = vi.hoisted(() => {
       delete: vi.fn(() => thenable(() => [])),
     },
     sendInvitation: vi.fn(),
+    deliverInvitation: vi.fn(),
     sendAdminEnrollment: vi.fn(),
     revokeInvitation: vi.fn(),
     invitesConfigured: vi.fn(() => true),
@@ -61,6 +62,9 @@ vi.mock("../lib/clerkInvites", () => ({
   invitesConfigured: mocks.invitesConfigured,
   sendInvitation: mocks.sendInvitation,
   revokeInvitation: mocks.revokeInvitation,
+}));
+vi.mock("../lib/invitationDelivery", () => ({
+  deliverInvitation: mocks.deliverInvitation,
 }));
 vi.mock("../lib/enrollmentEmails", () => ({
   sendAdminEnrollment: mocks.sendAdminEnrollment,
@@ -93,6 +97,7 @@ beforeEach(async () => {
   vi.clearAllMocks();
   mocks.invitesConfigured.mockReturnValue(true);
   mocks.sendInvitation.mockResolvedValue({ ok: true, invitation: { id: "inv_1", email: "", url: null } });
+  mocks.deliverInvitation.mockResolvedValue({ ok: true, invitationId: "inv_1", sentBy: "us" });
   mocks.revokeInvitation.mockResolvedValue("revoked");
   mocks.setSelects([]);
   mocks.setInserts([]);
@@ -129,7 +134,7 @@ describe("POST /admin/invitations/bulk", () => {
     const body = (await res.json()) as Result;
     expect(body.invited).toBe(2);
     expect(body.failed).toBe(0);
-    expect(mocks.sendInvitation).toHaveBeenCalledTimes(2);
+    expect(mocks.deliverInvitation).toHaveBeenCalledTimes(2);
   });
 
   it("one bad address does not stop the rest of the sheet", async () => {
@@ -156,10 +161,10 @@ describe("POST /admin/invitations/bulk", () => {
 
   it("keeps going when the invitation provider refuses one person", async () => {
     mocks.setSelects([PROGRAMME, [], [], [], [], [], []]);
-    mocks.sendInvitation
-      .mockResolvedValueOnce({ ok: true, invitation: { id: "inv_1", email: "", url: null } })
+    mocks.deliverInvitation
+      .mockResolvedValueOnce({ ok: true, invitationId: "inv_1", sentBy: "us" })
       .mockResolvedValueOnce({ ok: false, error: "Clerk would not accept that address." })
-      .mockResolvedValueOnce({ ok: true, invitation: { id: "inv_3", email: "", url: null } });
+      .mockResolvedValueOnce({ ok: true, invitationId: "inv_3", sentBy: "us" });
 
     const res = await post({
       programId: 3,
@@ -186,7 +191,7 @@ describe("POST /admin/invitations/bulk", () => {
     expect(body.enrolled).toBe(1);
     expect(body.invited).toBe(0);
     // No second invitation to somebody who is already here.
-    expect(mocks.sendInvitation).not.toHaveBeenCalled();
+    expect(mocks.deliverInvitation).not.toHaveBeenCalled();
   });
 
   it("says nothing to do for a learner already on the programme", async () => {
@@ -210,7 +215,7 @@ describe("POST /admin/invitations/bulk", () => {
     });
 
     const body = (await res.json()) as Result;
-    expect(mocks.sendInvitation).toHaveBeenCalledTimes(1);
+    expect(mocks.deliverInvitation).toHaveBeenCalledTimes(1);
     expect(body.outcomes).toHaveLength(2);
     expect(body.outcomes[1].detail).toMatch(/appeared earlier/i);
   });
@@ -233,13 +238,13 @@ describe("POST /admin/invitations/bulk", () => {
     const body = (await res.json()) as Result;
 
     expect(body.failed).toBe(1);
-    expect(mocks.sendInvitation).not.toHaveBeenCalled();
+    expect(mocks.deliverInvitation).not.toHaveBeenCalled();
   });
 
   it("refuses the whole request when no programme was chosen", async () => {
     const res = await post({ entries: [{ email: "amina@example.org" }] });
     expect(res.status).toBe(400);
-    expect(mocks.sendInvitation).not.toHaveBeenCalled();
+    expect(mocks.deliverInvitation).not.toHaveBeenCalled();
   });
 
   it("refuses when the list is empty", async () => {
@@ -252,7 +257,7 @@ describe("POST /admin/invitations/bulk", () => {
     mocks.invitesConfigured.mockReturnValue(false);
     const res = await post({ programId: 3, entries: [{ email: "amina@example.org" }] });
     expect(res.status).toBe(503);
-    expect(mocks.sendInvitation).not.toHaveBeenCalled();
+    expect(mocks.deliverInvitation).not.toHaveBeenCalled();
   });
 });
 
@@ -277,5 +282,39 @@ describe("telling people they were added", () => {
 
     await post({ programId: 3, entries: [{ email: "amina@example.org" }] });
     expect(mocks.sendAdminEnrollment).not.toHaveBeenCalled();
+  });
+});
+
+describe("when the invitation email itself fails", () => {
+  it("reports that person as failed rather than as invited", async () => {
+    // The letter is now ours to send. If it does not go, the person has no way
+    // in, and telling an admin otherwise is how somebody gets forgotten.
+    mocks.setSelects([PROGRAMME, [], []]);
+    mocks.deliverInvitation.mockResolvedValue({
+      ok: false,
+      error: "The invitation email could not be sent, so it was withdrawn. Try again.",
+    });
+
+    const res = await post({ programId: 3, entries: [{ email: "amina@example.org" }] });
+    const body = (await res.json()) as Result;
+
+    expect(body.invited).toBe(0);
+    expect(body.failed).toBe(1);
+    expect(body.outcomes[0].detail).toMatch(/withdrawn/i);
+  });
+
+  it("carries the person's name and programme into the letter", async () => {
+    mocks.setSelects([PROGRAMME, [], []]);
+
+    await post({ programId: 3, entries: [{ email: "amina@example.org", name: "Amina Bello" }] });
+
+    expect(mocks.deliverInvitation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        email: "amina@example.org",
+        name: "Amina Bello",
+        programmeTitle: "Energy Reporting",
+        role: "learner",
+      }),
+    );
   });
 });

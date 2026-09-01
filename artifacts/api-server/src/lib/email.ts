@@ -80,6 +80,12 @@ export async function sendEmail(opts: {
   to: { email: string; name?: string };
   subject: string;
   html: string;
+  /**
+   * A plain-text version, for clients that strip HTML and for the spam scores
+   * that count its absence against a message. Optional: most of what this app
+   * sends is short enough that the HTML alone reads fine.
+   */
+  text?: string;
 }): Promise<void> {
   if (!emailConfigured()) {
     logger.warn(
@@ -97,6 +103,7 @@ export async function sendEmail(opts: {
       to: [opts.to],
       subject: opts.subject,
       htmlContent: opts.html,
+      ...(opts.text ? { textContent: opts.text } : {}),
     }),
   });
 

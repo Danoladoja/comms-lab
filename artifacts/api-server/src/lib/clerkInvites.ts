@@ -34,6 +34,18 @@ export function invitesConfigured(): boolean {
 export async function sendInvitation(args: {
   email: string;
   role: Role;
+  /**
+   * Whether Clerk should email the invitation itself.
+   *
+   * False when we intend to send our own letter around Clerk's link — which is
+   * the normal case now. Clerk's own email comes from Clerk's sending domain,
+   * and an unfamiliar sender carrying a sign-up link is what mail providers
+   * treat as phishing: two invitations to real addresses never arrived.
+   *
+   * It stays true when we have no mail provider of our own configured. An
+   * invitation from the wrong domain still beats no invitation at all.
+   */
+  notify?: boolean;
 }): Promise<{ ok: true; invitation: SentInvitation } | { ok: false; error: string }> {
   try {
     const invitation = await clerkClient.invitations.createInvitation({
@@ -45,7 +57,8 @@ export async function sendInvitation(args: {
       redirectUrl: acceptUrl(),
       // Re-inviting someone who ignored the first email should just work.
       ignoreExisting: true,
-    });
+      notify: args.notify ?? true,
+    } as Parameters<typeof clerkClient.invitations.createInvitation>[0]);
 
     return {
       ok: true,
