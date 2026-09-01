@@ -35,7 +35,7 @@ async function forumAccessError(user: User, programId: number): Promise<string |
       eq(enrollmentsTable.programId, programId),
       sql`${enrollmentsTable.status} in ('enrolled', 'completed')`,
     ));
-  return enrollment ? null : "You are not enrolled in this program";
+  return enrollment ? null : "You are not enrolled on this programme";
 }
 
 function displayRole(role: string) {

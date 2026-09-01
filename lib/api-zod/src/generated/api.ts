@@ -1646,6 +1646,9 @@ export const ListSimulationsResponseItem = zod.object({
   "durationMinutes": zod.int(),
   "participantPerspective": zod.string(),
   "mode": zod.enum(['autonomous', 'facilitated']),
+  "programId": zod.int().nullable(),
+  "published": zod.boolean(),
+  "ownerId": zod.int(),
   "openingBrief": zod.string(),
   "stakeholderGroups": zod.array(zod.object({
   "id": zod.string().min(1),
@@ -1701,14 +1704,46 @@ export const RedeemStudioAccessResponse = zod.object({
 
 
 /**
- * @summary Create a one-time learner access code for Simulation Studio
+ * Returns the codes in clear exactly once. Only a digest is stored, so there is no screen anywhere that can show them again.
+ * @summary Create one-time learner access codes for Simulation Studio
  */
+export const createStudioAccessCodeBodyCountDefault = 1;
+export const createStudioAccessCodeBodyCountMax = 50;
+
+
+
+export const CreateStudioAccessCodeBody = zod.object({
+  "count": zod.int().min(1).max(createStudioAccessCodeBodyCountMax).default(createStudioAccessCodeBodyCountDefault)
+})
+
 export const createStudioAccessCodeResponseCodeMin = 6;
+
+export const createStudioAccessCodeResponseCodesItemMin = 6;
 
 
 
 export const CreateStudioAccessCodeResponse = zod.object({
-  "code": zod.string().min(createStudioAccessCodeResponseCodeMin)
+  "code": zod.string().min(createStudioAccessCodeResponseCodeMin),
+  "codes": zod.array(zod.string().min(createStudioAccessCodeResponseCodesItemMin))
+})
+
+
+/**
+ * Grants access to every active learner on the programme and emails each one a link. Anybody who already had access is skipped. A failed email does not withdraw the access.
+ * @summary Open the Studio to everybody enrolled on a programme
+ */
+export const GrantStudioAccessToProgrammeParams = zod.object({
+  "programId": zod.coerce.number().int()
+})
+
+export const GrantStudioAccessToProgrammeResponse = zod.object({
+  "programmeTitle": zod.string(),
+  "enrolled": zod.int(),
+  "granted": zod.int(),
+  "alreadyHadAccess": zod.int(),
+  "emailed": zod.int(),
+  "emailFailed": zod.int(),
+  "emailConfigured": zod.boolean()
 })
 
 
@@ -1729,7 +1764,8 @@ export const GenerateSimulationBody = zod.object({
   "difficulty": zod.enum(['foundation', 'intermediate', 'advanced']),
   "durationMinutes": zod.int().min(generateSimulationBodyDurationMinutesMin).max(generateSimulationBodyDurationMinutesMax),
   "participantPerspective": zod.string().min(1),
-  "mode": zod.enum(['autonomous', 'facilitated'])
+  "mode": zod.enum(['autonomous', 'facilitated']),
+  "programId": zod.int().optional()
 })
 
 
@@ -1750,6 +1786,9 @@ export const GenerateSimulationResponse = zod.object({
   "durationMinutes": zod.int(),
   "participantPerspective": zod.string(),
   "mode": zod.enum(['autonomous', 'facilitated']),
+  "programId": zod.int().nullable(),
+  "published": zod.boolean(),
+  "ownerId": zod.int(),
   "openingBrief": zod.string(),
   "stakeholderGroups": zod.array(zod.object({
   "id": zod.string().min(1),
@@ -1799,6 +1838,9 @@ export const GetSimulationResponse = zod.object({
   "durationMinutes": zod.int(),
   "participantPerspective": zod.string(),
   "mode": zod.enum(['autonomous', 'facilitated']),
+  "programId": zod.int().nullable(),
+  "published": zod.boolean(),
+  "ownerId": zod.int(),
   "openingBrief": zod.string(),
   "stakeholderGroups": zod.array(zod.object({
   "id": zod.string().min(1),

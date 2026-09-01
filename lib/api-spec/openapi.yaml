@@ -2036,13 +2036,41 @@ paths:
     post:
       operationId: createStudioAccessCode
       tags: [admin]
-      summary: Create a one-time learner access code for Simulation Studio
+      summary: Create one-time learner access codes for Simulation Studio
+      description: >-
+        Returns the codes in clear exactly once. Only a digest is stored, so
+        there is no screen anywhere that can show them again.
+      requestBody:
+        required: false
+        content: { application/json: { schema: { $ref: "#/components/schemas/StudioAccessCodeRequest" } } }
       responses:
         "201":
-          description: Code created and shown once
+          description: Codes created and shown once
           content: { application/json: { schema: { $ref: "#/components/schemas/StudioAccessCode" } } }
         "401": { $ref: "#/components/responses/Unauthorized" }
         "403": { $ref: "#/components/responses/Forbidden" }
+  /studio/access/programme/{programId}:
+    post:
+      operationId: grantStudioAccessToProgramme
+      tags: [admin]
+      summary: Open the Studio to everybody enrolled on a programme
+      description: >-
+        Grants access to every active learner on the programme and emails each
+        one a link. Anybody who already had access is skipped. A failed email
+        does not withdraw the access.
+      parameters:
+        - name: programId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: What happened
+          content: { application/json: { schema: { $ref: "#/components/schemas/StudioAccessGrantSummary" } } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
   /simulations/generate:
     post:
       operationId: generateSimulation
@@ -3200,6 +3228,9 @@ components:
         durationMinutes: { type: integer, minimum: 5, maximum: 240 }
         participantPerspective: { type: string, minLength: 1 }
         mode: { type: string, enum: [autonomous, facilitated] }
+        # Written for a cohort. The programme and its modules go to the
+        # scenario writer, and the exercise becomes visible to that cohort.
+        programId: { type: integer }
     StudioStakeholderGroup:
       type: object
       required: [id, name, roleName, confidentialBrief]
@@ -3228,7 +3259,7 @@ components:
         description: { type: string, minLength: 1 }
     StudioSimulation:
       type: object
-      required: [id, title, sectorTopic, objective, difficulty, durationMinutes, participantPerspective, mode, openingBrief, stakeholderGroups, initialDevelopment, evaluationDimensions, debriefQuestions, createdAt]
+      required: [id, title, sectorTopic, objective, difficulty, durationMinutes, participantPerspective, mode, programId, published, ownerId, openingBrief, stakeholderGroups, initialDevelopment, evaluationDimensions, debriefQuestions, createdAt]
       properties:
         id: { type: integer }
         title: { type: string }
@@ -3238,6 +3269,9 @@ components:
         durationMinutes: { type: integer }
         participantPerspective: { type: string }
         mode: { type: string, enum: [autonomous, facilitated] }
+        programId: { type: ["integer", "null"] }
+        published: { type: boolean }
+        ownerId: { type: integer }
         openingBrief: { type: string }
         stakeholderGroups: { type: array, items: { $ref: "#/components/schemas/StudioStakeholderGroup" } }
         initialDevelopment: { $ref: "#/components/schemas/StudioDevelopment" }
@@ -3258,11 +3292,28 @@ components:
       required: [code]
       properties:
         code: { type: string, minLength: 6, maxLength: 32 }
+    StudioAccessCodeRequest:
+      type: object
+      properties:
+        count: { type: integer, minimum: 1, maximum: 50, default: 1 }
     StudioAccessCode:
       type: object
-      required: [code]
+      required: [code, codes]
       properties:
+        # The first one, kept so older clients keep working.
         code: { type: string, minLength: 6 }
+        codes: { type: array, items: { type: string, minLength: 6 } }
+    StudioAccessGrantSummary:
+      type: object
+      required: [programmeTitle, enrolled, granted, alreadyHadAccess, emailed, emailFailed, emailConfigured]
+      properties:
+        programmeTitle: { type: string }
+        enrolled: { type: integer }
+        granted: { type: integer }
+        alreadyHadAccess: { type: integer }
+        emailed: { type: integer }
+        emailFailed: { type: integer }
+        emailConfigured: { type: boolean }
     SimulationRunInput:
       type: object
       required: [simulationId]

@@ -36,7 +36,7 @@ async function accessError(
       eq(enrollmentsTable.programId, session.programId),
       sql`${enrollmentsTable.status} in ('enrolled', 'completed')`,
     ));
-  if (!enrollment) return "You are not enrolled in this program";
+  if (!enrollment) return "You are not enrolled on this programme";
   const progress = await progressForUser(user.id, [session.programId]);
   if (progress.find((p) => p.sessionId === session.id)?.locked) {
     return "Finish the previous module's work to unlock this one";

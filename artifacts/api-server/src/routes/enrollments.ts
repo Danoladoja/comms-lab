@@ -122,7 +122,7 @@ router.post("/sessions/:id/join", async (req, res) => {
   if (!isStaff) {
     const programIds = await enrolledProgramIds(user.id);
     if (!programIds.includes(session.programId)) {
-      res.status(403).json({ error: "You are not enrolled in this program" });
+      res.status(403).json({ error: "You are not enrolled on this programme" });
       return;
     }
     const progress = await progressForUser(user.id, [session.programId]);
@@ -285,7 +285,7 @@ router.patch("/my/certificates/:programId/portfolio", async (req, res) => {
 
   const progress = await progressForUser(user.id, [programId]);
   if (!completedProgramIdsFrom(progress).includes(programId)) {
-    res.status(404).json({ error: "No completed enrollment for that program" });
+    res.status(404).json({ error: "No completed enrolment for that programme" });
     return;
   }
 
@@ -295,7 +295,7 @@ router.patch("/my/certificates/:programId/portfolio", async (req, res) => {
     .where(and(eq(enrollmentsTable.userId, user.id), eq(enrollmentsTable.programId, programId)))
     .returning();
   if (!updated) {
-    res.status(404).json({ error: "No completed enrollment for that program" });
+    res.status(404).json({ error: "No completed enrolment for that programme" });
     return;
   }
 

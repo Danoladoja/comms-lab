@@ -20,6 +20,10 @@ export interface StudioSimulation {
   durationMinutes: number;
   participantPerspective: string;
   mode: StudioSimulationMode;
+  /** @nullable */
+  programId: number | null;
+  published: boolean;
+  ownerId: number;
   openingBrief: string;
   stakeholderGroups: StudioStakeholderGroup[];
   initialDevelopment: StudioDevelopment;

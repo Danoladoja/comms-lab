@@ -64,8 +64,13 @@ vi.mock("@workspace/db", () => ({
   simulationRunsTable: { id: "id", ownerId: "owner_id", joinCode: "join_code", status: "status", definitionId: "definition_id" },
   simulationGroupAssignmentsTable: { id: "id", runId: "run_id", userId: "user_id", groupId: "group_id" },
   simulationResponsesTable: { id: "id", runId: "run_id", groupId: "group_id", injectId: "inject_id", createdAt: "created_at" },
+  enrollmentsTable: { userId: "user_id", programId: "program_id", status: "status" },
+  programsTable: { id: "id", title: "title", description: "description", tag: "tag" },
+  sessionsTable: { id: "id", programId: "program_id", title: "title", startsAt: "starts_at" },
+  usersTable: { id: "id", name: "name", email: "email" },
 }));
 vi.mock("../lib/auth", () => ({ getCurrentUser: mocks.getCurrentUser }));
+vi.mock("../lib/email", () => ({ emailConfigured: () => false, sendEmail: vi.fn() }));
 vi.mock("../lib/logger", () => ({ logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() } }));
 vi.mock("../lib/simulationAi", () => ({
   simulationAiConfigured: () => true,
@@ -147,7 +152,8 @@ describe("the Studio gate itself", () => {
 
   it("lets a learner in once a code is redeemed against their account", async () => {
     mocks.setUser({ id: 5, role: "learner" });
-    mocks.setSelects([[], [{ id: 9 }], []]);
+    // no invitation, one redeemed code, then the enrolments and the exercises
+    mocks.setSelects([[], [{ id: 9 }], [], []]);
     const res = await fetch(`${baseUrl}/api/simulations`);
     expect(res.status).toBe(200);
   });

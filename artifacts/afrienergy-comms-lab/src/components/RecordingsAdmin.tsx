@@ -103,7 +103,7 @@ export default function RecordingsAdmin() {
           <p className="text-sm text-muted-foreground">
             Recordings are added by hand at the moment. After a class: download it, upload it to YouTube as{' '}
             <strong>unlisted</strong>, then paste the link on the session under{' '}
-            <strong>Programs → the programme → the session → Recording link</strong>.
+            <strong>Programmes → the programme → the module → Recording link</strong>.
           </p>
           <p className="text-sm text-muted-foreground mt-3">
             The list below shows which classes are still waiting for one. A class with no recording blocks anyone
@@ -163,7 +163,7 @@ export default function RecordingsAdmin() {
 
                   {!automationOn && !row.recordingUrl && (
                     <p className="text-xs text-muted-foreground mt-2">
-                      Add it under Programs → {row.programTitle} → {row.sessionTitle}.
+                      Add it under Programmes → {row.programTitle} → {row.sessionTitle}.
                     </p>
                   )}
 

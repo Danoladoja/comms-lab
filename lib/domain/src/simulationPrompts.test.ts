@@ -243,3 +243,62 @@ describe("validateDebrief", () => {
     expect(validateDebrief(null)).toBeNull();
   });
 });
+
+describe("writing for a particular cohort", () => {
+  const base = {
+    sectorTopic: "a tariff rise",
+    objective: "explain a price increase",
+    difficulty: "intermediate",
+    durationMinutes: 30,
+    participantPerspective: "the utility's spokesperson",
+    mode: "autonomous",
+  };
+
+  it("says nothing about a programme when there is none", () => {
+    const prompt = scenarioUserPrompt(base);
+    expect(prompt).not.toMatch(/programme:/i);
+    expect(prompt).not.toMatch(/cohort/i);
+  });
+
+  it("carries the programme, its focus and what it covers", () => {
+    const prompt = scenarioUserPrompt({
+      ...base,
+      programme: {
+        title: "Energy Reporting",
+        tag: "Investigative journalism",
+        description: "Covering the continent's energy transition for a general audience.",
+        moduleTitles: ["Reading a licensing round", "Sourcing from communities"],
+      },
+    });
+    expect(prompt).toContain("Energy Reporting");
+    expect(prompt).toContain("Investigative journalism");
+    expect(prompt).toContain("Covering the continent's energy transition");
+  });
+
+  it("lists the modules and asks for one of them to be the hinge", () => {
+    // Otherwise the programme is decoration: the exercise has to turn on
+    // something they were actually taught.
+    const prompt = scenarioUserPrompt({
+      ...base,
+      programme: { title: "Energy Reporting", moduleTitles: ["Reading a licensing round"] },
+    });
+    expect(prompt).toContain("Reading a licensing round");
+    expect(prompt).toMatch(/decides whether they handle it well/i);
+  });
+
+  it("tells the model not to mention the course to the learner", () => {
+    // A scenario that says "as you learned in module three" stops being a
+    // scenario and becomes a quiz.
+    const prompt = scenarioUserPrompt({
+      ...base,
+      programme: { title: "Energy Reporting", moduleTitles: ["Reading a licensing round"] },
+    });
+    expect(prompt).toMatch(/Do not name the module/i);
+  });
+
+  it("copes with a programme that has no modules yet", () => {
+    const prompt = scenarioUserPrompt({ ...base, programme: { title: "Energy Reporting" } });
+    expect(prompt).toContain("Energy Reporting");
+    expect(prompt).not.toMatch(/modules they are working through/i);
+  });
+});

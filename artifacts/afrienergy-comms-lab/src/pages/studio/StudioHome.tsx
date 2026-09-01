@@ -6,6 +6,8 @@ import { Link, useLocation } from 'wouter';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   useCreateStudioAccessCode,
+  useGrantStudioAccessToProgramme,
+  useListPrograms,
   useGenerateSimulation,
   useGetStudioAccess,
   useJoinSimulationRun,
@@ -26,6 +28,7 @@ const generateSchema = z.object({
   sectorTopic: z.string().min(5, "Topic must be at least 5 characters"),
   objective: z.string().min(10, "Objective must be at least 10 characters"),
   difficulty: z.enum(['foundation', 'intermediate', 'advanced']),
+  programId: z.number().int().positive().optional(),
   durationMinutes: z.coerce.number().min(5).max(240),
   participantPerspective: z.string().min(5, "Role perspective is required"),
   mode: z.enum(['autonomous', 'facilitated']),
@@ -57,14 +60,21 @@ export default function StudioHome() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState<'new' | 'join'>('new');
-  const [createdAccessCode, setCreatedAccessCode] = useState('');
+  const [createdAccessCodes, setCreatedAccessCodes] = useState<string[]>([]);
+  const [codeCount, setCodeCount] = useState(5);
   const [copied, setCopied] = useState(false);
+  const [cohortProgramId, setCohortProgramId] = useState('');
 
   const { data: simulations, isLoading: isLoadingSims } = useListSimulations();
   const { data: studioAccess } = useGetStudioAccess();
   const generateSim = useGenerateSimulation();
   const joinSim = useJoinSimulationRun();
   const createAccessCode = useCreateStudioAccessCode();
+  const grantToCohort = useGrantStudioAccessToProgramme();
+  // Programmes, modules and who is on them: the Studio reads the same catalogue
+  // as the rest of the Lab rather than keeping a list of its own.
+  const { data: programmes = [] } = useListPrograms();
+  const programmeById = new Map(programmes.map((p: any) => [p.id, p]));
 
   const form = useForm<z.infer<typeof generateSchema>>({
     resolver: zodResolver(generateSchema),
@@ -75,6 +85,7 @@ export default function StudioHome() {
       durationMinutes: 30,
       participantPerspective: 'Head of Communications',
       mode: 'autonomous',
+      programId: undefined,
     }
   });
 
@@ -107,21 +118,42 @@ export default function StudioHome() {
     });
   }
 
-  function handleCreateAccessCode() {
-    createAccessCode.mutate(undefined, {
-      onSuccess: ({ code }) => {
-        setCreatedAccessCode(code);
+  function handleCreateAccessCodes() {
+    createAccessCode.mutate({ data: { count: codeCount } }, {
+      onSuccess: ({ codes, code }) => {
+        // Shown once. Only a digest is kept, so there is no screen that can
+        // show them again: the admin has to copy them now.
+        setCreatedAccessCodes(codes?.length ? codes : code ? [code] : []);
         setCopied(false);
       },
       onError: (err: any) => {
-        toast({ title: "Could not make a code", description: reason(err, "Try again in a moment."), variant: "destructive" });
+        toast({ title: "Could not make the codes", description: reason(err, "Try again in a moment."), variant: "destructive" });
       },
     });
   }
 
-  async function copyAccessCode() {
-    await navigator.clipboard.writeText(createdAccessCode);
+  async function copyAccessCodes() {
+    await navigator.clipboard.writeText(createdAccessCodes.join('\n'));
     setCopied(true);
+  }
+
+  function handleOpenToCohort() {
+    const programId = Number(cohortProgramId);
+    if (!programId) return;
+    grantToCohort.mutate({ programId }, {
+      onSuccess: (r: any) => {
+        const parts = [
+          r.granted === 0 ? 'Everybody on it already had access.' : `${r.granted} of ${r.enrolled} now have access.`,
+          !r.emailConfigured ? 'No email was sent: the server has no mail provider.'
+            : r.emailed > 0 ? `${r.emailed} were emailed a link.` : '',
+          r.emailFailed > 0 ? `${r.emailFailed} could not be emailed, but they still have access.` : '',
+        ].filter(Boolean);
+        toast({ title: `${r.programmeTitle} can use the Studio`, description: parts.join(' ') });
+      },
+      onError: (err: any) => {
+        toast({ title: "Could not open the Studio to them", description: reason(err, "Try again in a moment."), variant: "destructive" });
+      },
+    });
   }
 
   return (
@@ -143,35 +175,89 @@ export default function StudioHome() {
             </motion.div>
 
             {studioAccess?.isAdmin && (
-              <motion.div {...FADE_UP} className="mb-10 p-5 bg-white/[0.02] border border-white/10 rounded-none relative">
-                <div className="absolute top-0 left-0 w-1 h-full bg-[#f97316]" />
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                  <div>
-                    <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2 mb-1">
-                      <KeyRound className="w-4 h-4 text-[#f97316]" /> Learner Access
-                    </h3>
-                    <p className="text-xs text-white/50">Create a one-time code so a learner can use the Studio.</p>
+              <motion.div {...FADE_UP} className="mb-10 space-y-4">
+
+                {/* One press: everybody on a programme gets in, and hears about it. */}
+                <div className="p-5 bg-white/[0.02] border border-white/10 relative">
+                  <div className="absolute top-0 left-0 w-1 h-full bg-[#f97316]" />
+                  <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2 mb-1">
+                    <Users className="w-4 h-4 text-[#f97316]" aria-hidden /> Open the Studio to a cohort
+                  </h3>
+                  <p className="text-xs text-white/50 mb-4">
+                    Everybody enrolled on the programme gets access and an email with a link. Anyone who already has access is left alone.
+                  </p>
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <Select value={cohortProgramId} onValueChange={setCohortProgramId}>
+                      <SelectTrigger className="bg-[#030811] border-white/20 text-white rounded-none flex-1">
+                        <SelectValue placeholder="Choose a programme" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-[#0c1929] border-white/20 text-white">
+                        {programmes.map((programme: any) => (
+                          <SelectItem key={programme.id} value={String(programme.id)}>
+                            {programme.title}{typeof programme.enrolledCount === 'number' ? ` — ${programme.enrolledCount} enrolled` : ''}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      onClick={handleOpenToCohort}
+                      disabled={!cohortProgramId || grantToCohort.isPending}
+                      className="bg-[#f97316] text-[#030811] hover:bg-[#ea6d0a] rounded-none uppercase tracking-wider text-xs h-10 px-6 shrink-0"
+                    >
+                      {grantToCohort.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden /> : <Users className="mr-2 h-4 w-4" aria-hidden />}
+                      Open it to them
+                    </Button>
+                  </div>
+                </div>
+
+                {/* And for everybody else: a handful of codes, in one press. */}
+                <div className="p-5 bg-white/[0.02] border border-white/10 relative">
+                  <div className="absolute top-0 left-0 w-1 h-full bg-white/20" />
+                  <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2 mb-1">
+                    <KeyRound className="w-4 h-4 text-[#f97316]" aria-hidden /> Access codes
+                  </h3>
+                  <p className="text-xs text-white/50 mb-4">
+                    For anybody not on a programme. Each code lets one person in, once. They are shown here once and cannot be looked up again.
+                  </p>
+
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <div className="flex items-center gap-2">
+                      <label htmlFor="code-count" className="text-[10px] uppercase tracking-widest text-white/40 font-bold">How many</label>
+                      <Input
+                        id="code-count" type="number" min={1} max={50} value={codeCount}
+                        onChange={(e) => setCodeCount(Math.max(1, Math.min(50, Number(e.target.value) || 1)))}
+                        className="w-20 bg-[#030811] border-white/20 text-white rounded-none"
+                      />
+                    </div>
+                    <Button
+                      onClick={handleCreateAccessCodes}
+                      disabled={createAccessCode.isPending}
+                      className="bg-white/10 text-white hover:bg-white/20 rounded-none uppercase tracking-wider text-xs h-10 px-6"
+                    >
+                      {createAccessCode.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden /> : <Plus className="mr-2 h-4 w-4" aria-hidden />}
+                      {createdAccessCodes.length > 0 ? 'Make more' : 'Make them'}
+                    </Button>
                   </div>
 
-                  {createdAccessCode ? (
-                    <div className="flex items-center gap-2">
-                      <div className="bg-[#030811] border border-white/20 px-4 py-2 text-sm font-mono tracking-widest text-white">
-                        {createdAccessCode}
+                  {createdAccessCodes.length > 0 && (
+                    <div className="mt-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="text-[10px] uppercase tracking-widest text-[#f97316] font-bold">
+                          Copy these now
+                        </p>
+                        <Button variant="outline" onClick={copyAccessCodes} className="h-8 border-white/20 bg-transparent text-white hover:bg-white/10 rounded-none text-xs">
+                          {copied ? <><Check className="w-3.5 h-3.5 mr-1.5 text-green-400" aria-hidden /> Copied</> : <><Clipboard className="w-3.5 h-3.5 mr-1.5" aria-hidden /> Copy all</>}
+                        </Button>
                       </div>
-                      <Button variant="outline" onClick={copyAccessCode} className="h-9 w-9 p-0 border-white/20 bg-transparent text-white hover:bg-white/10 rounded-none">
-                        {copied ? <Check className="w-4 h-4 text-green-400" /> : <Clipboard className="w-4 h-4" />}
-                      </Button>
-                      <Button onClick={handleCreateAccessCode} className="h-9 bg-white/10 text-white hover:bg-white/20 rounded-none text-xs uppercase tracking-wider">
-                        Refresh
-                      </Button>
+                      <div className="bg-[#030811] border border-white/20 p-3 max-h-40 overflow-y-auto">
+                        {createdAccessCodes.map((code) => (
+                          <p key={code} className="font-mono text-sm tracking-widest text-white">{code}</p>
+                        ))}
+                      </div>
                     </div>
-                  ) : (
-                    <Button onClick={handleCreateAccessCode} disabled={createAccessCode.isPending} className="bg-[#f97316] text-[#030811] hover:bg-[#ea6d0a] rounded-none uppercase tracking-wider text-xs h-10 px-6">
-                      {createAccessCode.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}
-                      Make a code
-                    </Button>
                   )}
                 </div>
+
               </motion.div>
             )}
 
@@ -243,6 +329,39 @@ export default function StudioHome() {
                             )}
                           />
 
+                    {studioAccess?.isAdmin && programmes.length > 0 && (
+                      <FormField
+                        control={form.control}
+                        name="programId"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-[10px] uppercase text-white/50 font-bold tracking-[0.15em]">Write it for a programme</FormLabel>
+                            <Select
+                              value={field.value ? String(field.value) : 'none'}
+                              onValueChange={(v) => field.onChange(v === 'none' ? undefined : Number(v))}
+                            >
+                              <FormControl>
+                                <SelectTrigger className="bg-[#07111e] border-white/20 text-white rounded-none">
+                                  <SelectValue placeholder="Nobody in particular" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent className="bg-[#0c1929] border-white/20 text-white">
+                                <SelectItem value="none">Nobody in particular</SelectItem>
+                                {programmes.map((programme: any) => (
+                                  <SelectItem key={programme.id} value={String(programme.id)}>{programme.title}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <p className="text-[11px] text-white/40 leading-relaxed">
+                              {field.value
+                                ? "The scenario will be built around what this cohort is studying, and everybody enrolled will be able to work through it."
+                                : "Choose a programme and the scenario is built around its modules, and the whole cohort can work through it."}
+                            </p>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    )}
                           <FormField
                             control={form.control}
                             name="mode"
@@ -420,6 +539,12 @@ export default function StudioHome() {
                             {sim.difficulty}
                           </span>
                         </div>
+
+                        {sim.programId && (
+                          <p className="text-[10px] uppercase tracking-widest text-[#f97316]/80 font-bold mb-2">
+                            {programmeById.get(sim.programId)?.title ?? 'For a programme'}
+                          </p>
+                        )}
 
                         <p className="text-xs text-white/50 line-clamp-2 mb-4 leading-relaxed font-mono">
                           {sim.objective}

@@ -91,6 +91,8 @@ import type {
   StudioAccess,
   StudioAccessCode,
   StudioAccessCodeInput,
+  StudioAccessCodeRequest,
+  StudioAccessGrantSummary,
   StudioSimulation,
   StudioSimulationRun,
   ThreadDetail,
@@ -5345,11 +5347,84 @@ export const getCreateStudioAccessCodeUrl = () => {
 }
 
 /**
- * @summary Create a one-time learner access code for Simulation Studio
+ * Returns the codes in clear exactly once. Only a digest is stored, so there is no screen anywhere that can show them again.
+ * @summary Create one-time learner access codes for Simulation Studio
  */
-export const createStudioAccessCode = async ( options?: Parameters<typeof customFetch>[1]): Promise<StudioAccessCode> => {
+export const createStudioAccessCode = async (studioAccessCodeRequest?: StudioAccessCodeRequest, options?: Parameters<typeof customFetch>[1]): Promise<StudioAccessCode> => {
 
   return customFetch<StudioAccessCode>(getCreateStudioAccessCodeUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(studioAccessCodeRequest)
+  }
+);}
+
+
+
+
+
+export const getCreateStudioAccessCodeMutationOptions = <TError = ErrorType<UnauthorizedResponse | ForbiddenResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createStudioAccessCode>>, TError,{data?: BodyType<StudioAccessCodeRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createStudioAccessCode>>, TError,{data?: BodyType<StudioAccessCodeRequest>}, TContext> => {
+
+const mutationKey = ['createStudioAccessCode'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createStudioAccessCode>>, {data?: BodyType<StudioAccessCodeRequest>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createStudioAccessCode(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateStudioAccessCodeMutationResult = NonNullable<Awaited<ReturnType<typeof createStudioAccessCode>>>
+    export type CreateStudioAccessCodeMutationBody = BodyType<StudioAccessCodeRequest> | undefined
+    export type CreateStudioAccessCodeMutationError = ErrorType<UnauthorizedResponse | ForbiddenResponse>
+
+    /**
+ * @summary Create one-time learner access codes for Simulation Studio
+ */
+export const useCreateStudioAccessCode = <TError = ErrorType<UnauthorizedResponse | ForbiddenResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createStudioAccessCode>>, TError,{data?: BodyType<StudioAccessCodeRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createStudioAccessCode>>,
+        TError,
+        {data?: BodyType<StudioAccessCodeRequest>},
+        TContext
+      > => {
+      return useMutation(getCreateStudioAccessCodeMutationOptions(options));
+    }
+
+export const getGrantStudioAccessToProgrammeUrl = (programId: number,) => {
+
+
+
+
+  return `/api/studio/access/programme/${programId}`
+}
+
+/**
+ * Grants access to every active learner on the programme and emails each one a link. Anybody who already had access is skipped. A failed email does not withdraw the access.
+ * @summary Open the Studio to everybody enrolled on a programme
+ */
+export const grantStudioAccessToProgramme = async (programId: number, options?: Parameters<typeof customFetch>[1]): Promise<StudioAccessGrantSummary> => {
+
+  return customFetch<StudioAccessGrantSummary>(getGrantStudioAccessToProgrammeUrl(programId),
   {
     ...options,
     method: 'POST'
@@ -5362,11 +5437,11 @@ export const createStudioAccessCode = async ( options?: Parameters<typeof custom
 
 
 
-export const getCreateStudioAccessCodeMutationOptions = <TError = ErrorType<UnauthorizedResponse | ForbiddenResponse>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createStudioAccessCode>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof createStudioAccessCode>>, TError,void, TContext> => {
+export const getGrantStudioAccessToProgrammeMutationOptions = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof grantStudioAccessToProgramme>>, TError,{programId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof grantStudioAccessToProgramme>>, TError,{programId: number}, TContext> => {
 
-const mutationKey = ['createStudioAccessCode'];
+const mutationKey = ['grantStudioAccessToProgramme'];
 const {mutation: mutationOptions, request: requestOptions} = options ?
       options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
       options
@@ -5376,10 +5451,10 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createStudioAccessCode>>, void> = () => {
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof grantStudioAccessToProgramme>>, {programId: number}> = (props) => {
+          const {programId} = props ?? {};
 
-
-          return  createStudioAccessCode(requestOptions)
+          return  grantStudioAccessToProgramme(programId,requestOptions)
         }
 
 
@@ -5389,22 +5464,22 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
   return  { mutationFn, ...mutationOptions }}
 
-    export type CreateStudioAccessCodeMutationResult = NonNullable<Awaited<ReturnType<typeof createStudioAccessCode>>>
+    export type GrantStudioAccessToProgrammeMutationResult = NonNullable<Awaited<ReturnType<typeof grantStudioAccessToProgramme>>>
 
-    export type CreateStudioAccessCodeMutationError = ErrorType<UnauthorizedResponse | ForbiddenResponse>
+    export type GrantStudioAccessToProgrammeMutationError = ErrorType<BadRequestResponse | UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>
 
     /**
- * @summary Create a one-time learner access code for Simulation Studio
+ * @summary Open the Studio to everybody enrolled on a programme
  */
-export const useCreateStudioAccessCode = <TError = ErrorType<UnauthorizedResponse | ForbiddenResponse>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createStudioAccessCode>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+export const useGrantStudioAccessToProgramme = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof grantStudioAccessToProgramme>>, TError,{programId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
-        Awaited<ReturnType<typeof createStudioAccessCode>>,
+        Awaited<ReturnType<typeof grantStudioAccessToProgramme>>,
         TError,
-        void,
+        {programId: number},
         TContext
       > => {
-      return useMutation(getCreateStudioAccessCodeMutationOptions(options));
+      return useMutation(getGrantStudioAccessToProgrammeMutationOptions(options));
     }
 
 export const getGenerateSimulationUrl = () => {

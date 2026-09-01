@@ -41,7 +41,7 @@ export default function Home() {
   const BYLINES_PUBLISHED: number | null = null;
   const stats = [
     { value: String(focusAreas.length), label: 'Focus Areas' },
-    { value: published.length > 0 ? String(published.length) : '—', label: 'Live Programs' },
+    { value: published.length > 0 ? String(published.length) : '—', label: 'Live programmes' },
     {
       value: BYLINES_PUBLISHED === null ? 'Soon' : String(BYLINES_PUBLISHED),
       label: 'Bylines Published',
@@ -107,7 +107,7 @@ export default function Home() {
               Register Interest
             </Link>
             <Link href="/courses" className="btn-editorial btn-editorial-ghost">
-              View Programs
+              View programmes
             </Link>
           </motion.div>
         </div>
@@ -211,7 +211,7 @@ export default function Home() {
               Upcoming
             </p>
             <h2 className="font-display font-bold" style={{ fontSize: 'clamp(2rem, 5vw, 3.5rem)' }}>
-              Programs
+              Programmes
             </h2>
           </div>
 
@@ -250,7 +250,7 @@ export default function Home() {
 
           <div className="mt-10 flex justify-end">
             <Link href="/courses" className="link-editorial text-sm border-b border-[color:var(--brand-brown)] pb-0.5">
-              All Programs <ArrowRight size={14} aria-hidden />
+              All programmes <ArrowRight size={14} aria-hidden />
             </Link>
           </div>
         </div>

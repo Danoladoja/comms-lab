@@ -6,9 +6,10 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface StudioAccessCode {
-  /** @minLength 6 */
-  code: string;
-  /** @items.minLength 6 */
-  codes: string[];
+export interface StudioAccessCodeRequest {
+  /**
+     * @minimum 1
+     * @maximum 50
+     */
+  count?: number;
 }

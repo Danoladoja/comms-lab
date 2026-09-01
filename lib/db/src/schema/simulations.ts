@@ -1,6 +1,7 @@
 import { pgTable, text, serial, integer, boolean, timestamp, jsonb, uniqueIndex, index } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
+import { programsTable } from "./programs";
 import { sessionsTable } from "./sessions";
 import { usersTable } from "./users";
 
@@ -25,6 +26,18 @@ export const simulationDefinitionsTable = pgTable("simulation_definitions", {
   ownerId: integer("owner_id").notNull().references(() => usersTable.id, { onDelete: "cascade" }),
   /** Optional legacy/module reuse link; Studio access never relies on this. */
   sessionId: integer("session_id").references(() => sessionsTable.id, { onDelete: "set null" }),
+  /**
+   * The programme this exercise was written for, when it was written for one.
+   *
+   * This is what makes an exercise the cohort's rather than its author's: a
+   * published exercise with a programme is visible to everybody enrolled on
+   * that programme. Null means it belongs to whoever made it and nobody else.
+   *
+   * "set null" rather than "cascade" on purpose. Deleting a programme should
+   * not silently destroy the exercises written for it, and an orphaned one
+   * simply goes back to being private to its author.
+   */
+  programId: integer("program_id").references(() => programsTable.id, { onDelete: "set null" }),
   mode: text("mode").notNull().default("autonomous"),
   title: text("title").notNull(),
   difficulty: text("difficulty").notNull().default("intermediate"),
@@ -40,7 +53,11 @@ export const simulationDefinitionsTable = pgTable("simulation_definitions", {
   published: boolean("published").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
-}, (t) => [index("simulation_definitions_owner_idx").on(t.ownerId), uniqueIndex("simulation_definitions_session_unique").on(t.sessionId)]);
+}, (t) => [
+  index("simulation_definitions_owner_idx").on(t.ownerId),
+  index("simulation_definitions_program_idx").on(t.programId),
+  uniqueIndex("simulation_definitions_session_unique").on(t.sessionId),
+]);
 
 export const simulationRunsTable = pgTable("simulation_runs", {
   id: serial("id").primaryKey(),
@@ -95,6 +112,13 @@ export const simulationResponsesTable = pgTable("simulation_responses", {
  */
 export const studioAccessCodesTable = pgTable("studio_access_codes", {
   id: serial("id").primaryKey(),
+  /**
+   * How this person got in: a code somebody typed, or a whole cohort let in at
+   * once by an admin. A cohort grant is stored here, already redeemed, so that
+   * the one question "may this person use the Studio" still has one answer in
+   * one place.
+   */
+  source: text("source").notNull().default("code"),
   codeHash: text("code_hash").notNull(),
   createdByUserId: integer("created_by_user_id").notNull().references(() => usersTable.id, { onDelete: "cascade" }),
   redeemedByUserId: integer("redeemed_by_user_id").references(() => usersTable.id, { onDelete: "set null" }),

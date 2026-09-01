@@ -1025,6 +1025,7 @@ export interface SimulationLaunchBrief {
   /** @minLength 1 */
   participantPerspective: string;
   mode: SimulationLaunchBriefMode;
+  programId?: number;
 }
 
 export interface StudioStakeholderGroup {
@@ -1094,6 +1095,10 @@ export interface StudioSimulation {
   durationMinutes: number;
   participantPerspective: string;
   mode: StudioSimulationMode;
+  /** @nullable */
+  programId: number | null;
+  published: boolean;
+  ownerId: number;
   openingBrief: string;
   stakeholderGroups: StudioStakeholderGroup[];
   initialDevelopment: StudioDevelopment;
@@ -1129,9 +1134,29 @@ export interface StudioAccessCodeInput {
   code: string;
 }
 
+export interface StudioAccessCodeRequest {
+  /**
+     * @minimum 1
+     * @maximum 50
+     */
+  count?: number;
+}
+
 export interface StudioAccessCode {
   /** @minLength 6 */
   code: string;
+  /** @items.minLength 6 */
+  codes: string[];
+}
+
+export interface StudioAccessGrantSummary {
+  programmeTitle: string;
+  enrolled: number;
+  granted: number;
+  alreadyHadAccess: number;
+  emailed: number;
+  emailFailed: number;
+  emailConfigured: boolean;
 }
 
 export interface SimulationRunInput {

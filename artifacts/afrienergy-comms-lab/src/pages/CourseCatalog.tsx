@@ -30,7 +30,7 @@ export default function CourseCatalog() {
     <div className="container mx-auto px-4 md:px-6 py-12">
       {/* Header */}
       <div className="mb-12">
-        <h1 className="text-4xl font-display font-bold mb-4">Programs</h1>
+        <h1 className="text-4xl font-display font-bold mb-4">Programmes</h1>
         <p className="text-lg text-muted-foreground max-w-2xl">
           Practitioner-led programs designed for Africa's energy communicators, policy advocates,
           and strategic storytellers. All programs run in cohorts with limited places.
@@ -54,7 +54,7 @@ export default function CourseCatalog() {
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input
-                placeholder="Search programs..."
+                placeholder="Search programmes..."
                 className="pl-9 bg-card"
                 value={query}
                 onChange={e => setQuery(e.target.value)}

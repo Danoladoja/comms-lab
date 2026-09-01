@@ -116,6 +116,8 @@ export * from './staffMemberRole';
 export * from './studioAccess';
 export * from './studioAccessCode';
 export * from './studioAccessCodeInput';
+export * from './studioAccessCodeRequest';
+export * from './studioAccessGrantSummary';
 export * from './studioAccessSource';
 export * from './studioDevelopment';
 export * from './studioDevelopmentChannel';

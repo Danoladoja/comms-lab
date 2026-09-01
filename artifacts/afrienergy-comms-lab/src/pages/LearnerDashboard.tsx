@@ -140,7 +140,7 @@ export default function LearnerDashboard() {
               <GraduationCap className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
               <h3 className="font-bold mb-1">No programs yet</h3>
               <p className="text-sm text-muted-foreground mb-5">Reserve a place on a program to get started.</p>
-              <Button asChild><Link href="/courses">Browse Programs</Link></Button>
+              <Button asChild><Link href="/courses">Browse programmes</Link></Button>
             </div>
           ) : (
             <Tabs defaultValue="modules">

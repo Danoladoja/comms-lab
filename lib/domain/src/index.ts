@@ -20,4 +20,5 @@ export * from "./simulations";
 export * from "./simulationPrompts";
 export * from "./staffRoles";
 export * from "./invitationEmail";
+export * from "./studioInviteEmail";
 export * from "./emailFailure";

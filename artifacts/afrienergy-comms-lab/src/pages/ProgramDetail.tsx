@@ -65,7 +65,7 @@ export default function ProgramDetail() {
     return (
       <div className="container mx-auto px-4 py-24 text-center">
         <h1 className="text-2xl font-display font-bold mb-4">Program not found</h1>
-        <Button asChild><Link href="/courses">Browse Programs</Link></Button>
+        <Button asChild><Link href="/courses">Browse programmes</Link></Button>
       </div>
     );
   }

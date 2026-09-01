@@ -86,3 +86,45 @@ export function responseVersionMatches(claimedVersion: number, currentVersion: n
 export function maySeeConfidentialBrief(viewerGroupId: string | null, briefGroupId: string): boolean {
   return viewerGroupId === briefGroupId;
 }
+
+/* ---------- Whose exercise is it ---------- */
+
+/**
+ * May this person open this exercise?
+ *
+ * Three ways in, and the third is the one that makes a programme exercise worth
+ * writing:
+ *
+ * - You wrote it. Always, published or not, so a half-finished exercise is
+ *   yours alone until you say otherwise.
+ * - You are an administrator. You are responsible for what the Lab teaches.
+ * - It was written for a programme, it has been published, and you are
+ *   enrolled on that programme. Forty people then have an exercise about the
+ *   thing they are actually studying, without anybody sending anything.
+ *
+ * An unpublished programme exercise stays with its author. That is the whole
+ * difference between drafting one and putting it in front of a cohort.
+ */
+export function maySeeStudioSimulation(
+  simulation: { ownerId: number; programId: number | null; published: boolean },
+  viewer: { id: number; isAdmin: boolean; enrolledProgramIds: readonly number[] },
+): boolean {
+  if (viewer.id === simulation.ownerId) return true;
+  if (viewer.isAdmin) return true;
+  if (!simulation.published || simulation.programId === null) return false;
+  return viewer.enrolledProgramIds.includes(simulation.programId);
+}
+
+/**
+ * How many access codes to make in one press.
+ *
+ * Bounded because each one is a row and a line of text somebody has to
+ * distribute by hand, and a mistyped 500 helps nobody.
+ */
+export const MAX_ACCESS_CODES_AT_ONCE = 50;
+
+export function accessCodeCount(requested: unknown): number {
+  const n = typeof requested === "number" ? Math.floor(requested) : Number.parseInt(String(requested ?? ""), 10);
+  if (!Number.isFinite(n) || n < 1) return 1;
+  return Math.min(n, MAX_ACCESS_CODES_AT_ONCE);
+}

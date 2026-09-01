@@ -34,6 +34,25 @@ export type StudioBrief = {
   /** Whose chair the learner is sitting in. */
   participantPerspective: string;
   mode: string;
+  /**
+   * The programme this is being written for, when it is being written for one.
+   *
+   * This is the difference between a competent generic exercise and one a
+   * cohort recognises. Given the programme's subject and the modules they have
+   * actually sat through, the scenario can turn on the thing taught in week
+   * three, and the debrief can hold them to it.
+   */
+  programme?: StudioProgrammeContext | null;
+};
+
+export type StudioProgrammeContext = {
+  title: string;
+  /** The catalogue description. */
+  description?: string | null;
+  /** The focus area label, e.g. "Energy transition". */
+  tag?: string | null;
+  /** The modules, in order, as the cohort sees them named. */
+  moduleTitles?: readonly string[];
 };
 
 /** How a development reaches the learner. Drives the icon and the styling. */
@@ -88,6 +107,32 @@ What makes one of these good:
 ${HOUSE_RULES}`;
 }
 
+/** The programme block, or nothing at all when there is no programme. */
+function programmeSection(programme: StudioProgrammeContext | null | undefined): string {
+  if (!programme) return "";
+  const modules = (programme.moduleTitles ?? []).filter(Boolean);
+  const lines = [
+    "",
+    "This exercise is for a specific cohort, so make it theirs.",
+    "",
+    `Programme: ${programme.title}`,
+  ];
+  if (programme.tag) lines.push(`Focus: ${programme.tag}`);
+  if (programme.description) lines.push(`What it covers: ${programme.description}`);
+  if (modules.length > 0) {
+    lines.push("", "The modules they are working through, in order:");
+    for (const title of modules) lines.push(`  ${title}`);
+    lines.push(
+      "",
+      "Build the scenario so that at least one of those modules is the thing",
+      "that decides whether they handle it well. Do not name the module or",
+      "mention the course. They should recognise it from the shape of the",
+      "problem, not from a label.",
+    );
+  }
+  return lines.join("\n");
+}
+
 export function scenarioUserPrompt(brief: StudioBrief): string {
   const minutes = Math.max(5, Math.round(brief.durationMinutes || 30));
   return `Write one simulation.
@@ -109,7 +154,8 @@ somewhere to put people, and so the debrief can weigh the answer against what
 the other side was actually thinking.
 
 The first development is the thing that forces a response. Give it a source, a
-channel, and an explicit ask with a deadline in it.`;
+channel, and an explicit ask with a deadline in it.
+${programmeSection(brief.programme)}`;
 }
 
 export function scenarioSchema(): Record<string, unknown> {

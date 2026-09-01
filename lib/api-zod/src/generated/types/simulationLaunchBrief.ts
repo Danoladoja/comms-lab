@@ -22,4 +22,5 @@ export interface SimulationLaunchBrief {
   /** @minLength 1 */
   participantPerspective: string;
   mode: SimulationLaunchBriefMode;
+  programId?: number;
 }

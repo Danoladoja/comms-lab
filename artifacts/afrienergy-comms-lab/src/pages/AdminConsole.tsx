@@ -56,7 +56,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { ChevronDown, ChevronUp, Plus, Trash2, CircleAlert, Pencil } from 'lucide-react';
 
-const TABS = ['Programs', 'Enrollments', 'People', 'Recordings'] as const;
+const TABS = ['Programmes', 'Enrolments', 'People', 'Recordings'] as const;
 type Tab = (typeof TABS)[number];
 
 function formatSessionDate(iso: string | null | undefined) {
@@ -461,7 +461,7 @@ function ProgramCard({ program, instructors }: { program: Program; instructors: 
         toast({ title: `${updated.title} — ${programStatusNote(updated.status).toLowerCase()}` });
         qc.invalidateQueries({ queryKey: getListProgramsQueryKey() });
       },
-      onError: () => toast({ title: 'Could not update program', variant: 'destructive' }),
+      onError: () => toast({ title: 'Could not update programme', variant: 'destructive' }),
     },
   });
 
@@ -564,7 +564,7 @@ function ProgramsTab({ instructors }: { instructors: { id: number; name: string;
         closeCreate();
         qc.invalidateQueries({ queryKey: getListProgramsQueryKey() });
       },
-      onError: () => toast({ title: 'Could not create program', variant: 'destructive' }),
+      onError: () => toast({ title: 'Could not create programme', variant: 'destructive' }),
     },
   });
 
@@ -835,8 +835,8 @@ function EnrollmentsTab() {
   const { data: programmes = [] } = useListPrograms();
   const update = useUpdateEnrollment({
     mutation: {
-      onSuccess: () => { toast({ title: 'Enrollment updated' }); qc.invalidateQueries({ queryKey: getListAllEnrollmentsQueryKey() }); },
-      onError: () => toast({ title: 'Could not update enrollment', variant: 'destructive' }),
+      onSuccess: () => { toast({ title: 'Enrolment updated' }); qc.invalidateQueries({ queryKey: getListAllEnrollmentsQueryKey() }); },
+      onError: () => toast({ title: 'Could not update enrolment', variant: 'destructive' }),
     },
   });
   const remove = useRemoveEnrollment({
@@ -865,7 +865,7 @@ function EnrollmentsTab() {
       <UnattachedSection />
 
       {programmes.length === 0 ? (
-        <p className="text-muted-foreground">No programmes yet. Create one under Programs.</p>
+        <p className="text-muted-foreground">No programmes yet. Create one under Programmes.</p>
       ) : (
         programmes.map(p => (
           <CohortSection
@@ -1008,7 +1008,7 @@ function PeopleTab({ selfId }: { selfId: number | undefined }) {
       {!canAppoint && (
         <p className="rounded-lg border border-border bg-card px-4 py-3 text-xs text-muted-foreground">
           Only a super admin can change what someone is allowed to do. You can see the team here and
-          assign classes under Programs.
+          assign classes under Programmes.
         </p>
       )}
 
@@ -1035,7 +1035,7 @@ function PeopleTab({ selfId }: { selfId: number | undefined }) {
       <section className="rounded-xl border border-border bg-card p-5">
         <h3 className="font-semibold">Facilitators</h3>
         <p className="mt-0.5 text-xs text-muted-foreground">
-          Shown with the programmes they are teaching. Assign classes under Programs.
+          Shown with the programmes they are teaching. Assign classes under Programmes.
         </p>
 
         {teaching.length === 0 && unassigned.length === 0 && (
@@ -1087,7 +1087,7 @@ function PeopleTab({ selfId }: { selfId: number | undefined }) {
 
 export default function AdminConsole() {
   const { role, user, isLoading } = useCurrentUser();
-  const [tab, setTab] = useState<Tab>('Programs');
+  const [tab, setTab] = useState<Tab>('Programmes');
   const isStaffAdmin = satisfiesRole(role, ['admin']);
   const { data: users = [] } = useListUsers({ query: { queryKey: getListUsersQueryKey(), enabled: isStaffAdmin } });
   const instructors = users.filter(u => isStaffRole(u.role));
@@ -1105,7 +1105,7 @@ export default function AdminConsole() {
     <div className="container mx-auto px-4 md:px-6 py-12">
       <div className="mb-8">
         <h1 className="text-3xl md:text-4xl font-display font-bold mb-2">Admin Console</h1>
-        <p className="text-muted-foreground">Manage programs, modules, enrollments, people, and class recordings.</p>
+        <p className="text-muted-foreground">Manage programmes, modules, enrolments, people and class recordings.</p>
       </div>
 
       <div className="flex gap-1 border-b border-border mb-8">
@@ -1122,8 +1122,8 @@ export default function AdminConsole() {
         ))}
       </div>
 
-      {tab === 'Programs' && <ProgramsTab instructors={instructors} />}
-      {tab === 'Enrollments' && <EnrollmentsTab />}
+      {tab === 'Programmes' && <ProgramsTab instructors={instructors} />}
+      {tab === 'Enrolments' && <EnrollmentsTab />}
       {tab === 'People' && <PeopleTab selfId={user?.id} />}
       {tab === 'Recordings' && <RecordingsAdmin />}
     </div>

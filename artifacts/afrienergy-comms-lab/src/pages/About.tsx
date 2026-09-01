@@ -284,7 +284,7 @@ export default function About() {
               Register Your Interest
             </Link>
             <Link href="/courses" className="btn-editorial btn-editorial-ghost px-10 py-4">
-              View Programs <ArrowRight size={14} aria-hidden />
+              View programmes <ArrowRight size={14} aria-hidden />
             </Link>
           </motion.div>
         </div>

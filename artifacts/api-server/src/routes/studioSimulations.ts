@@ -2,12 +2,12 @@ import { createHash, randomBytes } from "node:crypto";
 import { Router, type IRouter, type NextFunction, type Request, type Response } from "express";
 import { and, asc, eq, isNull, lt, or, sql } from "drizzle-orm";
 import {
-  db, pendingInvitationsTable, simulationDefinitionsTable, simulationGroupAssignmentsTable, simulationResponsesTable,
-  simulationRunsTable, studioAccessCodesTable,
+  db, enrollmentsTable, pendingInvitationsTable, programsTable, sessionsTable, simulationDefinitionsTable,
+  simulationGroupAssignmentsTable, simulationResponsesTable, simulationRunsTable, studioAccessCodesTable, usersTable,
 } from "@workspace/db";
 import {
   AdvanceSimulationRunParams, AdvanceSimulationRunResponse, CompleteSimulationRunParams, CompleteSimulationRunResponse,
-  CreateStudioAccessCodeResponse,
+  CreateStudioAccessCodeResponse, GrantStudioAccessToProgrammeResponse,
   CreateSimulationRunBody, CreateSimulationRunResponse, GenerateSimulationBody, GenerateSimulationResponse,
   GetSimulationParams, GetSimulationResponse, GetSimulationRunParams, GetSimulationRunResponse,
   JoinSimulationRunBody, JoinSimulationRunResponse, ListSimulationsResponse, SubmitSimulationResponseBody,
@@ -15,11 +15,13 @@ import {
   RedeemStudioAccessBody, RedeemStudioAccessResponse,
 } from "@workspace/api-zod";
 import {
-  JOIN_CODE_ALPHABET, JOIN_CODE_LENGTH, mayAdvanceStudioRun, mayCompleteStudioRun, mayControlStudioRun,
-  mayEnterStudio, mayJoinFacilitatedRun, normaliseJoinCode, operationLeaseIsActive, satisfiesRole,
+  JOIN_CODE_ALPHABET, JOIN_CODE_LENGTH, accessCodeCount, mayAdvanceStudioRun, mayCompleteStudioRun,
+  mayControlStudioRun, mayEnterStudio, mayJoinFacilitatedRun, maySeeStudioSimulation, normaliseJoinCode,
+  operationLeaseIsActive, satisfiesRole, studioInviteLetter, type StudioProgrammeContext,
 } from "@workspace/domain";
 import { getCurrentUser } from "../lib/auth";
 import { createBudget } from "../lib/rateBudget";
+import { emailConfigured, sendEmail } from "../lib/email";
 import { generateDebrief, generateDevelopment, generateScenario, simulationAiConfigured } from "../lib/simulationAi";
 
 /**
@@ -95,6 +97,7 @@ function definitionView(definition: typeof simulationDefinitionsTable.$inferSele
     id: definition.id, title: definition.title, sectorTopic: definition.context, objective: definition.learningObjective,
     difficulty: definition.difficulty, durationMinutes: definition.durationMinutes, participantPerspective: definition.participantPerspective,
     mode: definition.mode as "autonomous" | "facilitated", openingBrief: definition.openingBrief,
+    programId: definition.programId, published: definition.published, ownerId: definition.ownerId,
     stakeholderGroups: definition.groups, initialDevelopment: { id: initialDevelopment.id, title: initialDevelopment.title, content: initialDevelopment.content, responsePrompt: initialDevelopment.responsePrompt },
     evaluationDimensions: definition.evaluationDimensions, debriefQuestions: definition.debriefQuestions, createdAt: definition.createdAt,
   };
@@ -205,6 +208,48 @@ async function runHistory(
   };
 }
 
+/* ---------- Programmes, and who is on them ---------- */
+
+/** The programmes this person is enrolled on, for the visibility rule. */
+async function enrolledProgramIds(userId: number): Promise<number[]> {
+  const rows = await db.select({ programId: enrollmentsTable.programId })
+    .from(enrollmentsTable)
+    .where(and(eq(enrollmentsTable.userId, userId), sql`${enrollmentsTable.status} in ('enrolled', 'completed')`));
+  return rows.map((row) => row.programId);
+}
+
+/**
+ * Everything the scenario writer should know about the cohort.
+ *
+ * The module titles come in the order the cohort meets them, because "the
+ * thing taught in week three" is only a useful instruction if week three is
+ * identifiable.
+ */
+async function programmeContext(programId: number): Promise<StudioProgrammeContext | null> {
+  const [programme] = await db.select().from(programsTable).where(eq(programsTable.id, programId));
+  if (!programme) return null;
+  const modules = await db.select({ title: sessionsTable.title })
+    .from(sessionsTable)
+    .where(eq(sessionsTable.programId, programId))
+    .orderBy(asc(sessionsTable.startsAt), asc(sessionsTable.id));
+  return {
+    title: programme.title,
+    description: programme.description,
+    tag: programme.tag,
+    moduleTitles: modules.map((m) => m.title).filter(Boolean),
+  };
+}
+
+/** Where the Studio lives, for a link in an email. */
+function studioUrl(): string {
+  const base = process.env.APP_BASE_URL?.trim().replace(/\/$/, "");
+  return base ? `${base}/studio` : "https://energycommslab.africa/studio";
+}
+function labLogoUrl(): string | null {
+  const base = process.env.APP_BASE_URL?.trim().replace(/\/$/, "");
+  return base ? `${base}/logo-white.png` : null;
+}
+
 router.get("/studio/access", async (req, res): Promise<void> => {
   const user = await getCurrentUser(req);
   if (!user) { res.status(401).json(message("Unauthorized")); return; }
@@ -236,20 +281,127 @@ router.post("/studio/access/redeem", async (req, res): Promise<void> => {
   res.json(RedeemStudioAccessResponse.parse(await studioAccess(user)));
 });
 
+/**
+ * A handful of codes at once.
+ *
+ * A facilitator running a session for twenty people needs twenty codes, and
+ * making them one at a time is twenty presses and twenty chances to lose one.
+ * They are returned in clear exactly once, here; only a digest is kept, so
+ * there is no screen anywhere that can show them again.
+ */
 router.post("/studio/access-codes", async (req, res): Promise<void> => {
   const user = await getCurrentUser(req);
   if (!user) { res.status(401).json(message("Unauthorized")); return; }
   if (!satisfiesRole(user.role, ["admin"])) { res.status(403).json(message("Only admins can create Studio access codes")); return; }
-  const code = newAccessCode();
-  await db.insert(studioAccessCodesTable).values({ codeHash: accessCodeHash(code), createdByUserId: user.id });
-  res.status(201).json(CreateStudioAccessCodeResponse.parse({ code }));
+
+  const wanted = accessCodeCount((req.body as { count?: unknown } | undefined)?.count ?? 1);
+  const codes: string[] = [];
+  for (let i = 0; i < wanted; i++) codes.push(newAccessCode());
+
+  await db.insert(studioAccessCodesTable)
+    .values(codes.map((code) => ({ codeHash: accessCodeHash(code), createdByUserId: user.id, source: "code" })))
+    .onConflictDoNothing();
+
+  req.log.info({ count: codes.length, by: user.id }, "Created Studio access codes");
+  res.status(201).json(CreateStudioAccessCodeResponse.parse({ code: codes[0], codes }));
 });
 
+/**
+ * Open the Studio to a whole cohort, in one press.
+ *
+ * The alternative was an admin making forty codes and pasting them into forty
+ * messages, which is how a good feature quietly never gets used.
+ *
+ * A grant is stored in the same table as a code, already redeemed against the
+ * person, so that "may this person use the Studio" still has one answer in one
+ * place rather than two that can disagree. Anyone who already has access is
+ * skipped rather than granted twice.
+ *
+ * The email is sent after the access is recorded, and a send that fails does
+ * not take the access with it: somebody who can use the Studio but did not
+ * hear about it is a smaller problem than the reverse.
+ */
+router.post("/studio/access/programme/:programId", async (req, res): Promise<void> => {
+  const user = await getCurrentUser(req);
+  if (!user) { res.status(401).json(message("Unauthorized")); return; }
+  if (!satisfiesRole(user.role, ["admin"])) { res.status(403).json(message("Only admins can open the Studio to a cohort")); return; }
+
+  const programId = Number(req.params.programId);
+  if (!Number.isInteger(programId) || programId < 1) { res.status(400).json(message("That is not a programme")); return; }
+  const [programme] = await db.select().from(programsTable).where(eq(programsTable.id, programId));
+  if (!programme) { res.status(404).json(message("Programme not found")); return; }
+
+  const learners = await db
+    .select({ id: usersTable.id, name: usersTable.name, email: usersTable.email })
+    .from(enrollmentsTable)
+    .innerJoin(usersTable, eq(enrollmentsTable.userId, usersTable.id))
+    .where(and(eq(enrollmentsTable.programId, programId), sql`${enrollmentsTable.status} in ('enrolled', 'completed')`));
+
+  const already = new Set(
+    (await db.select({ userId: studioAccessCodesTable.redeemedByUserId })
+      .from(studioAccessCodesTable)
+      .where(sql`${studioAccessCodesTable.redeemedByUserId} is not null`))
+      .map((row) => row.userId),
+  );
+
+  const newcomers = learners.filter((learner) => !already.has(learner.id));
+  if (newcomers.length > 0) {
+    await db.insert(studioAccessCodesTable).values(newcomers.map((learner) => ({
+      source: "cohort",
+      codeHash: accessCodeHash(newAccessCode() + String(learner.id)),
+      createdByUserId: user.id,
+      redeemedByUserId: learner.id,
+      redeemedAt: new Date(),
+    }))).onConflictDoNothing();
+  }
+
+  let emailed = 0;
+  const failed: string[] = [];
+  if (emailConfigured()) {
+    const letter = studioInviteLetter({ programmeTitle: programme.title, url: studioUrl(), logoUrl: labLogoUrl() });
+    for (const learner of newcomers) {
+      if (!learner.email) continue;
+      try {
+        const personal = studioInviteLetter({ name: learner.name, programmeTitle: programme.title, url: studioUrl(), logoUrl: labLogoUrl() });
+        await sendEmail({
+          to: { email: learner.email, name: (learner.name ?? "").trim() || learner.email },
+          subject: letter.subject, html: personal.html, text: personal.text,
+        });
+        emailed++;
+      } catch (err) {
+        req.log.error({ err, userId: learner.id }, "Could not tell a learner the Studio is open");
+        failed.push(learner.email);
+      }
+    }
+  }
+
+  req.log.info({ programId, granted: newcomers.length, emailed }, "Opened the Studio to a cohort");
+  res.json(GrantStudioAccessToProgrammeResponse.parse({
+    programmeTitle: programme.title,
+    enrolled: learners.length,
+    granted: newcomers.length,
+    alreadyHadAccess: learners.length - newcomers.length,
+    emailed,
+    emailFailed: failed.length,
+    emailConfigured: emailConfigured(),
+  }));
+});
+
+/**
+ * What this person can open: their own, plus anything published for a
+ * programme they are on. An administrator sees the lot.
+ */
 router.get("/simulations", requireStudioAccess, async (req, res): Promise<void> => {
   const user = await getCurrentUser(req);
   if (!user) { res.status(401).json(message("Unauthorized")); return; }
-  const definitions = await db.select().from(simulationDefinitionsTable).where(eq(simulationDefinitionsTable.ownerId, user.id)).orderBy(asc(simulationDefinitionsTable.createdAt));
-  res.json(ListSimulationsResponse.parse(definitions.map(definitionView)));
+  const isAdmin = satisfiesRole(user.role, ["admin"]);
+  const programIds = isAdmin ? [] : await enrolledProgramIds(user.id);
+
+  const definitions = await db.select().from(simulationDefinitionsTable).orderBy(asc(simulationDefinitionsTable.createdAt));
+  const visible = definitions.filter((definition) =>
+    maySeeStudioSimulation(definition, { id: user.id, isAdmin, enrolledProgramIds: programIds }));
+
+  res.json(ListSimulationsResponse.parse(visible.map(definitionView)));
 });
 
 router.post("/simulations/generate", requireStudioAccess, async (req, res): Promise<void> => {
@@ -266,7 +418,12 @@ router.post("/simulations/generate", requireStudioAccess, async (req, res): Prom
     return;
   }
 
-  const generated = await generateScenario(body.data);
+  // A programme turns a competent generic exercise into one the cohort
+  // recognises, so it is looked up before the scenario is written, not after.
+  const programme = body.data.programId ? await programmeContext(body.data.programId) : null;
+  if (body.data.programId && !programme) { res.status(404).json(message("Programme not found")); return; }
+
+  const generated = await generateScenario({ ...body.data, programme });
   if (!generated.ok) {
     req.log.error({ reason: generated.error, userId: user.id }, "Simulation generation failed");
     res.status(502).json(message(generated.error));
@@ -275,11 +432,12 @@ router.post("/simulations/generate", requireStudioAccess, async (req, res): Prom
   const scenario = generated.value;
 
   const [saved] = await db.insert(simulationDefinitionsTable).values({
-    ownerId: user.id, mode: body.data.mode, title: scenario.title, context: body.data.sectorTopic,
+    ownerId: user.id, programId: body.data.programId ?? null, published: !!body.data.programId,
+    mode: body.data.mode, title: scenario.title, context: body.data.sectorTopic,
     learningObjective: body.data.objective, difficulty: body.data.difficulty, durationMinutes: body.data.durationMinutes,
     participantPerspective: body.data.participantPerspective, openingBrief: scenario.openingBrief, groups: scenario.stakeholderGroups,
     injects: [{ ...scenario.initialDevelopment, responseMinutes: body.data.durationMinutes }], evaluationDimensions: scenario.evaluationDimensions,
-    debriefQuestions: scenario.debriefQuestions, published: true,
+    debriefQuestions: scenario.debriefQuestions,
   }).returning();
   req.log.info({ simulationId: saved.id }, "Generated standalone simulation");
   res.status(201).json(GenerateSimulationResponse.parse(definitionView(saved)));
@@ -290,8 +448,12 @@ router.get("/simulations/:simulationId", requireStudioAccess, async (req, res): 
   if (!user) { res.status(401).json(message("Unauthorized")); return; }
   const params = GetSimulationParams.safeParse(req.params);
   if (!params.success) { res.status(400).json(message(params.error.message)); return; }
-  const [definition] = await db.select().from(simulationDefinitionsTable).where(and(eq(simulationDefinitionsTable.id, params.data.simulationId), eq(simulationDefinitionsTable.ownerId, user.id)));
-  if (!definition) { res.status(404).json(message("Simulation not found")); return; }
+  const [definition] = await db.select().from(simulationDefinitionsTable).where(eq(simulationDefinitionsTable.id, params.data.simulationId));
+  const isAdmin = satisfiesRole(user.role, ["admin"]);
+  const programIds = isAdmin ? [] : await enrolledProgramIds(user.id);
+  if (!definition || !maySeeStudioSimulation(definition, { id: user.id, isAdmin, enrolledProgramIds: programIds })) {
+    res.status(404).json(message("Simulation not found")); return;
+  }
   res.json(GetSimulationResponse.parse(definitionView(definition)));
 });
 
@@ -300,8 +462,14 @@ router.post("/simulation-runs", requireStudioAccess, async (req, res): Promise<v
   if (!user) { res.status(401).json(message("Unauthorized")); return; }
   const body = CreateSimulationRunBody.safeParse(req.body);
   if (!body.success) { res.status(400).json(message(body.error.message)); return; }
-  const [definition] = await db.select().from(simulationDefinitionsTable).where(and(eq(simulationDefinitionsTable.id, body.data.simulationId), eq(simulationDefinitionsTable.ownerId, user.id)));
-  if (!definition) { res.status(403).json(message("Only the simulation owner can create its run")); return; }
+  const [definition] = await db.select().from(simulationDefinitionsTable).where(eq(simulationDefinitionsTable.id, body.data.simulationId));
+  const runnerIsAdmin = satisfiesRole(user.role, ["admin"]);
+  const runnerProgrammes = runnerIsAdmin ? [] : await enrolledProgramIds(user.id);
+  // A cohort exercise is the cohort's to run, each on their own copy. The run
+  // belongs to whoever started it, so one learner's answers never meet another's.
+  if (!definition || !maySeeStudioSimulation(definition, { id: user.id, isAdmin: runnerIsAdmin, enrolledProgramIds: runnerProgrammes })) {
+    res.status(403).json(message("That exercise is not open to you")); return;
+  }
   const initial = definition.injects[0];
   if (!initial || definition.groups.length === 0) { res.status(400).json(message("Simulation has no initial development or stakeholder group")); return; }
   const [run] = await db.insert(simulationRunsTable).values({

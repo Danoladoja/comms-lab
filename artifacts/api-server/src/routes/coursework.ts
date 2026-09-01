@@ -43,7 +43,7 @@ export async function learnerAccessError(role: string | null, user: User, sessio
       eq(enrollmentsTable.programId, session.programId),
       sql`${enrollmentsTable.status} in ('enrolled', 'completed')`,
     ));
-  if (!enrollment) return "You are not enrolled in this program";
+  if (!enrollment) return "You are not enrolled on this programme";
   const progress = await progressForUser(user.id, [session.programId]);
   const entry = progress.find((p) => p.sessionId === session.id);
   if (entry?.locked) return "Finish the previous module's work to unlock this one";

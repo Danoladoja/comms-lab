@@ -8,7 +8,10 @@ import {
   mayControlStudioRun,
   mayCreateStudioRun,
   mayJoinFacilitatedRun,
+  MAX_ACCESS_CODES_AT_ONCE,
+  accessCodeCount,
   mayEnterStudio,
+  maySeeStudioSimulation,
   maySeeConfidentialBrief,
   normaliseJoinCode,
   operationLeaseIsActive,
@@ -122,5 +125,54 @@ describe("two people acting at once", () => {
   it("refuses to save over an answer written since we looked", () => {
     expect(responseVersionMatches(4, 4)).toBe(true);
     expect(responseVersionMatches(4, 5)).toBe(false);
+  });
+});
+
+describe("whose exercise is it", () => {
+  const mine = { ownerId: 7, programId: null, published: false };
+  const cohorts = { ownerId: 7, programId: 3, published: true };
+
+  it("is always the author's, published or not", () => {
+    expect(maySeeStudioSimulation(mine, { id: 7, isAdmin: false, enrolledProgramIds: [] })).toBe(true);
+  });
+
+  it("is not somebody else's to open", () => {
+    expect(maySeeStudioSimulation(mine, { id: 9, isAdmin: false, enrolledProgramIds: [3] })).toBe(false);
+  });
+
+  it("opens to everybody on the programme once it is published", () => {
+    expect(maySeeStudioSimulation(cohorts, { id: 9, isAdmin: false, enrolledProgramIds: [3] })).toBe(true);
+  });
+
+  it("stays shut to somebody on a different programme", () => {
+    expect(maySeeStudioSimulation(cohorts, { id: 9, isAdmin: false, enrolledProgramIds: [4] })).toBe(false);
+  });
+
+  it("stays with its author until it is published", () => {
+    // Drafting one in front of the cohort would be worse than not having it.
+    const draft = { ...cohorts, published: false };
+    expect(maySeeStudioSimulation(draft, { id: 9, isAdmin: false, enrolledProgramIds: [3] })).toBe(false);
+  });
+
+  it("lets an administrator see anything", () => {
+    expect(maySeeStudioSimulation(mine, { id: 9, isAdmin: true, enrolledProgramIds: [] })).toBe(true);
+  });
+});
+
+describe("how many codes at once", () => {
+  it("makes one when nothing sensible was asked for", () => {
+    for (const bad of [undefined, null, 0, -4, "", "many", Number.NaN]) {
+      expect(accessCodeCount(bad)).toBe(1);
+    }
+  });
+
+  it("makes what was asked for, within reason", () => {
+    expect(accessCodeCount(20)).toBe(20);
+    expect(accessCodeCount("12")).toBe(12);
+    expect(accessCodeCount(7.8)).toBe(7);
+  });
+
+  it("will not make five hundred because somebody held a key down", () => {
+    expect(accessCodeCount(500)).toBe(MAX_ACCESS_CODES_AT_ONCE);
   });
 });
