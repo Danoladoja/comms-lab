@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { getCurrentUser } from "../lib/auth";
+import { currentRole, getCurrentUser } from "../lib/auth";
 
 const router: IRouter = Router();
 
@@ -14,7 +14,12 @@ router.get("/me", async (req, res) => {
     clerkUserId: user.clerkUserId,
     email: user.email,
     name: user.name,
-    role: user.role,
+    // The effective role, not the stored one. A super admin was being sent
+    // their database row, and every gate in the browser compares against
+    // "admin" — so an appointed super admin was locked out of the console they
+    // had just been given. The founder, whose row says admin, has the same
+    // problem in reverse.
+    role: (await currentRole(req)) ?? user.role,
   });
 });
 

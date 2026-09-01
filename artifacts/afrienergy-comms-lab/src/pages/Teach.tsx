@@ -8,6 +8,7 @@ import {
   type SessionDetail,
 } from '@workspace/api-client-react';
 import { liveWindow } from '@workspace/domain';
+import { satisfiesRole } from '@workspace/domain';
 import { useCurrentUser } from '@/lib/useCurrentUser';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -133,7 +134,7 @@ export default function Teach() {
   const qc = useQueryClient();
   const { data: sessions = [], isLoading: loadingSessions } = useListMySessions();
 
-  if (!isLoading && role !== 'instructor' && role !== 'admin') {
+  if (!isLoading && !satisfiesRole(role, ['instructor', 'admin'])) {
     return (
       <div className="container mx-auto px-4 py-24 text-center">
         <h1 className="text-2xl font-display font-bold mb-2">Facilitators only</h1>

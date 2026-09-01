@@ -10,6 +10,7 @@ import {
   useDeleteSession,
   useListAllEnrollments,
   useUpdateEnrollment,
+  useRemoveEnrollment,
   useListUsers,
   useListStaff,
   useListWaitlist,
@@ -28,6 +29,8 @@ import {
 } from '@workspace/api-client-react';
 import {
   ROLE_NOTES,
+  isStaffRole,
+  satisfiesRole,
   describeWaitlist,
   canAppointStaff,
   groupStaff,
@@ -637,11 +640,12 @@ function ProgramsTab({ instructors }: { instructors: { id: number; name: string;
 
 /** One programme's cohort: everybody on it, and how they are getting on. */
 function CohortSection({
-  programme, rows, onStatus, pending,
+  programme, rows, onStatus, onRemove, pending,
 }: {
   programme: { id: number; title: string; capacity: number; status: string };
   rows: { id: number; userName: string; userEmail: string; status: string }[];
   onStatus: (enrollmentId: number, status: string) => void;
+  onRemove: (enrollmentId: number, who: string) => void;
   pending: boolean;
 }) {
   const [open, setOpen] = useState(true);
@@ -674,7 +678,7 @@ function CohortSection({
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border text-left text-xs uppercase tracking-wider text-muted-foreground">
-                  <th className="p-4">Learner</th><th className="p-4">Status</th>
+                  <th className="p-4">Learner</th><th className="p-4">Status</th><th className="p-4"></th>
                 </tr>
               </thead>
               <tbody>
@@ -696,6 +700,20 @@ function CohortSection({
                         <option value="completed">Completed</option>
                         <option value="cancelled">Cancelled</option>
                       </select>
+                    </td>
+                    <td className="p-4 text-right">
+                      {/* For somebody who should not be on this list at all: a
+                          test enrolment, or a member of staff who ended up in
+                          the cohort. Withdrawing a real learner is Cancelled. */}
+                      <Button
+                        variant="ghost" size="icon"
+                        className="text-muted-foreground hover:text-destructive"
+                        disabled={pending}
+                        aria-label={`Remove ${r.userName || r.userEmail} from ${programme.title}`}
+                        onClick={() => onRemove(r.id, r.userName || r.userEmail)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
                     </td>
                   </tr>
                 ))}
@@ -821,9 +839,24 @@ function EnrollmentsTab() {
       onError: () => toast({ title: 'Could not update enrollment', variant: 'destructive' }),
     },
   });
+  const remove = useRemoveEnrollment({
+    mutation: {
+      onSuccess: () => { toast({ title: 'Removed from the programme' }); qc.invalidateQueries({ queryKey: getListAllEnrollmentsQueryKey() }); },
+      onError: (err) => toast({
+        title: 'Could not remove them',
+        description: (err as unknown as { error?: string })?.error,
+        variant: 'destructive',
+      }),
+    },
+  });
 
   const setStatus = (id: number, status: string) =>
     update.mutate({ id, data: { status: status as 'enrolled' | 'waitlisted' | 'completed' | 'cancelled' } });
+
+  const removeFromProgramme = (id: number, who: string) => {
+    if (!confirm(`Remove ${who} from this programme? Their progress on it goes too. To keep the record, set them to Cancelled instead.`)) return;
+    remove.mutate({ id });
+  };
 
   if (isLoading) return <div className="h-32 animate-pulse rounded-xl border border-border bg-card" />;
 
@@ -840,7 +873,8 @@ function EnrollmentsTab() {
             programme={p}
             rows={enrollments.filter(e => e.programId === p.id)}
             onStatus={setStatus}
-            pending={update.isPending}
+            onRemove={removeFromProgramme}
+            pending={update.isPending || remove.isPending}
           />
         ))
       )}
@@ -856,11 +890,12 @@ function EnrollmentsTab() {
 /* ---------- People tab ---------- */
 
 function StaffRow({
-  person, canAppoint, onChange, pending, isFounder,
+  person, canAppoint, onChange, onRemove, pending, isFounder,
 }: {
   person: { id: number; name: string; email: string; role: string; programmes: { programId: number; programTitle: string; sessions: number }[] };
   canAppoint: boolean;
   onChange: (role: string) => void;
+  onRemove: () => void;
   pending: boolean;
   isFounder?: boolean;
 }) {
@@ -893,6 +928,22 @@ function StaffRow({
           {isFounder ? 'Set up the Lab. This role cannot be changed.' : (ROLE_NOTES[person.role as keyof typeof ROLE_NOTES] ?? '')}
         </p>
       </div>
+
+      {/* Removing somebody from staff takes their access away and leaves the
+          person alone: their account, their coursework and any certificate stay
+          exactly where they are. Deleting a person outright is not offered,
+          because it would take a learner's own record with it. */}
+      {canAppoint && !isFounder && (
+        <Button
+          variant="ghost" size="sm"
+          className="text-muted-foreground hover:text-destructive"
+          disabled={pending}
+          onClick={onRemove}
+        >
+          <Trash2 className="mr-1.5 h-4 w-4" aria-hidden />
+          Remove
+        </Button>
+      )}
     </li>
   );
 }
@@ -935,6 +986,21 @@ function PeopleTab({ selfId }: { selfId: number | undefined }) {
   const setRole = (id: number, role: string) =>
     update.mutate({ id, data: { role: role as 'learner' | 'instructor' | 'admin' | 'superadmin' } });
 
+  /**
+   * Take somebody off the staff.
+   *
+   * This makes them a learner again rather than deleting anything. A person who
+   * facilitated a cohort has learners' work attached to them, and somebody who
+   * was made an admin may also be enrolled on a programme; erasing the account
+   * would take all of that with it.
+   */
+  const removeFromStaff = (person: { id: number; name: string; email: string; role: string }) => {
+    const who = person.name || person.email;
+    const what = person.role === 'instructor' ? 'a facilitator' : 'an administrator';
+    if (!confirm(`Remove ${who} as ${what}? They keep their account and anything they have done, but lose access to the console and the teaching area.`)) return;
+    setRole(person.id, 'learner');
+  };
+
   return (
     <div className="space-y-6">
       <InviteFacilitator canInviteAdmin={canAppoint} />
@@ -960,6 +1026,7 @@ function PeopleTab({ selfId }: { selfId: number | undefined }) {
               isFounder={p.id === data.founderId}
               pending={update.isPending}
               onChange={role => setRole(p.id, role)}
+              onRemove={() => removeFromStaff(p)}
             />
           ))}
         </ul>
@@ -984,6 +1051,7 @@ function PeopleTab({ selfId }: { selfId: number | undefined }) {
               isFounder={p.id === data.founderId}
               pending={update.isPending}
               onChange={role => setRole(p.id, role)}
+              onRemove={() => removeFromStaff(p)}
             />
           ))}
         </ul>
@@ -1000,6 +1068,7 @@ function PeopleTab({ selfId }: { selfId: number | undefined }) {
                   isFounder={p.id === data.founderId}
                   pending={update.isPending}
                   onChange={role => setRole(p.id, role)}
+                  onRemove={() => removeFromStaff(p)}
                 />
               ))}
             </ul>
@@ -1019,10 +1088,11 @@ function PeopleTab({ selfId }: { selfId: number | undefined }) {
 export default function AdminConsole() {
   const { role, user, isLoading } = useCurrentUser();
   const [tab, setTab] = useState<Tab>('Programs');
-  const { data: users = [] } = useListUsers({ query: { queryKey: getListUsersQueryKey(), enabled: role === 'admin' } });
-  const instructors = users.filter(u => u.role === 'instructor' || u.role === 'admin');
+  const isStaffAdmin = satisfiesRole(role, ['admin']);
+  const { data: users = [] } = useListUsers({ query: { queryKey: getListUsersQueryKey(), enabled: isStaffAdmin } });
+  const instructors = users.filter(u => isStaffRole(u.role));
 
-  if (!isLoading && role !== 'admin') {
+  if (!isLoading && !isStaffAdmin) {
     return (
       <div className="container mx-auto px-4 py-24 text-center">
         <h1 className="text-2xl font-display font-bold mb-2">Admins only</h1>

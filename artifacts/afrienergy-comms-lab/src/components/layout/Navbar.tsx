@@ -4,6 +4,7 @@ import { Menu, X, User } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 import { useClerk } from '@clerk/react';
+import { satisfiesRole } from '@workspace/domain';
 import { useCurrentUser } from '@/lib/useCurrentUser';
 import {
   DropdownMenu,
@@ -41,8 +42,8 @@ export function Navbar() {
     { label: 'My Learning', href: '/dashboard', show: true },
     { label: 'Recordings', href: '/recordings', show: true },
     { label: 'My Certificates', href: '/certificates', show: true },
-    { label: 'Teaching', href: '/teach', show: role === 'instructor' || role === 'admin' },
-    { label: 'Admin Console', href: '/admin', show: role === 'admin' },
+    { label: 'Teaching', href: '/teach', show: satisfiesRole(role, ['instructor', 'admin']) },
+    { label: 'Admin Console', href: '/admin', show: satisfiesRole(role, ['admin']) },
   ].filter((l) => l.show);
 
   return (

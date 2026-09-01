@@ -137,6 +137,42 @@ router.patch("/admin/users/:id/role", async (req, res) => {
   res.json({ id: u.id, clerkUserId: u.clerkUserId, email: u.email, name: u.name, role: u.role });
 });
 
+/**
+ * Take somebody off a programme entirely.
+ *
+ * Cancelling leaves the row, which is right when a learner withdrew and the
+ * record matters. This is for the other case: somebody enrolled by mistake, or
+ * a member of staff who ended up on the roster while testing, who should not be
+ * in the cohort list at all.
+ *
+ * A completed enrolment is refused. That row is what a certificate is checked
+ * against, and deleting it would break a certificate already in somebody's
+ * hands. Cancel that one instead.
+ */
+router.delete("/admin/enrollments/:id", async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) {
+    res.status(400).json({ error: "That is not an enrolment." });
+    return;
+  }
+
+  const [existing] = await db.select().from(enrollmentsTable).where(eq(enrollmentsTable.id, id));
+  if (!existing) {
+    res.status(404).json({ error: "That enrolment no longer exists." });
+    return;
+  }
+  if (existing.status === "completed") {
+    res.status(400).json({
+      error: "This learner completed the programme, and their certificate is checked against this record. Set them to cancelled instead.",
+    });
+    return;
+  }
+
+  await db.delete(enrollmentsTable).where(eq(enrollmentsTable.id, id));
+  logger.info({ enrollmentId: id, userId: existing.userId, programId: existing.programId }, "Enrolment removed");
+  res.status(204).end();
+});
+
 router.get("/admin/enrollments", async (req, res) => {
   const programId = req.query.programId ? Number(req.query.programId) : undefined;
   const base = db

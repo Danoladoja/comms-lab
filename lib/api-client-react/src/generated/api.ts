@@ -4286,6 +4286,78 @@ export const useUpdateEnrollment = <TError = ErrorType<ApiMessage>,
       return useMutation(getUpdateEnrollmentMutationOptions(options));
     }
 
+export const getRemoveEnrollmentUrl = (id: number,) => {
+
+
+
+
+  return `/api/admin/enrollments/${id}`
+}
+
+/**
+ * Deletes the enrolment. Refused for a completed one, because a certificate is checked against that record; cancel it instead.
+ * @summary Take somebody off a programme
+ */
+export const removeEnrollment = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+  return customFetch<void>(getRemoveEnrollmentUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getRemoveEnrollmentMutationOptions = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof removeEnrollment>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof removeEnrollment>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['removeEnrollment'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof removeEnrollment>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  removeEnrollment(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RemoveEnrollmentMutationResult = NonNullable<Awaited<ReturnType<typeof removeEnrollment>>>
+
+    export type RemoveEnrollmentMutationError = ErrorType<ApiMessage>
+
+    /**
+ * @summary Take somebody off a programme
+ */
+export const useRemoveEnrollment = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof removeEnrollment>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof removeEnrollment>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getRemoveEnrollmentMutationOptions(options));
+    }
+
 export const getListProgramThreadsUrl = (id: number,) => {
 
 

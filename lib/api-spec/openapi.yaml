@@ -1607,6 +1607,33 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiMessage"
+    delete:
+      operationId: removeEnrollment
+      tags: [admin]
+      summary: Take somebody off a programme
+      description: >-
+        Deletes the enrolment. Refused for a completed one, because a
+        certificate is checked against that record; cancel it instead.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "204":
+          description: Removed
+        "400":
+          description: Completed enrolments cannot be removed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "404":
+          description: No such enrolment
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
   /programs/{id}/threads:
     get:
       operationId: listProgramThreads

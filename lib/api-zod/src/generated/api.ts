@@ -1353,6 +1353,17 @@ export const UpdateEnrollmentResponse = zod.object({
 
 
 /**
+ * Deletes the enrolment. Refused for a completed one, because a certificate is checked against that record; cancel it instead.
+ * @summary Take somebody off a programme
+ */
+export const RemoveEnrollmentParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const RemoveEnrollmentResponse = zod.void()
+
+
+/**
  * @summary List forum threads for a program (enrolled learners and staff)
  */
 export const ListProgramThreadsParams = zod.object({
