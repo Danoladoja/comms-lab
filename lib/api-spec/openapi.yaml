@@ -2006,6 +2006,43 @@ paths:
           description: Owned definitions
           content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/StudioSimulation" } } } }
         "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+  /studio/access:
+    get:
+      operationId: getStudioAccess
+      tags: [enrollments]
+      summary: Check whether the signed-in user may enter Ananse Simulation Studio
+      responses:
+        "200":
+          description: Studio admission status
+          content: { application/json: { schema: { $ref: "#/components/schemas/StudioAccess" } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+  /studio/access/redeem:
+    post:
+      operationId: redeemStudioAccess
+      tags: [enrollments]
+      summary: Redeem a one-time learner Studio access code
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/StudioAccessCodeInput" } } }
+      responses:
+        "200":
+          description: Studio access granted
+          content: { application/json: { schema: { $ref: "#/components/schemas/StudioAccess" } } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /studio/access-codes:
+    post:
+      operationId: createStudioAccessCode
+      tags: [admin]
+      summary: Create a one-time learner access code for Ananse Simulation Studio
+      responses:
+        "201":
+          description: Code created and shown once
+          content: { application/json: { schema: { $ref: "#/components/schemas/StudioAccessCode" } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
   /simulations/generate:
     post:
       operationId: generateSimulation
@@ -3207,6 +3244,25 @@ components:
         evaluationDimensions: { type: array, items: { $ref: "#/components/schemas/SimulationEvaluationDimension" } }
         debriefQuestions: { type: array, items: { type: string } }
         createdAt: { type: string, format: date-time }
+    StudioAccess:
+      type: object
+      required: [allowed, isAdmin, source]
+      properties:
+        allowed: { type: boolean }
+        isAdmin: { type: boolean }
+        source:
+          type: ["string", "null"]
+          enum: [admin, invitation, access_code, null]
+    StudioAccessCodeInput:
+      type: object
+      required: [code]
+      properties:
+        code: { type: string, minLength: 6, maxLength: 32 }
+    StudioAccessCode:
+      type: object
+      required: [code]
+      properties:
+        code: { type: string, minLength: 6 }
     SimulationRunInput:
       type: object
       required: [simulationId]

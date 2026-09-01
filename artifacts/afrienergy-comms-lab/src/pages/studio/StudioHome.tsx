@@ -3,7 +3,13 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Link, useLocation } from 'wouter';
-import { useListSimulations, useGenerateSimulation, useJoinSimulationRun } from '@workspace/api-client-react';
+import {
+  useCreateStudioAccessCode,
+  useGenerateSimulation,
+  useGetStudioAccess,
+  useJoinSimulationRun,
+  useListSimulations,
+} from '@workspace/api-client-react';
 import { StudioLayout } from '@/components/simulation/StudioLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,7 +17,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Activity, Loader2, Plus, Users, Clock, Target, PlayCircle, ChevronRight, Hash } from 'lucide-react';
+import { Activity, Check, Clipboard, Loader2, Plus, Users, Clock, Target, PlayCircle, ChevronRight, Hash, KeyRound } from 'lucide-react';
 import { format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 
@@ -32,10 +38,14 @@ export default function StudioHome() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState<'new' | 'join'>('new');
+  const [createdAccessCode, setCreatedAccessCode] = useState('');
+  const [copied, setCopied] = useState(false);
   
   const { data: simulations, isLoading: isLoadingSims } = useListSimulations();
+  const { data: studioAccess } = useGetStudioAccess();
   const generateSim = useGenerateSimulation();
   const joinSim = useJoinSimulationRun();
+  const createAccessCode = useCreateStudioAccessCode();
 
   const form = useForm<z.infer<typeof generateSchema>>({
     resolver: zodResolver(generateSchema),
@@ -78,6 +88,23 @@ export default function StudioHome() {
     });
   }
 
+  function handleCreateAccessCode() {
+    createAccessCode.mutate(undefined, {
+      onSuccess: ({ code }) => {
+        setCreatedAccessCode(code);
+        setCopied(false);
+      },
+      onError: () => {
+        toast({ title: "Code creation failed", description: "A learner access code could not be created.", variant: "destructive" });
+      },
+    });
+  }
+
+  async function copyAccessCode() {
+    await navigator.clipboard.writeText(createdAccessCode);
+    setCopied(true);
+  }
+
   return (
     <StudioLayout>
       <div className="container max-w-6xl mx-auto py-12 px-6 flex flex-col lg:flex-row gap-12 h-full z-10">
@@ -85,9 +112,44 @@ export default function StudioHome() {
         {/* Left Column: Create or Join */}
         <div className="lg:w-1/2 flex flex-col gap-6">
           <div className="mb-4">
-            <h1 className="font-display text-4xl font-bold tracking-tight text-white mb-2">Simulation Command</h1>
+            <h1 className="font-display text-4xl font-bold tracking-tight text-white mb-2">Ananse Simulation Studio</h1>
             <p className="text-white/60 text-lg">Generate new high-stakes scenarios or join a facilitated live room.</p>
           </div>
+
+          {studioAccess?.isAdmin && (
+            <Card className="border-[#f97316]/20 bg-[#0c1929] text-white">
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <KeyRound className="h-4 w-4 text-[#f97316]" />
+                  Learner access
+                </CardTitle>
+                <CardDescription className="text-white/55">
+                  Create a one-time code to invite one learner into the Studio.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {createdAccessCode ? (
+                  <div className="flex gap-2">
+                    <div className="flex-1 rounded-md border border-white/15 bg-[#07111e] px-4 py-2 text-center font-mono tracking-[0.18em]">
+                      {createdAccessCode}
+                    </div>
+                    <Button type="button" variant="outline" onClick={copyAccessCode} className="border-white/20 text-white hover:bg-white/10">
+                      {copied ? <Check className="h-4 w-4" /> : <Clipboard className="h-4 w-4" />}
+                      <span className="sr-only">Copy access code</span>
+                    </Button>
+                    <Button type="button" onClick={handleCreateAccessCode} className="bg-[#f97316] text-[#07111e] hover:bg-[#ea6d0a]">
+                      New code
+                    </Button>
+                  </div>
+                ) : (
+                  <Button type="button" onClick={handleCreateAccessCode} disabled={createAccessCode.isPending} className="bg-[#f97316] text-[#07111e] hover:bg-[#ea6d0a]">
+                    {createAccessCode.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Create one-time code
+                  </Button>
+                )}
+              </CardContent>
+            </Card>
+          )}
 
           <div className="flex bg-[#0c1929] rounded-lg p-1 border border-white/10 w-fit mb-2">
             <button

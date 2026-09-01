@@ -85,6 +85,26 @@ export const simulationResponsesTable = pgTable("simulation_responses", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 }, (t) => [uniqueIndex("simulation_responses_run_group_inject_unique").on(t.runId, t.groupId, t.injectId)]);
 
+/**
+ * One-time admission codes for the standalone Studio.
+ *
+ * Only a digest is stored. The clear code is shown once to the admin who
+ * creates it, then a successful redemption binds it permanently to one user.
+ * Facilitated-room join codes remain separate because they grant access to one
+ * run, not to the Studio product.
+ */
+export const studioAccessCodesTable = pgTable("studio_access_codes", {
+  id: serial("id").primaryKey(),
+  codeHash: text("code_hash").notNull(),
+  createdByUserId: integer("created_by_user_id").notNull().references(() => usersTable.id, { onDelete: "cascade" }),
+  redeemedByUserId: integer("redeemed_by_user_id").references(() => usersTable.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  redeemedAt: timestamp("redeemed_at", { withTimezone: true }),
+}, (t) => [
+  uniqueIndex("studio_access_codes_hash_unique").on(t.codeHash),
+  index("studio_access_codes_redeemed_by_idx").on(t.redeemedByUserId),
+]);
+
 export const insertSimulationDefinitionSchema = createInsertSchema(simulationDefinitionsTable).omit({ id: true, createdAt: true, updatedAt: true });
 export type InsertSimulationDefinition = z.infer<typeof insertSimulationDefinitionSchema>;
 export type SimulationDefinition = typeof simulationDefinitionsTable.$inferSelect;

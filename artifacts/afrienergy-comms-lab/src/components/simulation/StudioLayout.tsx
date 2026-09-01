@@ -1,6 +1,8 @@
 import { ReactNode } from 'react';
 import { Link } from 'wouter';
-import { Activity, ArrowLeft } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
+
+const basePath = import.meta.env.BASE_URL.replace(/\/$/, '');
 
 export function StudioLayout({ children, backTo }: { children: ReactNode; backTo?: string }) {
   return (
@@ -8,11 +10,15 @@ export function StudioLayout({ children, backTo }: { children: ReactNode; backTo
       <header className="border-b border-white/10 px-6 py-4 flex items-center justify-between shrink-0 bg-[#07111e] z-10 relative shadow-sm">
         <div className="flex items-center gap-6">
           <Link href="/studio" className="flex items-center gap-3 group outline-none focus-visible:ring-2 focus-visible:ring-[#f97316] rounded">
-            <div className="w-8 h-8 rounded bg-[#f97316] flex items-center justify-center text-[#07111e] font-bold group-hover:scale-105 transition-transform">
-              <Activity className="w-5 h-5" />
-            </div>
+            <img
+              src={`${basePath}/logo-white.png`}
+              alt="Ananse"
+              width={456}
+              height={160}
+              className="h-9 w-auto group-hover:scale-[1.02] transition-transform"
+            />
             <div className="flex flex-col">
-              <span className="font-display font-bold tracking-widest uppercase text-xs text-[#f97316] leading-none mb-0.5">Comms Lab</span>
+              <span className="font-display font-bold tracking-widest uppercase text-xs text-[#f97316] leading-none mb-0.5">Ananse</span>
               <span className="font-display font-bold tracking-widest uppercase text-[10px] text-white/50 leading-none">Simulation Studio</span>
             </div>
           </Link>

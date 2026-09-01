@@ -8,11 +8,24 @@ import {
   mayControlStudioRun,
   mayCreateStudioRun,
   mayJoinFacilitatedRun,
+  mayEnterStudio,
   maySeeConfidentialBrief,
   normaliseJoinCode,
   operationLeaseIsActive,
   responseVersionMatches,
 } from "./simulations";
+
+describe("Studio admission", () => {
+  it("lets admins enter without an invitation or code", () => {
+    expect(mayEnterStudio(true, false, false)).toBe(true);
+  });
+
+  it("requires learners to have an invitation or redeemed code", () => {
+    expect(mayEnterStudio(false, false, false)).toBe(false);
+    expect(mayEnterStudio(false, true, false)).toBe(true);
+    expect(mayEnterStudio(false, false, true)).toBe(true);
+  });
+});
 
 describe("who may do what to a run", () => {
   it("lets the owner drive, in both modes", () => {

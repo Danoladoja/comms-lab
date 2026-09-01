@@ -88,6 +88,9 @@ import type {
   SlideDeck,
   SlidesVisibilityInput,
   StaffList,
+  StudioAccess,
+  StudioAccessCode,
+  StudioAccessCodeInput,
   StudioSimulation,
   StudioSimulationRun,
   ThreadDetail,
@@ -5141,7 +5144,7 @@ export const getListSimulationsQueryKey = () => {
     }
 
 
-export const getListSimulationsQueryOptions = <TData = Awaited<ReturnType<typeof listSimulations>>, TError = ErrorType<UnauthorizedResponse>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listSimulations>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export const getListSimulationsQueryOptions = <TData = Awaited<ReturnType<typeof listSimulations>>, TError = ErrorType<UnauthorizedResponse | ForbiddenResponse>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listSimulations>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
@@ -5160,14 +5163,14 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 }
 
 export type ListSimulationsQueryResult = NonNullable<Awaited<ReturnType<typeof listSimulations>>>
-export type ListSimulationsQueryError = ErrorType<UnauthorizedResponse>
+export type ListSimulationsQueryError = ErrorType<UnauthorizedResponse | ForbiddenResponse>
 
 
 /**
  * @summary List simulation definitions owned by the signed-in user
  */
 
-export function useListSimulations<TData = Awaited<ReturnType<typeof listSimulations>>, TError = ErrorType<UnauthorizedResponse>>(
+export function useListSimulations<TData = Awaited<ReturnType<typeof listSimulations>>, TError = ErrorType<UnauthorizedResponse | ForbiddenResponse>>(
   options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listSimulations>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
@@ -5184,6 +5187,225 @@ export function useListSimulations<TData = Awaited<ReturnType<typeof listSimulat
 
 
 
+
+export const getGetStudioAccessUrl = () => {
+
+
+
+
+  return `/api/studio/access`
+}
+
+/**
+ * @summary Check whether the signed-in user may enter Ananse Simulation Studio
+ */
+export const getStudioAccess = async ( options?: Parameters<typeof customFetch>[1]): Promise<StudioAccess> => {
+
+  return customFetch<StudioAccess>(getGetStudioAccessUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetStudioAccessQueryKey = () => {
+    return [
+    `/api/studio/access`
+    ] as const;
+    }
+
+
+export const getGetStudioAccessQueryOptions = <TData = Awaited<ReturnType<typeof getStudioAccess>>, TError = ErrorType<UnauthorizedResponse>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getStudioAccess>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetStudioAccessQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getStudioAccess>>> = ({ signal }) => getStudioAccess({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getStudioAccess>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetStudioAccessQueryResult = NonNullable<Awaited<ReturnType<typeof getStudioAccess>>>
+export type GetStudioAccessQueryError = ErrorType<UnauthorizedResponse>
+
+
+/**
+ * @summary Check whether the signed-in user may enter Ananse Simulation Studio
+ */
+
+export function useGetStudioAccess<TData = Awaited<ReturnType<typeof getStudioAccess>>, TError = ErrorType<UnauthorizedResponse>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getStudioAccess>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetStudioAccessQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getRedeemStudioAccessUrl = () => {
+
+
+
+
+  return `/api/studio/access/redeem`
+}
+
+/**
+ * @summary Redeem a one-time learner Studio access code
+ */
+export const redeemStudioAccess = async (studioAccessCodeInput: StudioAccessCodeInput, options?: Parameters<typeof customFetch>[1]): Promise<StudioAccess> => {
+
+  return customFetch<StudioAccess>(getRedeemStudioAccessUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(studioAccessCodeInput)
+  }
+);}
+
+
+
+
+
+export const getRedeemStudioAccessMutationOptions = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | NotFoundResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof redeemStudioAccess>>, TError,{data: BodyType<StudioAccessCodeInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof redeemStudioAccess>>, TError,{data: BodyType<StudioAccessCodeInput>}, TContext> => {
+
+const mutationKey = ['redeemStudioAccess'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof redeemStudioAccess>>, {data: BodyType<StudioAccessCodeInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  redeemStudioAccess(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RedeemStudioAccessMutationResult = NonNullable<Awaited<ReturnType<typeof redeemStudioAccess>>>
+    export type RedeemStudioAccessMutationBody = BodyType<StudioAccessCodeInput>
+    export type RedeemStudioAccessMutationError = ErrorType<BadRequestResponse | UnauthorizedResponse | NotFoundResponse>
+
+    /**
+ * @summary Redeem a one-time learner Studio access code
+ */
+export const useRedeemStudioAccess = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | NotFoundResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof redeemStudioAccess>>, TError,{data: BodyType<StudioAccessCodeInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof redeemStudioAccess>>,
+        TError,
+        {data: BodyType<StudioAccessCodeInput>},
+        TContext
+      > => {
+      return useMutation(getRedeemStudioAccessMutationOptions(options));
+    }
+
+export const getCreateStudioAccessCodeUrl = () => {
+
+
+
+
+  return `/api/studio/access-codes`
+}
+
+/**
+ * @summary Create a one-time learner access code for Ananse Simulation Studio
+ */
+export const createStudioAccessCode = async ( options?: Parameters<typeof customFetch>[1]): Promise<StudioAccessCode> => {
+
+  return customFetch<StudioAccessCode>(getCreateStudioAccessCodeUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getCreateStudioAccessCodeMutationOptions = <TError = ErrorType<UnauthorizedResponse | ForbiddenResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createStudioAccessCode>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createStudioAccessCode>>, TError,void, TContext> => {
+
+const mutationKey = ['createStudioAccessCode'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createStudioAccessCode>>, void> = () => {
+
+
+          return  createStudioAccessCode(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateStudioAccessCodeMutationResult = NonNullable<Awaited<ReturnType<typeof createStudioAccessCode>>>
+
+    export type CreateStudioAccessCodeMutationError = ErrorType<UnauthorizedResponse | ForbiddenResponse>
+
+    /**
+ * @summary Create a one-time learner access code for Ananse Simulation Studio
+ */
+export const useCreateStudioAccessCode = <TError = ErrorType<UnauthorizedResponse | ForbiddenResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createStudioAccessCode>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createStudioAccessCode>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getCreateStudioAccessCodeMutationOptions(options));
+    }
 
 export const getGenerateSimulationUrl = () => {
 

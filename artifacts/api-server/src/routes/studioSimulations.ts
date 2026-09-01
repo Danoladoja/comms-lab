@@ -1,18 +1,22 @@
-import { Router, type IRouter } from "express";
+import { createHash, randomBytes } from "node:crypto";
+import { Router, type IRouter, type NextFunction, type Request, type Response } from "express";
 import { and, asc, eq, isNull, lt, or, sql } from "drizzle-orm";
 import {
-  db, simulationDefinitionsTable, simulationGroupAssignmentsTable, simulationResponsesTable, simulationRunsTable,
+  db, pendingInvitationsTable, simulationDefinitionsTable, simulationGroupAssignmentsTable, simulationResponsesTable,
+  simulationRunsTable, studioAccessCodesTable,
 } from "@workspace/db";
 import {
   AdvanceSimulationRunParams, AdvanceSimulationRunResponse, CompleteSimulationRunParams, CompleteSimulationRunResponse,
+  CreateStudioAccessCodeResponse,
   CreateSimulationRunBody, CreateSimulationRunResponse, GenerateSimulationBody, GenerateSimulationResponse,
   GetSimulationParams, GetSimulationResponse, GetSimulationRunParams, GetSimulationRunResponse,
   JoinSimulationRunBody, JoinSimulationRunResponse, ListSimulationsResponse, SubmitSimulationResponseBody,
-  SubmitSimulationResponseParams, SubmitSimulationResponseResponse,
+  SubmitSimulationResponseParams, SubmitSimulationResponseResponse, GetStudioAccessResponse,
+  RedeemStudioAccessBody, RedeemStudioAccessResponse,
 } from "@workspace/api-zod";
 import {
   JOIN_CODE_ALPHABET, JOIN_CODE_LENGTH, mayAdvanceStudioRun, mayCompleteStudioRun, mayControlStudioRun,
-  mayJoinFacilitatedRun, normaliseJoinCode, operationLeaseIsActive,
+  mayEnterStudio, mayJoinFacilitatedRun, normaliseJoinCode, operationLeaseIsActive, satisfiesRole,
 } from "@workspace/domain";
 import { getCurrentUser } from "../lib/auth";
 import { createBudget } from "../lib/rateBudget";
@@ -33,6 +37,40 @@ const joinAttemptWindowMs = 5 * 60 * 1000;
 const operationLeaseMs = 2 * 60 * 1000;
 
 function message(error: string) { return { error }; }
+function normaliseAccessCode(value: string): string {
+  return value.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
+}
+function accessCodeHash(value: string): string {
+  return createHash("sha256").update(normaliseAccessCode(value)).digest("hex");
+}
+function newAccessCode(): string {
+  return randomBytes(9).toString("base64url").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 12);
+}
+async function studioAccess(user: Awaited<ReturnType<typeof getCurrentUser>>) {
+  if (!user) return { allowed: false, isAdmin: false, source: null };
+  if (satisfiesRole(user.role, ["admin"])) return { allowed: true, isAdmin: true, source: "admin" as const };
+  const [[invitation], [code]] = await Promise.all([
+    db.select({ id: pendingInvitationsTable.id }).from(pendingInvitationsTable)
+      .where(and(eq(pendingInvitationsTable.acceptedByUserId, user.id), eq(pendingInvitationsTable.role, "learner"))).limit(1),
+    db.select({ id: studioAccessCodesTable.id }).from(studioAccessCodesTable)
+      .where(eq(studioAccessCodesTable.redeemedByUserId, user.id)).limit(1),
+  ]);
+  if (mayEnterStudio(false, !!invitation, !!code)) {
+    return invitation
+      ? { allowed: true, isAdmin: false, source: "invitation" as const }
+      : { allowed: true, isAdmin: false, source: "access_code" as const };
+  }
+  return { allowed: false, isAdmin: false, source: null };
+}
+async function requireStudioAccess(req: Request, res: Response, next: NextFunction) {
+  const user = await getCurrentUser(req);
+  if (!user) { res.status(401).json(message("Unauthorized")); return; }
+  if (!(await studioAccess(user)).allowed) {
+    res.status(403).json(message("A Studio invitation or access code is required"));
+    return;
+  }
+  next();
+}
 function response(row: typeof simulationResponsesTable.$inferSelect) {
   return { injectId: row.injectId, groupId: row.groupId, body: row.body, authorId: row.authorId, createdAt: row.createdAt, updatedAt: row.updatedAt };
 }
@@ -152,6 +190,48 @@ async function runHistory(
     latest: run.currentDevelopment ? join(answersFor(run.currentDevelopment.id)) : null,
   };
 }
+
+router.get("/studio/access", async (req, res): Promise<void> => {
+  const user = await getCurrentUser(req);
+  if (!user) { res.status(401).json(message("Unauthorized")); return; }
+  res.json(GetStudioAccessResponse.parse(await studioAccess(user)));
+});
+
+router.post("/studio/access/redeem", async (req, res): Promise<void> => {
+  const user = await getCurrentUser(req);
+  if (!user) { res.status(401).json(message("Unauthorized")); return; }
+  const body = RedeemStudioAccessBody.safeParse(req.body);
+  if (!body.success) { res.status(400).json(message(body.error.message)); return; }
+  if ((await studioAccess(user)).allowed) {
+    res.json(RedeemStudioAccessResponse.parse(await studioAccess(user)));
+    return;
+  }
+  const hash = accessCodeHash(body.data.code);
+  const redeemed = await db.transaction(async (tx) => {
+    const [code] = await tx.select().from(studioAccessCodesTable)
+      .where(and(eq(studioAccessCodesTable.codeHash, hash), isNull(studioAccessCodesTable.redeemedAt)))
+      .for("update");
+    if (!code) return false;
+    const [updated] = await tx.update(studioAccessCodesTable)
+      .set({ redeemedByUserId: user.id, redeemedAt: new Date() })
+      .where(and(eq(studioAccessCodesTable.id, code.id), isNull(studioAccessCodesTable.redeemedAt)))
+      .returning({ id: studioAccessCodesTable.id });
+    return !!updated;
+  });
+  if (!redeemed) { res.status(404).json(message("This Studio access code is invalid or has already been used")); return; }
+  res.json(RedeemStudioAccessResponse.parse(await studioAccess(user)));
+});
+
+router.post("/studio/access-codes", async (req, res): Promise<void> => {
+  const user = await getCurrentUser(req);
+  if (!user) { res.status(401).json(message("Unauthorized")); return; }
+  if (!satisfiesRole(user.role, ["admin"])) { res.status(403).json(message("Only admins can create Studio access codes")); return; }
+  const code = newAccessCode();
+  await db.insert(studioAccessCodesTable).values({ codeHash: accessCodeHash(code), createdByUserId: user.id });
+  res.status(201).json(CreateStudioAccessCodeResponse.parse({ code }));
+});
+
+router.use(requireStudioAccess);
 
 router.get("/simulations", async (req, res): Promise<void> => {
   const user = await getCurrentUser(req);

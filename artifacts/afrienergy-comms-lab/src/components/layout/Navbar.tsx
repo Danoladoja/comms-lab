@@ -35,13 +35,13 @@ export function Navbar() {
   const navLinks = [
     { label: 'Programs', href: '/courses' },
     { label: 'Live Classes', href: '/live-sessions' },
-    ...(isSignedIn ? [{ label: 'Studio', href: '/studio' }] : []),
+    ...(isSignedIn ? [{ label: 'Ananse Simulation Studio', href: '/studio' }] : []),
     { label: 'About', href: '/about' },
   ];
 
   const accountLinks = [
     { label: 'My Learning', href: '/dashboard', show: true },
-    { label: 'Studio', href: '/studio', show: true },
+    { label: 'Ananse Simulation Studio', href: '/studio', show: true },
     { label: 'Recordings', href: '/recordings', show: true },
     { label: 'My Certificates', href: '/certificates', show: true },
     { label: 'Teaching', href: '/teach', show: satisfiesRole(role, ['instructor', 'admin']) },

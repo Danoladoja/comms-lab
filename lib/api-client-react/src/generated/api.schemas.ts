@@ -1102,6 +1102,38 @@ export interface StudioSimulation {
   createdAt: string;
 }
 
+/**
+ * @nullable
+ */
+export type StudioAccessSource = typeof StudioAccessSource[keyof typeof StudioAccessSource] | null;
+
+
+export const StudioAccessSource = {
+  admin: 'admin',
+  invitation: 'invitation',
+  access_code: 'access_code',
+} as const;
+
+export interface StudioAccess {
+  allowed: boolean;
+  isAdmin: boolean;
+  /** @nullable */
+  source: StudioAccessSource;
+}
+
+export interface StudioAccessCodeInput {
+  /**
+     * @minLength 6
+     * @maxLength 32
+     */
+  code: string;
+}
+
+export interface StudioAccessCode {
+  /** @minLength 6 */
+  code: string;
+}
+
 export interface SimulationRunInput {
   simulationId: number;
 }

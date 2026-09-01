@@ -31,6 +31,7 @@ import NotFound from '@/pages/not-found';
 import StudioHome from '@/pages/studio/StudioHome';
 import ScenarioBriefing from '@/pages/studio/ScenarioBriefing';
 import SimulationRun from '@/pages/studio/SimulationRun';
+import { StudioAccessGate } from '@/components/simulation/StudioAccessGate';
 
 const queryClient = new QueryClient();
 
@@ -276,16 +277,16 @@ function Router() {
         {/* Signed-in routes */}
         <Route path="/studio/scenarios/:id">
           {(params) => (
-            <Protected><ScenarioBriefing id={params.id} /></Protected>
+            <Protected><StudioAccessGate><ScenarioBriefing id={params.id} /></StudioAccessGate></Protected>
           )}
         </Route>
         <Route path="/studio/run/:id">
           {(params) => (
-            <Protected><SimulationRun id={params.id} /></Protected>
+            <Protected><StudioAccessGate><SimulationRun id={params.id} /></StudioAccessGate></Protected>
           )}
         </Route>
         <Route path="/studio">
-          <Protected><StudioHome /></Protected>
+          <Protected><StudioAccessGate><StudioHome /></StudioAccessGate></Protected>
         </Route>
         <Route path="/dashboard">
           <Protected><AppLayout><LearnerDashboard /></AppLayout></Protected>

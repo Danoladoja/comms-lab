@@ -15,6 +15,10 @@
 export type StudioMode = "autonomous" | "facilitated";
 export type StudioRunStatus = "active" | "completed";
 
+export function mayEnterStudio(isAdmin: boolean, hasInvitation: boolean, hasRedeemedCode: boolean): boolean {
+  return isAdmin || hasInvitation || hasRedeemedCode;
+}
+
 export function mayCreateStudioRun(mode: StudioMode, ownerId: number, participantId: number): boolean {
   return mode === "facilitated" || ownerId === participantId;
 }

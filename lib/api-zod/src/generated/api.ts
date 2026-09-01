@@ -1672,6 +1672,47 @@ export const ListSimulationsResponse = zod.array(ListSimulationsResponseItem)
 
 
 /**
+ * @summary Check whether the signed-in user may enter Ananse Simulation Studio
+ */
+export const GetStudioAccessResponse = zod.object({
+  "allowed": zod.boolean(),
+  "isAdmin": zod.boolean(),
+  "source": zod.union([zod.literal('admin'),zod.literal('invitation'),zod.literal('access_code'),zod.literal(null)]).nullable()
+})
+
+
+/**
+ * @summary Redeem a one-time learner Studio access code
+ */
+export const redeemStudioAccessBodyCodeMin = 6;
+export const redeemStudioAccessBodyCodeMax = 32;
+
+
+
+export const RedeemStudioAccessBody = zod.object({
+  "code": zod.string().min(redeemStudioAccessBodyCodeMin).max(redeemStudioAccessBodyCodeMax)
+})
+
+export const RedeemStudioAccessResponse = zod.object({
+  "allowed": zod.boolean(),
+  "isAdmin": zod.boolean(),
+  "source": zod.union([zod.literal('admin'),zod.literal('invitation'),zod.literal('access_code'),zod.literal(null)]).nullable()
+})
+
+
+/**
+ * @summary Create a one-time learner access code for Ananse Simulation Studio
+ */
+export const createStudioAccessCodeResponseCodeMin = 6;
+
+
+
+export const CreateStudioAccessCodeResponse = zod.object({
+  "code": zod.string().min(createStudioAccessCodeResponseCodeMin)
+})
+
+
+/**
  * @summary Generate a standalone simulation scenario from a launch brief
  */
 
