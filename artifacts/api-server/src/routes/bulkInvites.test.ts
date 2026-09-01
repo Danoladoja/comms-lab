@@ -41,6 +41,7 @@ const mocks = vi.hoisted(() => {
       delete: vi.fn(() => thenable(() => [])),
     },
     sendInvitation: vi.fn(),
+    sendAdminEnrollment: vi.fn(),
     revokeInvitation: vi.fn(),
     invitesConfigured: vi.fn(() => true),
     getCurrentUser: vi.fn(async () => ({ id: 1, role: "admin" })),
@@ -61,13 +62,16 @@ vi.mock("../lib/clerkInvites", () => ({
   sendInvitation: mocks.sendInvitation,
   revokeInvitation: mocks.revokeInvitation,
 }));
+vi.mock("../lib/enrollmentEmails", () => ({
+  sendAdminEnrollment: mocks.sendAdminEnrollment,
+}));
 vi.mock("../lib/logger", () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }));
 
 import bulkInvitesRouter from "./bulkInvites";
 
-const PROGRAMME = [{ id: 3, title: "Energy Reporting", capacity: 30 }];
+const PROGRAMME = [{ id: 3, title: "Energy Reporting", capacity: 30, startDate: "Nov 2026" }];
 
 let baseUrl = "";
 let server: ReturnType<ReturnType<typeof express>["listen"]>;
@@ -249,5 +253,29 @@ describe("POST /admin/invitations/bulk", () => {
     const res = await post({ programId: 3, entries: [{ email: "amina@example.org" }] });
     expect(res.status).toBe(503);
     expect(mocks.sendInvitation).not.toHaveBeenCalled();
+  });
+});
+
+describe("telling people they were added", () => {
+  it("emails somebody who already had an account", async () => {
+    // They get no invitation, because they need no account. Without this email
+    // they are enrolled in silence — which is what an admin testing with their
+    // own address reported as the feature not working.
+    mocks.setSelects([PROGRAMME, [{ id: 42, email: "amina@example.org", name: "Amina" }]]);
+    mocks.setInserts([[{ id: 900 }]]);
+
+    await post({ programId: 3, entries: [{ email: "amina@example.org", name: "Amina Bello" }] });
+
+    expect(mocks.sendAdminEnrollment).toHaveBeenCalledTimes(1);
+    expect(mocks.sendAdminEnrollment.mock.calls[0][0]).toMatchObject({ email: "amina@example.org" });
+    expect(mocks.sendAdminEnrollment.mock.calls[0][1]).toMatchObject({ title: "Energy Reporting" });
+  });
+
+  it("says nothing to somebody who was already on the programme", async () => {
+    mocks.setSelects([PROGRAMME, [{ id: 42, email: "amina@example.org", name: "Amina" }]]);
+    mocks.setInserts([[]]);
+
+    await post({ programId: 3, entries: [{ email: "amina@example.org" }] });
+    expect(mocks.sendAdminEnrollment).not.toHaveBeenCalled();
   });
 });

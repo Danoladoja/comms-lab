@@ -11,6 +11,7 @@ import { generateCertificateCode, isPlausibleEmail, normaliseEmail } from "@work
 import { getCurrentUser, requireRole } from "../lib/auth";
 import { invitesConfigured, revokeInvitation, sendInvitation } from "../lib/clerkInvites";
 import { readSheet } from "../lib/sheet";
+import { sendAdminEnrollment } from "../lib/enrollmentEmails";
 import { logger } from "../lib/logger";
 
 /**
@@ -114,8 +115,17 @@ router.post("/admin/invitations/bulk", requireRole("admin"), async (req, res) =>
           .onConflictDoNothing({ target: [enrollmentsTable.userId, enrollmentsTable.programId] })
           .returning();
 
-        if (enrolled) record("enrolled", "Already had an account, so enrolled directly.");
-        else record("already-enrolled", "Already enrolled on this programme.");
+        if (enrolled) {
+          // They get no invitation, because they need no account. Telling them
+          // is therefore this line's job and nothing else's.
+          sendAdminEnrollment(
+            { email: existing.email || email, name: existing.name || name },
+            { title: program.title, startDate: program.startDate },
+          );
+          record("enrolled", "Already had an account, so enrolled directly and emailed.");
+        } else {
+          record("already-enrolled", "Already enrolled on this programme.");
+        }
         continue;
       }
 

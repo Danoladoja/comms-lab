@@ -1,11 +1,21 @@
 import { sendEmail, EmailRejectedError } from "./email";
 import { logger } from "./logger";
 
-const APP_BASE_PATH = "/afrienergy-comms-lab";
-
+/**
+ * Where the Lab actually lives.
+ *
+ * APP_BASE_URL is what the running deployment is set to, and it is the same
+ * value invitation links already use. It is read first because the two settings
+ * below are Replit's, and on Railway neither exists — which left every link in
+ * every enrolment email as a bare path that opens nothing from an inbox.
+ */
 function appUrl(path: string): string {
+  const configured = process.env.APP_BASE_URL?.replace(/\/$/, "");
+  if (configured) return `${configured}${path}`;
+
   const domain = process.env.REPLIT_DOMAINS?.split(",")[0] ?? process.env.REPLIT_DEV_DOMAIN;
-  return domain ? `https://${domain}${APP_BASE_PATH}${path}` : `${APP_BASE_PATH}${path}`;
+  const basePath = (process.env.BASE_PATH ?? "/").replace(/\/$/, "");
+  return domain ? `https://${domain}${basePath}${path}` : `${basePath}${path}`;
 }
 
 type Learner = { email: string; name: string };
@@ -46,6 +56,33 @@ export function sendEnrollmentConfirmation(learner: Learner, program: Program): 
     logger.error(
       { err, to: learner.email, program: program.title, definite: err instanceof EmailRejectedError },
       "Enrollment confirmation email failed",
+    );
+  });
+}
+
+/**
+ * Somebody an admin added to a programme, who already had an account.
+ *
+ * They were never invited — an invitation is for people with no account — so
+ * without this they are enrolled in silence and find out by chance. An admin
+ * testing the roster tool with their own address met exactly that and
+ * reasonably concluded the feature was broken.
+ */
+export function sendAdminEnrollment(learner: Learner, program: Program): void {
+  void sendEmail({
+    to: { email: learner.email, name: learner.name },
+    subject: `You have been added to ${program.title}`,
+    html: wrap(
+      "You have a place",
+      `<p>Hi ${learner.name || "there"},</p>
+       <p>The Ananse Comms Lab team has added you to <strong>${program.title}</strong>, starting
+       <strong>${program.startDate}</strong>. There is nothing you need to do — your place is confirmed.</p>
+       <p>Sign in with this address to see the class schedule and materials.</p>`,
+    ),
+  }).catch((err) => {
+    logger.error(
+      { err, to: learner.email, program: program.title, definite: err instanceof EmailRejectedError },
+      "Admin enrollment email failed",
     );
   });
 }
