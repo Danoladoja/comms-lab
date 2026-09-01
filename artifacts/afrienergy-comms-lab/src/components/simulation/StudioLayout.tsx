@@ -9,30 +9,47 @@ export function StudioLayout({ children, backTo }: { children: ReactNode; backTo
   return (
     <MotionConfig reducedMotion="user">
       <div className="min-h-[100dvh] bg-[#030811] text-white flex flex-col font-sans selection:bg-[#f97316] selection:text-[#030811]">
-      <header className="border-b border-white/5 px-6 h-[60px] flex items-center justify-between shrink-0 bg-[#030811]/95 backdrop-blur-md z-50 relative">
-        <div className="flex items-center gap-6 h-full">
-          <Link href="/studio" className="group rounded outline-none focus-visible:ring-2 focus-visible:ring-[#f97316] flex items-center h-full" aria-label="Simulation Studio">
+      {/*
+        The masthead. The Lab's wordmark, then the name of the part of it you
+        are in, which is how the rest of the site reads and how a screenshot of
+        this ends up making sense to somebody who was not in the room.
+
+        logo-white.png rather than the small mark run through a filter: it is
+        already white, so it stays sharp, and it says Ananse Comms Lab in type
+        rather than leaving the brand to a symbol nobody has learnt yet.
+      */}
+      <header className="border-b border-white/5 px-4 sm:px-6 h-[72px] flex items-center justify-between shrink-0 bg-[#030811]/95 backdrop-blur-md z-50 relative">
+        <div className="flex items-center gap-4 sm:gap-5 h-full min-w-0">
+          <Link
+            href="/studio"
+            className="group flex items-center gap-4 sm:gap-5 h-full rounded outline-none focus-visible:ring-2 focus-visible:ring-[#f97316] min-w-0"
+            aria-label="Ananse Comms Lab Simulation Studio"
+          >
             <img
-              src={`${basePath}/logo-mark.png`}
-              alt=""
-              className="h-7 w-auto object-contain transition-transform brightness-0 invert opacity-90 group-hover:opacity-100"
+              src={`${basePath}/logo-white.png`}
+              alt="Ananse Comms Lab"
+              className="h-9 sm:h-10 w-auto object-contain opacity-95 group-hover:opacity-100 transition-opacity shrink-0"
             />
+            <span className="h-7 w-px bg-white/15 shrink-0" aria-hidden />
+            <span className="font-display text-base sm:text-lg font-bold tracking-tight text-white/90 group-hover:text-white transition-colors truncate">
+              Simulation Studio
+            </span>
           </Link>
 
           {backTo && (
-            <div className="h-6 w-px bg-white/10" />
-          )}
-          {backTo && (
-            <Link href={backTo} className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.15em] text-white/50 hover:text-[#f97316] transition-colors outline-none focus-visible:text-[#f97316]">
-              <ArrowLeft className="w-3.5 h-3.5" />
-              Return
-            </Link>
+            <>
+              <span className="hidden md:block h-6 w-px bg-white/10 shrink-0" aria-hidden />
+              <Link href={backTo} className="hidden md:flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.15em] text-white/50 hover:text-[#f97316] transition-colors outline-none focus-visible:text-[#f97316] shrink-0">
+                <ArrowLeft className="w-3.5 h-3.5" aria-hidden />
+                Back
+              </Link>
+            </>
           )}
         </div>
 
         <nav className="flex items-center gap-6">
           <Link href="/dashboard" className="flex items-center gap-2 text-[10px] text-white/50 hover:text-white transition-colors outline-none focus-visible:text-white font-bold uppercase tracking-[0.15em]">
-            <span>Leave the Studio</span>
+            <span className="hidden sm:inline">Leave the Studio</span>
             <LogOut className="w-3 h-3" />
           </Link>
         </nav>

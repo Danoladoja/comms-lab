@@ -137,8 +137,9 @@ export default function StudioHome() {
                 <div className="w-2 h-2 bg-[#f97316] rounded-full animate-pulse" />
                 <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-[#f97316]">Ready</span>
               </div>
-              <h1 className="font-display text-4xl font-bold tracking-tight text-white mb-3">Simulation Studio</h1>
-              <p className="text-white/50 text-sm leading-relaxed">Write a new exercise to work through on your own, or join a room somebody else is running.</p>
+              {/* The masthead already says Simulation Studio. This says what to do. */}
+              <h1 className="font-display text-4xl font-bold tracking-tight text-white mb-3">Practise something</h1>
+              <p className="text-white/50 text-sm leading-relaxed">Write an exercise to work through on your own, or join a room somebody else is running.</p>
             </motion.div>
 
             {studioAccess?.isAdmin && (
