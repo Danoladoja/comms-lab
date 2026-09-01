@@ -18,3 +18,4 @@ export * from "./facilitator";
 export * from "./waitlist";
 export * from "./staffRoles";
 export * from "./invitationEmail";
+export * from "./emailFailure";

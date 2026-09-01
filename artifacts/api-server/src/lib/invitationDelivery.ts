@@ -1,5 +1,5 @@
 import type { Role } from "@workspace/domain";
-import { invitationLetter } from "@workspace/domain";
+import { describeEmailFailure, invitationLetter } from "@workspace/domain";
 import { emailConfigured, sendEmail } from "./email";
 import { invitesConfigured, revokeInvitation, sendInvitation } from "./clerkInvites";
 import { logger } from "./logger";
@@ -105,7 +105,13 @@ export async function deliverInvitation(args: {
     // clean one rather than a second live ticket to the same inbox.
     await revokeInvitation(created.invitation.id);
     logger.error({ err, email: args.email }, "Could not send an invitation email; the invitation was withdrawn");
-    return { ok: false, error: "The invitation email could not be sent, so it was withdrawn. Try again." };
+    // The provider's own words, carried to the admin who pressed the button.
+    // Without this the console said only "could not be sent", and the actual
+    // reason sat in a log nobody was reading.
+    return {
+      ok: false,
+      error: `The invitation was withdrawn because the email could not be sent. ${describeEmailFailure(err)}`,
+    };
   }
 
   logger.info({ email: args.email, role: args.role }, "Invitation delivered");
