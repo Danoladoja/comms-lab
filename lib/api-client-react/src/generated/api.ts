@@ -28,11 +28,13 @@ import type {
   BulkInviteBody,
   BulkInviteResult,
   Certificate,
+  ConflictResponse,
   CourseworkDraftResult,
   CourseworkDraftRun,
   Enrollment,
   EnrollmentDetail,
   EnrollmentUpdate,
+  ForbiddenResponse,
   ForumPost,
   ForumThread,
   GoogleConnectionStatus,
@@ -44,6 +46,7 @@ import type {
   ListAllEnrollmentsParams,
   MoreQuestionsInput,
   MyFeedback,
+  NotFoundResponse,
   PartnershipEnquiryInput,
   PartnershipEnquiryProblems,
   PinInput,
@@ -76,6 +79,16 @@ import type {
   SessionNotesInput,
   SessionProgress,
   SessionUpdate,
+  SimulationDefinition,
+  SimulationDefinitionInput,
+  SimulationGroupAssignment,
+  SimulationGroupAssignmentsInput,
+  SimulationInjectRelease,
+  SimulationResponse,
+  SimulationResponseInput,
+  SimulationRun,
+  SimulationStudio,
+  SimulationTransitionInput,
   SlideDeck,
   SlidesVisibilityInput,
   StaffList,
@@ -83,6 +96,7 @@ import type {
   ThreadInput,
   ThreadList,
   UnattachedUser,
+  UnauthorizedResponse,
   User,
   UserRoleUpdate,
   WaitlistEntry,
@@ -5093,5 +5107,514 @@ export const useSubmitPartnershipEnquiry = <TError = ErrorType<PartnershipEnquir
         TContext
       > => {
       return useMutation(getSubmitPartnershipEnquiryMutationOptions(options));
+    }
+
+export const getGetSimulationStudioUrl = (sessionId: number,) => {
+
+
+
+
+  return `/api/sessions/${sessionId}/simulation`
+}
+
+/**
+ * @summary Get the strategic communications simulation for a module
+ */
+export const getSimulationStudio = async (sessionId: number, options?: Parameters<typeof customFetch>[1]): Promise<SimulationStudio> => {
+
+  return customFetch<SimulationStudio>(getGetSimulationStudioUrl(sessionId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetSimulationStudioQueryKey = (sessionId: number,) => {
+    return [
+    `/api/sessions/${sessionId}/simulation`
+    ] as const;
+    }
+
+
+export const getGetSimulationStudioQueryOptions = <TData = Awaited<ReturnType<typeof getSimulationStudio>>, TError = ErrorType<UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | ConflictResponse>>(sessionId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSimulationStudio>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetSimulationStudioQueryKey(sessionId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getSimulationStudio>>> = ({ signal }) => getSimulationStudio(sessionId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: sessionId !== null && sessionId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getSimulationStudio>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetSimulationStudioQueryResult = NonNullable<Awaited<ReturnType<typeof getSimulationStudio>>>
+export type GetSimulationStudioQueryError = ErrorType<UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | ConflictResponse>
+
+
+/**
+ * @summary Get the strategic communications simulation for a module
+ */
+
+export function useGetSimulationStudio<TData = Awaited<ReturnType<typeof getSimulationStudio>>, TError = ErrorType<UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | ConflictResponse>>(
+ sessionId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSimulationStudio>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetSimulationStudioQueryOptions(sessionId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpsertSimulationDefinitionUrl = (sessionId: number,) => {
+
+
+
+
+  return `/api/sessions/${sessionId}/simulation`
+}
+
+/**
+ * @summary Create or replace a module simulation definition
+ */
+export const upsertSimulationDefinition = async (sessionId: number,
+    simulationDefinitionInput: SimulationDefinitionInput, options?: Parameters<typeof customFetch>[1]): Promise<SimulationDefinition> => {
+
+  return customFetch<SimulationDefinition>(getUpsertSimulationDefinitionUrl(sessionId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(simulationDefinitionInput)
+  }
+);}
+
+
+
+
+
+export const getUpsertSimulationDefinitionMutationOptions = <TError = ErrorType<UnauthorizedResponse | ForbiddenResponse | ConflictResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof upsertSimulationDefinition>>, TError,{sessionId: number;data: BodyType<SimulationDefinitionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof upsertSimulationDefinition>>, TError,{sessionId: number;data: BodyType<SimulationDefinitionInput>}, TContext> => {
+
+const mutationKey = ['upsertSimulationDefinition'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof upsertSimulationDefinition>>, {sessionId: number;data: BodyType<SimulationDefinitionInput>}> = (props) => {
+          const {sessionId,data} = props ?? {};
+
+          return  upsertSimulationDefinition(sessionId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpsertSimulationDefinitionMutationResult = NonNullable<Awaited<ReturnType<typeof upsertSimulationDefinition>>>
+    export type UpsertSimulationDefinitionMutationBody = BodyType<SimulationDefinitionInput>
+    export type UpsertSimulationDefinitionMutationError = ErrorType<UnauthorizedResponse | ForbiddenResponse | ConflictResponse>
+
+    /**
+ * @summary Create or replace a module simulation definition
+ */
+export const useUpsertSimulationDefinition = <TError = ErrorType<UnauthorizedResponse | ForbiddenResponse | ConflictResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof upsertSimulationDefinition>>, TError,{sessionId: number;data: BodyType<SimulationDefinitionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof upsertSimulationDefinition>>,
+        TError,
+        {sessionId: number;data: BodyType<SimulationDefinitionInput>},
+        TContext
+      > => {
+      return useMutation(getUpsertSimulationDefinitionMutationOptions(options));
+    }
+
+export const getStartSimulationRunUrl = (sessionId: number,) => {
+
+
+
+
+  return `/api/sessions/${sessionId}/simulation/run/start`
+}
+
+/**
+ * @summary Start the published simulation for a module
+ */
+export const startSimulationRun = async (sessionId: number, options?: Parameters<typeof customFetch>[1]): Promise<SimulationRun> => {
+
+  return customFetch<SimulationRun>(getStartSimulationRunUrl(sessionId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getStartSimulationRunMutationOptions = <TError = ErrorType<UnauthorizedResponse | ForbiddenResponse | ConflictResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof startSimulationRun>>, TError,{sessionId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof startSimulationRun>>, TError,{sessionId: number}, TContext> => {
+
+const mutationKey = ['startSimulationRun'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof startSimulationRun>>, {sessionId: number}> = (props) => {
+          const {sessionId} = props ?? {};
+
+          return  startSimulationRun(sessionId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type StartSimulationRunMutationResult = NonNullable<Awaited<ReturnType<typeof startSimulationRun>>>
+
+    export type StartSimulationRunMutationError = ErrorType<UnauthorizedResponse | ForbiddenResponse | ConflictResponse>
+
+    /**
+ * @summary Start the published simulation for a module
+ */
+export const useStartSimulationRun = <TError = ErrorType<UnauthorizedResponse | ForbiddenResponse | ConflictResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof startSimulationRun>>, TError,{sessionId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof startSimulationRun>>,
+        TError,
+        {sessionId: number},
+        TContext
+      > => {
+      return useMutation(getStartSimulationRunMutationOptions(options));
+    }
+
+export const getAssignSimulationGroupsUrl = (sessionId: number,) => {
+
+
+
+
+  return `/api/sessions/${sessionId}/simulation/assignments`
+}
+
+/**
+ * @summary Assign enrolled learners to one simulation group
+ */
+export const assignSimulationGroups = async (sessionId: number,
+    simulationGroupAssignmentsInput: SimulationGroupAssignmentsInput, options?: Parameters<typeof customFetch>[1]): Promise<SimulationGroupAssignment[]> => {
+
+  return customFetch<SimulationGroupAssignment[]>(getAssignSimulationGroupsUrl(sessionId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(simulationGroupAssignmentsInput)
+  }
+);}
+
+
+
+
+
+export const getAssignSimulationGroupsMutationOptions = <TError = ErrorType<UnauthorizedResponse | ForbiddenResponse | ConflictResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof assignSimulationGroups>>, TError,{sessionId: number;data: BodyType<SimulationGroupAssignmentsInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof assignSimulationGroups>>, TError,{sessionId: number;data: BodyType<SimulationGroupAssignmentsInput>}, TContext> => {
+
+const mutationKey = ['assignSimulationGroups'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof assignSimulationGroups>>, {sessionId: number;data: BodyType<SimulationGroupAssignmentsInput>}> = (props) => {
+          const {sessionId,data} = props ?? {};
+
+          return  assignSimulationGroups(sessionId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AssignSimulationGroupsMutationResult = NonNullable<Awaited<ReturnType<typeof assignSimulationGroups>>>
+    export type AssignSimulationGroupsMutationBody = BodyType<SimulationGroupAssignmentsInput>
+    export type AssignSimulationGroupsMutationError = ErrorType<UnauthorizedResponse | ForbiddenResponse | ConflictResponse>
+
+    /**
+ * @summary Assign enrolled learners to one simulation group
+ */
+export const useAssignSimulationGroups = <TError = ErrorType<UnauthorizedResponse | ForbiddenResponse | ConflictResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof assignSimulationGroups>>, TError,{sessionId: number;data: BodyType<SimulationGroupAssignmentsInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof assignSimulationGroups>>,
+        TError,
+        {sessionId: number;data: BodyType<SimulationGroupAssignmentsInput>},
+        TContext
+      > => {
+      return useMutation(getAssignSimulationGroupsMutationOptions(options));
+    }
+
+export const getReleaseNextSimulationInjectUrl = (sessionId: number,) => {
+
+
+
+
+  return `/api/sessions/${sessionId}/simulation/injects/release`
+}
+
+/**
+ * @summary Release the next configured simulation inject
+ */
+export const releaseNextSimulationInject = async (sessionId: number, options?: Parameters<typeof customFetch>[1]): Promise<SimulationInjectRelease> => {
+
+  return customFetch<SimulationInjectRelease>(getReleaseNextSimulationInjectUrl(sessionId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getReleaseNextSimulationInjectMutationOptions = <TError = ErrorType<UnauthorizedResponse | ForbiddenResponse | ConflictResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof releaseNextSimulationInject>>, TError,{sessionId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof releaseNextSimulationInject>>, TError,{sessionId: number}, TContext> => {
+
+const mutationKey = ['releaseNextSimulationInject'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof releaseNextSimulationInject>>, {sessionId: number}> = (props) => {
+          const {sessionId} = props ?? {};
+
+          return  releaseNextSimulationInject(sessionId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ReleaseNextSimulationInjectMutationResult = NonNullable<Awaited<ReturnType<typeof releaseNextSimulationInject>>>
+
+    export type ReleaseNextSimulationInjectMutationError = ErrorType<UnauthorizedResponse | ForbiddenResponse | ConflictResponse>
+
+    /**
+ * @summary Release the next configured simulation inject
+ */
+export const useReleaseNextSimulationInject = <TError = ErrorType<UnauthorizedResponse | ForbiddenResponse | ConflictResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof releaseNextSimulationInject>>, TError,{sessionId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof releaseNextSimulationInject>>,
+        TError,
+        {sessionId: number},
+        TContext
+      > => {
+      return useMutation(getReleaseNextSimulationInjectMutationOptions(options));
+    }
+
+export const getTransitionSimulationRunUrl = (sessionId: number,) => {
+
+
+
+
+  return `/api/sessions/${sessionId}/simulation/transition`
+}
+
+/**
+ * @summary Open the simulation debrief or end the run
+ */
+export const transitionSimulationRun = async (sessionId: number,
+    simulationTransitionInput: SimulationTransitionInput, options?: Parameters<typeof customFetch>[1]): Promise<SimulationRun> => {
+
+  return customFetch<SimulationRun>(getTransitionSimulationRunUrl(sessionId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(simulationTransitionInput)
+  }
+);}
+
+
+
+
+
+export const getTransitionSimulationRunMutationOptions = <TError = ErrorType<UnauthorizedResponse | ForbiddenResponse | ConflictResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof transitionSimulationRun>>, TError,{sessionId: number;data: BodyType<SimulationTransitionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof transitionSimulationRun>>, TError,{sessionId: number;data: BodyType<SimulationTransitionInput>}, TContext> => {
+
+const mutationKey = ['transitionSimulationRun'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof transitionSimulationRun>>, {sessionId: number;data: BodyType<SimulationTransitionInput>}> = (props) => {
+          const {sessionId,data} = props ?? {};
+
+          return  transitionSimulationRun(sessionId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type TransitionSimulationRunMutationResult = NonNullable<Awaited<ReturnType<typeof transitionSimulationRun>>>
+    export type TransitionSimulationRunMutationBody = BodyType<SimulationTransitionInput>
+    export type TransitionSimulationRunMutationError = ErrorType<UnauthorizedResponse | ForbiddenResponse | ConflictResponse>
+
+    /**
+ * @summary Open the simulation debrief or end the run
+ */
+export const useTransitionSimulationRun = <TError = ErrorType<UnauthorizedResponse | ForbiddenResponse | ConflictResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof transitionSimulationRun>>, TError,{sessionId: number;data: BodyType<SimulationTransitionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof transitionSimulationRun>>,
+        TError,
+        {sessionId: number;data: BodyType<SimulationTransitionInput>},
+        TContext
+      > => {
+      return useMutation(getTransitionSimulationRunMutationOptions(options));
+    }
+
+export const getUpsertSimulationResponseUrl = (sessionId: number,
+    injectId: string,) => {
+
+
+
+
+  return `/api/sessions/${sessionId}/simulation/responses/${injectId}`
+}
+
+/**
+ * @summary Create or update this learner group's response to a released inject
+ */
+export const upsertSimulationResponse = async (sessionId: number,
+    injectId: string,
+    simulationResponseInput: SimulationResponseInput, options?: Parameters<typeof customFetch>[1]): Promise<SimulationResponse> => {
+
+  return customFetch<SimulationResponse>(getUpsertSimulationResponseUrl(sessionId,injectId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(simulationResponseInput)
+  }
+);}
+
+
+
+
+
+export const getUpsertSimulationResponseMutationOptions = <TError = ErrorType<UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | ConflictResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof upsertSimulationResponse>>, TError,{sessionId: number;injectId: string;data: BodyType<SimulationResponseInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof upsertSimulationResponse>>, TError,{sessionId: number;injectId: string;data: BodyType<SimulationResponseInput>}, TContext> => {
+
+const mutationKey = ['upsertSimulationResponse'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof upsertSimulationResponse>>, {sessionId: number;injectId: string;data: BodyType<SimulationResponseInput>}> = (props) => {
+          const {sessionId,injectId,data} = props ?? {};
+
+          return  upsertSimulationResponse(sessionId,injectId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpsertSimulationResponseMutationResult = NonNullable<Awaited<ReturnType<typeof upsertSimulationResponse>>>
+    export type UpsertSimulationResponseMutationBody = BodyType<SimulationResponseInput>
+    export type UpsertSimulationResponseMutationError = ErrorType<UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | ConflictResponse>
+
+    /**
+ * @summary Create or update this learner group's response to a released inject
+ */
+export const useUpsertSimulationResponse = <TError = ErrorType<UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | ConflictResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof upsertSimulationResponse>>, TError,{sessionId: number;injectId: string;data: BodyType<SimulationResponseInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof upsertSimulationResponse>>,
+        TError,
+        {sessionId: number;injectId: string;data: BodyType<SimulationResponseInput>},
+        TContext
+      > => {
+      return useMutation(getUpsertSimulationResponseMutationOptions(options));
     }
 

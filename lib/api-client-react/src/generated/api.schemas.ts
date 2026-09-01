@@ -976,6 +976,146 @@ export interface EnrollmentUpdate {
   status: EnrollmentUpdateStatus;
 }
 
+export interface SimulationGroup {
+  /** @minLength 1 */
+  id: string;
+  /** @minLength 1 */
+  name: string;
+  roleName: string;
+  confidentialBrief: string;
+}
+
+export interface SimulationInject {
+  /** @minLength 1 */
+  id: string;
+  /** @minLength 1 */
+  title: string;
+  content: string;
+  responsePrompt: string;
+  /** @minimum 1 */
+  responseMinutes: number;
+}
+
+export interface SimulationDefinitionInput {
+  /** @minLength 1 */
+  title: string;
+  context: string;
+  learningObjective: string;
+  openingBrief: string;
+  groups: SimulationGroup[];
+  injects: SimulationInject[];
+  debriefQuestions: string[];
+  published: boolean;
+}
+
+export type SimulationDefinition = SimulationDefinitionInput & {
+  sessionId: number;
+};
+
+export type SimulationRunStatus = typeof SimulationRunStatus[keyof typeof SimulationRunStatus];
+
+
+export const SimulationRunStatus = {
+  draft: 'draft',
+  live: 'live',
+  debrief: 'debrief',
+  ended: 'ended',
+} as const;
+
+export interface SimulationRun {
+  id: number;
+  sessionId: number;
+  status: SimulationRunStatus;
+  /** @nullable */
+  startedAt: string | null;
+  /** @nullable */
+  debriefAt: string | null;
+  /** @nullable */
+  endedAt: string | null;
+}
+
+export interface SimulationGroupAssignmentInput {
+  userId: number;
+  /** @minLength 1 */
+  groupId: string;
+}
+
+export interface SimulationGroupAssignmentsInput {
+  assignments: SimulationGroupAssignmentInput[];
+}
+
+export type SimulationGroupAssignment = SimulationGroupAssignmentInput & {
+  assignedAt: string;
+};
+
+export interface SimulationInjectRelease {
+  injectId: string;
+  sortOrder: number;
+  releasedAt: string;
+}
+
+export type SimulationTransitionInputStatus = typeof SimulationTransitionInputStatus[keyof typeof SimulationTransitionInputStatus];
+
+
+export const SimulationTransitionInputStatus = {
+  debrief: 'debrief',
+  ended: 'ended',
+} as const;
+
+export interface SimulationTransitionInput {
+  status: SimulationTransitionInputStatus;
+}
+
+export interface SimulationResponseInput {
+  body: string;
+  /** @nullable */
+  expectedUpdatedAt?: string | null;
+}
+
+export interface SimulationParticipant {
+  userId: number;
+  name: string;
+}
+
+export interface SimulationResponse {
+  injectId: string;
+  groupId: string;
+  body: string;
+  authorId: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SimulationStudio {
+  sessionId: number;
+  definition: SimulationDefinition | null;
+  run: SimulationRun | null;
+  releases: SimulationInjectRelease[];
+  responses: SimulationResponse[];
+  assignments: SimulationGroupAssignment[];
+  participants: SimulationParticipant[];
+}
+
+/**
+ * Not signed in
+ */
+export type UnauthorizedResponse = ApiMessage;
+
+/**
+ * Forbidden
+ */
+export type ForbiddenResponse = ApiMessage;
+
+/**
+ * Not found
+ */
+export type NotFoundResponse = ApiMessage;
+
+/**
+ * Current state does not allow this action
+ */
+export type ConflictResponse = ApiMessage;
+
 export type ListAllEnrollmentsParams = {
 programId?: number;
 };
