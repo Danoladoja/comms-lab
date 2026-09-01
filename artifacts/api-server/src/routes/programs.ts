@@ -6,7 +6,7 @@ import {
   UpdateProgramBody,
   CreateSessionBody,
 } from "@workspace/api-zod";
-import { showsInCatalogue } from "@workspace/domain";
+import { showsInCatalogue, satisfiesRole } from "@workspace/domain";
 import { getCurrentUser, requireRole } from "../lib/auth";
 import { progressForUser } from "../lib/progress";
 
@@ -36,7 +36,7 @@ function programColumns() {
 
 router.get("/programs", async (req, res) => {
   const user = await getCurrentUser(req);
-  const isAdmin = user?.role === "admin";
+  const isAdmin = satisfiesRole(user?.role ?? null, ["admin"]);
   const rows = await db
     .select(programColumns())
     .from(programsTable)
@@ -65,7 +65,7 @@ router.get("/programs/:id", async (req, res) => {
     return;
   }
   const user = await getCurrentUser(req);
-  if (!showsInCatalogue(rows[0].status) && user?.role !== "admin") {
+  if (!showsInCatalogue(rows[0].status) && !satisfiesRole(user?.role ?? null, ["admin"])) {
     res.status(404).json({ error: "Program not found" });
     return;
   }
@@ -90,7 +90,7 @@ router.patch("/programs/:id", requireRole("admin"), async (req, res) => {
 
 /** Whether the given user may see join/recording links for a program. */
 async function canSeeLinks(userId: number | undefined, role: string | undefined, programId: number): Promise<boolean> {
-  if (role === "admin") return true;
+  if (satisfiesRole(role ?? null, ["admin"])) return true;
   if (!userId) return false;
   if (role === "instructor") {
     // Instructors only see links for programs where they facilitate a session.
@@ -152,12 +152,12 @@ router.get("/programs/:id/sessions", async (req, res) => {
   // Recordings, by contrast, go to every enrolled learner: replays used to be
   // withheld from anyone who missed the live class, which punished load-shedding
   // and breaking news rather than effort.
-  const isStaff = user?.role === "admin" || user?.role === "instructor";
+  const isStaff = satisfiesRole(user?.role ?? null, ["admin"]) || user?.role === "instructor";
 
   res.json(
     rows.map((r) => ({
       ...r,
-      meetUrl: user?.role === "admin" ? r.meetUrl : null,
+      meetUrl: satisfiesRole(user?.role ?? null, ["admin"]) ? r.meetUrl : null,
       hasMeetUrl: !!r.meetUrl,
       recordingUrl: showLinks ? r.recordingUrl : null,
     })),

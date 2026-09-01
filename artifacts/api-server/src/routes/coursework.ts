@@ -5,8 +5,8 @@ import {
 } from "@workspace/db";
 import { and, asc, eq, sql } from "drizzle-orm";
 import { UpsertSessionQuizBody, SubmitQuizAttemptBody, UpsertSessionAssignmentBody, SubmitAssignmentBody } from "@workspace/api-zod";
-import { QUIZ_PASS_MARK, DEFAULT_RUBRIC, DEFAULT_REVIEWS_REQUIRED, isValidRubric } from "@workspace/domain";
-import { getCurrentUser } from "../lib/auth";
+import { QUIZ_PASS_MARK, DEFAULT_RUBRIC, DEFAULT_REVIEWS_REQUIRED, isModuleStaff, isValidRubric } from "@workspace/domain";
+import { currentRole, getCurrentUser } from "../lib/auth";
 import { progressForUser } from "../lib/progress";
 
 const router: IRouter = Router();
@@ -18,8 +18,14 @@ async function loadSession(sessionId: number) {
   return session ?? null;
 }
 
-export function isStaffFor(user: User, session: { instructorId: number | null }) {
-  return user.role === "admin" || (user.role === "instructor" && session.instructorId === user.id);
+/**
+ * The role must be the effective one, from `currentRole`, never `user.role`.
+ * A super admin's row says "superadmin", and a plain `=== "admin"` comparison
+ * shut one out of the console for a day. The rule itself lives in the domain
+ * so slides, coursework and simulations cannot drift apart again.
+ */
+export function isStaffFor(role: string | null, user: User, session: { instructorId: number | null }) {
+  return isModuleStaff(role, user.id, session.instructorId);
 }
 
 /**
@@ -27,8 +33,8 @@ export function isStaffFor(user: User, session: { instructorId: number | null })
  * program and the module is unlocked. Staff always may.
  * Returns an error string, or null when access is allowed.
  */
-export async function learnerAccessError(user: User, session: { id: number; programId: number; instructorId: number | null }): Promise<string | null> {
-  if (isStaffFor(user, session)) return null;
+export async function learnerAccessError(role: string | null, user: User, session: { id: number; programId: number; instructorId: number | null }): Promise<string | null> {
+  if (isStaffFor(role, user, session)) return null;
   const [enrollment] = await db
     .select({ id: enrollmentsTable.id })
     .from(enrollmentsTable)
@@ -60,7 +66,7 @@ router.get("/sessions/:id/quiz", async (req, res) => {
   const sessionId = Number(req.params.id);
   const session = await loadSession(sessionId);
   if (!session) { res.status(404).json({ error: "Session not found" }); return; }
-  const accessError = await learnerAccessError(user, session);
+  const accessError = await learnerAccessError(await currentRole(req), user, session);
   if (accessError) { res.status(403).json({ error: accessError }); return; }
 
   const questions = await db
@@ -71,7 +77,7 @@ router.get("/sessions/:id/quiz", async (req, res) => {
   if (questions.length === 0) { res.status(404).json({ error: "No quiz for this module" }); return; }
 
   const best = await bestScore(user.id, sessionId);
-  const staff = isStaffFor(user, session);
+  const staff = isStaffFor(await currentRole(req), user, session);
   res.json({
     sessionId,
     passMark: QUIZ_PASS_MARK,
@@ -94,7 +100,7 @@ router.put("/sessions/:id/quiz", async (req, res) => {
   const sessionId = Number(req.params.id);
   const session = await loadSession(sessionId);
   if (!session) { res.status(404).json({ error: "Session not found" }); return; }
-  if (!isStaffFor(user, session)) { res.status(403).json({ error: "Forbidden" }); return; }
+  if (!isStaffFor(await currentRole(req), user, session)) { res.status(403).json({ error: "Forbidden" }); return; }
 
   const parsed = UpsertSessionQuizBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
@@ -145,7 +151,7 @@ router.post("/sessions/:id/quiz/attempts", async (req, res) => {
   const sessionId = Number(req.params.id);
   const session = await loadSession(sessionId);
   if (!session) { res.status(404).json({ error: "Session not found" }); return; }
-  const accessError = await learnerAccessError(user, session);
+  const accessError = await learnerAccessError(await currentRole(req), user, session);
   if (accessError) { res.status(403).json({ error: accessError }); return; }
 
   const parsed = SubmitQuizAttemptBody.safeParse(req.body);
@@ -175,7 +181,7 @@ router.get("/sessions/:id/assignment", async (req, res) => {
   const sessionId = Number(req.params.id);
   const session = await loadSession(sessionId);
   if (!session) { res.status(404).json({ error: "Session not found" }); return; }
-  const accessError = await learnerAccessError(user, session);
+  const accessError = await learnerAccessError(await currentRole(req), user, session);
   if (accessError) { res.status(403).json({ error: accessError }); return; }
 
   const [assignment] = await db.select().from(assignmentsTable).where(eq(assignmentsTable.sessionId, sessionId));
@@ -196,7 +202,7 @@ router.get("/sessions/:id/assignment", async (req, res) => {
     // Staff only, as on quiz questions. Without it the editor cannot tell a task
     // it drafted last week from one a person wrote, and would record every later
     // save as hand-written.
-    ...(isStaffFor(user, session) ? { origin: assignment.origin } : {}),
+    ...(isStaffFor(await currentRole(req), user, session) ? { origin: assignment.origin } : {}),
     mySubmission: submission
       ? { sessionId, body: submission.body, submittedAt: submission.submittedAt.toISOString() }
       : null,
@@ -209,7 +215,7 @@ router.put("/sessions/:id/assignment", async (req, res) => {
   const sessionId = Number(req.params.id);
   const session = await loadSession(sessionId);
   if (!session) { res.status(404).json({ error: "Session not found" }); return; }
-  if (!isStaffFor(user, session)) { res.status(403).json({ error: "Forbidden" }); return; }
+  if (!isStaffFor(await currentRole(req), user, session)) { res.status(403).json({ error: "Forbidden" }); return; }
 
   const parsed = UpsertSessionAssignmentBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
@@ -250,7 +256,7 @@ router.post("/sessions/:id/assignment/submission", async (req, res) => {
   const sessionId = Number(req.params.id);
   const session = await loadSession(sessionId);
   if (!session) { res.status(404).json({ error: "Session not found" }); return; }
-  const accessError = await learnerAccessError(user, session);
+  const accessError = await learnerAccessError(await currentRole(req), user, session);
   if (accessError) { res.status(403).json({ error: accessError }); return; }
 
   const parsed = SubmitAssignmentBody.safeParse(req.body);

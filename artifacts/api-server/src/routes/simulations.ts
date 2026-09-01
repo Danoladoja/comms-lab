@@ -45,9 +45,10 @@ router.get("/sessions/:sessionId/simulation", async (req, res): Promise<void> =>
   if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
   const session = await sessionFor(params.data.sessionId);
   if (!session) { res.status(404).json({ error: "Module not found" }); return; }
-  const staffUser = isSimulationStaff(await currentRole(req), user.id, session.instructorId);
+  const role = await currentRole(req);
+  const staffUser = isSimulationStaff(role, user.id, session.instructorId);
   if (!staffUser) {
-    const error = await learnerAccessError(user, session);
+    const error = await learnerAccessError(role, user, session);
     if (error) { res.status(403).json({ error }); return; }
   }
   const [definition] = await db.select().from(simulationDefinitionsTable).where(eq(simulationDefinitionsTable.sessionId, session.id));
@@ -164,8 +165,9 @@ router.put("/sessions/:sessionId/simulation/responses/:injectId", async (req, re
   if (!body.success) { res.status(400).json({ error: body.error.message }); return; }
   const user = await getCurrentUser(req); if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
   const session = await sessionFor(params.data.sessionId); if (!session) { res.status(404).json({ error: "Module not found" }); return; }
-  if (isSimulationStaff(await currentRole(req), user.id, session.instructorId)) { res.status(403).json({ error: "Only assigned learners may submit group responses" }); return; }
-  const accessError = await learnerAccessError(user, session); if (accessError) { res.status(403).json({ error: accessError }); return; }
+  const role = await currentRole(req);
+  if (isSimulationStaff(role, user.id, session.instructorId)) { res.status(403).json({ error: "Only assigned learners may submit group responses" }); return; }
+  const accessError = await learnerAccessError(role, user, session); if (accessError) { res.status(403).json({ error: accessError }); return; }
   const outcome = await db.transaction(async (tx) => {
     const [run] = await tx.select().from(simulationRunsTable).where(eq(simulationRunsTable.sessionId, session.id));
     if (!run) return { kind: "missing" as const };

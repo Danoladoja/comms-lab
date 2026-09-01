@@ -20,6 +20,7 @@ import {
   MAX_QUIZ_QUESTIONS,
   type CombinedSource,
   type MaterialKind,
+  isModuleStaff,
 } from "@workspace/domain";
 import {
   SetSlidesVisibilityBody, SetSessionReadingsBody, SetSessionNotesBody,
@@ -38,7 +39,7 @@ const router: IRouter = Router();
 type User = NonNullable<Awaited<ReturnType<typeof getCurrentUser>>>;
 
 function isStaffFor(user: User, session: { instructorId: number | null }) {
-  return user.role === "admin" || (user.role === "instructor" && session.instructorId === user.id);
+  return isModuleStaff(user.role, user.id, session.instructorId);
 }
 
 async function loadSession(sessionId: number) {

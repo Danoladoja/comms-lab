@@ -9,6 +9,7 @@ import {
   mergeReplayBuckets,
   replayWatchedSeconds,
   presenceStatus,
+  isModuleStaff,
 } from "@workspace/domain";
 import { RecordReplayProgressBody } from "@workspace/api-zod";
 import { getCurrentUser } from "../lib/auth";
@@ -26,7 +27,7 @@ async function accessError(
   user: User,
   session: { id: number; programId: number; instructorId: number | null },
 ): Promise<string | null> {
-  if (user.role === "admin" || (user.role === "instructor" && session.instructorId === user.id)) return null;
+  if (isModuleStaff(user.role, user.id, session.instructorId)) return null;
   const [enrollment] = await db
     .select({ id: enrollmentsTable.id })
     .from(enrollmentsTable)

@@ -152,3 +152,24 @@ export function groupStaff<T extends { role: string }>(people: readonly T[]): {
     facilitators: people.filter((p) => p.role === "instructor"),
   };
 }
+
+/**
+ * May this person work on a module as staff?
+ *
+ * The one rule, in one place, because it decides who may open a module's
+ * slides, its coursework and its simulation, and those three had drifted
+ * apart. An administrator may work on any module. A facilitator may work only
+ * on the modules assigned to them. Nobody else may.
+ *
+ * The role passed in must be the *effective* one. Comparing a raw row against
+ * the word "admin" is what locked a super admin out of the console once
+ * already; `satisfiesRole` is here so it cannot happen a third time.
+ */
+export function isModuleStaff(
+  effectiveRole: string | null,
+  userId: number,
+  instructorId: number | null,
+): boolean {
+  if (satisfiesRole(effectiveRole, ["admin"])) return true;
+  return effectiveRole === "instructor" && instructorId !== null && instructorId === userId;
+}

@@ -3,6 +3,7 @@ import { db, sessionsTable, usersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { UpdateSessionBody } from "@workspace/api-zod";
 import { getCurrentUser } from "../lib/auth";
+import { isModuleStaff, satisfiesRole } from "@workspace/domain";
 
 const router: IRouter = Router();
 
@@ -18,9 +19,8 @@ router.patch("/sessions/:id", async (req, res) => {
     res.status(404).json({ error: "Session not found" });
     return;
   }
-  const isAdmin = user.role === "admin";
-  const isAssignedInstructor = user.role === "instructor" && existing[0].instructorId === user.id;
-  if (!isAdmin && !isAssignedInstructor) {
+  const isAdmin = satisfiesRole(user.role, ["admin"]);
+  if (!isModuleStaff(user.role, user.id, existing[0].instructorId)) {
     res.status(403).json({ error: "Forbidden" });
     return;
   }
@@ -57,7 +57,7 @@ router.patch("/sessions/:id", async (req, res) => {
 
 router.delete("/sessions/:id", async (req, res) => {
   const user = await getCurrentUser(req);
-  if (!user || user.role !== "admin") {
+  if (!user || !satisfiesRole(user.role, ["admin"])) {
     res.status(user ? 403 : 401).json({ error: user ? "Forbidden" : "Unauthorized" });
     return;
   }

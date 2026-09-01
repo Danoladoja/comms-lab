@@ -6,6 +6,7 @@ import {
   checkRoleChange,
   effectiveRole,
   groupStaff,
+  isModuleStaff,
   isStaffRole,
   rolesInvitableBy,
   satisfiesRole,
@@ -178,5 +179,37 @@ describe("the People page groupings", () => {
   it("only a super admin appoints", () => {
     expect(canAppointStaff("superadmin")).toBe(true);
     expect(canAppointStaff("admin")).toBe(false);
+  });
+});
+
+describe("isModuleStaff", () => {
+  it("lets any administrator work on any module", () => {
+    expect(isModuleStaff("admin", 7, 3)).toBe(true);
+    expect(isModuleStaff("admin", 7, null)).toBe(true);
+  });
+
+  it("lets a super admin do the same", () => {
+    // The bug this rule exists to kill: every gate compared the stored role
+    // against the word "admin", so the Lab's second super admin could not open
+    // a module's slides, its coursework or its simulation.
+    expect(isModuleStaff("superadmin", 7, 3)).toBe(true);
+    expect(isModuleStaff("superadmin", 7, null)).toBe(true);
+  });
+
+  it("lets a facilitator work only on their own module", () => {
+    expect(isModuleStaff("instructor", 7, 7)).toBe(true);
+    expect(isModuleStaff("instructor", 7, 8)).toBe(false);
+  });
+
+  it("does not treat an unassigned module as everyone's", () => {
+    // instructorId is null on a module nobody is teaching yet. A facilitator
+    // must not inherit it, and a null-equals-null slip would give it to them.
+    expect(isModuleStaff("instructor", 7, null)).toBe(false);
+  });
+
+  it("keeps learners and signed-out visitors out", () => {
+    expect(isModuleStaff("learner", 7, 7)).toBe(false);
+    expect(isModuleStaff(null, 7, 7)).toBe(false);
+    expect(isModuleStaff("", 7, 7)).toBe(false);
   });
 });

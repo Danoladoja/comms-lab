@@ -11,6 +11,7 @@ import {
   DEFAULT_RUBRIC,
   type RubricCriterion,
   type ReviewCandidate,
+  isModuleStaff,
 } from "@workspace/domain";
 import { SubmitReviewBody } from "@workspace/api-zod";
 import { getCurrentUser } from "../lib/auth";
@@ -21,7 +22,7 @@ const router: IRouter = Router();
 type User = NonNullable<Awaited<ReturnType<typeof getCurrentUser>>>;
 
 function isStaffFor(user: User, session: { instructorId: number | null }) {
-  return user.role === "admin" || (user.role === "instructor" && session.instructorId === user.id);
+  return isModuleStaff(user.role, user.id, session.instructorId);
 }
 
 /** Enrolled and unlocked, or staff. Returns an error string, or null when allowed. */

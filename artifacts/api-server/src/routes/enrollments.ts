@@ -12,6 +12,7 @@ import {
   generateCertificateCode,
   normaliseCertificateCode,
   type ProgressEntry,
+  isModuleStaff, satisfiesRole,
 } from "@workspace/domain";
 import { SetPortfolioVisibilityBody } from "@workspace/api-zod";
 import { getCurrentUser } from "../lib/auth";
@@ -115,7 +116,7 @@ router.post("/sessions/:id/join", async (req, res) => {
     return;
   }
 
-  const isStaff = user.role === "admin" || (user.role === "instructor" && session.instructorId === user.id);
+  const isStaff = isModuleStaff(user.role, user.id, session.instructorId);
   const window = liveWindow(session);
 
   if (!isStaff) {
@@ -459,7 +460,7 @@ router.get("/my/sessions", async (req, res) => {
   // raw link. Learners and facilitators alike reach the room by pressing Join,
   // which is also what starts counting their time in class. Everyone gets
   // hasMeetUrl so the page can say whether the room is ready yet.
-  const isAdmin = user.role === "admin";
+  const isAdmin = satisfiesRole(user.role, ["admin"]);
   res.json(rows.map((r) => ({
     ...r,
     meetUrl: isAdmin ? r.meetUrl : null,

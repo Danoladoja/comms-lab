@@ -6,6 +6,7 @@ import {
 import { and, asc, desc, eq, sql, inArray } from "drizzle-orm";
 import { CreateProgramThreadBody, CreateThreadPostBody, SetThreadPinnedBody } from "@workspace/api-zod";
 import { getCurrentUser } from "../lib/auth";
+import { satisfiesRole } from "@workspace/domain";
 
 const router: IRouter = Router();
 
@@ -13,7 +14,7 @@ type User = NonNullable<Awaited<ReturnType<typeof getCurrentUser>>>;
 
 /** Admin, or an instructor assigned to at least one session of the program. */
 async function canModerate(user: User, programId: number): Promise<boolean> {
-  if (user.role === "admin") return true;
+  if (satisfiesRole(user.role, ["admin"])) return true;
   if (user.role !== "instructor") return false;
   const [row] = await db
     .select({ id: sessionsTable.id })
@@ -38,7 +39,9 @@ async function forumAccessError(user: User, programId: number): Promise<string |
 }
 
 function displayRole(role: string) {
-  return role === "instructor" ? "Facilitator" : role === "admin" ? "Admin" : "Learner";
+  if (role === "instructor") return "Facilitator";
+  // A super admin posting in the forum is an admin to everyone reading it.
+  return satisfiesRole(role, ["admin"]) ? "Admin" : "Learner";
 }
 
 async function threadDto(thread: typeof forumThreadsTable.$inferSelect, viewerId: number) {

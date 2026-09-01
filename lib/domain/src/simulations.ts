@@ -1,4 +1,4 @@
-import { satisfiesRole } from "./staffRoles";
+import { isModuleStaff } from "./staffRoles";
 
 export type SimulationStatus = "draft" | "live" | "debrief" | "ended";
 
@@ -50,6 +50,5 @@ export function canStartSimulation(
 
 /** Administrators run any module; facilitators run only their assigned module. */
 export function isSimulationStaff(effectiveRole: string | null, userId: number, instructorId: number | null): boolean {
-  return satisfiesRole(effectiveRole, ["admin"])
-    || (effectiveRole === "instructor" && instructorId === userId);
+  return isModuleStaff(effectiveRole, userId, instructorId);
 }

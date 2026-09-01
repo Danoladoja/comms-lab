@@ -14,14 +14,19 @@ import {
 import { logger } from "./logger";
 
 const userCache = new WeakMap<Request, User>();
+const effectiveUserCache = new WeakMap<Request, User>();
 
 /**
  * Returns the local user for the signed-in Clerk session, JIT-provisioning
  * a row on first sight. The very first user ever provisioned becomes the super
  * admin — the person setting the Lab up is the one who appoints everyone else.
  * Returns null when not signed in.
+ *
+ * The row exactly as stored. Callers outside this file want `getCurrentUser`
+ * instead: the founder rule has not been applied here, and comparing this role
+ * against "admin" is what shut a super admin out of half the Lab.
  */
-export async function getCurrentUser(req: Request): Promise<User | null> {
+async function loadUserRow(req: Request): Promise<User | null> {
   const cached = userCache.get(req);
   if (cached) return cached;
   const auth = getAuth(req);
@@ -75,6 +80,33 @@ export async function getCurrentUser(req: Request): Promise<User | null> {
   }
 
   userCache.set(req, user);
+  return user;
+}
+
+/**
+ * The signed-in person, with the role they actually hold.
+ *
+ * Every gate in the Lab asks this one question, and each one used to answer it
+ * by comparing the stored row against the word "admin". That is wrong twice
+ * over: a super admin's row says "superadmin", and the founder's row says
+ * whatever they last set it to. Both were locked out of things they plainly
+ * own, in the same week, in different tabs.
+ *
+ * So the role is settled here, once, before anything downstream sees it. The
+ * stored row is still what gets written back on a repair; only what we hand out
+ * carries the founder rule. One extra query per request, cached alongside the
+ * row it belongs to.
+ */
+export async function getCurrentUser(req: Request): Promise<User | null> {
+  const cached = effectiveUserCache.get(req);
+  if (cached) return cached;
+
+  const row = await loadUserRow(req);
+  if (!row) return null;
+
+  const role = effectiveRole(row, { founderId: await founderId() });
+  const user = role === row.role ? row : { ...row, role };
+  effectiveUserCache.set(req, user);
   return user;
 }
 
@@ -144,7 +176,7 @@ async function claimInvitation(user: User, email: string): Promise<void> {
     // This row is written only by this server, and only a super admin can cause
     // one to say "admin" — so link-borne metadata still cannot make an admin,
     // and nothing at all can make a super admin.
-    if (invite.role === "admin" && user.role !== "admin" && user.role !== "superadmin") {
+    if (invite.role === "admin" && !satisfiesRole(user.role, ["admin"])) {
       await db.update(usersTable).set({ role: "admin" }).where(eq(usersTable.id, user.id));
       logger.info({ userId: user.id }, "Invited admin arrived and was given the role");
     }
@@ -251,18 +283,8 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
  *
  * The two extra rows this reads are cached for the request.
  */
-const roleCache = new WeakMap<Request, string>();
-
 export async function currentRole(req: Request): Promise<string | null> {
-  const cached = roleCache.get(req);
-  if (cached) return cached;
-
-  const user = await getCurrentUser(req);
-  if (!user) return null;
-
-  const role = effectiveRole(user, { founderId: await founderId() });
-  roleCache.set(req, role);
-  return role;
+  return (await getCurrentUser(req))?.role ?? null;
 }
 
 /**
