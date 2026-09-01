@@ -1,0 +1,106 @@
+You are working on a live application with real learners on it. It is deployed on Railway at energycommslab.africa, and this Replit workspace is where changes are written and pushed from. Anything that breaks here breaks the live site.
+
+Your default posture: the smallest change that does the job. Do not tidy, do not modernise, do not "improve" code you were not asked to touch. Several of the rules below look arbitrary and are not — each one is written because something broke.
+
+1. What the application is
+
+An online learning platform for African energy communicators, journalists and policy advocates. People are invited onto programmes (cohorts). A programme is made of modules; each module has a live class, slides, a quiz and an assignment. Attendance and coursework produce a verifiable certificate.
+
+Vocabulary — use these words exactly, in code and in anything a user reads:
+
+Word	Means
+Programme (or program)	A cohort or course people enrol on
+Module	One unit of a programme. In the database this is still a session row — do not rename the table or the API, only what people read
+Live class	The actual scheduled meeting inside a module
+Facilitator	Someone who teaches. Role name in code is instructor
+Learner	Someone taking a programme
+
+Do not reintroduce the words "live session" or "session" into anything a user sees.
+
+2. How the code is arranged
+lib/domain/          Pure rules with tests. No database, no network, no React.
+lib/db/              Drizzle schema (Postgres).
+lib/api-spec/        openapi.yaml — the single source of truth for the API.
+lib/api-zod/         GENERATED from openapi.yaml. Never edit by hand.
+lib/api-client-react/ GENERATED from openapi.yaml. Never edit by hand.
+artifacts/api-server/  Express server.
+artifacts/afrienergy-comms-lab/  React front end (folder name is historic — the app is Ananse).
+
+The rule that matters most: any rule with a right and a wrong answer — who may do what, what counts as complete, how a spreadsheet is read, how a date is converted — goes in lib/domain with tests. Routes and components call it. They do not re-implement it. Two copies of a rule will disagree eventually, and the disagreement will be discovered by a learner, not by us.
+
+Changing the API
+Edit lib/api-spec/openapi.yaml.
+Run pnpm --filter @workspace/api-spec run codegen.
+Commit what it generated.
+
+CI fails if the generated folders do not match the spec. Never hand-edit anything under a generated/ folder — your edit will be silently overwritten.
+
+3. Things that must not change
+
+These are not preferences. Breaking any of them breaks the live Lab.
+
+Package manager. packageManager in package.json is pinned to a version this environment can actually run. Do not change it. Do not regenerate pnpm-lock.yaml unless you deliberately added a dependency. A previous version bump caused an install loop that took the workspace down.
+
+minimumReleaseAge: 1440 in pnpm-workspace.yaml makes npm packages wait a day before they can be installed — a guard against tampered packages. Do not remove it. If an install fails because a package is too new, either wait or add that one package to the exclude list.
+
+Roles come from the database, never from anything the user can write. Clerk's publicMetadata is backend-only and may be read. Clerk's unsafeMetadata is editable by the account holder and must never be read for a role — that would let any learner make themselves a facilitator and open every answer key.
+
+An emailed invitation can never make somebody an admin on its own. An invited admin is raised from our own pending_invitations row, which only this server writes, and only a super admin can cause one to say admin. Nothing at all can grant super admin by email.
+
+The founder is always a super admin. The first staff account is treated as super admin on every request, and its role cannot be changed by anyone. Do not "simplify" this away — without it, appointing a colleague locks the owner out, which already happened once.
+
+Sign-up is closed. The public route in is the waitlist. /sign-up shows the real form only when the address carries a Clerk invitation ticket. Do not add a sign-up link, a "create account" button, or a registration form anywhere.
+
+SVG uploads are refused for programme images. An SVG is XML that can carry script, served from our own origin. Image type is decided by reading the file's leading bytes, never the uploader's stated type.
+
+app.set("trust proxy", 1) in the server must stay. Railway sits behind a proxy; without it every visitor shares one rate-limit budget.
+
+The final error handler in artifacts/api-server/src/app.ts must stay. Without it an unhandled error returns the SQL statement and a stack trace to the browser.
+
+4. Before you say you are done
+
+Run all of these. Not some.
+
+bash
+pnpm run typecheck
+pnpm --filter @workspace/domain run test
+pnpm --filter api-server run test
+pnpm --filter @workspace/api-spec run codegen   # then check git status is clean
+pnpm run build
+
+If you changed a rule, add a test for it. If a test fails, fix the code — do not change the test to match the bug unless the rule genuinely changed, and say so plainly if it did.
+
+5. Database changes
+
+The schema lives in lib/db/src/schema/. After changing it, the update is applied by running, in the Railway Console (not here):
+
+bash
+pnpm --filter @workspace/db run push --force
+
+Tell me explicitly whenever a change needs this. A new table or column that has not been pushed makes the feature fail with a vague message, and it took a real debugging session to find that out the first time.
+
+6. What is already built — do not break these
+Programmes: create, edit, thumbnail upload, four states (draft, published, closed, archived). "Closed" keeps a programme on the public site but stops sign-ups.
+Modules: add, edit title/date/length/description, delete, assign a facilitator by typing a name (an account holder gets the class; anyone else is recorded as a guest with no access), slides, quiz, assignment, recordings.
+Cohort invitations: paste or upload a spreadsheet of names and emails, preview what was read, invite everyone at once. Each person is reported on individually. Someone who already has an account is enrolled and emailed instead of invited.
+Waitlist: the public way in. Name, email, programme interest. No account is created. Admins work through the list and invite people from it.
+People: staff only — administrators (super admins and admins) and facilitators shown with the programmes they teach. Learners are not listed here.
+Enrolments: arranged by programme, each cohort with its count against its places, plus a panel listing accounts that are on no programme.
+Certificates: verifiable at a public address. Do not change the verification URL shape — certificates already issued point at it.
+Partnerships form and privacy policy pages.
+7. Settings the running app needs
+
+Set on Railway, not in code, and never printed into logs or committed:
+
+DATABASE_URL, CLERK_SECRET_KEY, VITE_CLERK_PUBLISHABLE_KEY, BREVO_API_KEY (must start with xkeysib-; an xsmtpsib- credential is a different thing and will fail), BREVO_SENDER_EMAIL, BREVO_SENDER_NAME, APP_BASE_URL, BASE_PATH, PORT, PARTNERSHIP_EMAIL, ANTHROPIC_API_KEY, and the Google recording variables.
+
+Invitation emails are sent by Clerk. Everything else — waitlist confirmations, enrolment emails, partnership enquiries — is sent by Brevo. When an email does not arrive, check which of the two should have sent it before looking anywhere else.
+
+8. How to work
+Tell me what you plan to change and which files, before changing them.
+Make the change.
+Run the checks in section 4.
+Tell me in plain English what changed, and whether a database push is needed.
+If you find something else broken along the way, tell me — do not fix it silently.
+
+If a request would require breaking one of the rules in section 3, stop and say so rather than working around it.

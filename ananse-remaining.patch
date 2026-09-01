@@ -1,0 +1,2925 @@
+From 413c12e5d8b5c23f8a4598f585ea39a3cf36482d Mon Sep 17 00:00:00 2001
+From: claude <noreply@anthropic.com>
+Date: Mon, 31 Aug 2026 17:11:39 +0000
+Subject: [PATCH 1/3] feat: invite a whole cohort from a spreadsheet
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Fifty accepted applicants sitting in Excel, and every row a real person
+expecting to hear from the Lab. That shapes everything here.
+
+READING THE SHEET
+
+Paste the columns, or upload the .xlsx or .csv. Both arrive at one reader, so
+there is one set of rules and one set of tests rather than a bug in whichever
+path is used less.
+
+Sheets are written by people for people, so the reader copes with what they
+actually contain: a heading row, or none; the name column first or second; a
+serial number, a phone and an organisation nobody asked for; blank spacer
+rows; and the same applicant entered twice by two colleagues.
+
+The address is found by shape rather than position, since it is the only cell
+that is unmistakable. The name is then the nearest cell to it, looking left
+first — sheets put a name beside the address it belongs to. Reaching for the
+longest cell instead picks the phone number, which a test caught.
+
+Nothing is ever dropped silently. A row that cannot be read is reported with
+its number and its contents, because a dropped row is an applicant who never
+hears from us and has no way of knowing why. Row numbers come from the file's
+own row attributes, so one blank spacer row does not shift every reported
+problem onto the wrong line of the admin's sheet.
+
+An .xlsx is a zip of XML, which this codebase already opens for slide decks.
+Reading the few tags needed is a page of code, and cheaper than taking on a
+spreadsheet library for a feature that reads two columns.
+
+SENDING
+
+One request, but each person handled and reported on alone. A single typo, or
+one applicant who signed up last week, must never stop the other forty-nine.
+The response says what happened to every row, so an admin acts on the three
+that failed instead of guessing which of fifty to retry.
+
+Somebody who already has an account is enrolled directly rather than invited.
+Somebody already on the programme is left alone. A live invitation is withdrawn
+before a replacement is issued, or the first link stays valid forever with
+nothing recording it. Re-running the same sheet after adding five names is
+therefore safe, which is how this will actually be used.
+
+Sending is sequential. Fifty at once is faster and is also the fastest way to
+be rate-limited halfway through with nobody able to say who was invited.
+
+Learners are enrolled on the programme when they accept, so their classes are
+waiting rather than needing a second step from them or from the admin. An
+invitation accepted after they enrolled themselves cannot overwrite the status
+an admin set.
+
+THE SCREEN
+
+Nothing is sent until the admin has seen who was read out of their sheet, the
+rows that could not be read, and how the total sits against the places on the
+programme — an email cannot be recalled. Afterwards every person gets a line,
+because "47 of 50 sent" leaves somebody hunting for the three.
+
+Eleven route tests cover the parts worth guarding: a bad row not taking the
+good ones with it, a provider refusal not stopping the batch, an existing
+account being enrolled rather than invited, a repeated address getting one
+email, and an accepted invitation never being reissued.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01Dq13wi75fjGnN4oYqzszGa
+---
+ .../src/components/InviteLearners.tsx         | 260 ++++++++++++++++
+ .../src/pages/AdminConsole.tsx                |   3 +
+ artifacts/api-server/src/lib/auth.ts          |  34 +-
+ artifacts/api-server/src/lib/sheet.ts         | 137 ++++++++
+ .../api-server/src/routes/bulkInvites.test.ts | 253 +++++++++++++++
+ .../api-server/src/routes/bulkInvites.ts      | 242 +++++++++++++++
+ artifacts/api-server/src/routes/index.ts      |   2 +
+ .../src/generated/api.schemas.ts              |  45 +++
+ lib/api-client-react/src/generated/api.ts     |  74 +++++
+ lib/api-spec/openapi.yaml                     |  99 ++++++
+ lib/api-zod/src/generated/api.ts              |  32 ++
+ .../src/generated/types/bulkInviteBody.ts     |  15 +
+ .../src/generated/types/bulkInviteEntry.ts    |  14 +
+ .../src/generated/types/bulkInviteOutcome.ts  |  17 +
+ .../types/bulkInviteOutcomeStatus.ts          |  21 ++
+ .../src/generated/types/bulkInviteResult.ts   |  16 +
+ lib/api-zod/src/generated/types/index.ts      |   5 +
+ lib/db/src/schema/invitations.ts              |  10 +
+ lib/domain/src/index.ts                       |   1 +
+ lib/domain/src/roster.test.ts                 | 230 ++++++++++++++
+ lib/domain/src/roster.ts                      | 292 ++++++++++++++++++
+ 21 files changed, 1798 insertions(+), 4 deletions(-)
+ create mode 100644 artifacts/afrienergy-comms-lab/src/components/InviteLearners.tsx
+ create mode 100644 artifacts/api-server/src/lib/sheet.ts
+ create mode 100644 artifacts/api-server/src/routes/bulkInvites.test.ts
+ create mode 100644 artifacts/api-server/src/routes/bulkInvites.ts
+ create mode 100644 lib/api-zod/src/generated/types/bulkInviteBody.ts
+ create mode 100644 lib/api-zod/src/generated/types/bulkInviteEntry.ts
+ create mode 100644 lib/api-zod/src/generated/types/bulkInviteOutcome.ts
+ create mode 100644 lib/api-zod/src/generated/types/bulkInviteOutcomeStatus.ts
+ create mode 100644 lib/api-zod/src/generated/types/bulkInviteResult.ts
+ create mode 100644 lib/domain/src/roster.test.ts
+ create mode 100644 lib/domain/src/roster.ts
+
+diff --git a/artifacts/afrienergy-comms-lab/src/components/InviteLearners.tsx b/artifacts/afrienergy-comms-lab/src/components/InviteLearners.tsx
+new file mode 100644
+index 0000000..42f4570
+--- /dev/null
++++ b/artifacts/afrienergy-comms-lab/src/components/InviteLearners.tsx
+@@ -0,0 +1,260 @@
++import { useMemo, useRef, useState } from 'react';
++import { useQueryClient } from '@tanstack/react-query';
++import { AlertTriangle, CheckCircle2, FileUp, Loader2, Users } from 'lucide-react';
++import {
++  useListPrograms,
++  useInviteLearnersInBulk,
++  getListAllEnrollmentsQueryKey,
++  type BulkInviteResult,
++} from '@workspace/api-client-react';
++import {
++  MAX_ROSTER_ROWS,
++  describeReading,
++  readPastedRoster,
++  type RosterReading,
++} from '@workspace/domain';
++import { Button } from '@/components/ui/button';
++import { Textarea } from '@/components/ui/textarea';
++import { useToast } from '@/hooks/use-toast';
++
++/**
++ * Inviting a cohort from a spreadsheet.
++ *
++ * Fifty invitations is fifty real people, and an email cannot be recalled. So
++ * nothing is sent until the admin has seen exactly who was read out of their
++ * sheet, which rows could not be read, and how the total sits against the
++ * places on the programme. The Send button does not appear before the preview.
++ *
++ * Afterwards every person gets a line saying what happened to them, because
++ * "47 of 50 sent" leaves an admin hunting for the three.
++ */
++
++const PLACEHOLDER = `Amina Bello\tamina@example.org
++Kwame Mensah\tkwame@example.org
++
++Or paste straight from Excel or Google Sheets — select the name and email
++columns, copy, and paste here. A heading row is fine.`;
++
++function Row({ tone, children }: { tone: 'ok' | 'warn' | 'bad'; children: React.ReactNode }) {
++  const colour =
++    tone === 'ok' ? 'text-foreground' : tone === 'warn' ? 'text-[#B45309]' : 'text-destructive';
++  return <li className={`py-1 text-xs ${colour}`}>{children}</li>;
++}
++
++export function InviteLearners() {
++  const qc = useQueryClient();
++  const { toast } = useToast();
++  const fileRef = useRef<HTMLInputElement>(null);
++
++  const { data: programs = [] } = useListPrograms();
++  const [programId, setProgramId] = useState('');
++  const [text, setText] = useState('');
++  const [reading, setReading] = useState<RosterReading | null>(null);
++  const [result, setResult] = useState<BulkInviteResult | null>(null);
++  const [reading_file, setReadingFile] = useState(false);
++  const [fileProblem, setFileProblem] = useState<string | null>(null);
++
++  const send = useInviteLearnersInBulk({
++    mutation: {
++      onSuccess: (data) => {
++        setResult(data);
++        qc.invalidateQueries({ queryKey: getListAllEnrollmentsQueryKey() });
++        toast({ title: `${data.invited + data.enrolled} of ${data.outcomes.length} handled` });
++      },
++      onError: () => toast({ title: 'Could not send those invitations', variant: 'destructive' }),
++    },
++  });
++
++  const programme = useMemo(
++    () => programs.find((p) => String(p.id) === programId),
++    [programs, programId],
++  );
++
++  /** Places left, so an admin sees a cohort about to overflow before sending. */
++  const overCapacity =
++    programme && reading ? programme.enrolledCount + reading.entries.length > programme.capacity : false;
++
++  function preview(source: string) {
++    setText(source);
++    setResult(null);
++    setReading(source.trim() ? readPastedRoster(source) : null);
++  }
++
++  async function uploadSheet(file: File) {
++    setFileProblem(null);
++    setResult(null);
++    setReadingFile(true);
++    try {
++      const res = await fetch('/api/admin/roster-file', {
++        method: 'POST',
++        headers: { 'content-type': 'application/octet-stream', 'x-filename': file.name.slice(0, 200) },
++        body: new Uint8Array(await file.arrayBuffer()),
++        credentials: 'include',
++      });
++      const body = (await res.json()) as { text?: string; message?: string; sheetName?: string | null };
++      if (!res.ok || typeof body.text !== 'string') {
++        setFileProblem(body.message ?? 'That file could not be read. Try pasting the rows instead.');
++        return;
++      }
++      preview(body.text);
++      if (body.sheetName) toast({ title: `Read “${body.sheetName}”` });
++    } catch {
++      setFileProblem('That file could not be read. Check your connection, or paste the rows instead.');
++    } finally {
++      setReadingFile(false);
++      if (fileRef.current) fileRef.current.value = '';
++    }
++  }
++
++  return (
++    <div className="space-y-4 rounded-xl border border-border bg-card p-5">
++      <div>
++        <h3 className="flex items-center gap-2 font-semibold">
++          <Users className="h-4 w-4" aria-hidden />
++          Invite learners from a list
++        </h3>
++        <p className="mt-1 text-xs text-muted-foreground">
++          Paste the names and emails from your spreadsheet, or upload the file. Everyone is invited
++          and enrolled on the programme you choose — nothing is sent until you have seen the list.
++        </p>
++      </div>
++
++      <div className="grid gap-3 md:grid-cols-2">
++        <div>
++          <label htmlFor="bulk-programme" className="mb-1.5 block text-sm font-medium">
++            Enrol them onto
++          </label>
++          <select
++            id="bulk-programme"
++            className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
++            value={programId}
++            onChange={(e) => { setProgramId(e.target.value); setResult(null); }}
++          >
++            <option value="">Choose a programme</option>
++            {programs.map((p) => (
++              <option key={p.id} value={p.id}>
++                {p.title} — {p.enrolledCount}/{p.capacity} places taken
++              </option>
++            ))}
++          </select>
++        </div>
++
++        <div className="flex items-end">
++          <input
++            ref={fileRef}
++            type="file"
++            accept=".xlsx,.csv,.txt,text/csv,text/plain,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
++            className="hidden"
++            onChange={(e) => {
++              const file = e.target.files?.[0];
++              if (file) void uploadSheet(file);
++            }}
++          />
++          <Button type="button" variant="outline" size="sm" disabled={reading_file} onClick={() => fileRef.current?.click()}>
++            {reading_file ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" aria-hidden /> : <FileUp className="mr-1.5 h-4 w-4" aria-hidden />}
++            Upload .xlsx or .csv
++          </Button>
++        </div>
++      </div>
++
++      {fileProblem && (
++        <p role="alert" className="text-xs font-medium text-destructive">{fileProblem}</p>
++      )}
++
++      <Textarea
++        rows={8}
++        className="font-mono text-xs"
++        placeholder={PLACEHOLDER}
++        value={text}
++        onChange={(e) => preview(e.target.value)}
++      />
++
++      {reading && (
++        <div className="rounded-lg border border-border bg-background p-4">
++          <p className="text-sm font-medium">{describeReading(reading)}</p>
++
++          {reading.headerSkipped && (
++            <p className="mt-1 text-xs text-muted-foreground">The first row was read as headings.</p>
++          )}
++          {reading.truncated && (
++            <p className="mt-1 text-xs text-[#B45309]">
++              Only the first {MAX_ROSTER_ROWS} rows were taken. Send these, then paste the rest.
++            </p>
++          )}
++
++          {overCapacity && programme && (
++            <p className="mt-2 flex items-start gap-1.5 text-xs font-medium text-[#B45309]">
++              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
++              That is more people than {programme.title} has places for
++              ({programme.enrolledCount + reading.entries.length} against {programme.capacity}).
++              They will all be enrolled — raise the places on the programme first if that matters.
++            </p>
++          )}
++
++          {reading.entries.length > 0 && (
++            <ul className="mt-3 max-h-48 divide-y divide-border overflow-y-auto">
++              {reading.entries.map((e) => (
++                <Row key={e.email} tone="ok">
++                  <span className="font-medium">{e.name || '(no name)'}</span>{' '}
++                  <span className="text-muted-foreground">{e.email}</span>
++                </Row>
++              ))}
++            </ul>
++          )}
++
++          {(reading.problems.length > 0 || reading.duplicates.length > 0) && (
++            <ul className="mt-3 max-h-40 divide-y divide-border overflow-y-auto border-t border-border pt-2">
++              {reading.problems.map((p) => (
++                <Row key={`p${p.row}`} tone="bad">Row {p.row}: {p.problem} <span className="opacity-70">{p.raw}</span></Row>
++              ))}
++              {reading.duplicates.map((d) => (
++                <Row key={`d${d.row}`} tone="warn">Row {d.row}: {d.problem}</Row>
++              ))}
++            </ul>
++          )}
++        </div>
++      )}
++
++      {reading && reading.entries.length > 0 && (
++        <Button
++          disabled={!programId || send.isPending}
++          onClick={() =>
++            send.mutate({
++              data: {
++                programId: Number(programId),
++                entries: reading.entries.map((e) => ({ row: e.row, name: e.name, email: e.email })),
++              },
++            })
++          }
++        >
++          {send.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />}
++          {send.isPending
++            ? `Inviting ${reading.entries.length}...`
++            : `Invite ${reading.entries.length} ${reading.entries.length === 1 ? 'person' : 'people'}`}
++        </Button>
++      )}
++
++      {result && (
++        <div className="rounded-lg border border-border bg-background p-4">
++          <p className="flex items-center gap-2 text-sm font-medium">
++            <CheckCircle2 className="h-4 w-4 text-primary" aria-hidden />
++            {result.invited} invited, {result.enrolled} enrolled directly
++            {result.alreadyEnrolled > 0 && `, ${result.alreadyEnrolled} already on the programme`}
++            {result.failed > 0 && `, ${result.failed} could not be done`}.
++          </p>
++          <ul className="mt-3 max-h-60 divide-y divide-border overflow-y-auto">
++            {result.outcomes.map((o) => (
++              <Row key={o.email} tone={o.status === 'failed' ? 'bad' : o.status === 'already-enrolled' ? 'warn' : 'ok'}>
++                <span className="font-medium">{o.name || o.email}</span>
++                {o.name && <span className="text-muted-foreground"> {o.email}</span>}
++                {' — '}{o.detail}
++              </Row>
++            ))}
++          </ul>
++        </div>
++      )}
++    </div>
++  );
++}
++
++export default InviteLearners;
+diff --git a/artifacts/afrienergy-comms-lab/src/pages/AdminConsole.tsx b/artifacts/afrienergy-comms-lab/src/pages/AdminConsole.tsx
+index 4b084fc..126fd7c 100644
+--- a/artifacts/afrienergy-comms-lab/src/pages/AdminConsole.tsx
++++ b/artifacts/afrienergy-comms-lab/src/pages/AdminConsole.tsx
+@@ -21,6 +21,7 @@ import {
+ } from '@workspace/api-client-react';
+ import CourseworkStudio from '@/components/CourseworkStudio';
+ import InviteFacilitator from '@/components/InviteFacilitator';
++import InviteLearners from '@/components/InviteLearners';
+ import RecordingsAdmin from '@/components/RecordingsAdmin';
+ import ProgramThumbnail from '@/components/ProgramThumbnail';
+ import { isMeasurableRecording } from '@/lib/embed';
+@@ -509,6 +510,8 @@ function PeopleTab({ selfId }: { selfId: number | undefined }) {
+ 
+   return (
+     <div className="space-y-4">
++      <InviteLearners />
++
+       <InviteFacilitator />
+ 
+       <p className="text-sm text-muted-foreground">
+diff --git a/artifacts/api-server/src/lib/auth.ts b/artifacts/api-server/src/lib/auth.ts
+index fcbefc3..9b0e4ce 100644
+--- a/artifacts/api-server/src/lib/auth.ts
++++ b/artifacts/api-server/src/lib/auth.ts
+@@ -1,10 +1,10 @@
+ import type { NextFunction, Request, Response } from "express";
+ import { clerkClient, getAuth } from "@clerk/express";
+ import {
+-  db, usersTable, sessionsTable, pendingInvitationsTable, type User,
++  db, usersTable, sessionsTable, pendingInvitationsTable, enrollmentsTable, type User,
+ } from "@workspace/db";
+ import { and, eq, inArray, isNull, sql } from "drizzle-orm";
+-import { invitableRoleFromPublicMetadata, planAssignments } from "@workspace/domain";
++import { generateCertificateCode, invitableRoleFromPublicMetadata, planAssignments } from "@workspace/domain";
+ import { logger } from "./logger";
+ 
+ const userCache = new WeakMap<Request, User>();
+@@ -114,14 +114,40 @@ async function claimInvitation(user: User, email: string): Promise<void> {
+       }
+     }
+ 
++    // A learner invited to a cohort is enrolled on the way in, so the classes
++    // are waiting rather than needing a second step from them or the admin.
++    // Doing nothing if a row already exists means an invitation accepted after
++    // the person enrolled themselves cannot wipe out the status an admin set.
++    let enrolled = false;
++    if (invite.programId) {
++      const [row] = await db
++        .insert(enrollmentsTable)
++        .values({
++          userId: user.id,
++          programId: invite.programId,
++          status: "enrolled",
++          certificateCode: generateCertificateCode(),
++        })
++        .onConflictDoNothing({ target: [enrollmentsTable.userId, enrollmentsTable.programId] })
++        .returning();
++      enrolled = !!row;
++    }
++
+     await db
+       .update(pendingInvitationsTable)
+       .set({ acceptedAt: new Date(), acceptedByUserId: user.id })
+       .where(eq(pendingInvitationsTable.id, invite.id));
+ 
+     logger.info(
+-      { userId: user.id, assigned: outcome.assigned.length, alreadyTaken: outcome.alreadyTaken.length },
+-      "Invited facilitator arrived",
++      {
++        userId: user.id,
++        role: invite.role,
++        assigned: outcome.assigned.length,
++        alreadyTaken: outcome.alreadyTaken.length,
++        programId: invite.programId ?? null,
++        enrolled,
++      },
++      "Invited person arrived",
+     );
+   } catch (err) {
+     // Never block a sign-in over this. They are in; an admin can assign classes
+diff --git a/artifacts/api-server/src/lib/sheet.ts b/artifacts/api-server/src/lib/sheet.ts
+new file mode 100644
+index 0000000..85417ea
+--- /dev/null
++++ b/artifacts/api-server/src/lib/sheet.ts
+@@ -0,0 +1,137 @@
++import { unzipSync, strFromU8 } from "fflate";
++
++/**
++ * Turning an uploaded spreadsheet into rows of strings.
++ *
++ * An .xlsx is a zip of XML, which the application already knows how to open —
++ * slide decks arrive the same way. Reading the handful of tags we need is a
++ * few dozen lines, and worth it: a spreadsheet parser is a large dependency to
++ * take on, with a large surface, for a feature that reads two columns.
++ *
++ * Nothing here decides what a row means. It produces the same shape a pasted
++ * block produces, and `readRoster` in @workspace/domain applies one set of
++ * rules to both — so the uploaded path and the pasted path cannot drift apart.
++ */
++
++export type SheetReadResult =
++  | { ok: true; rows: string[][]; sheetName: string | null }
++  | { ok: false; problem: string };
++
++/** "A1" -> 0, "B7" -> 1, "AA3" -> 26. */
++function columnIndex(ref: string): number {
++  const letters = ref.match(/^[A-Z]+/i)?.[0] ?? "";
++  let n = 0;
++  for (const ch of letters.toUpperCase()) n = n * 26 + (ch.charCodeAt(0) - 64);
++  return Math.max(0, n - 1);
++}
++
++function decodeEntities(text: string): string {
++  return text
++    .replace(/&lt;/g, "<")
++    .replace(/&gt;/g, ">")
++    .replace(/&quot;/g, '"')
++    .replace(/&apos;/g, "'")
++    .replace(/&#(\d+);/g, (_, d) => String.fromCodePoint(Number(d)))
++    .replace(/&#x([0-9a-f]+);/gi, (_, h) => String.fromCodePoint(parseInt(h, 16)))
++    // Ampersand last, or an &amp;lt; would be decoded twice.
++    .replace(/&amp;/g, "&");
++}
++
++/** All the text inside one element, ignoring formatting runs. */
++function textOf(xml: string): string {
++  const parts = xml.match(/<t[^>]*>([\s\S]*?)<\/t>/g) ?? [];
++  return parts
++    .map((p) => decodeEntities(p.replace(/<t[^>]*>/, "").replace(/<\/t>/, "")))
++    .join("")
++    .trim();
++}
++
++function isXlsx(bytes: Uint8Array): boolean {
++  // Every Office Open XML file is a zip: "PK\x03\x04".
++  return bytes.length > 4 && bytes[0] === 0x50 && bytes[1] === 0x4b && bytes[2] === 0x03 && bytes[3] === 0x04;
++}
++
++/** A CSV or plain-text upload: hand the text straight back as lines. */
++function readDelimitedText(bytes: Uint8Array): SheetReadResult {
++  const text = strFromU8(bytes).replace(/^﻿/, "");
++  if (!text.trim()) return { ok: false, problem: "That file was empty." };
++  // Splitting into cells is the domain's job, so the pasted and uploaded paths
++  // go through exactly the same rules.
++  return { ok: true, rows: text.replace(/\r\n?/g, "\n").split("\n").map((line) => [line]), sheetName: null };
++}
++
++export function readSheet(bytes: Uint8Array): SheetReadResult {
++  if (bytes.length === 0) return { ok: false, problem: "That file was empty." };
++  if (!isXlsx(bytes)) return readDelimitedText(bytes);
++
++  let files: Record<string, Uint8Array>;
++  try {
++    files = unzipSync(bytes);
++  } catch {
++    return { ok: false, problem: "That file could not be opened. Save it again as .xlsx or .csv." };
++  }
++
++  const sheetPaths = Object.keys(files)
++    .filter((p) => /^xl\/worksheets\/sheet\d+\.xml$/i.test(p))
++    .sort();
++
++  if (sheetPaths.length === 0) {
++    // A .xls saved with the wrong extension lands here, as does a zip of
++    // something else entirely.
++    return { ok: false, problem: "No sheet found in that file. Save it as .xlsx, or paste the rows instead." };
++  }
++
++  // Shared strings: most cell text in a workbook lives here, referenced by index.
++  const sharedXml = files["xl/sharedStrings.xml"] ? strFromU8(files["xl/sharedStrings.xml"]) : "";
++  const shared = (sharedXml.match(/<si>[\s\S]*?<\/si>/g) ?? []).map(textOf);
++
++  // The first sheet only. A workbook of several sheets almost always keeps the
++  // list on the first, and guessing between them would be worse than asking.
++  const sheetXml = strFromU8(files[sheetPaths[0]]);
++  const rows: string[][] = [];
++
++  for (const rowXml of sheetXml.match(/<row[^>]*\/>|<row[^>]*>[\s\S]*?<\/row>/g) ?? []) {
++    // A workbook leaves out rows that are entirely empty, so position has to
++    // come from the row's own number. Without this, one blank spacer row shifts
++    // every problem the admin is shown onto the wrong line of their sheet.
++    const declared = Number(rowXml.match(/\br="(\d+)"/)?.[1]);
++    const at = Number.isInteger(declared) && declared > 0 ? declared - 1 : rows.length;
++
++    const cells: string[] = [];
++
++    for (const cellXml of rowXml.match(/<c[^>]*\/>|<c[^>]*>[\s\S]*?<\/c>/g) ?? []) {
++      const ref = cellXml.match(/\br="([A-Z]+\d+)"/i)?.[1] ?? "";
++      const type = cellXml.match(/\bt="([^"]+)"/)?.[1] ?? "";
++      const index = ref ? columnIndex(ref) : cells.length;
++
++      let value = "";
++      if (type === "s") {
++        const at = Number(cellXml.match(/<v>([\s\S]*?)<\/v>/)?.[1] ?? "");
++        value = Number.isInteger(at) ? (shared[at] ?? "") : "";
++      } else if (type === "inlineStr") {
++        value = textOf(cellXml);
++      } else {
++        const raw = cellXml.match(/<v>([\s\S]*?)<\/v>/)?.[1];
++        value = raw ? decodeEntities(raw).trim() : "";
++      }
++
++      // Cells the file omits entirely — an empty column — must still take up a
++      // position, or every value after a gap shifts left into the wrong column.
++      while (cells.length < index) cells.push("");
++      cells[index] = value;
++    }
++
++    while (rows.length < at) rows.push([]);
++    rows[at] = cells;
++  }
++
++  if (rows.length === 0) {
++    return { ok: false, problem: "That sheet had no rows in it." };
++  }
++
++  const name = decodeEntities(
++    (files["xl/workbook.xml"] ? strFromU8(files["xl/workbook.xml"]) : "").match(/<sheet[^>]*\bname="([^"]*)"/)?.[1] ?? "",
++  );
++
++  return { ok: true, rows, sheetName: name || null };
++}
+diff --git a/artifacts/api-server/src/routes/bulkInvites.test.ts b/artifacts/api-server/src/routes/bulkInvites.test.ts
+new file mode 100644
+index 0000000..5914a46
+--- /dev/null
++++ b/artifacts/api-server/src/routes/bulkInvites.test.ts
+@@ -0,0 +1,253 @@
++import express from "express";
++import type { AddressInfo } from "node:net";
++import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
++
++/**
++ * Inviting fifty people at once, exercised over real HTTP.
++ *
++ * The behaviour worth guarding is not that a good sheet works. It is that a bad
++ * row does not take the good ones with it: fifty accepted applicants, and one
++ * typo must not mean forty-nine people never hear from the Lab.
++ */
++
++const mocks = vi.hoisted(() => {
++  const tables = {
++    usersTable: { id: "id", email: "email" },
++    programsTable: { id: "id" },
++    enrollmentsTable: { userId: "userId", programId: "programId" },
++    pendingInvitationsTable: { email: "email" },
++  };
++
++  /** Rows returned by successive select() calls, oldest first. */
++  let selectResults: unknown[][] = [];
++  /** Rows returned by successive insert().returning() calls. */
++  let insertResults: unknown[][] = [];
++
++  const thenable = (get: () => unknown[]) => {
++    const builder: Record<string, unknown> = {};
++    for (const key of ["from", "where", "values", "onConflictDoUpdate", "onConflictDoNothing", "returning", "limit"]) {
++      builder[key] = () => builder;
++    }
++    builder.then = (resolve: (v: unknown[]) => unknown, reject?: (r: unknown) => unknown) =>
++      Promise.resolve(get()).then(resolve, reject);
++    return builder;
++  };
++
++  return {
++    db: {
++      select: vi.fn(() => thenable(() => selectResults.shift() ?? [])),
++      insert: vi.fn(() => thenable(() => insertResults.shift() ?? [])),
++      update: vi.fn(() => thenable(() => [])),
++      delete: vi.fn(() => thenable(() => [])),
++    },
++    sendInvitation: vi.fn(),
++    revokeInvitation: vi.fn(),
++    invitesConfigured: vi.fn(() => true),
++    getCurrentUser: vi.fn(async () => ({ id: 1, role: "admin" })),
++    setSelects(rows: unknown[][]) { selectResults = [...rows]; },
++    setInserts(rows: unknown[][]) { insertResults = [...rows]; },
++    tables,
++  };
++});
++
++vi.mock("@workspace/db", () => ({ db: mocks.db, ...mocks.tables }));
++vi.mock("../lib/auth", () => ({
++  getCurrentUser: mocks.getCurrentUser,
++  // Every request in these tests is an admin; the gate itself is Clerk's.
++  requireRole: () => (_req: unknown, _res: unknown, next: () => void) => next(),
++}));
++vi.mock("../lib/clerkInvites", () => ({
++  invitesConfigured: mocks.invitesConfigured,
++  sendInvitation: mocks.sendInvitation,
++  revokeInvitation: mocks.revokeInvitation,
++}));
++vi.mock("../lib/logger", () => ({
++  logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
++}));
++
++import bulkInvitesRouter from "./bulkInvites";
++
++const PROGRAMME = [{ id: 3, title: "Energy Reporting", capacity: 30 }];
++
++let baseUrl = "";
++let server: ReturnType<ReturnType<typeof express>["listen"]>;
++
++function post(body: unknown) {
++  return fetch(`${baseUrl}/api/admin/invitations/bulk`, {
++    method: "POST",
++    headers: { "content-type": "application/json" },
++    body: JSON.stringify(body),
++  });
++}
++
++type Result = {
++  outcomes: { email: string; status: string; detail: string }[];
++  invited: number; enrolled: number; alreadyEnrolled: number; failed: number;
++};
++
++beforeEach(async () => {
++  vi.clearAllMocks();
++  mocks.invitesConfigured.mockReturnValue(true);
++  mocks.sendInvitation.mockResolvedValue({ ok: true, invitation: { id: "inv_1", email: "", url: null } });
++  mocks.revokeInvitation.mockResolvedValue("revoked");
++  mocks.setSelects([]);
++  mocks.setInserts([]);
++
++  const app = express();
++  app.use(express.json());
++  app.use("/api", bulkInvitesRouter);
++  server = app.listen(0);
++  await new Promise((r) => server.once("listening", r));
++  baseUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
++});
++
++afterEach(async () => {
++  await new Promise((r) => server.close(r));
++});
++
++describe("POST /admin/invitations/bulk", () => {
++  it("invites everybody on a clean sheet", async () => {
++    mocks.setSelects([
++      PROGRAMME,
++      [], [],   // person 1: no account, no prior invitation
++      [], [],   // person 2
++    ]);
++
++    const res = await post({
++      programId: 3,
++      entries: [
++        { row: 2, name: "Amina Bello", email: "amina@example.org" },
++        { row: 3, name: "Kwame Mensah", email: "kwame@example.org" },
++      ],
++    });
++
++    expect(res.status).toBe(200);
++    const body = (await res.json()) as Result;
++    expect(body.invited).toBe(2);
++    expect(body.failed).toBe(0);
++    expect(mocks.sendInvitation).toHaveBeenCalledTimes(2);
++  });
++
++  it("one bad address does not stop the rest of the sheet", async () => {
++    // The whole reason this endpoint reports per person rather than failing.
++    mocks.setSelects([PROGRAMME, [], [], [], []]);
++
++    const res = await post({
++      programId: 3,
++      entries: [
++        { row: 2, email: "amina@example.org" },
++        { row: 3, email: "not-an-address" },
++        { row: 4, email: "kwame@example.org" },
++      ],
++    });
++
++    const body = (await res.json()) as Result;
++    expect(body.invited).toBe(2);
++    expect(body.failed).toBe(1);
++    expect(body.outcomes).toHaveLength(3);
++    expect(body.outcomes[1].status).toBe("failed");
++    expect(body.outcomes[0].status).toBe("invited");
++    expect(body.outcomes[2].status).toBe("invited");
++  });
++
++  it("keeps going when the invitation provider refuses one person", async () => {
++    mocks.setSelects([PROGRAMME, [], [], [], [], [], []]);
++    mocks.sendInvitation
++      .mockResolvedValueOnce({ ok: true, invitation: { id: "inv_1", email: "", url: null } })
++      .mockResolvedValueOnce({ ok: false, error: "Clerk would not accept that address." })
++      .mockResolvedValueOnce({ ok: true, invitation: { id: "inv_3", email: "", url: null } });
++
++    const res = await post({
++      programId: 3,
++      entries: [
++        { email: "one@example.org" },
++        { email: "two@example.org" },
++        { email: "three@example.org" },
++      ],
++    });
++
++    const body = (await res.json()) as Result;
++    expect(body.invited).toBe(2);
++    expect(body.failed).toBe(1);
++    expect(body.outcomes[1].detail).toMatch(/would not accept/i);
++  });
++
++  it("enrols somebody who already has an account instead of inviting them", async () => {
++    mocks.setSelects([PROGRAMME, [{ id: 42, email: "amina@example.org" }]]);
++    mocks.setInserts([[{ id: 900 }]]);   // the enrolment row was created
++
++    const res = await post({ programId: 3, entries: [{ email: "amina@example.org" }] });
++    const body = (await res.json()) as Result;
++
++    expect(body.enrolled).toBe(1);
++    expect(body.invited).toBe(0);
++    // No second invitation to somebody who is already here.
++    expect(mocks.sendInvitation).not.toHaveBeenCalled();
++  });
++
++  it("says nothing to do for a learner already on the programme", async () => {
++    mocks.setSelects([PROGRAMME, [{ id: 42, email: "amina@example.org" }]]);
++    mocks.setInserts([[]]);              // conflict: no row returned
++
++    const res = await post({ programId: 3, entries: [{ email: "amina@example.org" }] });
++    const body = (await res.json()) as Result;
++
++    expect(body.alreadyEnrolled).toBe(1);
++    expect(body.enrolled).toBe(0);
++  });
++
++  it("sends one invitation when the same address is listed twice", async () => {
++    // Two colleagues added the same applicant. They get one email.
++    mocks.setSelects([PROGRAMME, [], []]);
++
++    const res = await post({
++      programId: 3,
++      entries: [{ email: "amina@example.org" }, { email: "AMINA@example.org" }],
++    });
++
++    const body = (await res.json()) as Result;
++    expect(mocks.sendInvitation).toHaveBeenCalledTimes(1);
++    expect(body.outcomes).toHaveLength(2);
++    expect(body.outcomes[1].detail).toMatch(/appeared earlier/i);
++  });
++
++  it("withdraws a live invitation before issuing a replacement", async () => {
++    // Otherwise the first link stays valid forever with nothing recording it.
++    mocks.setSelects([PROGRAMME, [], [{ email: "amina@example.org", clerkInvitationId: "inv_old", acceptedAt: null }]]);
++
++    const res = await post({ programId: 3, entries: [{ email: "amina@example.org" }] });
++    const body = (await res.json()) as Result;
++
++    expect(mocks.revokeInvitation).toHaveBeenCalledWith("inv_old");
++    expect(body.outcomes[0].status).toBe("reinvited");
++  });
++
++  it("does not re-invite somebody who already accepted", async () => {
++    mocks.setSelects([PROGRAMME, [], [{ email: "amina@example.org", clerkInvitationId: "inv_old", acceptedAt: new Date() }]]);
++
++    const res = await post({ programId: 3, entries: [{ email: "amina@example.org" }] });
++    const body = (await res.json()) as Result;
++
++    expect(body.failed).toBe(1);
++    expect(mocks.sendInvitation).not.toHaveBeenCalled();
++  });
++
++  it("refuses the whole request when no programme was chosen", async () => {
++    const res = await post({ entries: [{ email: "amina@example.org" }] });
++    expect(res.status).toBe(400);
++    expect(mocks.sendInvitation).not.toHaveBeenCalled();
++  });
++
++  it("refuses when the list is empty", async () => {
++    mocks.setSelects([PROGRAMME]);
++    const res = await post({ programId: 3, entries: [] });
++    expect(res.status).toBe(400);
++  });
++
++  it("says so plainly when invitations are not configured", async () => {
++    mocks.invitesConfigured.mockReturnValue(false);
++    const res = await post({ programId: 3, entries: [{ email: "amina@example.org" }] });
++    expect(res.status).toBe(503);
++    expect(mocks.sendInvitation).not.toHaveBeenCalled();
++  });
++});
+diff --git a/artifacts/api-server/src/routes/bulkInvites.ts b/artifacts/api-server/src/routes/bulkInvites.ts
+new file mode 100644
+index 0000000..71e602b
+--- /dev/null
++++ b/artifacts/api-server/src/routes/bulkInvites.ts
+@@ -0,0 +1,242 @@
++import express, { Router, type IRouter } from "express";
++import {
++  db,
++  usersTable,
++  programsTable,
++  enrollmentsTable,
++  pendingInvitationsTable,
++} from "@workspace/db";
++import { and, eq, sql } from "drizzle-orm";
++import { generateCertificateCode, isPlausibleEmail, normaliseEmail } from "@workspace/domain";
++import { getCurrentUser, requireRole } from "../lib/auth";
++import { invitesConfigured, revokeInvitation, sendInvitation } from "../lib/clerkInvites";
++import { readSheet } from "../lib/sheet";
++import { logger } from "../lib/logger";
++
++/**
++ * Inviting a whole cohort at once.
++ *
++ * Fifty accepted applicants sitting in a spreadsheet, and every one of them a
++ * real person expecting to hear from the Lab. That shapes every decision here.
++ *
++ * Each person is handled alone and reported on alone. A single bad address, or
++ * one applicant who signed up last week, must never stop the other forty-nine.
++ * The response says what happened to every row, so an admin can act on the
++ * three that did not work instead of guessing which of fifty to try again.
++ *
++ * Re-running the same sheet is safe and expected — an admin will add five names
++ * and send the lot again. Somebody already enrolled is reported as such and
++ * left alone; nobody is invited twice or gets a second live link.
++ *
++ * Sending is sequential rather than parallel. Fifty at once would be faster and
++ * would also be the fastest way to have Clerk rate-limit the batch halfway
++ * through, leaving nobody able to say who was invited and who was not.
++ */
++
++const router: IRouter = Router();
++
++/** The most rows one request will attempt, matching the roster reader. */
++const MAX_ENTRIES = 500;
++
++type Outcome = {
++  row?: number;
++  name?: string;
++  email: string;
++  status: "invited" | "enrolled" | "already-enrolled" | "reinvited" | "failed";
++  detail: string;
++};
++
++router.post("/admin/invitations/bulk", requireRole("admin"), async (req, res) => {
++  if (!invitesConfigured()) {
++    res.status(503).json({ message: "Clerk is not configured on the server, so invitations cannot be sent." });
++    return;
++  }
++
++  const body = (req.body ?? {}) as { programId?: unknown; entries?: unknown };
++  const programId = Number(body.programId);
++  if (!Number.isInteger(programId)) {
++    res.status(400).json({ message: "Choose a programme to invite these learners onto." });
++    return;
++  }
++
++  const [program] = await db.select().from(programsTable).where(eq(programsTable.id, programId));
++  if (!program) {
++    res.status(400).json({ message: "That programme no longer exists." });
++    return;
++  }
++
++  const rawEntries = Array.isArray(body.entries) ? body.entries : [];
++  if (rawEntries.length === 0) {
++    res.status(400).json({ message: "There was nobody in that list." });
++    return;
++  }
++
++  const me = await getCurrentUser(req);
++  const outcomes: Outcome[] = [];
++  const seen = new Set<string>();
++
++  for (const raw of rawEntries.slice(0, MAX_ENTRIES)) {
++    const entry = (raw ?? {}) as { row?: unknown; name?: unknown; email?: unknown };
++    const row = Number.isInteger(entry.row) ? (entry.row as number) : undefined;
++    const name = typeof entry.name === "string" ? entry.name.trim().slice(0, 120) : "";
++    const email = normaliseEmail(typeof entry.email === "string" ? entry.email : "");
++
++    const record = (status: Outcome["status"], detail: string) =>
++      outcomes.push({ row, name, email, status, detail });
++
++    if (!email || !isPlausibleEmail(email)) {
++      record("failed", "That does not look like an email address.");
++      continue;
++    }
++    if (seen.has(email)) {
++      record("already-enrolled", "This address appeared earlier in the list.");
++      continue;
++    }
++    seen.add(email);
++
++    try {
++      // Somebody already here needs enrolling, not inviting. Compared without
++      // case because the users table holds whatever Clerk gave it.
++      const [existing] = await db
++        .select()
++        .from(usersTable)
++        .where(and(sql`lower(${usersTable.email}) = ${email}`, sql`${usersTable.email} <> ''`));
++
++      if (existing) {
++        const [enrolled] = await db
++          .insert(enrollmentsTable)
++          .values({
++            userId: existing.id,
++            programId,
++            status: "enrolled",
++            certificateCode: generateCertificateCode(),
++          })
++          .onConflictDoNothing({ target: [enrollmentsTable.userId, enrollmentsTable.programId] })
++          .returning();
++
++        if (enrolled) record("enrolled", "Already had an account, so enrolled directly.");
++        else record("already-enrolled", "Already enrolled on this programme.");
++        continue;
++      }
++
++      const [prior] = await db
++        .select()
++        .from(pendingInvitationsTable)
++        .where(eq(pendingInvitationsTable.email, email));
++
++      // An accepted invitation is a record of what happened, not something to
++      // overwrite. If they accepted but are not in users, something else is
++      // wrong and quietly re-inviting would hide it.
++      if (prior?.acceptedAt) {
++        record("failed", "They have already accepted an invitation. Check the People list.");
++        continue;
++      }
++
++      // Withdraw any live link before issuing another, or the first stays valid
++      // forever with nothing recording it.
++      let replacing = false;
++      if (prior?.clerkInvitationId) {
++        const revoked = await revokeInvitation(prior.clerkInvitationId);
++        if (revoked === "failed") {
++          record("failed", "Could not withdraw their previous invitation, so a new one was not sent.");
++          continue;
++        }
++        if (revoked === "already-accepted") {
++          record("failed", "They have already used an earlier invitation. Check the People list.");
++          continue;
++        }
++        replacing = true;
++      }
++
++      const sent = await sendInvitation({ email, role: "learner" });
++      if (!sent.ok) {
++        record("failed", sent.error);
++        continue;
++      }
++
++      const values = {
++        email,
++        role: "learner",
++        sessionIds: [],
++        programId,
++        clerkInvitationId: sent.invitation.id,
++        invitedByUserId: me?.id ?? null,
++        createdAt: new Date(),
++        acceptedAt: null,
++        acceptedByUserId: null,
++      };
++
++      try {
++        await db
++          .insert(pendingInvitationsTable)
++          .values(values)
++          .onConflictDoUpdate({ target: pendingInvitationsTable.email, set: values });
++      } catch (err) {
++        // The link is already in the post. Take it back rather than leaving a
++        // live invitation with nothing recording it.
++        await revokeInvitation(sent.invitation.id);
++        logger.error({ err, email }, "Could not record a bulk invitation; withdrew it again");
++        record("failed", "Could not record that invitation, so it was withdrawn. Try again.");
++        continue;
++      }
++
++      record(replacing ? "reinvited" : "invited", replacing
++        ? "Previous invitation withdrawn and a new one sent."
++        : "Invitation sent.");
++    } catch (err) {
++      // One person's failure is theirs alone; the rest of the sheet continues.
++      logger.error({ err, email }, "Bulk invitation failed for one person");
++      record("failed", "Something went wrong for this person. Try them again.");
++    }
++  }
++
++  const count = (s: Outcome["status"]) => outcomes.filter((o) => o.status === s).length;
++  const result = {
++    outcomes,
++    invited: count("invited") + count("reinvited"),
++    enrolled: count("enrolled"),
++    alreadyEnrolled: count("already-enrolled"),
++    failed: count("failed"),
++  };
++
++  logger.info({ programId, ...result, outcomes: undefined }, "Bulk learner invitation run");
++  res.json(result);
++});
++
++/** A spreadsheet is at most a few hundred rows of two short columns. */
++const MAX_SHEET_BYTES = 2 * 1024 * 1024;
++
++/**
++ * Turn an uploaded .xlsx or .csv into the same tab-separated text a paste
++ * produces, and hand it straight back.
++ *
++ * Nothing is stored and nobody is invited here. The admin sees the rows in the
++ * same preview the paste box fills, decides they are right, and only then
++ * sends. Reading a file and acting on it are two steps on purpose.
++ */
++router.post(
++  "/admin/roster-file",
++  requireRole("admin"),
++  express.raw({ type: "*/*", limit: MAX_SHEET_BYTES }),
++  async (req, res) => {
++    const body = req.body;
++    const bytes = Buffer.isBuffer(body) ? new Uint8Array(body) : new Uint8Array();
++
++    const sheet = readSheet(bytes);
++    if (!sheet.ok) {
++      res.status(400).json({ message: sheet.problem });
++      return;
++    }
++
++    // Tab-separated, because that is exactly what a spreadsheet puts on the
++    // clipboard — so the uploaded rows go through the identical reading rules.
++    const text = sheet.rows
++      .map((cells) => cells.map((c) => c.replace(/[\t\r\n]+/g, " ")).join("\t"))
++      .join("\n");
++
++    logger.info({ rows: sheet.rows.length, sheetName: sheet.sheetName }, "Roster file read");
++    res.json({ text, sheetName: sheet.sheetName });
++  },
++);
++
++export default router;
+diff --git a/artifacts/api-server/src/routes/index.ts b/artifacts/api-server/src/routes/index.ts
+index 886ba3c..7cb4031 100644
+--- a/artifacts/api-server/src/routes/index.ts
++++ b/artifacts/api-server/src/routes/index.ts
+@@ -13,12 +13,14 @@ import adminRouter from "./admin";
+ import googleRecordingsRouter from "./googleRecordings";
+ import partnershipsRouter from "./partnerships";
+ import programThumbnailsRouter from "./programThumbnails";
++import bulkInvitesRouter from "./bulkInvites";
+ 
+ const router: IRouter = Router();
+ 
+ router.use(healthRouter);
+ router.use(meRouter);
+ router.use(programThumbnailsRouter);
++router.use(bulkInvitesRouter);
+ router.use(programsRouter);
+ router.use(sessionsRouter);
+ router.use(enrollmentsRouter);
+diff --git a/lib/api-client-react/src/generated/api.schemas.ts b/lib/api-client-react/src/generated/api.schemas.ts
+index 59fe8dd..d39a80a 100644
+--- a/lib/api-client-react/src/generated/api.schemas.ts
++++ b/lib/api-client-react/src/generated/api.schemas.ts
+@@ -5,6 +5,51 @@
+  * API specification
+  * OpenAPI spec version: 0.1.0
+  */
++export interface BulkInviteEntry {
++  /** The line of the admin's own sheet, so a result can be pointed back at it. */
++  row?: number;
++  name?: string;
++  email: string;
++}
++
++export interface BulkInviteBody {
++  /** The cohort each invited learner is enrolled onto when they accept. */
++  programId: number;
++  /** @maxItems 500 */
++  entries: BulkInviteEntry[];
++}
++
++/**
++ * invited — a new person, invitation sent. enrolled — they already had an account and were put straight onto the programme. already-enrolled — nothing to do. reinvited — a previous unaccepted invitation was withdrawn and replaced. failed — see detail.
++ */
++export type BulkInviteOutcomeStatus = typeof BulkInviteOutcomeStatus[keyof typeof BulkInviteOutcomeStatus];
++
++
++export const BulkInviteOutcomeStatus = {
++  invited: 'invited',
++  enrolled: 'enrolled',
++  'already-enrolled': 'already-enrolled',
++  reinvited: 'reinvited',
++  failed: 'failed',
++} as const;
++
++export interface BulkInviteOutcome {
++  row?: number;
++  name?: string;
++  email: string;
++  /** invited — a new person, invitation sent. enrolled — they already had an account and were put straight onto the programme. already-enrolled — nothing to do. reinvited — a previous unaccepted invitation was withdrawn and replaced. failed — see detail. */
++  status: BulkInviteOutcomeStatus;
++  detail: string;
++}
++
++export interface BulkInviteResult {
++  outcomes: BulkInviteOutcome[];
++  invited: number;
++  enrolled: number;
++  alreadyEnrolled: number;
++  failed: number;
++}
++
+ export type PartnershipEnquiryInputInterest = typeof PartnershipEnquiryInputInterest[keyof typeof PartnershipEnquiryInputInterest];
+ 
+ 
+diff --git a/lib/api-client-react/src/generated/api.ts b/lib/api-client-react/src/generated/api.ts
+index 5e3088c..2d74059 100644
+--- a/lib/api-client-react/src/generated/api.ts
++++ b/lib/api-client-react/src/generated/api.ts
+@@ -25,6 +25,8 @@ import type {
+   AssignmentInput,
+   AssignmentSubmission,
+   AssignmentSubmissionInput,
++  BulkInviteBody,
++  BulkInviteResult,
+   Certificate,
+   CourseworkDraftResult,
+   CourseworkDraftRun,
+@@ -4494,6 +4496,78 @@ export const useDeleteProgramThumbnail = <TError = ErrorType<ApiMessage>,
+       return useMutation(getDeleteProgramThumbnailMutationOptions(options));
+     }
+ 
++export const getInviteLearnersInBulkUrl = () => {
++
++
++
++
++  return `/api/admin/invitations/bulk`
++}
++
++/**
++ * Admin only. Each person is handled on their own and reported on individually: one bad address, or one applicant who already has an account, must never stop the other forty-nine being invited.
++ * @summary Invite a roster of learners onto a programme
++ */
++export const inviteLearnersInBulk = async (bulkInviteBody: BulkInviteBody, options?: Parameters<typeof customFetch>[1]): Promise<BulkInviteResult> => {
++
++  return customFetch<BulkInviteResult>(getInviteLearnersInBulkUrl(),
++  {
++    ...options,
++    method: 'POST',
++    headers: { 'Content-Type': 'application/json', ...options?.headers },
++    body: JSON.stringify(bulkInviteBody)
++  }
++);}
++
++
++
++
++
++export const getInviteLearnersInBulkMutationOptions = <TError = ErrorType<ApiMessage>,
++    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof inviteLearnersInBulk>>, TError,{data: BodyType<BulkInviteBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
++): UseMutationOptions<Awaited<ReturnType<typeof inviteLearnersInBulk>>, TError,{data: BodyType<BulkInviteBody>}, TContext> => {
++
++const mutationKey = ['inviteLearnersInBulk'];
++const {mutation: mutationOptions, request: requestOptions} = options ?
++      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
++      options
++      : {...options, mutation: {...options.mutation, mutationKey}}
++      : {mutation: { mutationKey, }, request: undefined};
++
++
++
++
++      const mutationFn: MutationFunction<Awaited<ReturnType<typeof inviteLearnersInBulk>>, {data: BodyType<BulkInviteBody>}> = (props) => {
++          const {data} = props ?? {};
++
++          return  inviteLearnersInBulk(data,requestOptions)
++        }
++
++
++
++
++
++
++  return  { mutationFn, ...mutationOptions }}
++
++    export type InviteLearnersInBulkMutationResult = NonNullable<Awaited<ReturnType<typeof inviteLearnersInBulk>>>
++    export type InviteLearnersInBulkMutationBody = BodyType<BulkInviteBody>
++    export type InviteLearnersInBulkMutationError = ErrorType<ApiMessage>
++
++    /**
++ * @summary Invite a roster of learners onto a programme
++ */
++export const useInviteLearnersInBulk = <TError = ErrorType<ApiMessage>,
++    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof inviteLearnersInBulk>>, TError,{data: BodyType<BulkInviteBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
++ ): UseMutationResult<
++        Awaited<ReturnType<typeof inviteLearnersInBulk>>,
++        TError,
++        {data: BodyType<BulkInviteBody>},
++        TContext
++      > => {
++      return useMutation(getInviteLearnersInBulkMutationOptions(options));
++    }
++
+ export const getSubmitPartnershipEnquiryUrl = () => {
+ 
+ 
+diff --git a/lib/api-spec/openapi.yaml b/lib/api-spec/openapi.yaml
+index ef923c0..2528cb7 100644
+--- a/lib/api-spec/openapi.yaml
++++ b/lib/api-spec/openapi.yaml
+@@ -1765,6 +1765,46 @@ paths:
+             application/json:
+               schema:
+                 $ref: "#/components/schemas/ApiMessage"
++  /admin/invitations/bulk:
++    post:
++      operationId: inviteLearnersInBulk
++      tags: [admin]
++      summary: Invite a roster of learners onto a programme
++      description: >-
++        Admin only. Each person is handled on their own and reported on
++        individually: one bad address, or one applicant who already has an
++        account, must never stop the other forty-nine being invited.
++      requestBody:
++        required: true
++        content:
++          application/json:
++            schema:
++              $ref: "#/components/schemas/BulkInviteBody"
++      responses:
++        "200":
++          description: Every person attempted, with an outcome each
++          content:
++            application/json:
++              schema:
++                $ref: "#/components/schemas/BulkInviteResult"
++        "400":
++          description: Nothing usable in the request
++          content:
++            application/json:
++              schema:
++                $ref: "#/components/schemas/ApiMessage"
++        "403":
++          description: Not an admin
++          content:
++            application/json:
++              schema:
++                $ref: "#/components/schemas/ApiMessage"
++        "503":
++          description: Invitations are not configured on the server
++          content:
++            application/json:
++              schema:
++                $ref: "#/components/schemas/ApiMessage"
+   /partnership-enquiries:
+     post:
+       operationId: submitPartnershipEnquiry
+@@ -1807,6 +1847,65 @@ paths:
+                 $ref: "#/components/schemas/ApiMessage"
+ components:
+   schemas:
++    BulkInviteEntry:
++      type: object
++      required: [email]
++      properties:
++        row:
++          type: integer
++          description: The line of the admin's own sheet, so a result can be pointed back at it.
++        name:
++          type: string
++        email:
++          type: string
++    BulkInviteBody:
++      type: object
++      required: [programId, entries]
++      properties:
++        programId:
++          type: integer
++          description: The cohort each invited learner is enrolled onto when they accept.
++        entries:
++          type: array
++          maxItems: 500
++          items:
++            $ref: "#/components/schemas/BulkInviteEntry"
++    BulkInviteOutcome:
++      type: object
++      required: [email, status, detail]
++      properties:
++        row:
++          type: integer
++        name:
++          type: string
++        email:
++          type: string
++        status:
++          type: string
++          enum: [invited, enrolled, already-enrolled, reinvited, failed]
++          description: >-
++            invited — a new person, invitation sent. enrolled — they already had
++            an account and were put straight onto the programme. already-enrolled
++            — nothing to do. reinvited — a previous unaccepted invitation was
++            withdrawn and replaced. failed — see detail.
++        detail:
++          type: string
++    BulkInviteResult:
++      type: object
++      required: [outcomes, invited, enrolled, alreadyEnrolled, failed]
++      properties:
++        outcomes:
++          type: array
++          items:
++            $ref: "#/components/schemas/BulkInviteOutcome"
++        invited:
++          type: integer
++        enrolled:
++          type: integer
++        alreadyEnrolled:
++          type: integer
++        failed:
++          type: integer
+     PartnershipEnquiryInput:
+       type: object
+       required: [name, organisation, email, interest, message]
+diff --git a/lib/api-zod/src/generated/api.ts b/lib/api-zod/src/generated/api.ts
+index 057950c..5cf2b11 100644
+--- a/lib/api-zod/src/generated/api.ts
++++ b/lib/api-zod/src/generated/api.ts
+@@ -1451,6 +1451,38 @@ export const DeleteProgramThumbnailResponse = zod.object({
+ })
+ 
+ 
++/**
++ * Admin only. Each person is handled on their own and reported on individually: one bad address, or one applicant who already has an account, must never stop the other forty-nine being invited.
++ * @summary Invite a roster of learners onto a programme
++ */
++export const inviteLearnersInBulkBodyEntriesMax = 500;
++
++
++
++export const InviteLearnersInBulkBody = zod.object({
++  "programId": zod.int().describe('The cohort each invited learner is enrolled onto when they accept.'),
++  "entries": zod.array(zod.object({
++  "row": zod.int().optional().describe('The line of the admin\'s own sheet, so a result can be pointed back at it.'),
++  "name": zod.string().optional(),
++  "email": zod.string()
++})).max(inviteLearnersInBulkBodyEntriesMax)
++})
++
++export const InviteLearnersInBulkResponse = zod.object({
++  "outcomes": zod.array(zod.object({
++  "row": zod.int().optional(),
++  "name": zod.string().optional(),
++  "email": zod.string(),
++  "status": zod.enum(['invited', 'enrolled', 'already-enrolled', 'reinvited', 'failed']).describe('invited — a new person, invitation sent. enrolled — they already had an account and were put straight onto the programme. already-enrolled — nothing to do. reinvited — a previous unaccepted invitation was withdrawn and replaced. failed — see detail.'),
++  "detail": zod.string()
++})),
++  "invited": zod.int(),
++  "enrolled": zod.int(),
++  "alreadyEnrolled": zod.int(),
++  "failed": zod.int()
++})
++
++
+ /**
+  * Public and unauthenticated. The enquiry is delivered by email and is not stored, so a caller that receives 202 should treat the message as gone from its hands. Rate limited per client address.
+  * @summary Send a partnership enquiry
+diff --git a/lib/api-zod/src/generated/types/bulkInviteBody.ts b/lib/api-zod/src/generated/types/bulkInviteBody.ts
+new file mode 100644
+index 0000000..6790284
+--- /dev/null
++++ b/lib/api-zod/src/generated/types/bulkInviteBody.ts
+@@ -0,0 +1,15 @@
++/**
++ * Generated by orval v8.23.0 🍺
++ * Do not edit manually.
++ * Api
++ * API specification
++ * OpenAPI spec version: 0.1.0
++ */
++import type { BulkInviteEntry } from './bulkInviteEntry';
++
++export interface BulkInviteBody {
++  /** The cohort each invited learner is enrolled onto when they accept. */
++  programId: number;
++  /** @maxItems 500 */
++  entries: BulkInviteEntry[];
++}
+diff --git a/lib/api-zod/src/generated/types/bulkInviteEntry.ts b/lib/api-zod/src/generated/types/bulkInviteEntry.ts
+new file mode 100644
+index 0000000..a14972e
+--- /dev/null
++++ b/lib/api-zod/src/generated/types/bulkInviteEntry.ts
+@@ -0,0 +1,14 @@
++/**
++ * Generated by orval v8.23.0 🍺
++ * Do not edit manually.
++ * Api
++ * API specification
++ * OpenAPI spec version: 0.1.0
++ */
++
++export interface BulkInviteEntry {
++  /** The line of the admin's own sheet, so a result can be pointed back at it. */
++  row?: number;
++  name?: string;
++  email: string;
++}
+diff --git a/lib/api-zod/src/generated/types/bulkInviteOutcome.ts b/lib/api-zod/src/generated/types/bulkInviteOutcome.ts
+new file mode 100644
+index 0000000..c91eaab
+--- /dev/null
++++ b/lib/api-zod/src/generated/types/bulkInviteOutcome.ts
+@@ -0,0 +1,17 @@
++/**
++ * Generated by orval v8.23.0 🍺
++ * Do not edit manually.
++ * Api
++ * API specification
++ * OpenAPI spec version: 0.1.0
++ */
++import type { BulkInviteOutcomeStatus } from './bulkInviteOutcomeStatus';
++
++export interface BulkInviteOutcome {
++  row?: number;
++  name?: string;
++  email: string;
++  /** invited — a new person, invitation sent. enrolled — they already had an account and were put straight onto the programme. already-enrolled — nothing to do. reinvited — a previous unaccepted invitation was withdrawn and replaced. failed — see detail. */
++  status: BulkInviteOutcomeStatus;
++  detail: string;
++}
+diff --git a/lib/api-zod/src/generated/types/bulkInviteOutcomeStatus.ts b/lib/api-zod/src/generated/types/bulkInviteOutcomeStatus.ts
+new file mode 100644
+index 0000000..b2fde17
+--- /dev/null
++++ b/lib/api-zod/src/generated/types/bulkInviteOutcomeStatus.ts
+@@ -0,0 +1,21 @@
++/**
++ * Generated by orval v8.23.0 🍺
++ * Do not edit manually.
++ * Api
++ * API specification
++ * OpenAPI spec version: 0.1.0
++ */
++
++/**
++ * invited — a new person, invitation sent. enrolled — they already had an account and were put straight onto the programme. already-enrolled — nothing to do. reinvited — a previous unaccepted invitation was withdrawn and replaced. failed — see detail.
++ */
++export type BulkInviteOutcomeStatus = typeof BulkInviteOutcomeStatus[keyof typeof BulkInviteOutcomeStatus];
++
++
++export const BulkInviteOutcomeStatus = {
++  invited: 'invited',
++  enrolled: 'enrolled',
++  'already-enrolled': 'already-enrolled',
++  reinvited: 'reinvited',
++  failed: 'failed',
++} as const;
+diff --git a/lib/api-zod/src/generated/types/bulkInviteResult.ts b/lib/api-zod/src/generated/types/bulkInviteResult.ts
+new file mode 100644
+index 0000000..f069a86
+--- /dev/null
++++ b/lib/api-zod/src/generated/types/bulkInviteResult.ts
+@@ -0,0 +1,16 @@
++/**
++ * Generated by orval v8.23.0 🍺
++ * Do not edit manually.
++ * Api
++ * API specification
++ * OpenAPI spec version: 0.1.0
++ */
++import type { BulkInviteOutcome } from './bulkInviteOutcome';
++
++export interface BulkInviteResult {
++  outcomes: BulkInviteOutcome[];
++  invited: number;
++  enrolled: number;
++  alreadyEnrolled: number;
++  failed: number;
++}
+diff --git a/lib/api-zod/src/generated/types/index.ts b/lib/api-zod/src/generated/types/index.ts
+index b273bcb..32310fe 100644
+--- a/lib/api-zod/src/generated/types/index.ts
++++ b/lib/api-zod/src/generated/types/index.ts
+@@ -12,6 +12,11 @@ export * from './assignmentInput';
+ export * from './assignmentInputOrigin';
+ export * from './assignmentSubmission';
+ export * from './assignmentSubmissionInput';
++export * from './bulkInviteBody';
++export * from './bulkInviteEntry';
++export * from './bulkInviteOutcome';
++export * from './bulkInviteOutcomeStatus';
++export * from './bulkInviteResult';
+ export * from './certificate';
+ export * from './courseworkDraftResult';
+ export * from './courseworkDraftRun';
+diff --git a/lib/db/src/schema/invitations.ts b/lib/db/src/schema/invitations.ts
+index 258da22..7d92278 100644
+--- a/lib/db/src/schema/invitations.ts
++++ b/lib/db/src/schema/invitations.ts
+@@ -1,5 +1,6 @@
+ import { pgTable, text, serial, integer, timestamp, jsonb, uniqueIndex } from "drizzle-orm/pg-core";
+ import { usersTable } from "./users";
++import { programsTable } from "./programs";
+ 
+ /**
+  * A facilitator who has been invited but has not arrived yet.
+@@ -22,6 +23,15 @@ export const pendingInvitationsTable = pgTable(
+     role: text("role").notNull().default("instructor"),
+     /** Classes to hand over on arrival, if nobody else is teaching them by then. */
+     sessionIds: jsonb("session_ids").$type<number[]>().notNull().default([]),
++    /**
++     * The programme to enrol an arriving learner on.
++     *
++     * Facilitators are invited to classes; learners are invited to a cohort.
++     * Null for a facilitator invitation, and for any learner invited before
++     * this existed. Set null rather than cascading on delete, so removing a
++     * programme does not silently erase the record that somebody was invited.
++     */
++    programId: integer("program_id").references(() => programsTable.id, { onDelete: "set null" }),
+     /** Clerk's id for the invitation, so it can be revoked there too. */
+     clerkInvitationId: text("clerk_invitation_id").notNull().default(""),
+     invitedByUserId: integer("invited_by_user_id").references(() => usersTable.id, { onDelete: "set null" }),
+diff --git a/lib/domain/src/index.ts b/lib/domain/src/index.ts
+index 730cf81..f0df15e 100644
+--- a/lib/domain/src/index.ts
++++ b/lib/domain/src/index.ts
+@@ -11,3 +11,4 @@ export * from "./certificateCode";
+ export * from "./invitations";
+ export * from "./partnership";
+ export * from "./imageUpload";
++export * from "./roster";
+diff --git a/lib/domain/src/roster.test.ts b/lib/domain/src/roster.test.ts
+new file mode 100644
+index 0000000..dfc37f2
+--- /dev/null
++++ b/lib/domain/src/roster.test.ts
+@@ -0,0 +1,230 @@
++import { describe, expect, it } from "vitest";
++import {
++  MAX_ROSTER_ROWS,
++  describeReading,
++  extractEmail,
++  looksLikeHeader,
++  readPastedRoster,
++  readRoster,
++  splitRow,
++} from "./roster";
++
++describe("splitRow", () => {
++  it("prefers tabs, which is what a spreadsheet puts on the clipboard", () => {
++    expect(splitRow("Amina Bello\tamina@example.org")).toEqual(["Amina Bello", "amina@example.org"]);
++  });
++
++  it("keeps a comma inside a name when the row is tab-separated", () => {
++    // "Bello, Amina" is how a great many registries write a name. Splitting on
++    // the comma here would turn one person into two broken half-rows.
++    expect(splitRow("Bello, Amina\tamina@example.org")).toEqual(["Bello, Amina", "amina@example.org"]);
++  });
++
++  it("falls back to commas when there is no tab", () => {
++    expect(splitRow("Amina Bello,amina@example.org")).toEqual(["Amina Bello", "amina@example.org"]);
++  });
++
++  it("respects quotes in comma-separated rows", () => {
++    expect(splitRow('"Bello, Amina",amina@example.org')).toEqual(["Bello, Amina", "amina@example.org"]);
++  });
++
++  it("handles a doubled quote inside a quoted field", () => {
++    expect(splitRow('"She said ""hi""",a@b.org')).toEqual(['She said "hi"', "a@b.org"]);
++  });
++});
++
++describe("extractEmail", () => {
++  it.each([
++    ["amina@example.org", "amina@example.org"],
++    ["  Amina@Example.ORG  ", "amina@example.org"],
++    ["Amina Bello <amina@example.org>", "amina@example.org"],
++    ["mailto:amina@example.org", "amina@example.org"],
++    ["amina@example.org (Comms desk)", "amina@example.org"],
++    ["amina@example.org;", "amina@example.org"],
++    ["a.b+cohort@sub.example.co.uk", "a.b+cohort@sub.example.co.uk"],
++  ])("reads %s", (input, expected) => {
++    expect(extractEmail(input)).toBe(expected);
++  });
++
++  it.each(["", "   ", "Amina Bello", "not-an-email", "@example.org", "amina@", "amina@nodot"])(
++    "returns null for %s",
++    (input) => {
++      expect(extractEmail(input)).toBeNull();
++    },
++  );
++});
++
++describe("looksLikeHeader", () => {
++  it("recognises the usual headings", () => {
++    expect(looksLikeHeader(["Name", "Email"])).toBe(true);
++    expect(looksLikeHeader(["S/N", "Full Name", "Email Address", "Phone"])).toBe(true);
++  });
++
++  it("never treats a row containing an address as a heading", () => {
++    // Guards a real person whose row happens to carry a heading-ish word.
++    expect(looksLikeHeader(["Email", "email@example.org"])).toBe(false);
++    expect(looksLikeHeader(["Name", "name@example.org"])).toBe(false);
++  });
++
++  it("is not fooled by an empty row", () => {
++    expect(looksLikeHeader(["", "  "])).toBe(false);
++  });
++});
++
++describe("readRoster", () => {
++  it("reads a plain two-column sheet", () => {
++    const r = readRoster([
++      ["Name", "Email"],
++      ["Amina Bello", "amina@example.org"],
++      ["Kwame Mensah", "kwame@example.org"],
++    ]);
++    expect(r.headerSkipped).toBe(true);
++    expect(r.entries).toEqual([
++      { row: 2, name: "Amina Bello", email: "amina@example.org" },
++      { row: 3, name: "Kwame Mensah", email: "kwame@example.org" },
++    ]);
++    expect(r.problems).toHaveLength(0);
++  });
++
++  it("does not care which column the address is in", () => {
++    const r = readRoster([
++      ["amina@example.org", "Amina Bello"],
++      ["kwame@example.org", "Kwame Mensah"],
++    ]);
++    expect(r.entries.map((e) => e.name)).toEqual(["Amina Bello", "Kwame Mensah"]);
++  });
++
++  it("ignores a serial column and the extra columns nobody asked for", () => {
++    const r = readRoster([
++      ["S/N", "Name", "Email", "Phone", "Organisation"],
++      ["1", "Amina Bello", "amina@example.org", "+234 800 000 0000", "Energy Desk"],
++    ]);
++    expect(r.entries[0]).toMatchObject({ name: "Amina Bello", email: "amina@example.org" });
++  });
++
++  it("does not mistake a phone number for a name", () => {
++    // A phone number is longer than most names, so any rule that reaches for
++    // the biggest cell picks it. This caught exactly that.
++    const r = readRoster([["+234 800 000 0000", "amina@example.org", "Amina Bello"]]);
++    expect(r.entries[0].name).toBe("Amina Bello");
++  });
++
++  it("prefers the cell beside the address over one further away", () => {
++    // Sheets are written for people, and people put the name next to the
++    // address it belongs to. "Energy Communications Desk" is longer.
++    const r = readRoster([["Energy Communications Desk", "Amina Bello", "amina@example.org"]]);
++    expect(r.entries[0].name).toBe("Amina Bello");
++  });
++
++  it("does not take a second address in the row as the name", () => {
++    const r = readRoster([["amina@example.org", "amina.bello@work.example.org", "Amina Bello"]]);
++    expect(r.entries[0].name).toBe("Amina Bello");
++  });
++
++  it("skips blank spacer rows without complaining", () => {
++    const r = readRoster([
++      ["Amina Bello", "amina@example.org"],
++      ["", ""],
++      ["   ", ""],
++      ["Kwame Mensah", "kwame@example.org"],
++    ]);
++    expect(r.entries).toHaveLength(2);
++    expect(r.problems).toHaveLength(0);
++  });
++
++  it("reports a row with no address rather than dropping it silently", () => {
++    // The whole point: a dropped row is an applicant who never hears from us.
++    const r = readRoster([
++      ["Amina Bello", "amina@example.org"],
++      ["Kwame Mensah", "phone only"],
++    ]);
++    expect(r.entries).toHaveLength(1);
++    expect(r.problems).toHaveLength(1);
++    expect(r.problems[0].row).toBe(2);
++    expect(r.problems[0].raw).toContain("Kwame Mensah");
++    expect(r.problems[0].problem).toMatch(/no email/i);
++  });
++
++  it("keeps the first of a repeated address and says where the repeat was", () => {
++    const r = readRoster([
++      ["Amina Bello", "amina@example.org"],
++      ["Kwame Mensah", "kwame@example.org"],
++      ["Amina B.", "AMINA@example.org"],
++    ]);
++    expect(r.entries).toHaveLength(2);
++    expect(r.duplicates).toHaveLength(1);
++    expect(r.duplicates[0].row).toBe(3);
++    expect(r.duplicates[0].problem).toContain("row 1");
++  });
++
++  it("keeps a person whose row has no name", () => {
++    const r = readRoster([["", "amina@example.org"]]);
++    expect(r.entries).toEqual([{ row: 1, name: "", email: "amina@example.org" }]);
++  });
++
++  it("reads a sheet with no header row at all", () => {
++    const r = readRoster([["Amina Bello", "amina@example.org"]]);
++    expect(r.headerSkipped).toBe(false);
++    expect(r.entries).toHaveLength(1);
++  });
++
++  it("stops at the row limit and says so", () => {
++    const rows = Array.from({ length: MAX_ROSTER_ROWS + 10 }, (_, i) => [`P ${i}`, `p${i}@example.org`]);
++    const r = readRoster(rows);
++    expect(r.entries).toHaveLength(MAX_ROSTER_ROWS);
++    expect(r.truncated).toBe(true);
++  });
++
++  it("row numbers point at the sheet the admin is looking at", () => {
++    const r = readRoster([
++      ["Name", "Email"],
++      ["Amina Bello", "amina@example.org"],
++      ["broken", "no address"],
++    ]);
++    expect(r.entries[0].row).toBe(2);
++    expect(r.problems[0].row).toBe(3);
++  });
++});
++
++describe("readPastedRoster", () => {
++  it("reads what Excel puts on the clipboard", () => {
++    const pasted = "Name\tEmail\r\nAmina Bello\tamina@example.org\r\nKwame Mensah\tkwame@example.org\r\n";
++    const r = readPastedRoster(pasted);
++    expect(r.entries).toHaveLength(2);
++    expect(r.headerSkipped).toBe(true);
++  });
++
++  it("reads a plain list of addresses with no names", () => {
++    const r = readPastedRoster("amina@example.org\nkwame@example.org");
++    expect(r.entries.map((e) => e.email)).toEqual(["amina@example.org", "kwame@example.org"]);
++    expect(r.entries.every((e) => e.name === "")).toBe(true);
++  });
++
++  it("reads a CSV export", () => {
++    const r = readPastedRoster('Name,Email\n"Bello, Amina",amina@example.org');
++    expect(r.entries[0]).toMatchObject({ name: "Bello, Amina", email: "amina@example.org" });
++  });
++
++  it("copes with an empty paste", () => {
++    const r = readPastedRoster("");
++    expect(r.entries).toHaveLength(0);
++    expect(r.problems).toHaveLength(0);
++  });
++});
++
++describe("describeReading", () => {
++  it("counts people, not rows", () => {
++    const r = readPastedRoster("Name\tEmail\nAmina\tamina@example.org");
++    expect(describeReading(r)).toBe("1 person ready to invite.");
++  });
++
++  it("names every kind of trouble it found", () => {
++    const r = readPastedRoster(
++      "Name\tEmail\nAmina\tamina@example.org\nAmina again\tamina@example.org\nKwame\tno address",
++    );
++    const summary = describeReading(r);
++    expect(summary).toContain("1 person ready to invite");
++    expect(summary).toContain("1 repeated address skipped");
++    expect(summary).toContain("1 row could not be read");
++  });
++});
+diff --git a/lib/domain/src/roster.ts b/lib/domain/src/roster.ts
+new file mode 100644
+index 0000000..cd85020
+--- /dev/null
++++ b/lib/domain/src/roster.ts
+@@ -0,0 +1,292 @@
++/**
++ * Reading a list of learners out of a spreadsheet.
++ *
++ * An admin has fifty accepted applicants in Excel or Google Sheets and wants
++ * them invited. The sheet was built by a person, for people, so it will have a
++ * header row, or not; the name column first, or second; a phone number and an
++ * organisation nobody asked for; a blank row where somebody withdrew; and the
++ * same applicant twice because two colleagues added them.
++ *
++ * None of that is a mistake worth refusing over. The job here is to read what
++ * was meant, say plainly what could not be read, and never silently drop a
++ * person — a dropped row is an applicant who never hears from the Lab and has
++ * no way of knowing why.
++ *
++ * Everything is pure. A pasted block and an uploaded workbook both arrive here
++ * as rows of strings, so there is one set of rules and one set of tests, rather
++ * than one implementation per input and a bug in whichever is used less.
++ */
++
++export const MAX_ROSTER_ROWS = 500;
++export const MAX_ROSTER_NAME = 120;
++
++export type RosterEntry = {
++  /** 1-based, counting the rows the admin can see, so a problem can be pointed at. */
++  row: number;
++  name: string;
++  email: string;
++};
++
++export type RosterProblem = {
++  row: number;
++  /** Kept so the admin can recognise the row in their own sheet. */
++  raw: string;
++  problem: string;
++};
++
++export type RosterReading = {
++  entries: RosterEntry[];
++  problems: RosterProblem[];
++  /** Rows dropped as an exact repeat of an address already listed. */
++  duplicates: RosterProblem[];
++  /** True when a first row was read as headings rather than a person. */
++  headerSkipped: boolean;
++  /** Set when the sheet is longer than we will process in one go. */
++  truncated: boolean;
++};
++
++const EMAIL_RE = /^[^@\s]+@[^@.\s]+(\.[^@.\s]+)+$/;
++
++function looksLikeEmail(value: string): boolean {
++  return EMAIL_RE.test(value.trim().toLowerCase());
++}
++
++/**
++ * Pull an address out of a cell that may be dressed up.
++ *
++ * Mail clients and exports produce `Amina Bello <amina@x.org>` and
++ * `mailto:amina@x.org`; a person pasting from a directory produces
++ * `amina@x.org (Comms)`. All three carry a usable address.
++ */
++export function extractEmail(cell: string): string | null {
++  const text = cell.trim();
++  if (!text) return null;
++
++  const angled = text.match(/<([^<>]+)>/);
++  const candidates = [
++    angled?.[1],
++    text.replace(/^mailto:/i, ""),
++    ...text.split(/[\s,;()<>]+/),
++  ];
++
++  for (const candidate of candidates) {
++    const value = (candidate ?? "").trim().replace(/^mailto:/i, "").replace(/[.,;]+$/, "");
++    if (value && looksLikeEmail(value)) return value.toLowerCase();
++  }
++  return null;
++}
++
++/** Tidy a name for storing: collapse whitespace, drop surrounding quotes. */
++function cleanName(cell: string): string {
++  return cell
++    .trim()
++    .replace(/^["']|["']$/g, "")
++    .replace(/\s+/g, " ")
++    .slice(0, MAX_ROSTER_NAME)
++    .trim();
++}
++
++/**
++ * Split one line into cells.
++ *
++ * Tab first, because that is what a spreadsheet puts on the clipboard and it
++ * cannot be confused with a comma inside "Bello, Amina". Only when there is no
++ * tab do we fall back to comma-separated values, quotes and all.
++ */
++export function splitRow(line: string): string[] {
++  if (line.includes("\t")) return line.split("\t").map((c) => c.trim());
++
++  const cells: string[] = [];
++  let current = "";
++  let quoted = false;
++
++  for (let i = 0; i < line.length; i++) {
++    const ch = line[i];
++    if (quoted) {
++      if (ch === '"') {
++        // A doubled quote inside a quoted field is a literal quote.
++        if (line[i + 1] === '"') { current += '"'; i++; }
++        else quoted = false;
++      } else current += ch;
++    } else if (ch === '"') {
++      quoted = true;
++    } else if (ch === ",") {
++      cells.push(current.trim());
++      current = "";
++    } else {
++      current += ch;
++    }
++  }
++  cells.push(current.trim());
++  return cells;
++}
++
++/**
++ * A phone number, not a name.
++ *
++ * Worth its own check because a phone number is usually *longer* than a name,
++ * so any rule that reaches for the biggest cell picks the phone every time.
++ */
++function looksLikePhone(value: string): boolean {
++  const digits = value.replace(/[\s()+\-.]/g, "");
++  return digits.length >= 6 && /^\d+$/.test(digits);
++}
++
++/** A serial-number column: "1", "2.", "3)". */
++function looksLikeIndex(value: string): boolean {
++  return /^\d{1,4}[.)]?$/.test(value.trim());
++}
++
++/**
++ * Choose which cell in the row is the person's name.
++ *
++ * Nearest to the address wins, looking left first. Sheets are written for
++ * people to read, and people put a name beside the address it belongs to:
++ * "S/N | Name | Email | Phone" and "Email | Name" both give the right answer,
++ * where reaching for the longest cell picks the phone number out of the first
++ * and an organisation out of half the sheets in the world.
++ */
++function pickName(cells: string[], emailIndex: number): string {
++  const order: number[] = [];
++  for (let d = 1; d < Math.max(emailIndex + 1, cells.length - emailIndex); d++) {
++    if (emailIndex - d >= 0) order.push(emailIndex - d);
++    if (emailIndex + d < cells.length) order.push(emailIndex + d);
++  }
++
++  for (const i of order) {
++    const value = cleanName(cells[i] ?? "");
++    if (!value) continue;
++    if (looksLikeIndex(value) || looksLikePhone(value)) continue;
++    // Another address in the row is a second contact, not a name.
++    if (extractEmail(value)) continue;
++    return value;
++  }
++  return "";
++}
++
++const HEADER_WORDS = [
++  "name", "full name", "fullname", "learner", "participant", "applicant", "student",
++  "email", "e-mail", "email address", "mail", "address", "contact",
++  "first name", "last name", "surname", "given name", "organisation", "organization",
++  "phone", "number", "s/n", "sn", "no", "#",
++];
++
++/**
++ * Does this row name the columns rather than a person?
++ *
++ * Only rows with no usable address are ever considered. A row containing an
++ * email is a person, whatever the other cells say — otherwise a genuine
++ * applicant whose name happens to be "Email" would vanish from the list.
++ */
++export function looksLikeHeader(cells: string[]): boolean {
++  if (cells.some((c) => looksLikeEmail(c))) return false;
++  const filled = cells.map((c) => c.trim().toLowerCase()).filter(Boolean);
++  if (filled.length === 0) return false;
++  return filled.some((c) => HEADER_WORDS.includes(c));
++}
++
++/**
++ * Read a roster from rows of cells.
++ *
++ * The email column is found per row rather than fixed by position: the address
++ * is the only cell whose shape is unmistakable, so looking for it costs nothing
++ * and copes with a sheet that puts the name second, or wraps it in a serial
++ * number column.
++ *
++ * The name is then the longest remaining cell that is not obviously a number,
++ * which handles a stray "1" in a serial column and an empty organisation.
++ */
++export function readRoster(rows: string[][]): RosterReading {
++  const entries: RosterEntry[] = [];
++  const problems: RosterProblem[] = [];
++  const duplicates: RosterProblem[] = [];
++  const seen = new Map<string, number>();
++
++  let headerSkipped = false;
++  let truncated = false;
++
++  for (let i = 0; i < rows.length; i++) {
++    const cells = rows[i] ?? [];
++    const rowNumber = i + 1;
++    const raw = cells.join(" | ").trim();
++
++    // Blank rows are how people space a sheet out. Not a problem, not a person.
++    if (cells.every((c) => !c || !c.trim())) continue;
++
++    if (i === 0 && looksLikeHeader(cells)) {
++      headerSkipped = true;
++      continue;
++    }
++
++    if (entries.length >= MAX_ROSTER_ROWS) {
++      truncated = true;
++      break;
++    }
++
++    let email: string | null = null;
++    let emailIndex = -1;
++    for (let c = 0; c < cells.length; c++) {
++      const found = extractEmail(cells[c] ?? "");
++      if (found) { email = found; emailIndex = c; break; }
++    }
++
++    if (!email) {
++      problems.push({
++        row: rowNumber,
++        raw,
++        problem: "No email address in this row.",
++      });
++      continue;
++    }
++
++    const name = pickName(cells, emailIndex);
++
++    const already = seen.get(email);
++    if (already !== undefined) {
++      duplicates.push({
++        row: rowNumber,
++        raw,
++        problem: `Same address as row ${already}. Only the first was kept.`,
++      });
++      continue;
++    }
++
++    seen.set(email, rowNumber);
++    entries.push({ row: rowNumber, name, email });
++  }
++
++  return { entries, problems, duplicates, headerSkipped, truncated };
++}
++
++/** Read a roster from a pasted block of text. */
++export function readPastedRoster(text: string): RosterReading {
++  const rows = text
++    .replace(/\r\n?/g, "\n")
++    .split("\n")
++    .map((line) => splitRow(line));
++  return readRoster(rows);
++}
++
++/**
++ * One line summarising what was read, for the admin to check before sending.
++ *
++ * Written to be read out loud: fifty invitations is a lot of real people, and
++ * "48 people ready to invite" is a sentence somebody can sanity-check against
++ * the sheet in front of them in a way a set of counters is not.
++ */
++export function describeReading(reading: RosterReading): string {
++  const n = reading.entries.length;
++  const parts = [`${n} ${n === 1 ? "person" : "people"} ready to invite`];
++
++  if (reading.duplicates.length > 0) {
++    parts.push(`${reading.duplicates.length} repeated ${reading.duplicates.length === 1 ? "address" : "addresses"} skipped`);
++  }
++  if (reading.problems.length > 0) {
++    parts.push(`${reading.problems.length} ${reading.problems.length === 1 ? "row" : "rows"} could not be read`);
++  }
++  if (reading.truncated) {
++    parts.push(`only the first ${MAX_ROSTER_ROWS} were taken`);
++  }
++
++  return `${parts.join(", ")}.`;
++}
+-- 
+2.43.0
+
+
+From 38be2505c751b2e1244eaaf13a2b01fd31ea8676 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Mon, 31 Aug 2026 18:39:10 +0000
+Subject: [PATCH 2/3] feat: publish and close buttons on the new programme form
+
+A new programme could only be created as a draft, and the only way out of
+the form was the New Program button, which reads like starting again.
+
+Publish puts it straight on the public catalogue; Save as draft keeps the
+old behaviour; Close puts the form away without creating anything. The
+confirmation message now says which of the two happened, because 'saved'
+and 'live on the site' are very different things to the person adding it.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+---
+ .../src/pages/AdminConsole.tsx                | 68 ++++++++++++++-----
+ 1 file changed, 51 insertions(+), 17 deletions(-)
+
+diff --git a/artifacts/afrienergy-comms-lab/src/pages/AdminConsole.tsx b/artifacts/afrienergy-comms-lab/src/pages/AdminConsole.tsx
+index 126fd7c..5703f58 100644
+--- a/artifacts/afrienergy-comms-lab/src/pages/AdminConsole.tsx
++++ b/artifacts/afrienergy-comms-lab/src/pages/AdminConsole.tsx
+@@ -372,19 +372,32 @@ function ProgramCard({ program, instructors }: { program: Program; instructors:
+   );
+ }
+ 
++/** A blank creation form, kept in one place so opening and closing agree. */
++const EMPTY_PROGRAM = {
++  tag: '', title: '', description: '', startDate: '', format: 'Cohort', duration: '', capacity: '30',
++};
++
+ function ProgramsTab({ instructors }: { instructors: { id: number; name: string; email: string }[] }) {
+   const qc = useQueryClient();
+   const { toast } = useToast();
+   const { data: programs = [], isLoading } = useListPrograms();
+   const [showCreate, setShowCreate] = useState(false);
+-  const [form, setForm] = useState({ tag: '', title: '', description: '', startDate: '', format: 'Cohort', duration: '', capacity: '30' });
++  const [form, setForm] = useState(EMPTY_PROGRAM);
+ 
+   const create = useCreateProgram({
+     mutation: {
+-      onSuccess: () => {
+-        toast({ title: 'Program created as a draft' });
+-        setShowCreate(false);
+-        setForm({ tag: '', title: '', description: '', startDate: '', format: 'Cohort', duration: '', capacity: '30' });
++      onSuccess: (_created, variables) => {
++        // Which button was pressed decides what the admin is told. "Saved" and
++        // "live on the site" are very different things to a person adding a
++        // programme, and the message is the only place they find out which.
++        const published =
++          (variables as { data?: { status?: string } } | undefined)?.data?.status === 'published';
++        toast({
++          title: published
++            ? 'Program published — it is now on the public catalogue'
++            : 'Program saved as a draft — nobody can see it yet',
++        });
++        closeCreate();
+         qc.invalidateQueries({ queryKey: getListProgramsQueryKey() });
+       },
+       onError: () => toast({ title: 'Could not create program', variant: 'destructive' }),
+@@ -393,6 +406,22 @@ function ProgramsTab({ instructors }: { instructors: { id: number; name: string;
+ 
+   const canCreate = form.tag && form.title && form.description && form.startDate && form.duration;
+ 
++  /** Put the panel away and forget what was typed, so it opens clean next time. */
++  function closeCreate() {
++    setShowCreate(false);
++    setForm(EMPTY_PROGRAM);
++  }
++
++  function submit(status: 'draft' | 'published') {
++    create.mutate({
++      data: {
++        tag: form.tag, title: form.title, description: form.description,
++        startDate: form.startDate, format: form.format, duration: form.duration,
++        capacity: Math.max(1, Number(form.capacity) || 30), status,
++      },
++    });
++  }
++
+   return (
+     <div className="space-y-4">
+       <div className="flex justify-end">
+@@ -414,18 +443,23 @@ function ProgramsTab({ instructors }: { instructors: { id: number; name: string;
+             <Input type="number" placeholder="Capacity" value={form.capacity} onChange={e => setForm({ ...form, capacity: e.target.value })} />
+           </div>
+           <Textarea placeholder="Description" value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} />
+-          <Button
+-            size="sm" disabled={!canCreate || create.isPending}
+-            onClick={() => create.mutate({
+-              data: {
+-                tag: form.tag, title: form.title, description: form.description,
+-                startDate: form.startDate, format: form.format, duration: form.duration,
+-                capacity: Math.max(1, Number(form.capacity) || 30), status: 'draft',
+-              },
+-            })}
+-          >
+-            {create.isPending ? 'Creating...' : 'Create Draft'}
+-          </Button>
++          <div className="flex flex-wrap items-center gap-2 pt-1">
++            <Button size="sm" disabled={!canCreate || create.isPending} onClick={() => submit('published')}>
++              {create.isPending ? 'Saving...' : 'Publish'}
++            </Button>
++            <Button size="sm" variant="outline" disabled={!canCreate || create.isPending} onClick={() => submit('draft')}>
++              Save as draft
++            </Button>
++            {/* A way out that does not create anything. Without it the only exit
++                is the New Program button, which reads like a second attempt. */}
++            <Button size="sm" variant="ghost" disabled={create.isPending} onClick={closeCreate}>
++              Close
++            </Button>
++            <p className="w-full text-xs text-muted-foreground">
++              Publishing puts the program on the public catalogue straight away. A draft stays
++              hidden until you publish it from its card.
++            </p>
++          </div>
+         </div>
+       )}
+       {isLoading ? (
+-- 
+2.43.0
+
+
+From 41c7f3f1ad7114bd2dab6e44d2128e07d2d9c895 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Mon, 31 Aug 2026 19:46:59 +0000
+Subject: [PATCH 3/3] feat: close a programme without hiding it
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Close was ambiguous: on the creation form it dismissed the panel, which is
+not what closing a programme means. That button is now Cancel, and closing
+is a real thing that happens to a programme.
+
+A fourth state, closed: still on the public catalogue, but sign-ups are
+over. A cohort that has filled up or already started is not a secret —
+people should be able to read what the Lab runs and see that this one has
+closed, rather than meet a page that no longer exists. Archived remains
+for taking something off the site altogether.
+
+The rules live in @workspace/domain so the catalogue and the enrolment
+endpoint cannot disagree; a status nobody planned for falls back to hidden
+and closed rather than to accepting sign-ups. Each programme card now
+carries the one press that matters — Publish, Close, or Reopen sign-ups —
+and every state says in words what it does.
+
+Also: the thumbnail upload now shows the server's actual reason instead of
+'try again'.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+---
+ .../src/components/ProgramThumbnail.tsx       |  8 ++-
+ .../src/pages/AdminConsole.tsx                | 49 ++++++++++---
+ .../src/pages/CourseCatalog.tsx               | 13 +++-
+ .../src/pages/ProgramDetail.tsx               | 18 ++++-
+ .../api-server/src/routes/enrollments.ts      | 11 ++-
+ artifacts/api-server/src/routes/programs.ts   |  9 ++-
+ .../src/generated/api.schemas.ts              |  3 +
+ lib/api-spec/openapi.yaml                     |  6 +-
+ lib/api-zod/src/generated/api.ts              | 16 ++---
+ .../src/generated/types/programInputStatus.ts |  1 +
+ .../src/generated/types/programStatus.ts      |  1 +
+ .../generated/types/programUpdateStatus.ts    |  1 +
+ lib/domain/src/index.ts                       |  1 +
+ lib/domain/src/programStatus.test.ts          | 68 ++++++++++++++++++
+ lib/domain/src/programStatus.ts               | 72 +++++++++++++++++++
+ 15 files changed, 245 insertions(+), 32 deletions(-)
+ create mode 100644 lib/domain/src/programStatus.test.ts
+ create mode 100644 lib/domain/src/programStatus.ts
+
+diff --git a/artifacts/afrienergy-comms-lab/src/components/ProgramThumbnail.tsx b/artifacts/afrienergy-comms-lab/src/components/ProgramThumbnail.tsx
+index b51fb1b..bb3b4c0 100644
+--- a/artifacts/afrienergy-comms-lab/src/components/ProgramThumbnail.tsx
++++ b/artifacts/afrienergy-comms-lab/src/components/ProgramThumbnail.tsx
+@@ -64,8 +64,12 @@ export function ProgramThumbnail({ programId, thumbnailUrl, onChanged }: Props)
+       });
+ 
+       if (!res.ok) {
+-        const body = (await res.json().catch(() => null)) as { message?: string } | null;
+-        setProblem(body?.message ?? 'That image could not be saved. Try again.');
++        // The server says `message` when it knows what went wrong and `error`
++        // when something failed unexpectedly. Reading only the first left an
++        // admin staring at "try again" while the real cause sat in the other
++        // field.
++        const body = (await res.json().catch(() => null)) as { message?: string; error?: string } | null;
++        setProblem(body?.message ?? body?.error ?? 'That image could not be saved. Try again.');
+         setPreview(null);
+         URL.revokeObjectURL(localPreview);
+         return;
+diff --git a/artifacts/afrienergy-comms-lab/src/pages/AdminConsole.tsx b/artifacts/afrienergy-comms-lab/src/pages/AdminConsole.tsx
+index 5703f58..016f8b5 100644
+--- a/artifacts/afrienergy-comms-lab/src/pages/AdminConsole.tsx
++++ b/artifacts/afrienergy-comms-lab/src/pages/AdminConsole.tsx
+@@ -17,8 +17,10 @@ import {
+   getListAllEnrollmentsQueryKey,
+   getListUsersQueryKey,
+   type Program,
++  type ProgramStatus,
+   type Session,
+ } from '@workspace/api-client-react';
++import { programStatusNote } from '@workspace/domain';
+ import CourseworkStudio from '@/components/CourseworkStudio';
+ import InviteFacilitator from '@/components/InviteFacilitator';
+ import InviteLearners from '@/components/InviteLearners';
+@@ -317,11 +319,26 @@ function ProgramCard({ program, instructors }: { program: Program; instructors:
+ 
+   const update = useUpdateProgram({
+     mutation: {
+-      onSuccess: () => { toast({ title: 'Program updated' }); qc.invalidateQueries({ queryKey: getListProgramsQueryKey() }); },
++      onSuccess: (updated) => {
++        toast({ title: `${updated.title} — ${programStatusNote(updated.status).toLowerCase()}` });
++        qc.invalidateQueries({ queryKey: getListProgramsQueryKey() });
++      },
+       onError: () => toast({ title: 'Could not update program', variant: 'destructive' }),
+     },
+   });
+ 
++  const setStatus = (status: ProgramStatus) => update.mutate({ id: program.id, data: { status } });
++
++  /** The obvious next move from wherever the programme is now. */
++  const next =
++    program.status === 'published'
++      ? { label: 'Close', status: 'closed' as const, strong: false }
++      : program.status === 'closed'
++        ? { label: 'Reopen sign-ups', status: 'published' as const, strong: false }
++        : program.status === 'archived'
++          ? { label: 'Put back on the site', status: 'published' as const, strong: false }
++          : { label: 'Publish', status: 'published' as const, strong: true };
++
+   return (
+     <div className="bg-card border border-border rounded-xl p-5">
+       <div className="flex flex-wrap items-center gap-3">
+@@ -338,16 +355,25 @@ function ProgramCard({ program, instructors }: { program: Program; instructors:
+           <p className="text-xs uppercase tracking-widest text-[#C2410C] font-medium">{program.tag}</p>
+           <h3 className="font-semibold">{program.title}</h3>
+           <p className="text-xs text-muted-foreground">{program.startDate} · {program.format} · {program.duration} · {program.enrolledCount}/{program.capacity} enrolled</p>
++          {/* What this state actually does, in words, next to the control that
++              changes it — so nobody has to remember what "closed" means. */}
++          <p className="text-xs text-muted-foreground/80 mt-0.5">{programStatusNote(program.status)}</p>
+         </div>
+         <select
+           className="border border-border rounded-md px-3 py-2 text-sm bg-background"
+           value={program.status}
+-          onChange={e => update.mutate({ id: program.id, data: { status: e.target.value as any } })}
++          onChange={e => setStatus(e.target.value as ProgramStatus)}
+         >
+-          <option value="draft">Draft</option>
+-          <option value="published">Published</option>
+-          <option value="archived">Archived</option>
++          <option value="draft">Draft — hidden</option>
++          <option value="published">Published — open for sign-ups</option>
++          <option value="closed">Closed — on the site, no sign-ups</option>
++          <option value="archived">Archived — off the site</option>
+         </select>
++        {/* The one press that matters for the state it is in now. The dropdown
++            can reach any state; this is the one an admin actually wants. */}
++        <Button size="sm" variant={next.strong ? 'default' : 'outline'} disabled={update.isPending} onClick={() => setStatus(next.status)}>
++          {next.label}
++        </Button>
+         <div className="flex items-center gap-1.5">
+           <Input
+             type="number" className="w-20 text-sm" value={capacity}
+@@ -360,7 +386,7 @@ function ProgramCard({ program, instructors }: { program: Program; instructors:
+           <span className="text-xs text-muted-foreground">places</span>
+         </div>
+         <Button variant="outline" size="sm" onClick={() => setEditing(!editing)}>
+-          <Pencil className="w-4 h-4 mr-1.5" />{editing ? 'Close' : 'Edit'}
++          <Pencil className="w-4 h-4 mr-1.5" />{editing ? 'Done' : 'Edit'}
+         </Button>
+         <Button variant="outline" size="sm" onClick={() => setOpen(!open)}>
+           Sessions {open ? <ChevronUp className="w-4 h-4 ml-1" /> : <ChevronDown className="w-4 h-4 ml-1" />}
+@@ -450,14 +476,15 @@ function ProgramsTab({ instructors }: { instructors: { id: number; name: string;
+             <Button size="sm" variant="outline" disabled={!canCreate || create.isPending} onClick={() => submit('draft')}>
+               Save as draft
+             </Button>
+-            {/* A way out that does not create anything. Without it the only exit
+-                is the New Program button, which reads like a second attempt. */}
++            {/* A way out that does not create anything. Called Cancel, not
++                Close: closing is what happens to a programme, and the two
++                must not read as the same action. */}
+             <Button size="sm" variant="ghost" disabled={create.isPending} onClick={closeCreate}>
+-              Close
++              Cancel
+             </Button>
+             <p className="w-full text-xs text-muted-foreground">
+-              Publishing puts the program on the public catalogue straight away. A draft stays
+-              hidden until you publish it from its card.
++              Publishing puts the program on the public catalogue straight away and opens sign-ups.
++              A draft stays hidden until you publish it from its card. Cancel just closes this form.
+             </p>
+           </div>
+         </div>
+diff --git a/artifacts/afrienergy-comms-lab/src/pages/CourseCatalog.tsx b/artifacts/afrienergy-comms-lab/src/pages/CourseCatalog.tsx
+index 546e8c0..1e4376b 100644
+--- a/artifacts/afrienergy-comms-lab/src/pages/CourseCatalog.tsx
++++ b/artifacts/afrienergy-comms-lab/src/pages/CourseCatalog.tsx
+@@ -1,6 +1,7 @@
+ import { useState, useMemo } from 'react';
+ import { Link } from 'wouter';
+ import { useListPrograms } from '@workspace/api-client-react';
++import { acceptsEnrolment } from '@workspace/domain';
+ import { Input } from '@/components/ui/input';
+ import { Search, Filter, ArrowRight, Calendar, Clock, Users } from 'lucide-react';
+ import { motion, AnimatePresence } from 'framer-motion';
+@@ -165,6 +166,14 @@ export default function CourseCatalog() {
+                           <span className="absolute top-3 left-3 bg-background/90 backdrop-blur-sm text-foreground text-xs font-semibold px-2.5 py-1 rounded-full border border-border/50">
+                             {program.format}
+                           </span>
++                          {/* A closed cohort stays listed, so it has to say so
++                              here — before somebody reads the whole page and
++                              only then finds there is no way in. */}
++                          {!acceptsEnrolment(program.status) && (
++                            <span className="absolute top-3 right-3 bg-[#07111E]/90 backdrop-blur-sm text-[#F4F0E8] text-xs font-semibold px-2.5 py-1 rounded-full">
++                              Sign-ups closed
++                            </span>
++                          )}
+                         </div>
+ 
+                         <div className="flex flex-col flex-1 p-5">
+@@ -192,7 +201,9 @@ export default function CourseCatalog() {
+                         <div className="px-5 py-4 border-t border-border flex items-center justify-between bg-muted/20">
+                           <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                             <Users className="w-3.5 h-3.5" />
+-                            {placesLeft > 0 ? `${placesLeft} places left` : 'Waitlist open'}
++                            {!acceptsEnrolment(program.status)
++                              ? 'Cohort closed'
++                              : placesLeft > 0 ? `${placesLeft} places left` : 'Waitlist open'}
+                           </span>
+                           <Link href={`/programs/${program.id}`}>
+                             <button className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-widest text-foreground hover:text-primary transition-colors group-hover:text-primary">
+diff --git a/artifacts/afrienergy-comms-lab/src/pages/ProgramDetail.tsx b/artifacts/afrienergy-comms-lab/src/pages/ProgramDetail.tsx
+index 1ca7540..f016967 100644
+--- a/artifacts/afrienergy-comms-lab/src/pages/ProgramDetail.tsx
++++ b/artifacts/afrienergy-comms-lab/src/pages/ProgramDetail.tsx
+@@ -10,6 +10,7 @@ import {
+   getGetProgramQueryKey,
+   getListProgramSessionsQueryKey,
+ } from '@workspace/api-client-react';
++import { acceptsEnrolment } from '@workspace/domain';
+ import { useCurrentUser } from '@/lib/useCurrentUser';
+ import { Button } from '@/components/ui/button';
+ import { useToast } from '@/hooks/use-toast';
+@@ -70,6 +71,9 @@ export default function ProgramDetail() {
+   }
+ 
+   const placesLeft = Math.max(0, program.capacity - program.enrolledCount);
++  // Closed means the cohort is full or under way. The page stays up so people
++  // can read what the Lab runs; only the way in is gone.
++  const open = acceptsEnrolment(program.status);
+ 
+   return (
+     <div>
+@@ -82,7 +86,7 @@ export default function ProgramDetail() {
+           <div className="flex flex-wrap items-center gap-6 text-sm text-[#F4F0E8]/80">
+             <span className="flex items-center gap-2"><Calendar className="w-4 h-4 text-[#F97316]" />Starts {program.startDate}</span>
+             <span className="flex items-center gap-2"><Clock className="w-4 h-4 text-[#F97316]" />{program.duration} · {program.format}</span>
+-            <span className="flex items-center gap-2"><Users className="w-4 h-4 text-[#F97316]" />{placesLeft > 0 ? `${placesLeft} places left` : 'Waitlist open'}</span>
++            <span className="flex items-center gap-2"><Users className="w-4 h-4 text-[#F97316]" />{!open ? 'Sign-ups closed' : placesLeft > 0 ? `${placesLeft} places left` : 'Waitlist open'}</span>
+           </div>
+         </div>
+       </section>
+@@ -129,9 +133,13 @@ export default function ProgramDetail() {
+         {/* Enroll card */}
+         <aside>
+           <div className="bg-card border border-border rounded-2xl p-6 lg:sticky lg:top-28">
+-            <h3 className="font-display font-bold text-lg mb-2">Reserve your place</h3>
++            <h3 className="font-display font-bold text-lg mb-2">
++              {open ? 'Reserve your place' : 'Sign-ups have closed'}
++            </h3>
+             <p className="text-sm text-muted-foreground mb-6">
+-              Free to join. Places are limited to keep cohorts practical and interactive.
++              {open
++                ? 'Free to join. Places are limited to keep cohorts practical and interactive.'
++                : 'This cohort is no longer taking new learners. Browse the other programmes, or write to us about the next run.'}
+             </p>
+             {myEnrollment ? (
+               <div className="flex items-center gap-2 bg-primary/10 text-primary rounded-lg px-4 py-3 font-medium text-sm">
+@@ -139,6 +147,10 @@ export default function ProgramDetail() {
+                 {myEnrollment.status === 'waitlisted' ? 'You are on the waitlist' :
+                  myEnrollment.status === 'completed' ? 'Completed' : 'You are enrolled'}
+               </div>
++            ) : !open ? (
++              <Button asChild variant="outline" className="w-full font-bold">
++                <Link href="/courses">See other programmes</Link>
++              </Button>
+             ) : isSignedIn ? (
+               <Button
+                 className="w-full font-bold"
+diff --git a/artifacts/api-server/src/routes/enrollments.ts b/artifacts/api-server/src/routes/enrollments.ts
+index ffc8b51..e8855a7 100644
+--- a/artifacts/api-server/src/routes/enrollments.ts
++++ b/artifacts/api-server/src/routes/enrollments.ts
+@@ -6,6 +6,9 @@ import {
+ import { and, asc, eq, inArray, sql } from "drizzle-orm";
+ import {
+   liveWindow,
++  acceptsEnrolment,
++  showsInCatalogue,
++  CLOSED_TO_ENROLMENT_MESSAGE,
+   generateCertificateCode,
+   normaliseCertificateCode,
+   type ProgressEntry,
+@@ -25,10 +28,16 @@ router.post("/programs/:id/enroll", async (req, res) => {
+   }
+   const programId = Number(req.params.id);
+   const program = await db.select().from(programsTable).where(eq(programsTable.id, programId));
+-  if (program.length === 0 || program[0].status !== "published") {
++  if (program.length === 0 || (!showsInCatalogue(program[0].status) && !acceptsEnrolment(program[0].status))) {
+     res.status(404).json({ error: "Program not found" });
+     return;
+   }
++  // A closed programme is still on the site, so this is a real refusal rather
++  // than a missing page, and the learner is told which it is.
++  if (!acceptsEnrolment(program[0].status)) {
++    res.status(409).json({ error: CLOSED_TO_ENROLMENT_MESSAGE });
++    return;
++  }
+   const existing = await db
+     .select()
+     .from(enrollmentsTable)
+diff --git a/artifacts/api-server/src/routes/programs.ts b/artifacts/api-server/src/routes/programs.ts
+index ad0473a..c6bb5fe 100644
+--- a/artifacts/api-server/src/routes/programs.ts
++++ b/artifacts/api-server/src/routes/programs.ts
+@@ -1,11 +1,12 @@
+ import { Router, type IRouter } from "express";
+ import { db, programsTable, sessionsTable, enrollmentsTable, usersTable } from "@workspace/db";
+-import { and, asc, eq, ne, sql } from "drizzle-orm";
++import { and, asc, eq, inArray, ne, sql } from "drizzle-orm";
+ import {
+   CreateProgramBody,
+   UpdateProgramBody,
+   CreateSessionBody,
+ } from "@workspace/api-zod";
++import { showsInCatalogue } from "@workspace/domain";
+ import { getCurrentUser, requireRole } from "../lib/auth";
+ import { progressForUser } from "../lib/progress";
+ 
+@@ -39,7 +40,9 @@ router.get("/programs", async (req, res) => {
+   const rows = await db
+     .select(programColumns())
+     .from(programsTable)
+-    .where(isAdmin ? ne(programsTable.status, "archived") : eq(programsTable.status, "published"))
++    // A closed programme stays on the catalogue: the cohort is full or under
++    // way, and that is worth reading about. Only the sign-up is gone.
++    .where(isAdmin ? ne(programsTable.status, "archived") : inArray(programsTable.status, ["published", "closed"]))
+     .orderBy(asc(programsTable.id));
+   res.json(rows);
+ });
+@@ -62,7 +65,7 @@ router.get("/programs/:id", async (req, res) => {
+     return;
+   }
+   const user = await getCurrentUser(req);
+-  if (rows[0].status !== "published" && user?.role !== "admin") {
++  if (!showsInCatalogue(rows[0].status) && user?.role !== "admin") {
+     res.status(404).json({ error: "Program not found" });
+     return;
+   }
+diff --git a/lib/api-client-react/src/generated/api.schemas.ts b/lib/api-client-react/src/generated/api.schemas.ts
+index d39a80a..c9ef043 100644
+--- a/lib/api-client-react/src/generated/api.schemas.ts
++++ b/lib/api-client-react/src/generated/api.schemas.ts
+@@ -651,6 +651,7 @@ export type ProgramStatus = typeof ProgramStatus[keyof typeof ProgramStatus];
+ export const ProgramStatus = {
+   draft: 'draft',
+   published: 'published',
++  closed: 'closed',
+   archived: 'archived',
+ } as const;
+ 
+@@ -675,6 +676,7 @@ export type ProgramInputStatus = typeof ProgramInputStatus[keyof typeof ProgramI
+ export const ProgramInputStatus = {
+   draft: 'draft',
+   published: 'published',
++  closed: 'closed',
+   archived: 'archived',
+ } as const;
+ 
+@@ -703,6 +705,7 @@ export type ProgramUpdateStatus = typeof ProgramUpdateStatus[keyof typeof Progra
+ export const ProgramUpdateStatus = {
+   draft: 'draft',
+   published: 'published',
++  closed: 'closed',
+   archived: 'archived',
+ } as const;
+ 
+diff --git a/lib/api-spec/openapi.yaml b/lib/api-spec/openapi.yaml
+index 2528cb7..de36cec 100644
+--- a/lib/api-spec/openapi.yaml
++++ b/lib/api-spec/openapi.yaml
+@@ -2612,7 +2612,7 @@ components:
+         duration: { type: string }
+         thumbnailUrl: { type: ["string", "null"] }
+         capacity: { type: integer }
+-        status: { type: string, enum: [draft, published, archived] }
++        status: { type: string, enum: [draft, published, closed, archived] }
+         enrolledCount: { type: integer }
+     ProgramInput:
+       type: object
+@@ -2626,7 +2626,7 @@ components:
+         duration: { type: string, minLength: 1 }
+         thumbnailUrl: { type: string }
+         capacity: { type: integer, minimum: 1 }
+-        status: { type: string, enum: [draft, published, archived] }
++        status: { type: string, enum: [draft, published, closed, archived] }
+     ProgramUpdate:
+       type: object
+       properties:
+@@ -2638,7 +2638,7 @@ components:
+         duration: { type: string, minLength: 1 }
+         thumbnailUrl: { type: string }
+         capacity: { type: integer, minimum: 1 }
+-        status: { type: string, enum: [draft, published, archived] }
++        status: { type: string, enum: [draft, published, closed, archived] }
+     Session:
+       type: object
+       required: [id, programId, title, description, sortOrder, durationMins]
+diff --git a/lib/api-zod/src/generated/api.ts b/lib/api-zod/src/generated/api.ts
+index 5cf2b11..cd69cc3 100644
+--- a/lib/api-zod/src/generated/api.ts
++++ b/lib/api-zod/src/generated/api.ts
+@@ -42,7 +42,7 @@ export const ListProgramsResponseItem = zod.object({
+   "duration": zod.string(),
+   "thumbnailUrl": zod.string().nullish(),
+   "capacity": zod.int(),
+-  "status": zod.enum(['draft', 'published', 'archived']),
++  "status": zod.enum(['draft', 'published', 'closed', 'archived']),
+   "enrolledCount": zod.int()
+ })
+ export const ListProgramsResponse = zod.array(ListProgramsResponseItem)
+@@ -69,7 +69,7 @@ export const CreateProgramBody = zod.object({
+   "duration": zod.string().min(1),
+   "thumbnailUrl": zod.string().optional(),
+   "capacity": zod.int().min(1).optional(),
+-  "status": zod.enum(['draft', 'published', 'archived']).optional()
++  "status": zod.enum(['draft', 'published', 'closed', 'archived']).optional()
+ })
+ 
+ export const CreateProgramResponse = zod.object({
+@@ -82,7 +82,7 @@ export const CreateProgramResponse = zod.object({
+   "duration": zod.string(),
+   "thumbnailUrl": zod.string().nullish(),
+   "capacity": zod.int(),
+-  "status": zod.enum(['draft', 'published', 'archived']),
++  "status": zod.enum(['draft', 'published', 'closed', 'archived']),
+   "enrolledCount": zod.int()
+ })
+ 
+@@ -104,7 +104,7 @@ export const GetProgramResponse = zod.object({
+   "duration": zod.string(),
+   "thumbnailUrl": zod.string().nullish(),
+   "capacity": zod.int(),
+-  "status": zod.enum(['draft', 'published', 'archived']),
++  "status": zod.enum(['draft', 'published', 'closed', 'archived']),
+   "enrolledCount": zod.int()
+ })
+ 
+@@ -134,7 +134,7 @@ export const UpdateProgramBody = zod.object({
+   "duration": zod.string().min(1).optional(),
+   "thumbnailUrl": zod.string().optional(),
+   "capacity": zod.int().min(1).optional(),
+-  "status": zod.enum(['draft', 'published', 'archived']).optional()
++  "status": zod.enum(['draft', 'published', 'closed', 'archived']).optional()
+ })
+ 
+ export const UpdateProgramResponse = zod.object({
+@@ -147,7 +147,7 @@ export const UpdateProgramResponse = zod.object({
+   "duration": zod.string(),
+   "thumbnailUrl": zod.string().nullish(),
+   "capacity": zod.int(),
+-  "status": zod.enum(['draft', 'published', 'archived']),
++  "status": zod.enum(['draft', 'published', 'closed', 'archived']),
+   "enrolledCount": zod.int()
+ })
+ 
+@@ -1423,7 +1423,7 @@ export const UploadProgramThumbnailResponse = zod.object({
+   "duration": zod.string(),
+   "thumbnailUrl": zod.string().nullish(),
+   "capacity": zod.int(),
+-  "status": zod.enum(['draft', 'published', 'archived']),
++  "status": zod.enum(['draft', 'published', 'closed', 'archived']),
+   "enrolledCount": zod.int()
+ })
+ 
+@@ -1446,7 +1446,7 @@ export const DeleteProgramThumbnailResponse = zod.object({
+   "duration": zod.string(),
+   "thumbnailUrl": zod.string().nullish(),
+   "capacity": zod.int(),
+-  "status": zod.enum(['draft', 'published', 'archived']),
++  "status": zod.enum(['draft', 'published', 'closed', 'archived']),
+   "enrolledCount": zod.int()
+ })
+ 
+diff --git a/lib/api-zod/src/generated/types/programInputStatus.ts b/lib/api-zod/src/generated/types/programInputStatus.ts
+index 0472613..c6b01a7 100644
+--- a/lib/api-zod/src/generated/types/programInputStatus.ts
++++ b/lib/api-zod/src/generated/types/programInputStatus.ts
+@@ -12,5 +12,6 @@ export type ProgramInputStatus = typeof ProgramInputStatus[keyof typeof ProgramI
+ export const ProgramInputStatus = {
+   draft: 'draft',
+   published: 'published',
++  closed: 'closed',
+   archived: 'archived',
+ } as const;
+diff --git a/lib/api-zod/src/generated/types/programStatus.ts b/lib/api-zod/src/generated/types/programStatus.ts
+index 8efbb91..d24adc6 100644
+--- a/lib/api-zod/src/generated/types/programStatus.ts
++++ b/lib/api-zod/src/generated/types/programStatus.ts
+@@ -12,5 +12,6 @@ export type ProgramStatus = typeof ProgramStatus[keyof typeof ProgramStatus];
+ export const ProgramStatus = {
+   draft: 'draft',
+   published: 'published',
++  closed: 'closed',
+   archived: 'archived',
+ } as const;
+diff --git a/lib/api-zod/src/generated/types/programUpdateStatus.ts b/lib/api-zod/src/generated/types/programUpdateStatus.ts
+index 5e31224..29579af 100644
+--- a/lib/api-zod/src/generated/types/programUpdateStatus.ts
++++ b/lib/api-zod/src/generated/types/programUpdateStatus.ts
+@@ -12,5 +12,6 @@ export type ProgramUpdateStatus = typeof ProgramUpdateStatus[keyof typeof Progra
+ export const ProgramUpdateStatus = {
+   draft: 'draft',
+   published: 'published',
++  closed: 'closed',
+   archived: 'archived',
+ } as const;
+diff --git a/lib/domain/src/index.ts b/lib/domain/src/index.ts
+index f0df15e..fcf5c98 100644
+--- a/lib/domain/src/index.ts
++++ b/lib/domain/src/index.ts
+@@ -12,3 +12,4 @@ export * from "./invitations";
+ export * from "./partnership";
+ export * from "./imageUpload";
+ export * from "./roster";
++export * from "./programStatus";
+diff --git a/lib/domain/src/programStatus.test.ts b/lib/domain/src/programStatus.test.ts
+new file mode 100644
+index 0000000..a748be4
+--- /dev/null
++++ b/lib/domain/src/programStatus.test.ts
+@@ -0,0 +1,68 @@
++import { describe, expect, it } from "vitest";
++import {
++  PROGRAM_STATUSES,
++  acceptsEnrolment,
++  isProgramStatus,
++  programStatusLabel,
++  programStatusNote,
++  showsInCatalogue,
++} from "./programStatus";
++
++describe("showsInCatalogue", () => {
++  it("shows a published programme", () => {
++    expect(showsInCatalogue("published")).toBe(true);
++  });
++
++  it("still shows a closed one", () => {
++    // The point of closing rather than archiving: people can read about a
++    // cohort that has started, instead of hitting a page that vanished.
++    expect(showsInCatalogue("closed")).toBe(true);
++  });
++
++  it.each(["draft", "archived", "", null, undefined, "something-else"])("hides %s", (status) => {
++    expect(showsInCatalogue(status as string)).toBe(false);
++  });
++});
++
++describe("acceptsEnrolment", () => {
++  it("only a published programme takes sign-ups", () => {
++    expect(acceptsEnrolment("published")).toBe(true);
++  });
++
++  it.each(["closed", "draft", "archived", null, undefined, "weird"])("refuses %s", (status) => {
++    expect(acceptsEnrolment(status as string)).toBe(false);
++  });
++
++  it("never accepts a sign-up onto something the catalogue hides", () => {
++    // The pairing that matters: anything enrollable must also be visible.
++    for (const status of [...PROGRAM_STATUSES, "unknown"]) {
++      if (acceptsEnrolment(status)) expect(showsInCatalogue(status)).toBe(true);
++    }
++  });
++});
++
++describe("isProgramStatus", () => {
++  it("accepts every state the app uses", () => {
++    for (const status of PROGRAM_STATUSES) expect(isProgramStatus(status)).toBe(true);
++  });
++
++  it.each([["Published"], [""], [null], [undefined], [7], [{}]])("rejects %s", (value) => {
++    expect(isProgramStatus(value)).toBe(false);
++  });
++});
++
++describe("wording", () => {
++  it("labels each state", () => {
++    expect(programStatusLabel("closed")).toBe("Closed");
++    expect(programStatusLabel("published")).toBe("Published");
++  });
++
++  it("falls back to Draft for anything unrecognised, never to a live-sounding word", () => {
++    expect(programStatusLabel("nonsense")).toBe("Draft");
++    expect(programStatusNote("nonsense")).toMatch(/hidden/i);
++  });
++
++  it("says plainly what closed does", () => {
++    expect(programStatusNote("closed")).toMatch(/nobody new/i);
++  });
++});
+diff --git a/lib/domain/src/programStatus.ts b/lib/domain/src/programStatus.ts
+new file mode 100644
+index 0000000..b72329c
+--- /dev/null
++++ b/lib/domain/src/programStatus.ts
+@@ -0,0 +1,72 @@
++/**
++ * What state a programme is in, and what that means for the people looking at it.
++ *
++ * Four states, and the difference between two of them is the whole point:
++ *
++ *   draft      Nobody outside the admin console can see it.
++ *   published  On the catalogue, and open for sign-ups.
++ *   closed     Still on the catalogue, but sign-ups are over. A cohort that has
++ *              filled up or already started is not a secret — prospective
++ *              learners should be able to read what the Lab runs and see that
++ *              this one has closed, rather than find a page that no longer
++ *              exists.
++ *   archived   Off the site entirely. For something run once and not repeating.
++ *
++ * The rules live here, in one place, because the server and the browser both
++ * have to agree on them. If the catalogue showed a programme the enrolment
++ * endpoint then refused, the learner would meet a broken button and no
++ * explanation.
++ *
++ * Anything unrecognised is treated as hidden and closed. A status nobody
++ * planned for should fail towards showing less, never towards accepting
++ * sign-ups nobody meant to accept.
++ */
++
++export const PROGRAM_STATUSES = ["draft", "published", "closed", "archived"] as const;
++
++export type ProgramStatus = (typeof PROGRAM_STATUSES)[number];
++
++export function isProgramStatus(value: unknown): value is ProgramStatus {
++  return typeof value === "string" && (PROGRAM_STATUSES as readonly string[]).includes(value);
++}
++
++/** Shown to visitors and to signed-in learners browsing the catalogue. */
++export function showsInCatalogue(status: string | null | undefined): boolean {
++  return status === "published" || status === "closed";
++}
++
++/** Whether somebody can still reserve a place or join the waitlist. */
++export function acceptsEnrolment(status: string | null | undefined): boolean {
++  return status === "published";
++}
++
++/** The word an admin sees on the console. */
++export function programStatusLabel(status: string | null | undefined): string {
++  switch (status) {
++    case "published":
++      return "Published";
++    case "closed":
++      return "Closed";
++    case "archived":
++      return "Archived";
++    default:
++      return "Draft";
++  }
++}
++
++/** One line saying what that state actually does, for the console. */
++export function programStatusNote(status: string | null | undefined): string {
++  switch (status) {
++    case "published":
++      return "On the site and open for sign-ups.";
++    case "closed":
++      return "Still on the site, but nobody new can sign up.";
++    case "archived":
++      return "Off the site. Learners already on it keep their access.";
++    default:
++      return "Hidden. Only admins can see it.";
++  }
++}
++
++/** What a learner is told when they reach a programme that has closed. */
++export const CLOSED_TO_ENROLMENT_MESSAGE = "Sign-ups for this programme have closed.";
+-- 
+2.43.0
+

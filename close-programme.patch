@@ -1,0 +1,668 @@
+From 41c7f3f1ad7114bd2dab6e44d2128e07d2d9c895 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Mon, 31 Aug 2026 19:46:59 +0000
+Subject: [PATCH] feat: close a programme without hiding it
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Close was ambiguous: on the creation form it dismissed the panel, which is
+not what closing a programme means. That button is now Cancel, and closing
+is a real thing that happens to a programme.
+
+A fourth state, closed: still on the public catalogue, but sign-ups are
+over. A cohort that has filled up or already started is not a secret —
+people should be able to read what the Lab runs and see that this one has
+closed, rather than meet a page that no longer exists. Archived remains
+for taking something off the site altogether.
+
+The rules live in @workspace/domain so the catalogue and the enrolment
+endpoint cannot disagree; a status nobody planned for falls back to hidden
+and closed rather than to accepting sign-ups. Each programme card now
+carries the one press that matters — Publish, Close, or Reopen sign-ups —
+and every state says in words what it does.
+
+Also: the thumbnail upload now shows the server's actual reason instead of
+'try again'.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+---
+ .../src/components/ProgramThumbnail.tsx       |  8 ++-
+ .../src/pages/AdminConsole.tsx                | 49 ++++++++++---
+ .../src/pages/CourseCatalog.tsx               | 13 +++-
+ .../src/pages/ProgramDetail.tsx               | 18 ++++-
+ .../api-server/src/routes/enrollments.ts      | 11 ++-
+ artifacts/api-server/src/routes/programs.ts   |  9 ++-
+ .../src/generated/api.schemas.ts              |  3 +
+ lib/api-spec/openapi.yaml                     |  6 +-
+ lib/api-zod/src/generated/api.ts              | 16 ++---
+ .../src/generated/types/programInputStatus.ts |  1 +
+ .../src/generated/types/programStatus.ts      |  1 +
+ .../generated/types/programUpdateStatus.ts    |  1 +
+ lib/domain/src/index.ts                       |  1 +
+ lib/domain/src/programStatus.test.ts          | 68 ++++++++++++++++++
+ lib/domain/src/programStatus.ts               | 72 +++++++++++++++++++
+ 15 files changed, 245 insertions(+), 32 deletions(-)
+ create mode 100644 lib/domain/src/programStatus.test.ts
+ create mode 100644 lib/domain/src/programStatus.ts
+
+diff --git a/artifacts/afrienergy-comms-lab/src/components/ProgramThumbnail.tsx b/artifacts/afrienergy-comms-lab/src/components/ProgramThumbnail.tsx
+index b51fb1b..bb3b4c0 100644
+--- a/artifacts/afrienergy-comms-lab/src/components/ProgramThumbnail.tsx
++++ b/artifacts/afrienergy-comms-lab/src/components/ProgramThumbnail.tsx
+@@ -64,8 +64,12 @@ export function ProgramThumbnail({ programId, thumbnailUrl, onChanged }: Props)
+       });
+ 
+       if (!res.ok) {
+-        const body = (await res.json().catch(() => null)) as { message?: string } | null;
+-        setProblem(body?.message ?? 'That image could not be saved. Try again.');
++        // The server says `message` when it knows what went wrong and `error`
++        // when something failed unexpectedly. Reading only the first left an
++        // admin staring at "try again" while the real cause sat in the other
++        // field.
++        const body = (await res.json().catch(() => null)) as { message?: string; error?: string } | null;
++        setProblem(body?.message ?? body?.error ?? 'That image could not be saved. Try again.');
+         setPreview(null);
+         URL.revokeObjectURL(localPreview);
+         return;
+diff --git a/artifacts/afrienergy-comms-lab/src/pages/AdminConsole.tsx b/artifacts/afrienergy-comms-lab/src/pages/AdminConsole.tsx
+index 5703f58..016f8b5 100644
+--- a/artifacts/afrienergy-comms-lab/src/pages/AdminConsole.tsx
++++ b/artifacts/afrienergy-comms-lab/src/pages/AdminConsole.tsx
+@@ -17,8 +17,10 @@ import {
+   getListAllEnrollmentsQueryKey,
+   getListUsersQueryKey,
+   type Program,
++  type ProgramStatus,
+   type Session,
+ } from '@workspace/api-client-react';
++import { programStatusNote } from '@workspace/domain';
+ import CourseworkStudio from '@/components/CourseworkStudio';
+ import InviteFacilitator from '@/components/InviteFacilitator';
+ import InviteLearners from '@/components/InviteLearners';
+@@ -317,11 +319,26 @@ function ProgramCard({ program, instructors }: { program: Program; instructors:
+ 
+   const update = useUpdateProgram({
+     mutation: {
+-      onSuccess: () => { toast({ title: 'Program updated' }); qc.invalidateQueries({ queryKey: getListProgramsQueryKey() }); },
++      onSuccess: (updated) => {
++        toast({ title: `${updated.title} — ${programStatusNote(updated.status).toLowerCase()}` });
++        qc.invalidateQueries({ queryKey: getListProgramsQueryKey() });
++      },
+       onError: () => toast({ title: 'Could not update program', variant: 'destructive' }),
+     },
+   });
+ 
++  const setStatus = (status: ProgramStatus) => update.mutate({ id: program.id, data: { status } });
++
++  /** The obvious next move from wherever the programme is now. */
++  const next =
++    program.status === 'published'
++      ? { label: 'Close', status: 'closed' as const, strong: false }
++      : program.status === 'closed'
++        ? { label: 'Reopen sign-ups', status: 'published' as const, strong: false }
++        : program.status === 'archived'
++          ? { label: 'Put back on the site', status: 'published' as const, strong: false }
++          : { label: 'Publish', status: 'published' as const, strong: true };
++
+   return (
+     <div className="bg-card border border-border rounded-xl p-5">
+       <div className="flex flex-wrap items-center gap-3">
+@@ -338,16 +355,25 @@ function ProgramCard({ program, instructors }: { program: Program; instructors:
+           <p className="text-xs uppercase tracking-widest text-[#C2410C] font-medium">{program.tag}</p>
+           <h3 className="font-semibold">{program.title}</h3>
+           <p className="text-xs text-muted-foreground">{program.startDate} · {program.format} · {program.duration} · {program.enrolledCount}/{program.capacity} enrolled</p>
++          {/* What this state actually does, in words, next to the control that
++              changes it — so nobody has to remember what "closed" means. */}
++          <p className="text-xs text-muted-foreground/80 mt-0.5">{programStatusNote(program.status)}</p>
+         </div>
+         <select
+           className="border border-border rounded-md px-3 py-2 text-sm bg-background"
+           value={program.status}
+-          onChange={e => update.mutate({ id: program.id, data: { status: e.target.value as any } })}
++          onChange={e => setStatus(e.target.value as ProgramStatus)}
+         >
+-          <option value="draft">Draft</option>
+-          <option value="published">Published</option>
+-          <option value="archived">Archived</option>
++          <option value="draft">Draft — hidden</option>
++          <option value="published">Published — open for sign-ups</option>
++          <option value="closed">Closed — on the site, no sign-ups</option>
++          <option value="archived">Archived — off the site</option>
+         </select>
++        {/* The one press that matters for the state it is in now. The dropdown
++            can reach any state; this is the one an admin actually wants. */}
++        <Button size="sm" variant={next.strong ? 'default' : 'outline'} disabled={update.isPending} onClick={() => setStatus(next.status)}>
++          {next.label}
++        </Button>
+         <div className="flex items-center gap-1.5">
+           <Input
+             type="number" className="w-20 text-sm" value={capacity}
+@@ -360,7 +386,7 @@ function ProgramCard({ program, instructors }: { program: Program; instructors:
+           <span className="text-xs text-muted-foreground">places</span>
+         </div>
+         <Button variant="outline" size="sm" onClick={() => setEditing(!editing)}>
+-          <Pencil className="w-4 h-4 mr-1.5" />{editing ? 'Close' : 'Edit'}
++          <Pencil className="w-4 h-4 mr-1.5" />{editing ? 'Done' : 'Edit'}
+         </Button>
+         <Button variant="outline" size="sm" onClick={() => setOpen(!open)}>
+           Sessions {open ? <ChevronUp className="w-4 h-4 ml-1" /> : <ChevronDown className="w-4 h-4 ml-1" />}
+@@ -450,14 +476,15 @@ function ProgramsTab({ instructors }: { instructors: { id: number; name: string;
+             <Button size="sm" variant="outline" disabled={!canCreate || create.isPending} onClick={() => submit('draft')}>
+               Save as draft
+             </Button>
+-            {/* A way out that does not create anything. Without it the only exit
+-                is the New Program button, which reads like a second attempt. */}
++            {/* A way out that does not create anything. Called Cancel, not
++                Close: closing is what happens to a programme, and the two
++                must not read as the same action. */}
+             <Button size="sm" variant="ghost" disabled={create.isPending} onClick={closeCreate}>
+-              Close
++              Cancel
+             </Button>
+             <p className="w-full text-xs text-muted-foreground">
+-              Publishing puts the program on the public catalogue straight away. A draft stays
+-              hidden until you publish it from its card.
++              Publishing puts the program on the public catalogue straight away and opens sign-ups.
++              A draft stays hidden until you publish it from its card. Cancel just closes this form.
+             </p>
+           </div>
+         </div>
+diff --git a/artifacts/afrienergy-comms-lab/src/pages/CourseCatalog.tsx b/artifacts/afrienergy-comms-lab/src/pages/CourseCatalog.tsx
+index 546e8c0..1e4376b 100644
+--- a/artifacts/afrienergy-comms-lab/src/pages/CourseCatalog.tsx
++++ b/artifacts/afrienergy-comms-lab/src/pages/CourseCatalog.tsx
+@@ -1,6 +1,7 @@
+ import { useState, useMemo } from 'react';
+ import { Link } from 'wouter';
+ import { useListPrograms } from '@workspace/api-client-react';
++import { acceptsEnrolment } from '@workspace/domain';
+ import { Input } from '@/components/ui/input';
+ import { Search, Filter, ArrowRight, Calendar, Clock, Users } from 'lucide-react';
+ import { motion, AnimatePresence } from 'framer-motion';
+@@ -165,6 +166,14 @@ export default function CourseCatalog() {
+                           <span className="absolute top-3 left-3 bg-background/90 backdrop-blur-sm text-foreground text-xs font-semibold px-2.5 py-1 rounded-full border border-border/50">
+                             {program.format}
+                           </span>
++                          {/* A closed cohort stays listed, so it has to say so
++                              here — before somebody reads the whole page and
++                              only then finds there is no way in. */}
++                          {!acceptsEnrolment(program.status) && (
++                            <span className="absolute top-3 right-3 bg-[#07111E]/90 backdrop-blur-sm text-[#F4F0E8] text-xs font-semibold px-2.5 py-1 rounded-full">
++                              Sign-ups closed
++                            </span>
++                          )}
+                         </div>
+ 
+                         <div className="flex flex-col flex-1 p-5">
+@@ -192,7 +201,9 @@ export default function CourseCatalog() {
+                         <div className="px-5 py-4 border-t border-border flex items-center justify-between bg-muted/20">
+                           <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                             <Users className="w-3.5 h-3.5" />
+-                            {placesLeft > 0 ? `${placesLeft} places left` : 'Waitlist open'}
++                            {!acceptsEnrolment(program.status)
++                              ? 'Cohort closed'
++                              : placesLeft > 0 ? `${placesLeft} places left` : 'Waitlist open'}
+                           </span>
+                           <Link href={`/programs/${program.id}`}>
+                             <button className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-widest text-foreground hover:text-primary transition-colors group-hover:text-primary">
+diff --git a/artifacts/afrienergy-comms-lab/src/pages/ProgramDetail.tsx b/artifacts/afrienergy-comms-lab/src/pages/ProgramDetail.tsx
+index 1ca7540..f016967 100644
+--- a/artifacts/afrienergy-comms-lab/src/pages/ProgramDetail.tsx
++++ b/artifacts/afrienergy-comms-lab/src/pages/ProgramDetail.tsx
+@@ -10,6 +10,7 @@ import {
+   getGetProgramQueryKey,
+   getListProgramSessionsQueryKey,
+ } from '@workspace/api-client-react';
++import { acceptsEnrolment } from '@workspace/domain';
+ import { useCurrentUser } from '@/lib/useCurrentUser';
+ import { Button } from '@/components/ui/button';
+ import { useToast } from '@/hooks/use-toast';
+@@ -70,6 +71,9 @@ export default function ProgramDetail() {
+   }
+ 
+   const placesLeft = Math.max(0, program.capacity - program.enrolledCount);
++  // Closed means the cohort is full or under way. The page stays up so people
++  // can read what the Lab runs; only the way in is gone.
++  const open = acceptsEnrolment(program.status);
+ 
+   return (
+     <div>
+@@ -82,7 +86,7 @@ export default function ProgramDetail() {
+           <div className="flex flex-wrap items-center gap-6 text-sm text-[#F4F0E8]/80">
+             <span className="flex items-center gap-2"><Calendar className="w-4 h-4 text-[#F97316]" />Starts {program.startDate}</span>
+             <span className="flex items-center gap-2"><Clock className="w-4 h-4 text-[#F97316]" />{program.duration} · {program.format}</span>
+-            <span className="flex items-center gap-2"><Users className="w-4 h-4 text-[#F97316]" />{placesLeft > 0 ? `${placesLeft} places left` : 'Waitlist open'}</span>
++            <span className="flex items-center gap-2"><Users className="w-4 h-4 text-[#F97316]" />{!open ? 'Sign-ups closed' : placesLeft > 0 ? `${placesLeft} places left` : 'Waitlist open'}</span>
+           </div>
+         </div>
+       </section>
+@@ -129,9 +133,13 @@ export default function ProgramDetail() {
+         {/* Enroll card */}
+         <aside>
+           <div className="bg-card border border-border rounded-2xl p-6 lg:sticky lg:top-28">
+-            <h3 className="font-display font-bold text-lg mb-2">Reserve your place</h3>
++            <h3 className="font-display font-bold text-lg mb-2">
++              {open ? 'Reserve your place' : 'Sign-ups have closed'}
++            </h3>
+             <p className="text-sm text-muted-foreground mb-6">
+-              Free to join. Places are limited to keep cohorts practical and interactive.
++              {open
++                ? 'Free to join. Places are limited to keep cohorts practical and interactive.'
++                : 'This cohort is no longer taking new learners. Browse the other programmes, or write to us about the next run.'}
+             </p>
+             {myEnrollment ? (
+               <div className="flex items-center gap-2 bg-primary/10 text-primary rounded-lg px-4 py-3 font-medium text-sm">
+@@ -139,6 +147,10 @@ export default function ProgramDetail() {
+                 {myEnrollment.status === 'waitlisted' ? 'You are on the waitlist' :
+                  myEnrollment.status === 'completed' ? 'Completed' : 'You are enrolled'}
+               </div>
++            ) : !open ? (
++              <Button asChild variant="outline" className="w-full font-bold">
++                <Link href="/courses">See other programmes</Link>
++              </Button>
+             ) : isSignedIn ? (
+               <Button
+                 className="w-full font-bold"
+diff --git a/artifacts/api-server/src/routes/enrollments.ts b/artifacts/api-server/src/routes/enrollments.ts
+index ffc8b51..e8855a7 100644
+--- a/artifacts/api-server/src/routes/enrollments.ts
++++ b/artifacts/api-server/src/routes/enrollments.ts
+@@ -6,6 +6,9 @@ import {
+ import { and, asc, eq, inArray, sql } from "drizzle-orm";
+ import {
+   liveWindow,
++  acceptsEnrolment,
++  showsInCatalogue,
++  CLOSED_TO_ENROLMENT_MESSAGE,
+   generateCertificateCode,
+   normaliseCertificateCode,
+   type ProgressEntry,
+@@ -25,10 +28,16 @@ router.post("/programs/:id/enroll", async (req, res) => {
+   }
+   const programId = Number(req.params.id);
+   const program = await db.select().from(programsTable).where(eq(programsTable.id, programId));
+-  if (program.length === 0 || program[0].status !== "published") {
++  if (program.length === 0 || (!showsInCatalogue(program[0].status) && !acceptsEnrolment(program[0].status))) {
+     res.status(404).json({ error: "Program not found" });
+     return;
+   }
++  // A closed programme is still on the site, so this is a real refusal rather
++  // than a missing page, and the learner is told which it is.
++  if (!acceptsEnrolment(program[0].status)) {
++    res.status(409).json({ error: CLOSED_TO_ENROLMENT_MESSAGE });
++    return;
++  }
+   const existing = await db
+     .select()
+     .from(enrollmentsTable)
+diff --git a/artifacts/api-server/src/routes/programs.ts b/artifacts/api-server/src/routes/programs.ts
+index ad0473a..c6bb5fe 100644
+--- a/artifacts/api-server/src/routes/programs.ts
++++ b/artifacts/api-server/src/routes/programs.ts
+@@ -1,11 +1,12 @@
+ import { Router, type IRouter } from "express";
+ import { db, programsTable, sessionsTable, enrollmentsTable, usersTable } from "@workspace/db";
+-import { and, asc, eq, ne, sql } from "drizzle-orm";
++import { and, asc, eq, inArray, ne, sql } from "drizzle-orm";
+ import {
+   CreateProgramBody,
+   UpdateProgramBody,
+   CreateSessionBody,
+ } from "@workspace/api-zod";
++import { showsInCatalogue } from "@workspace/domain";
+ import { getCurrentUser, requireRole } from "../lib/auth";
+ import { progressForUser } from "../lib/progress";
+ 
+@@ -39,7 +40,9 @@ router.get("/programs", async (req, res) => {
+   const rows = await db
+     .select(programColumns())
+     .from(programsTable)
+-    .where(isAdmin ? ne(programsTable.status, "archived") : eq(programsTable.status, "published"))
++    // A closed programme stays on the catalogue: the cohort is full or under
++    // way, and that is worth reading about. Only the sign-up is gone.
++    .where(isAdmin ? ne(programsTable.status, "archived") : inArray(programsTable.status, ["published", "closed"]))
+     .orderBy(asc(programsTable.id));
+   res.json(rows);
+ });
+@@ -62,7 +65,7 @@ router.get("/programs/:id", async (req, res) => {
+     return;
+   }
+   const user = await getCurrentUser(req);
+-  if (rows[0].status !== "published" && user?.role !== "admin") {
++  if (!showsInCatalogue(rows[0].status) && user?.role !== "admin") {
+     res.status(404).json({ error: "Program not found" });
+     return;
+   }
+diff --git a/lib/api-client-react/src/generated/api.schemas.ts b/lib/api-client-react/src/generated/api.schemas.ts
+index d39a80a..c9ef043 100644
+--- a/lib/api-client-react/src/generated/api.schemas.ts
++++ b/lib/api-client-react/src/generated/api.schemas.ts
+@@ -651,6 +651,7 @@ export type ProgramStatus = typeof ProgramStatus[keyof typeof ProgramStatus];
+ export const ProgramStatus = {
+   draft: 'draft',
+   published: 'published',
++  closed: 'closed',
+   archived: 'archived',
+ } as const;
+ 
+@@ -675,6 +676,7 @@ export type ProgramInputStatus = typeof ProgramInputStatus[keyof typeof ProgramI
+ export const ProgramInputStatus = {
+   draft: 'draft',
+   published: 'published',
++  closed: 'closed',
+   archived: 'archived',
+ } as const;
+ 
+@@ -703,6 +705,7 @@ export type ProgramUpdateStatus = typeof ProgramUpdateStatus[keyof typeof Progra
+ export const ProgramUpdateStatus = {
+   draft: 'draft',
+   published: 'published',
++  closed: 'closed',
+   archived: 'archived',
+ } as const;
+ 
+diff --git a/lib/api-spec/openapi.yaml b/lib/api-spec/openapi.yaml
+index 2528cb7..de36cec 100644
+--- a/lib/api-spec/openapi.yaml
++++ b/lib/api-spec/openapi.yaml
+@@ -2612,7 +2612,7 @@ components:
+         duration: { type: string }
+         thumbnailUrl: { type: ["string", "null"] }
+         capacity: { type: integer }
+-        status: { type: string, enum: [draft, published, archived] }
++        status: { type: string, enum: [draft, published, closed, archived] }
+         enrolledCount: { type: integer }
+     ProgramInput:
+       type: object
+@@ -2626,7 +2626,7 @@ components:
+         duration: { type: string, minLength: 1 }
+         thumbnailUrl: { type: string }
+         capacity: { type: integer, minimum: 1 }
+-        status: { type: string, enum: [draft, published, archived] }
++        status: { type: string, enum: [draft, published, closed, archived] }
+     ProgramUpdate:
+       type: object
+       properties:
+@@ -2638,7 +2638,7 @@ components:
+         duration: { type: string, minLength: 1 }
+         thumbnailUrl: { type: string }
+         capacity: { type: integer, minimum: 1 }
+-        status: { type: string, enum: [draft, published, archived] }
++        status: { type: string, enum: [draft, published, closed, archived] }
+     Session:
+       type: object
+       required: [id, programId, title, description, sortOrder, durationMins]
+diff --git a/lib/api-zod/src/generated/api.ts b/lib/api-zod/src/generated/api.ts
+index 5cf2b11..cd69cc3 100644
+--- a/lib/api-zod/src/generated/api.ts
++++ b/lib/api-zod/src/generated/api.ts
+@@ -42,7 +42,7 @@ export const ListProgramsResponseItem = zod.object({
+   "duration": zod.string(),
+   "thumbnailUrl": zod.string().nullish(),
+   "capacity": zod.int(),
+-  "status": zod.enum(['draft', 'published', 'archived']),
++  "status": zod.enum(['draft', 'published', 'closed', 'archived']),
+   "enrolledCount": zod.int()
+ })
+ export const ListProgramsResponse = zod.array(ListProgramsResponseItem)
+@@ -69,7 +69,7 @@ export const CreateProgramBody = zod.object({
+   "duration": zod.string().min(1),
+   "thumbnailUrl": zod.string().optional(),
+   "capacity": zod.int().min(1).optional(),
+-  "status": zod.enum(['draft', 'published', 'archived']).optional()
++  "status": zod.enum(['draft', 'published', 'closed', 'archived']).optional()
+ })
+ 
+ export const CreateProgramResponse = zod.object({
+@@ -82,7 +82,7 @@ export const CreateProgramResponse = zod.object({
+   "duration": zod.string(),
+   "thumbnailUrl": zod.string().nullish(),
+   "capacity": zod.int(),
+-  "status": zod.enum(['draft', 'published', 'archived']),
++  "status": zod.enum(['draft', 'published', 'closed', 'archived']),
+   "enrolledCount": zod.int()
+ })
+ 
+@@ -104,7 +104,7 @@ export const GetProgramResponse = zod.object({
+   "duration": zod.string(),
+   "thumbnailUrl": zod.string().nullish(),
+   "capacity": zod.int(),
+-  "status": zod.enum(['draft', 'published', 'archived']),
++  "status": zod.enum(['draft', 'published', 'closed', 'archived']),
+   "enrolledCount": zod.int()
+ })
+ 
+@@ -134,7 +134,7 @@ export const UpdateProgramBody = zod.object({
+   "duration": zod.string().min(1).optional(),
+   "thumbnailUrl": zod.string().optional(),
+   "capacity": zod.int().min(1).optional(),
+-  "status": zod.enum(['draft', 'published', 'archived']).optional()
++  "status": zod.enum(['draft', 'published', 'closed', 'archived']).optional()
+ })
+ 
+ export const UpdateProgramResponse = zod.object({
+@@ -147,7 +147,7 @@ export const UpdateProgramResponse = zod.object({
+   "duration": zod.string(),
+   "thumbnailUrl": zod.string().nullish(),
+   "capacity": zod.int(),
+-  "status": zod.enum(['draft', 'published', 'archived']),
++  "status": zod.enum(['draft', 'published', 'closed', 'archived']),
+   "enrolledCount": zod.int()
+ })
+ 
+@@ -1423,7 +1423,7 @@ export const UploadProgramThumbnailResponse = zod.object({
+   "duration": zod.string(),
+   "thumbnailUrl": zod.string().nullish(),
+   "capacity": zod.int(),
+-  "status": zod.enum(['draft', 'published', 'archived']),
++  "status": zod.enum(['draft', 'published', 'closed', 'archived']),
+   "enrolledCount": zod.int()
+ })
+ 
+@@ -1446,7 +1446,7 @@ export const DeleteProgramThumbnailResponse = zod.object({
+   "duration": zod.string(),
+   "thumbnailUrl": zod.string().nullish(),
+   "capacity": zod.int(),
+-  "status": zod.enum(['draft', 'published', 'archived']),
++  "status": zod.enum(['draft', 'published', 'closed', 'archived']),
+   "enrolledCount": zod.int()
+ })
+ 
+diff --git a/lib/api-zod/src/generated/types/programInputStatus.ts b/lib/api-zod/src/generated/types/programInputStatus.ts
+index 0472613..c6b01a7 100644
+--- a/lib/api-zod/src/generated/types/programInputStatus.ts
++++ b/lib/api-zod/src/generated/types/programInputStatus.ts
+@@ -12,5 +12,6 @@ export type ProgramInputStatus = typeof ProgramInputStatus[keyof typeof ProgramI
+ export const ProgramInputStatus = {
+   draft: 'draft',
+   published: 'published',
++  closed: 'closed',
+   archived: 'archived',
+ } as const;
+diff --git a/lib/api-zod/src/generated/types/programStatus.ts b/lib/api-zod/src/generated/types/programStatus.ts
+index 8efbb91..d24adc6 100644
+--- a/lib/api-zod/src/generated/types/programStatus.ts
++++ b/lib/api-zod/src/generated/types/programStatus.ts
+@@ -12,5 +12,6 @@ export type ProgramStatus = typeof ProgramStatus[keyof typeof ProgramStatus];
+ export const ProgramStatus = {
+   draft: 'draft',
+   published: 'published',
++  closed: 'closed',
+   archived: 'archived',
+ } as const;
+diff --git a/lib/api-zod/src/generated/types/programUpdateStatus.ts b/lib/api-zod/src/generated/types/programUpdateStatus.ts
+index 5e31224..29579af 100644
+--- a/lib/api-zod/src/generated/types/programUpdateStatus.ts
++++ b/lib/api-zod/src/generated/types/programUpdateStatus.ts
+@@ -12,5 +12,6 @@ export type ProgramUpdateStatus = typeof ProgramUpdateStatus[keyof typeof Progra
+ export const ProgramUpdateStatus = {
+   draft: 'draft',
+   published: 'published',
++  closed: 'closed',
+   archived: 'archived',
+ } as const;
+diff --git a/lib/domain/src/index.ts b/lib/domain/src/index.ts
+index f0df15e..fcf5c98 100644
+--- a/lib/domain/src/index.ts
++++ b/lib/domain/src/index.ts
+@@ -12,3 +12,4 @@ export * from "./invitations";
+ export * from "./partnership";
+ export * from "./imageUpload";
+ export * from "./roster";
++export * from "./programStatus";
+diff --git a/lib/domain/src/programStatus.test.ts b/lib/domain/src/programStatus.test.ts
+new file mode 100644
+index 0000000..a748be4
+--- /dev/null
++++ b/lib/domain/src/programStatus.test.ts
+@@ -0,0 +1,68 @@
++import { describe, expect, it } from "vitest";
++import {
++  PROGRAM_STATUSES,
++  acceptsEnrolment,
++  isProgramStatus,
++  programStatusLabel,
++  programStatusNote,
++  showsInCatalogue,
++} from "./programStatus";
++
++describe("showsInCatalogue", () => {
++  it("shows a published programme", () => {
++    expect(showsInCatalogue("published")).toBe(true);
++  });
++
++  it("still shows a closed one", () => {
++    // The point of closing rather than archiving: people can read about a
++    // cohort that has started, instead of hitting a page that vanished.
++    expect(showsInCatalogue("closed")).toBe(true);
++  });
++
++  it.each(["draft", "archived", "", null, undefined, "something-else"])("hides %s", (status) => {
++    expect(showsInCatalogue(status as string)).toBe(false);
++  });
++});
++
++describe("acceptsEnrolment", () => {
++  it("only a published programme takes sign-ups", () => {
++    expect(acceptsEnrolment("published")).toBe(true);
++  });
++
++  it.each(["closed", "draft", "archived", null, undefined, "weird"])("refuses %s", (status) => {
++    expect(acceptsEnrolment(status as string)).toBe(false);
++  });
++
++  it("never accepts a sign-up onto something the catalogue hides", () => {
++    // The pairing that matters: anything enrollable must also be visible.
++    for (const status of [...PROGRAM_STATUSES, "unknown"]) {
++      if (acceptsEnrolment(status)) expect(showsInCatalogue(status)).toBe(true);
++    }
++  });
++});
++
++describe("isProgramStatus", () => {
++  it("accepts every state the app uses", () => {
++    for (const status of PROGRAM_STATUSES) expect(isProgramStatus(status)).toBe(true);
++  });
++
++  it.each([["Published"], [""], [null], [undefined], [7], [{}]])("rejects %s", (value) => {
++    expect(isProgramStatus(value)).toBe(false);
++  });
++});
++
++describe("wording", () => {
++  it("labels each state", () => {
++    expect(programStatusLabel("closed")).toBe("Closed");
++    expect(programStatusLabel("published")).toBe("Published");
++  });
++
++  it("falls back to Draft for anything unrecognised, never to a live-sounding word", () => {
++    expect(programStatusLabel("nonsense")).toBe("Draft");
++    expect(programStatusNote("nonsense")).toMatch(/hidden/i);
++  });
++
++  it("says plainly what closed does", () => {
++    expect(programStatusNote("closed")).toMatch(/nobody new/i);
++  });
++});
+diff --git a/lib/domain/src/programStatus.ts b/lib/domain/src/programStatus.ts
+new file mode 100644
+index 0000000..b72329c
+--- /dev/null
++++ b/lib/domain/src/programStatus.ts
+@@ -0,0 +1,72 @@
++/**
++ * What state a programme is in, and what that means for the people looking at it.
++ *
++ * Four states, and the difference between two of them is the whole point:
++ *
++ *   draft      Nobody outside the admin console can see it.
++ *   published  On the catalogue, and open for sign-ups.
++ *   closed     Still on the catalogue, but sign-ups are over. A cohort that has
++ *              filled up or already started is not a secret — prospective
++ *              learners should be able to read what the Lab runs and see that
++ *              this one has closed, rather than find a page that no longer
++ *              exists.
++ *   archived   Off the site entirely. For something run once and not repeating.
++ *
++ * The rules live here, in one place, because the server and the browser both
++ * have to agree on them. If the catalogue showed a programme the enrolment
++ * endpoint then refused, the learner would meet a broken button and no
++ * explanation.
++ *
++ * Anything unrecognised is treated as hidden and closed. A status nobody
++ * planned for should fail towards showing less, never towards accepting
++ * sign-ups nobody meant to accept.
++ */
++
++export const PROGRAM_STATUSES = ["draft", "published", "closed", "archived"] as const;
++
++export type ProgramStatus = (typeof PROGRAM_STATUSES)[number];
++
++export function isProgramStatus(value: unknown): value is ProgramStatus {
++  return typeof value === "string" && (PROGRAM_STATUSES as readonly string[]).includes(value);
++}
++
++/** Shown to visitors and to signed-in learners browsing the catalogue. */
++export function showsInCatalogue(status: string | null | undefined): boolean {
++  return status === "published" || status === "closed";
++}
++
++/** Whether somebody can still reserve a place or join the waitlist. */
++export function acceptsEnrolment(status: string | null | undefined): boolean {
++  return status === "published";
++}
++
++/** The word an admin sees on the console. */
++export function programStatusLabel(status: string | null | undefined): string {
++  switch (status) {
++    case "published":
++      return "Published";
++    case "closed":
++      return "Closed";
++    case "archived":
++      return "Archived";
++    default:
++      return "Draft";
++  }
++}
++
++/** One line saying what that state actually does, for the console. */
++export function programStatusNote(status: string | null | undefined): string {
++  switch (status) {
++    case "published":
++      return "On the site and open for sign-ups.";
++    case "closed":
++      return "Still on the site, but nobody new can sign up.";
++    case "archived":
++      return "Off the site. Learners already on it keep their access.";
++    default:
++      return "Hidden. Only admins can see it.";
++  }
++}
++
++/** What a learner is told when they reach a programme that has closed. */
++export const CLOSED_TO_ENROLMENT_MESSAGE = "Sign-ups for this programme have closed.";
+-- 
+2.43.0
+

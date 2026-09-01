@@ -1,0 +1,606 @@
+From 3afd74e31d0f0bc921937ba9503b4ab51740e63e Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Tue, 1 Sep 2026 08:06:10 +0000
+Subject: [PATCH] feat: call them modules, and never lock the founder out
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Two things, both reported from the live Lab.
+
+A programme's parts were labelled live sessions everywhere. On a cohort or
+a long training they are modules — a unit of a course, with a live class
+inside it — so that is what the console, the programme page and the
+facilitator's own list now call them. The page listing what is happening
+soon is called Live Classes, because that is what it is; its address is
+unchanged so existing links still work.
+
+And the super admin tier had a trap in it. The founder held the tier only
+while no appointed super admin existed, so appointing a colleague removed
+the founder's ability to undo the appointment. That is exactly what
+happened, within an hour. The founder — the first staff account — is now
+always a super admin, read fresh on every request and written nowhere, and
+their role cannot be changed by anyone, including a super admin they
+appointed. The console shows it as fixed rather than offering a control
+that would be refused.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+---
+ .../src/components/layout/Footer.tsx          |  2 +-
+ .../src/components/layout/Navbar.tsx          |  2 +-
+ .../src/pages/AdminConsole.tsx                | 42 +++++++++--------
+ .../src/pages/Classroom.tsx                   |  4 +-
+ .../src/pages/ProgramDetail.tsx               |  9 ++--
+ .../afrienergy-comms-lab/src/pages/Teach.tsx  |  6 +--
+ artifacts/api-server/src/lib/auth.ts          | 36 +++++++++------
+ artifacts/api-server/src/routes/admin.ts      |  7 ++-
+ .../src/generated/api.schemas.ts              |  2 +
+ lib/api-spec/openapi.yaml                     |  3 ++
+ lib/api-zod/src/generated/api.ts              |  1 +
+ lib/api-zod/src/generated/types/staffList.ts  |  2 +
+ lib/domain/src/staffRoles.test.ts             | 46 ++++++++++++++-----
+ lib/domain/src/staffRoles.ts                  | 38 +++++++--------
+ 14 files changed, 126 insertions(+), 74 deletions(-)
+
+diff --git a/artifacts/afrienergy-comms-lab/src/components/layout/Footer.tsx b/artifacts/afrienergy-comms-lab/src/components/layout/Footer.tsx
+index 732bdb7..c2df231 100644
+--- a/artifacts/afrienergy-comms-lab/src/components/layout/Footer.tsx
++++ b/artifacts/afrienergy-comms-lab/src/components/layout/Footer.tsx
+@@ -40,7 +40,7 @@ export function Footer() {
+             <h4 className="font-semibold mb-4 text-sidebar-foreground">Hub</h4>
+             <ul className="space-y-3">
+               <li><Link href="/courses" className="text-sm text-sidebar-foreground/70 hover:text-primary transition-colors">Programs</Link></li>
+-              <li><Link href="/live-sessions" className="text-sm text-sidebar-foreground/70 hover:text-primary transition-colors">Live Sessions</Link></li>
++              <li><Link href="/live-sessions" className="text-sm text-sidebar-foreground/70 hover:text-primary transition-colors">Live Classes</Link></li>
+               <li><Link href="/dashboard" className="text-sm text-sidebar-foreground/70 hover:text-primary transition-colors">Community</Link></li>
+             </ul>
+           </div>
+diff --git a/artifacts/afrienergy-comms-lab/src/components/layout/Navbar.tsx b/artifacts/afrienergy-comms-lab/src/components/layout/Navbar.tsx
+index a62724e..9c7a0a5 100644
+--- a/artifacts/afrienergy-comms-lab/src/components/layout/Navbar.tsx
++++ b/artifacts/afrienergy-comms-lab/src/components/layout/Navbar.tsx
+@@ -33,7 +33,7 @@ export function Navbar() {
+ 
+   const navLinks = [
+     { label: 'Programs', href: '/courses' },
+-    { label: 'Live Sessions', href: '/live-sessions' },
++    { label: 'Live Classes', href: '/live-sessions' },
+     { label: 'About', href: '/about' },
+   ];
+ 
+diff --git a/artifacts/afrienergy-comms-lab/src/pages/AdminConsole.tsx b/artifacts/afrienergy-comms-lab/src/pages/AdminConsole.tsx
+index bbbadea..a9ab8de 100644
+--- a/artifacts/afrienergy-comms-lab/src/pages/AdminConsole.tsx
++++ b/artifacts/afrienergy-comms-lab/src/pages/AdminConsole.tsx
+@@ -63,7 +63,7 @@ function formatSessionDate(iso: string | null | undefined) {
+   });
+ }
+ 
+-/* ---------- Sessions manager for one program ---------- */
++/* ---------- Modules manager for one program ---------- */
+ 
+ function SessionRow({ session, instructors, onChanged }: {
+   session: Session; instructors: { id: number; name: string; email: string }[]; onChanged: () => void;
+@@ -92,14 +92,14 @@ function SessionRow({ session, instructors, onChanged }: {
+ 
+   const update = useUpdateSession({
+     mutation: {
+-      onSuccess: () => { toast({ title: 'Session saved' }); setEditing(false); onChanged(); },
+-      onError: () => toast({ title: 'Could not save session', variant: 'destructive' }),
++      onSuccess: () => { toast({ title: 'Module saved' }); setEditing(false); onChanged(); },
++      onError: () => toast({ title: 'Could not save module', variant: 'destructive' }),
+     },
+   });
+   const remove = useDeleteSession({
+     mutation: {
+-      onSuccess: () => { toast({ title: 'Session deleted' }); onChanged(); },
+-      onError: () => toast({ title: 'Could not delete session', variant: 'destructive' }),
++      onSuccess: () => { toast({ title: 'Module deleted' }); onChanged(); },
++      onError: () => toast({ title: 'Could not delete module', variant: 'destructive' }),
+     },
+   });
+ 
+@@ -127,7 +127,7 @@ function SessionRow({ session, instructors, onChanged }: {
+           </Button>
+           <Button
+             variant="ghost" size="icon" className="text-muted-foreground hover:text-destructive"
+-            onClick={() => { if (confirm('Delete this session?')) remove.mutate({ id: session.id }); }}
++            onClick={() => { if (confirm('Delete this module? Its slides, quiz and assignment go with it.')) remove.mutate({ id: session.id }); }}
+           >
+             <Trash2 className="w-4 h-4" />
+           </Button>
+@@ -178,7 +178,7 @@ function SessionRow({ session, instructors, onChanged }: {
+           </div>
+           <div>
+             <label className="mb-1 block text-xs font-medium text-muted-foreground" htmlFor={`desc-${session.id}`}>
+-              What this class covers
++              What this module covers
+             </label>
+             <Textarea
+               id={`desc-${session.id}`}
+@@ -327,8 +327,8 @@ function ProgramSessions({ programId, instructors }: { programId: number; instru
+ 
+   const create = useCreateSession({
+     mutation: {
+-      onSuccess: () => { setTitle(''); setStartsAt(''); toast({ title: 'Session added' }); onChanged(); },
+-      onError: () => toast({ title: 'Could not add session', variant: 'destructive' }),
++      onSuccess: () => { setTitle(''); setStartsAt(''); toast({ title: 'Module added' }); onChanged(); },
++      onError: () => toast({ title: 'Could not add module', variant: 'destructive' }),
+     },
+   });
+ 
+@@ -336,9 +336,9 @@ function ProgramSessions({ programId, instructors }: { programId: number; instru
+     <div className="space-y-3 mt-4">
+       {sessions.map(s => <SessionRow key={s.id} session={s} instructors={instructors} onChanged={onChanged} />)}
+       <div className="border border-dashed border-border rounded-lg p-4">
+-        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Add a session</p>
++        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Add a module</p>
+         <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
+-          <Input value={title} onChange={e => setTitle(e.target.value)} placeholder="Session title" className="md:col-span-2 text-sm" />
++          <Input value={title} onChange={e => setTitle(e.target.value)} placeholder="Module title" className="md:col-span-2 text-sm" />
+           <Input type="datetime-local" value={startsAt} onChange={e => setStartsAt(e.target.value)} className="text-sm" />
+           <div className="flex gap-2">
+             <Input type="number" value={duration} onChange={e => setDuration(e.target.value)} placeholder="Minutes" className="text-sm" />
+@@ -366,7 +366,7 @@ function ProgramSessions({ programId, instructors }: { programId: number; instru
+ /* ---------- Programs tab ---------- */
+ 
+ /**
+- * Editing everything about a programme except its sessions.
++ * Editing everything about a programme except its modules.
+  *
+  * Status and capacity stay as the inline controls on the card: they are changed
+  * often and one at a time, and burying them behind an Edit button would make
+@@ -524,7 +524,7 @@ function ProgramCard({ program, instructors }: { program: Program; instructors:
+           <Pencil className="w-4 h-4 mr-1.5" />{editing ? 'Done' : 'Edit'}
+         </Button>
+         <Button variant="outline" size="sm" onClick={() => setOpen(!open)}>
+-          Sessions {open ? <ChevronUp className="w-4 h-4 ml-1" /> : <ChevronDown className="w-4 h-4 ml-1" />}
++          Modules {open ? <ChevronUp className="w-4 h-4 ml-1" /> : <ChevronDown className="w-4 h-4 ml-1" />}
+         </Button>
+       </div>
+       {editing && <ProgramEditor program={program} onDone={() => setEditing(false)} />}
+@@ -856,12 +856,13 @@ function EnrollmentsTab() {
+ /* ---------- People tab ---------- */
+ 
+ function StaffRow({
+-  person, canAppoint, onChange, pending,
++  person, canAppoint, onChange, pending, isFounder,
+ }: {
+   person: { id: number; name: string; email: string; role: string; programmes: { programId: number; programTitle: string; sessions: number }[] };
+   canAppoint: boolean;
+   onChange: (role: string) => void;
+   pending: boolean;
++  isFounder?: boolean;
+ }) {
+   return (
+     <li className="flex flex-wrap items-center gap-3 py-3">
+@@ -871,7 +872,7 @@ function StaffRow({
+         {person.programmes.length > 0 && (
+           <p className="mt-1 text-xs text-muted-foreground/80">
+             {person.programmes
+-              .map(p => `${p.programTitle} (${p.sessions} class${p.sessions === 1 ? '' : 'es'})`)
++              .map(p => `${p.programTitle} (${p.sessions} module${p.sessions === 1 ? '' : 's'})`)
+               .join(' · ')}
+           </p>
+         )}
+@@ -880,7 +881,7 @@ function StaffRow({
+         <select
+           className="rounded-md border border-border bg-background px-2 py-1.5 text-sm disabled:opacity-50"
+           value={person.role}
+-          disabled={!canAppoint || pending}
++          disabled={!canAppoint || pending || isFounder}
+           onChange={e => onChange(e.target.value)}
+         >
+           <option value="learner">Learner</option>
+@@ -888,7 +889,9 @@ function StaffRow({
+           <option value="admin">Admin</option>
+           <option value="superadmin">Super admin</option>
+         </select>
+-        <p className="mt-0.5 text-xs text-muted-foreground">{ROLE_NOTES[person.role as keyof typeof ROLE_NOTES] ?? ''}</p>
++        <p className="mt-0.5 text-xs text-muted-foreground">
++          {isFounder ? 'Set up the Lab. This role cannot be changed.' : (ROLE_NOTES[person.role as keyof typeof ROLE_NOTES] ?? '')}
++        </p>
+       </div>
+     </li>
+   );
+@@ -954,6 +957,7 @@ function PeopleTab({ selfId }: { selfId: number | undefined }) {
+               key={p.id}
+               person={p}
+               canAppoint={canAppoint && p.id !== selfId}
++              isFounder={p.id === data.founderId}
+               pending={update.isPending}
+               onChange={role => setRole(p.id, role)}
+             />
+@@ -977,6 +981,7 @@ function PeopleTab({ selfId }: { selfId: number | undefined }) {
+               key={p.id}
+               person={p}
+               canAppoint={canAppoint && p.id !== selfId}
++              isFounder={p.id === data.founderId}
+               pending={update.isPending}
+               onChange={role => setRole(p.id, role)}
+             />
+@@ -992,6 +997,7 @@ function PeopleTab({ selfId }: { selfId: number | undefined }) {
+                   key={p.id}
+                   person={p}
+                   canAppoint={canAppoint && p.id !== selfId}
++                  isFounder={p.id === data.founderId}
+                   pending={update.isPending}
+                   onChange={role => setRole(p.id, role)}
+                 />
+@@ -1029,7 +1035,7 @@ export default function AdminConsole() {
+     <div className="container mx-auto px-4 md:px-6 py-12">
+       <div className="mb-8">
+         <h1 className="text-3xl md:text-4xl font-display font-bold mb-2">Admin Console</h1>
+-        <p className="text-muted-foreground">Manage programs, sessions, enrollments, people, and class recordings.</p>
++        <p className="text-muted-foreground">Manage programs, modules, enrollments, people, and class recordings.</p>
+       </div>
+ 
+       <div className="flex gap-1 border-b border-border mb-8">
+diff --git a/artifacts/afrienergy-comms-lab/src/pages/Classroom.tsx b/artifacts/afrienergy-comms-lab/src/pages/Classroom.tsx
+index e15b7e6..c9e34c4 100644
+--- a/artifacts/afrienergy-comms-lab/src/pages/Classroom.tsx
++++ b/artifacts/afrienergy-comms-lab/src/pages/Classroom.tsx
+@@ -79,7 +79,7 @@ export default function Classroom() {
+       },
+       onError: () => toast({
+         title: 'Cannot join yet',
+-        description: 'This session is not open for joining right now.',
++        description: 'This module is not open for joining right now.',
+         variant: 'destructive',
+       }),
+     },
+@@ -189,7 +189,7 @@ export default function Classroom() {
+                     <>
+                       <CalendarClock className="w-12 h-12 text-[#F97316] mb-4" aria-hidden />
+                       <h2 className="font-display font-bold text-xl mb-1">
+-                        {win.state === 'unscheduled' ? 'Session not scheduled yet' : 'Starts soon'}
++                        {win.state === 'unscheduled' ? 'Not scheduled yet' : 'Starts soon'}
+                       </h2>
+                       <p className="text-sm text-[#F4F0E8]/80 max-w-md">
+                         {win.state === 'unscheduled'
+diff --git a/artifacts/afrienergy-comms-lab/src/pages/ProgramDetail.tsx b/artifacts/afrienergy-comms-lab/src/pages/ProgramDetail.tsx
+index 72fdd00..b832a99 100644
+--- a/artifacts/afrienergy-comms-lab/src/pages/ProgramDetail.tsx
++++ b/artifacts/afrienergy-comms-lab/src/pages/ProgramDetail.tsx
+@@ -92,11 +92,11 @@ export default function ProgramDetail() {
+       </section>
+ 
+       <div className="container mx-auto px-4 md:px-6 py-12 grid grid-cols-1 lg:grid-cols-3 gap-10">
+-        {/* Sessions */}
++        {/* Modules */}
+         <div className="lg:col-span-2">
+-          <h2 className="text-2xl font-display font-bold mb-6">Live Sessions</h2>
++          <h2 className="text-2xl font-display font-bold mb-6">Modules</h2>
+           {sessions.length === 0 ? (
+-            <p className="text-muted-foreground">The session schedule will be published soon.</p>
++            <p className="text-muted-foreground">The module schedule will be published soon.</p>
+           ) : (
+             <ol className="space-y-4">
+               {sessions.map((s, i) => (
+@@ -105,6 +105,9 @@ export default function ProgramDetail() {
+                     {i + 1}
+                   </div>
+                   <div className="flex-1 min-w-0">
++                    {/* Named as well as numbered: on a cohort programme these
++                        are modules of a course, not a list of appointments. */}
++                    <p className="text-xs uppercase tracking-widest text-muted-foreground">Module {i + 1}</p>
+                     <h3 className="font-semibold">{s.title}</h3>
+                     {s.description && <p className="text-sm text-muted-foreground line-clamp-2">{s.description}</p>}
+                     <p className="text-xs text-muted-foreground mt-1">
+diff --git a/artifacts/afrienergy-comms-lab/src/pages/Teach.tsx b/artifacts/afrienergy-comms-lab/src/pages/Teach.tsx
+index 3b514f6..ef5f591 100644
+--- a/artifacts/afrienergy-comms-lab/src/pages/Teach.tsx
++++ b/artifacts/afrienergy-comms-lab/src/pages/Teach.tsx
+@@ -156,7 +156,7 @@ export default function Teach() {
+       <div className="mb-10">
+         <h1 className="text-3xl md:text-4xl font-display font-bold mb-2">Teaching</h1>
+         <p className="text-muted-foreground max-w-2xl">
+-          Your sessions are listed below. Open the room from here when it is time to teach, and add the recording
++          Your modules are listed below. Open the room from here when it is time to teach, and add the recording
+           link afterwards.
+         </p>
+       </div>
+@@ -167,7 +167,7 @@ export default function Teach() {
+         <div className="mb-8 rounded-xl border border-amber-300 bg-amber-50 p-4 max-w-4xl">
+           <p className="font-semibold text-amber-900 flex items-center gap-2 mb-1">
+             <CircleAlert className="w-4 h-4" aria-hidden />
+-            {missingRecordings.length} past session{missingRecordings.length === 1 ? '' : 's'} without a recording
++            {missingRecordings.length} past module{missingRecordings.length === 1 ? '' : 's'} without a recording
+           </p>
+           <p className="text-sm text-amber-900/80">
+             Learners who could not attend cannot finish these modules until the recording is up.
+@@ -179,7 +179,7 @@ export default function Teach() {
+         <div className="h-40 bg-card border border-border rounded-xl animate-pulse" />
+       ) : sessions.length === 0 ? (
+         <div className="bg-card border border-border rounded-2xl p-10 text-center text-muted-foreground">
+-          No sessions assigned to you yet. The team will assign you to sessions once your program is scheduled.
++          No modules assigned to you yet. The team will assign you once your programme is scheduled.
+         </div>
+       ) : (
+         <div className="grid grid-cols-1 md:grid-cols-2 gap-5 max-w-4xl">
+diff --git a/artifacts/api-server/src/lib/auth.ts b/artifacts/api-server/src/lib/auth.ts
+index 5b1a3b9..babe56b 100644
+--- a/artifacts/api-server/src/lib/auth.ts
++++ b/artifacts/api-server/src/lib/auth.ts
+@@ -244,10 +244,12 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
+ /**
+  * The role this person actually holds, super admin included.
+  *
+- * Kept apart from the stored row because of one case: a Lab set up before super
+- * admins existed has admins and no super admin, and nobody able to appoint one.
+- * There, the first admin is treated as the super admin until a real one is
+- * appointed. The two extra rows this reads are cached for the request.
++ * The founder — the first staff account, the person who set the Lab up — is
++ * always treated as a super admin. Without that, appointing a colleague costs
++ * the founder the ability to undo the appointment, which is how the live Lab
++ * locked its owner out within an hour of the tier existing.
++ *
++ * The two extra rows this reads are cached for the request.
+  */
+ const roleCache = new WeakMap<Request, string>();
+ 
+@@ -258,21 +260,25 @@ export async function currentRole(req: Request): Promise<string | null> {
+   const user = await getCurrentUser(req);
+   if (!user) return null;
+ 
+-  const staff = await db
+-    .select({ id: usersTable.id, role: usersTable.role })
+-    .from(usersTable)
+-    .where(inArray(usersTable.role, ["admin", "superadmin"]))
+-    .orderBy(asc(usersTable.id));
+-
+-  const role = effectiveRole(user, {
+-    superadminExists: staff.some((s) => s.role === "superadmin"),
+-    firstAdminId: staff[0]?.id ?? null,
+-  });
+-
++  const role = effectiveRole(user, { founderId: await founderId() });
+   roleCache.set(req, role);
+   return role;
+ }
+ 
++/**
++ * The first staff account, by id. Learners are excluded so that a Lab whose
++ * lowest-numbered row happens to be a learner does not hand them everything.
++ */
++export async function founderId(): Promise<number | null> {
++  const [first] = await db
++    .select({ id: usersTable.id })
++    .from(usersTable)
++    .where(inArray(usersTable.role, ["admin", "superadmin"]))
++    .orderBy(asc(usersTable.id))
++    .limit(1);
++  return first?.id ?? null;
++}
++
+ export function requireRole(...roles: string[]) {
+   return async (req: Request, res: Response, next: NextFunction) => {
+     const user = await getCurrentUser(req);
+diff --git a/artifacts/api-server/src/routes/admin.ts b/artifacts/api-server/src/routes/admin.ts
+index c89bf76..b36a9c8 100644
+--- a/artifacts/api-server/src/routes/admin.ts
++++ b/artifacts/api-server/src/routes/admin.ts
+@@ -5,7 +5,7 @@ import {
+ import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
+ import { UpdateUserRoleBody, UpdateEnrollmentBody, InviteFacilitatorBody } from "@workspace/api-zod";
+ import { checkRoleChange, validateInvite, describeInvite } from "@workspace/domain";
+-import { currentRole, requireRole, getCurrentUser } from "../lib/auth";
++import { currentRole, founderId, requireRole, getCurrentUser } from "../lib/auth";
+ import { sendInvitation, revokeInvitation, invitesConfigured } from "../lib/clerkInvites";
+ import { sendWaitlistPromotion } from "../lib/enrollmentEmails";
+ import { logger } from "../lib/logger";
+@@ -55,6 +55,9 @@ router.get("/admin/staff", async (req, res) => {
+ 
+   res.json({
+     you: { id: me?.id ?? null, role: mine ?? "learner" },
++    // Marked so the console can show the founder's role as fixed rather than
++    // offering a control that will be refused.
++    founderId: await founderId(),
+     staff: rows.map((r) => ({
+       ...r,
+       role: r.id === me?.id ? (mine ?? r.role) : r.role,
+@@ -88,6 +91,7 @@ router.patch("/admin/users/:id/role", async (req, res) => {
+   }
+   const me = await getCurrentUser(req);
+   const myRole = await currentRole(req);
++  const founder = await founderId();
+ 
+   // Counting super admins and then demoting one has to happen under a lock, or
+   // two of them demoting each other at the same instant both read "2", both
+@@ -115,6 +119,7 @@ router.patch("/admin/users/:id/role", async (req, res) => {
+       // for one. Counting that person keeps the "last super admin" guard honest
+       // rather than letting the only one demote themselves out of existence.
+       superadmins: superadmins > 0 ? superadmins : (myRole === "superadmin" ? 1 : 0),
++      founderId: founder,
+     });
+     if (!check.ok) return { ok: false as const, status: 403, error: check.problem, row: null };
+ 
+diff --git a/lib/api-client-react/src/generated/api.schemas.ts b/lib/api-client-react/src/generated/api.schemas.ts
+index e9040a9..feabf20 100644
+--- a/lib/api-client-react/src/generated/api.schemas.ts
++++ b/lib/api-client-react/src/generated/api.schemas.ts
+@@ -898,6 +898,8 @@ export type StaffListYou = {
+ };
+ 
+ export interface StaffList {
++  /** @nullable */
++  founderId?: number | null;
+   you: StaffListYou;
+   staff: StaffMember[];
+ }
+diff --git a/lib/api-spec/openapi.yaml b/lib/api-spec/openapi.yaml
+index 8ce5d29..39886c6 100644
+--- a/lib/api-spec/openapi.yaml
++++ b/lib/api-spec/openapi.yaml
+@@ -2888,6 +2888,9 @@ components:
+       type: object
+       required: [you, staff]
+       properties:
++        # The first staff account. Its role is fixed, so the Lab cannot end up
++        # with its owner locked out.
++        founderId: { type: ["integer", "null"] }
+         you:
+           type: object
+           required: [role]
+diff --git a/lib/api-zod/src/generated/api.ts b/lib/api-zod/src/generated/api.ts
+index b4000c5..a2495be 100644
+--- a/lib/api-zod/src/generated/api.ts
++++ b/lib/api-zod/src/generated/api.ts
+@@ -1222,6 +1222,7 @@ export const ListUnattachedUsersResponse = zod.array(ListUnattachedUsersResponse
+  * @summary Facilitators and administrators
+  */
+ export const ListStaffResponse = zod.object({
++  "founderId": zod.int().nullish(),
+   "you": zod.object({
+   "id": zod.int().nullish(),
+   "role": zod.string()
+diff --git a/lib/api-zod/src/generated/types/staffList.ts b/lib/api-zod/src/generated/types/staffList.ts
+index 766261b..7552e8e 100644
+--- a/lib/api-zod/src/generated/types/staffList.ts
++++ b/lib/api-zod/src/generated/types/staffList.ts
+@@ -9,6 +9,8 @@ import type { StaffListYou } from './staffListYou';
+ import type { StaffMember } from './staffMember';
+ 
+ export interface StaffList {
++  /** @nullable */
++  founderId?: number | null;
+   you: StaffListYou;
+   staff: StaffMember[];
+ }
+diff --git a/lib/domain/src/staffRoles.test.ts b/lib/domain/src/staffRoles.test.ts
+index b7878fb..f04ef5d 100644
+--- a/lib/domain/src/staffRoles.test.ts
++++ b/lib/domain/src/staffRoles.test.ts
+@@ -99,26 +99,48 @@ describe("checkRoleChange", () => {
+ });
+ 
+ describe("effectiveRole", () => {
+-  it("a Lab set up before super admins existed still has one", () => {
+-    // Otherwise nobody could appoint anybody and the console would be stuck.
+-    expect(effectiveRole({ id: 1, role: "admin" }, { superadminExists: false, firstAdminId: 1 })).toBe("superadmin");
++  it("the founder is a super admin whatever their row says", () => {
++    expect(effectiveRole({ id: 1, role: "admin" }, { founderId: 1 })).toBe("superadmin");
+   });
+ 
+-  it("the fallback stops the moment a real super admin exists", () => {
+-    expect(effectiveRole({ id: 1, role: "admin" }, { superadminExists: true, firstAdminId: 1 })).toBe("admin");
++  it("stays a super admin after appointing somebody else", () => {
++    // The trap this rule exists for: the founder promoted a colleague, the
++    // stand-in fallback stopped applying, and they could no longer undo it.
++    expect(effectiveRole({ id: 1, role: "admin" }, { founderId: 1 })).toBe("superadmin");
+   });
+ 
+-  it("never lifts anybody but the first admin", () => {
+-    expect(effectiveRole({ id: 7, role: "admin" }, { superadminExists: false, firstAdminId: 1 })).toBe("admin");
+-    expect(effectiveRole({ id: 7, role: "learner" }, { superadminExists: false, firstAdminId: 7 })).toBe("learner");
++  it("lifts nobody else", () => {
++    expect(effectiveRole({ id: 7, role: "admin" }, { founderId: 1 })).toBe("admin");
++    expect(effectiveRole({ id: 7, role: "learner" }, { founderId: 1 })).toBe("learner");
+   });
+ 
+-  it("leaves a stored super admin alone", () => {
+-    expect(effectiveRole({ id: 9, role: "superadmin" }, { superadminExists: true, firstAdminId: 1 })).toBe("superadmin");
++  it("leaves an appointed super admin alone", () => {
++    expect(effectiveRole({ id: 9, role: "superadmin" }, { founderId: 1 })).toBe("superadmin");
+   });
+ 
+-  it("copes with a Lab that has no admins at all", () => {
+-    expect(effectiveRole({ id: 3, role: "learner" }, { superadminExists: false, firstAdminId: null })).toBe("learner");
++  it("copes with a Lab that has no founder to find", () => {
++    expect(effectiveRole({ id: 3, role: "learner" }, { founderId: null })).toBe("learner");
++  });
++});
++
++describe("protecting the founder", () => {
++  const base = {
++    actorRole: "superadmin", actorId: 9, targetId: 1, targetRole: "admin",
++    nextRole: "learner", superadmins: 2, founderId: 1,
++  };
++
++  it("an appointed super admin cannot demote the founder", () => {
++    const result = checkRoleChange(base);
++    expect(result.ok).toBe(false);
++    if (!result.ok) expect(result.problem).toMatch(/set the Lab up/i);
++  });
++
++  it("not even to another staff role", () => {
++    expect(checkRoleChange({ ...base, nextRole: "superadmin" }).ok).toBe(false);
++  });
++
++  it("everybody else can still be changed", () => {
++    expect(checkRoleChange({ ...base, targetId: 5 }).ok).toBe(true);
+   });
+ });
+ 
+diff --git a/lib/domain/src/staffRoles.ts b/lib/domain/src/staffRoles.ts
+index bf11432..89217ee 100644
+--- a/lib/domain/src/staffRoles.ts
++++ b/lib/domain/src/staffRoles.ts
+@@ -93,6 +93,8 @@ export function checkRoleChange(input: {
+   nextRole: string;
+   /** How many super admins exist right now, counted under a lock. */
+   superadmins: number;
++  /** The first account. Its role is fixed; see effectiveRole. */
++  founderId?: number | null;
+ }): RoleChangeCheck {
+   if (!canAppointStaff(input.actorRole)) {
+     return { ok: false, problem: "Only a super admin can change what someone is allowed to do." };
+@@ -103,6 +105,12 @@ export function checkRoleChange(input: {
+   if (!(ROLE_LABELS as Record<string, string>)[input.nextRole]) {
+     return { ok: false, problem: "That is not a role." };
+   }
++  // The founder's role is not anybody's to change, including a super admin they
++  // appointed themselves. It is the one guarantee that the Lab cannot end up
++  // with its owner locked out of it.
++  if (input.founderId != null && input.targetId === input.founderId) {
++    return { ok: false, problem: "This is the account that set the Lab up. Its role cannot be changed." };
++  }
+   if (input.targetRole === "superadmin" && input.nextRole !== "superadmin" && input.superadmins <= 1) {
+     return {
+       ok: false,
+@@ -113,30 +121,24 @@ export function checkRoleChange(input: {
+ }
+ 
+ /**
+- * The role somebody actually holds, allowing for a Lab set up before super
+- * admins existed.
++ * The role somebody actually holds, allowing for who set the Lab up.
++ *
++ * The founder — the first account, the person who built this — is always a
++ * super admin, whatever their row says. That is not a courtesy. Without it the
++ * founder appoints a colleague, the fallback that had been standing in for a
++ * super admin stops applying, and they are locked out of the one thing only a
++ * super admin can do: undoing the appointment. That happened, on the live Lab,
++ * within an hour of the tier existing.
+  *
+- * On such a Lab every admin row says "admin" and there is no super admin at
+- * all, which would leave nobody able to appoint anyone. So where none exists,
+- * the first admin — the account that set the Lab up — is treated as the super
+- * admin. Nothing is written: the moment a real super admin is appointed, this
+- * fallback stops applying.
++ * Nothing is written to the database. The rule is read afresh every time, so it
++ * cannot drift out of step with the row it overrides.
+  */
+ export function effectiveRole(
+   user: { id: number; role: string },
+-  context: { superadminExists: boolean; firstAdminId: number | null },
++  context: { founderId: number | null },
+ ): string {
+   if (user.role === "superadmin") return "superadmin";
+-  // Only an admin is ever lifted. Checking the id alone would hand the tier to
+-  // whoever happened to be passed in, which a test caught doing exactly that.
+-  if (
+-    user.role === "admin" &&
+-    !context.superadminExists &&
+-    context.firstAdminId !== null &&
+-    user.id === context.firstAdminId
+-  ) {
+-    return "superadmin";
+-  }
++  if (context.founderId !== null && user.id === context.founderId) return "superadmin";
+   return user.role;
+ }
+ 
+-- 
+2.43.0
+
