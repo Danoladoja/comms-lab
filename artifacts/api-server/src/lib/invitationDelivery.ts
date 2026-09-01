@@ -23,6 +23,19 @@ import { logger } from "./logger";
  * no live invitation is left in the wild with nothing recording it.
  */
 
+/**
+ * The white logo, absolute, for the dark band at the top of the letter.
+ *
+ * Built from APP_BASE_URL, the same setting the invitation link uses, so the
+ * two can never point at different deployments. Null where that is unset: the
+ * letter then leads with the Lab's name in type, which is a smaller loss than
+ * a broken image in fifty inboxes.
+ */
+function labLogoUrl(): string | null {
+  const base = process.env.APP_BASE_URL?.trim().replace(/\/$/, "");
+  return base ? `${base}/logo-white.png` : null;
+}
+
 export type InvitationDelivery =
   | { ok: true; invitationId: string; sentBy: "us" | "clerk" }
   | { ok: false; error: string };
@@ -73,6 +86,7 @@ export async function deliverInvitation(args: {
 
   const letter = invitationLetter({
     role: args.describeAs ?? args.role,
+    logoUrl: labLogoUrl(),
     name: args.name,
     programmeTitle: args.programmeTitle,
     programmeStart: args.programmeStart,
