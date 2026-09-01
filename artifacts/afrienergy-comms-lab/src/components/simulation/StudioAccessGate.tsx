@@ -54,7 +54,7 @@ export function StudioAccessGate({ children }: { children: ReactNode }) {
             <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-[#f97316]/15 text-[#f97316]">
               <LockKeyhole className="h-6 w-6" />
             </div>
-            <CardTitle className="font-display text-2xl">Ananse Simulation Studio</CardTitle>
+            <CardTitle className="font-display text-2xl">Simulation Studio</CardTitle>
             <CardDescription className="text-white/60">
               Studio access is by invitation. If an admin gave you a one-time access code, enter it below.
             </CardDescription>

@@ -112,7 +112,7 @@ export default function StudioHome() {
         {/* Left Column: Create or Join */}
         <div className="lg:w-1/2 flex flex-col gap-6">
           <div className="mb-4">
-            <h1 className="font-display text-4xl font-bold tracking-tight text-white mb-2">Ananse Simulation Studio</h1>
+            <h1 className="font-display text-4xl font-bold tracking-tight text-white mb-2">Simulation Studio</h1>
             <p className="text-white/60 text-lg">Generate new high-stakes scenarios or join a facilitated live room.</p>
           </div>
 

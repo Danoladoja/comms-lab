@@ -9,18 +9,14 @@ export function StudioLayout({ children, backTo }: { children: ReactNode; backTo
     <div className="min-h-[100dvh] surface-ink text-white flex flex-col font-sans selection:bg-[#f97316] selection:text-[#07111e]">
       <header className="border-b border-white/10 px-6 py-4 flex items-center justify-between shrink-0 bg-[#07111e] z-10 relative shadow-sm">
         <div className="flex items-center gap-6">
-          <Link href="/studio" className="flex items-center gap-3 group outline-none focus-visible:ring-2 focus-visible:ring-[#f97316] rounded">
+          <Link href="/studio" className="group rounded outline-none focus-visible:ring-2 focus-visible:ring-[#f97316]" aria-label="Simulation Studio">
             <img
-              src={`${basePath}/logo-white.png`}
-              alt="Ananse"
-              width={456}
+              src={`${basePath}/logo-mark.png`}
+              alt=""
+              width={148}
               height={160}
-              className="h-9 w-auto group-hover:scale-[1.02] transition-transform"
+              className="h-10 w-auto group-hover:scale-105 transition-transform"
             />
-            <div className="flex flex-col">
-              <span className="font-display font-bold tracking-widest uppercase text-xs text-[#f97316] leading-none mb-0.5">Ananse</span>
-              <span className="font-display font-bold tracking-widest uppercase text-[10px] text-white/50 leading-none">Simulation Studio</span>
-            </div>
           </Link>
           
           {backTo && (

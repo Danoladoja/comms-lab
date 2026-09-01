@@ -5197,7 +5197,7 @@ export const getGetStudioAccessUrl = () => {
 }
 
 /**
- * @summary Check whether the signed-in user may enter Ananse Simulation Studio
+ * @summary Check whether the signed-in user may enter Simulation Studio
  */
 export const getStudioAccess = async ( options?: Parameters<typeof customFetch>[1]): Promise<StudioAccess> => {
 
@@ -5244,7 +5244,7 @@ export type GetStudioAccessQueryError = ErrorType<UnauthorizedResponse>
 
 
 /**
- * @summary Check whether the signed-in user may enter Ananse Simulation Studio
+ * @summary Check whether the signed-in user may enter Simulation Studio
  */
 
 export function useGetStudioAccess<TData = Awaited<ReturnType<typeof getStudioAccess>>, TError = ErrorType<UnauthorizedResponse>>(
@@ -5345,7 +5345,7 @@ export const getCreateStudioAccessCodeUrl = () => {
 }
 
 /**
- * @summary Create a one-time learner access code for Ananse Simulation Studio
+ * @summary Create a one-time learner access code for Simulation Studio
  */
 export const createStudioAccessCode = async ( options?: Parameters<typeof customFetch>[1]): Promise<StudioAccessCode> => {
 
@@ -5394,7 +5394,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type CreateStudioAccessCodeMutationError = ErrorType<UnauthorizedResponse | ForbiddenResponse>
 
     /**
- * @summary Create a one-time learner access code for Ananse Simulation Studio
+ * @summary Create a one-time learner access code for Simulation Studio
  */
 export const useCreateStudioAccessCode = <TError = ErrorType<UnauthorizedResponse | ForbiddenResponse>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createStudioAccessCode>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
