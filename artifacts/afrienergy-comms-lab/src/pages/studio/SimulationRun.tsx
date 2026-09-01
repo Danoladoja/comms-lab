@@ -1,32 +1,28 @@
-import { useEffect, useState, useRef, useMemo } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useLocation } from 'wouter';
-import { 
-  useGetSimulationRun, 
-  useSubmitSimulationResponse, 
-  useAdvanceSimulationRun, 
+import {
+  useGetSimulationRun,
+  useSubmitSimulationResponse,
+  useAdvanceSimulationRun,
   useCompleteSimulationRun,
   getGetSimulationRunQueryKey
 } from '@workspace/api-client-react';
 import { StudioLayout } from '@/components/simulation/StudioLayout';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Loader2, Send, Clock, ShieldAlert, AlertTriangle, CheckCircle2, ChevronRight, RefreshCw, Target, Users,
-  Newspaper, MessageCircle, Radio, Mail, Phone, Scale, Megaphone, KeyRound,
+  Loader2, Send, ShieldAlert, CheckCircle2, ChevronRight, RefreshCw, Target, Users,
+  Newspaper, MessageCircle, Radio, Mail, Phone, Scale, Megaphone, Zap,
 } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
+import { cn } from '@/lib/utils';
+import { useQueryClient } from '@tanstack/react-query';
 
-/**
- * What the server actually said went wrong.
- *
- * These calls fail for reasons a person can act on: the AI is busy, the key is
- * missing, somebody else answered while this was generating. "Update Failed"
- * told them none of it.
- */
 function reason(err: any, fallback: string): string {
   return err?.error || err?.data?.error || err?.message || fallback;
 }
 
-/** Where a development came from, as an icon and a word. */
 const CHANNELS: Record<string, { icon: typeof Newspaper; label: string }> = {
   wire: { icon: Newspaper, label: 'News wire' },
   social: { icon: MessageCircle, label: 'Social media' },
@@ -36,34 +32,73 @@ const CHANNELS: Record<string, { icon: typeof Newspaper; label: string }> = {
   regulator: { icon: Scale, label: 'Regulator' },
   community: { icon: Megaphone, label: 'Community' },
 };
-import { useToast } from '@/hooks/use-toast';
-import { cn } from '@/lib/utils';
-import { useQueryClient } from '@tanstack/react-query';
+
+type Atmosphere = 'operational' | 'media' | 'executive';
+
+function getAtmosphere(run: any): Atmosphere {
+  const text = (run?.openingBrief + " " + (run?.currentDevelopment?.title || '')).toLowerCase();
+  if (text.includes('press') || text.includes('media') || text.includes('interview') || text.includes('journalist') || text.includes('news')) return 'media';
+  if (text.includes('board') || text.includes('shareholder') || text.includes('investor') || text.includes('executive')) return 'executive';
+  return 'operational';
+}
+
+const THEMES = {
+  operational: {
+    bg: 'bg-[#030811]',
+    panelBorder: 'border-green-500/20',
+    accentText: 'text-green-400',
+    accentBg: 'bg-green-500',
+    terminalBg: 'bg-[#010a05]',
+    fontBody: 'font-mono text-sm leading-relaxed',
+    headerStyle: 'font-mono uppercase tracking-[0.2em]',
+    devBox: 'border-l-2 border-green-500 bg-green-500/5',
+    btn: 'bg-green-500 hover:bg-green-400 text-black',
+  },
+  media: {
+    bg: 'bg-[#050505]',
+    panelBorder: 'border-white/10',
+    accentText: 'text-red-500',
+    accentBg: 'bg-red-500',
+    terminalBg: 'bg-[#0a0a0a]',
+    fontBody: 'font-sans text-base leading-relaxed',
+    headerStyle: 'font-display uppercase tracking-tight font-black',
+    devBox: 'border-l-4 border-red-600 bg-white/5',
+    btn: 'bg-red-600 hover:bg-red-500 text-white',
+  },
+  executive: {
+    bg: 'bg-[#080a0c]',
+    panelBorder: 'border-[#d4af37]/20',
+    accentText: 'text-[#d4af37]',
+    accentBg: 'bg-[#d4af37]',
+    terminalBg: 'bg-[#0c0e11]',
+    fontBody: 'font-sans text-base leading-relaxed text-white/90',
+    headerStyle: 'font-display text-white',
+    devBox: 'border-l-2 border-[#d4af37] bg-[#d4af37]/5',
+    btn: 'bg-[#d4af37] hover:bg-[#b08d20] text-black',
+  }
+};
 
 export default function SimulationRun({ id }: { id?: string }) {
   const [location, setLocation] = useLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  
+
   const parsedId = id ? parseInt(id, 10) : 0;
   const isValidId = !isNaN(parsedId) && parsedId > 0;
   const numericId = isValidId ? parsedId : 0;
 
   const [responseBody, setResponseBody] = useState('');
-  
-  // Keep unsaved input when polling refreshes the run data.
-  // Polling is needed for facilitated mode where instructor releases injects.
-  const { data: run, isLoading, error, refetch } = useGetSimulationRun(numericId, { 
-    query: { 
+
+  const { data: run, isLoading, error, refetch } = useGetSimulationRun(numericId, {
+    query: {
       enabled: isValidId,
       queryKey: getGetSimulationRunQueryKey(numericId),
       refetchInterval: (query) => {
-        // Poll every 5s if active and facilitated
         const data = query.state.data as any;
         if (data?.status === 'active' && data?.mode === 'facilitated') return 5000;
         return false;
       }
-    } 
+    }
   });
 
   const submitResponse = useSubmitSimulationResponse();
@@ -72,23 +107,19 @@ export default function SimulationRun({ id }: { id?: string }) {
 
   useEffect(() => {
     if (error) {
-      toast({ title: "Connection Lost", description: "Failed to load simulation environment.", variant: "destructive" });
+      toast({ title: "Connection Severed", description: "Failed to load active scenario.", variant: "destructive" });
       setLocation('/studio');
     }
   }, [error, setLocation, toast]);
 
-  // Derived state
   const isCompleted = run?.status === 'completed';
   const currentDev = run?.currentDevelopment;
-  // The controls hang off this. A facilitator running a room has to be able to
-  // move it on without first writing an answer of their own, and a participant
-  // must never be able to move it on at all.
   const isOwner = !!run?.isOwner;
   const anyoneAnswered = useMemo(
     () => !!currentDev && !!run?.responses?.some((r: any) => r.injectId === currentDev.id),
     [run, currentDev],
   );
-  // If we have responded to the current inject, we might wait for instructor (facilitated) or advance (autonomous)
+
   const hasRespondedToCurrent = useMemo(() => {
     if (!run || !currentDev) return false;
     return run.responses?.some((r: any) => r.injectId === currentDev.id);
@@ -98,47 +129,38 @@ export default function SimulationRun({ id }: { id?: string }) {
     if (!responseBody.trim()) return;
     submitResponse.mutate({ runId: numericId, data: { body: responseBody } }, {
       onSuccess: () => {
-        toast({ title: "Response sent" });
+        toast({ title: "Action executed" });
         setResponseBody('');
         refetch();
       },
       onError: (err: any) => {
-        toast({ title: "Not sent", description: reason(err, "Your response could not be saved. Try again."), variant: "destructive" });
+        toast({ title: "Transmission failed", description: reason(err, "Your action could not be logged."), variant: "destructive" });
       }
     });
   };
 
   const handleAdvance = () => {
     advanceRun.mutate({ runId: numericId }, {
-      onSuccess: () => {
-        refetch();
-      },
-      onError: (err: any) => {
-        toast({ title: "Could not continue", description: reason(err, "The next development could not be written. Try again."), variant: "destructive" });
-      }
+      onSuccess: () => refetch(),
+      onError: (err: any) => toast({ title: "System error", description: reason(err, "Unable to compute next state."), variant: "destructive" })
     });
   };
 
   const handleComplete = () => {
     completeRun.mutate({ runId: numericId }, {
-      onSuccess: () => {
-        refetch();
-      },
-      onError: (err: any) => {
-        toast({ title: "Could not finish", description: reason(err, "The debrief could not be written. Try again."), variant: "destructive" });
-      }
+      onSuccess: () => refetch(),
+      onError: (err: any) => toast({ title: "System error", description: reason(err, "Unable to finalize scenario."), variant: "destructive" })
     });
   };
 
   if (!isValidId) {
     return (
       <StudioLayout backTo="/studio">
-        <div className="flex-1 flex flex-col items-center justify-center p-6 text-center bg-[#07111e]">
+        <div className="flex-1 flex flex-col items-center justify-center p-6 text-center bg-[#030811]">
           <ShieldAlert className="w-12 h-12 text-red-500 mb-4" />
-          <h2 className="font-display text-xl font-bold text-white mb-2">Invalid Simulation Link</h2>
-          <p className="text-white/60 text-sm mb-6">The simulation ID is malformed or missing.</p>
-          <Button onClick={() => setLocation('/studio')} variant="outline" className="border-white/20 text-white hover:bg-white/10">
-            Return to Command Center
+          <h2 className="font-mono text-sm uppercase tracking-widest text-white mb-2">Invalid Stream Request</h2>
+          <Button onClick={() => setLocation('/studio')} variant="outline" className="mt-6 border-white/20 text-white rounded-none uppercase tracking-widest text-xs">
+            Return to Console
           </Button>
         </div>
       </StudioLayout>
@@ -148,11 +170,11 @@ export default function SimulationRun({ id }: { id?: string }) {
   if (isLoading || !run) {
     return (
       <StudioLayout>
-        <div className="flex-1 flex items-center justify-center bg-[#07111e]">
-          <div className="flex flex-col items-center gap-4 text-[#f97316]">
-            <Loader2 className="w-12 h-12 animate-spin" />
-            <p className="font-display font-bold uppercase tracking-widest text-sm animate-pulse">Establishing Secure Connection...</p>
-          </div>
+        <div className="flex-1 flex items-center justify-center bg-[#030811]">
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-center gap-4 text-[#f97316]">
+            <Loader2 className="w-10 h-10 animate-spin" />
+            <p className="font-mono font-bold uppercase tracking-[0.2em] text-[10px] animate-pulse">Establishing Secure Uplink...</p>
+          </motion.div>
         </div>
       </StudioLayout>
     );
@@ -162,200 +184,203 @@ export default function SimulationRun({ id }: { id?: string }) {
     return <DebriefView run={run} onExit={() => setLocation('/studio')} />;
   }
 
+  const atmosphere = getAtmosphere(run);
+  const t = THEMES[atmosphere];
+
   return (
-    <StudioLayout>
-      <div className="flex flex-col lg:flex-row h-[calc(100dvh-73px)] w-full overflow-hidden bg-[#07111e] z-10">
-        
-        {/* Left Panel: Stream / Log */}
-        <div className="flex-1 flex flex-col border-r border-white/10 bg-[#0c1929] relative">
-          <div className="h-12 border-b border-white/10 flex items-center px-4 shrink-0 bg-[#07111e] justify-between">
-            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-white/50">
-              <ShieldAlert className="w-4 h-4 text-[#f97316]" /> Live Event Stream
-            </div>
-            {run.mode === 'facilitated' && (
-              <div className="flex items-center gap-2 text-xs font-bold text-[#f97316] uppercase">
-                <div className="w-2 h-2 rounded-full bg-[#f97316] animate-pulse" /> Facilitated Mode
-              </div>
-            )}
+    <div className={cn("min-h-[100dvh] flex flex-col font-sans selection:bg-white/20 selection:text-white transition-colors duration-1000", t.bg, "text-white")}>
+
+      {/* Studio Header overrides global layout when inside a run to stay deeply immersive */}
+      <header className={cn("border-b h-14 flex items-center justify-between shrink-0 px-6 z-50", t.panelBorder, t.terminalBg)}>
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <div className={cn("w-2 h-2 rounded-full animate-pulse", t.accentBg)} />
+            <span className={cn("text-[10px] font-bold uppercase tracking-[0.2em]", t.accentText)}>Live Feed</span>
           </div>
-          
-          <div className="flex-1 overflow-y-auto p-6 space-y-8">
-            {/* Opening Brief / Context */}
-            <div className="border border-white/10 rounded-lg p-5 bg-[#07111e]/50 text-white/80">
-              <h3 className="text-xs font-bold uppercase tracking-widest text-[#f97316] mb-3">Initial Situation</h3>
-              <p className="text-sm leading-relaxed">{run.openingBrief}</p>
-            </div>
+          <div className="h-4 w-px bg-white/20 mx-2" />
+          <span className="font-mono text-xs text-white/50">{run.simulationId.toString().padStart(6, '0')}</span>
+        </div>
 
-            {/* Render past developments and responses */}
-            {run.developments?.map((dev: any, index: number) => {
-              const response = run.responses?.find((r: any) => r.injectId === dev.id);
-              const isCurrent = currentDev?.id === dev.id;
-              
-              return (
-                <div key={dev.id} className={cn("space-y-4", isCurrent && !hasRespondedToCurrent && "opacity-100")}>
-                  {/* Development Box */}
-                  <div className="relative border-l-2 border-[#f97316] pl-6 py-2">
-                    <div className="absolute -left-[5px] top-3 w-2 h-2 rounded-full bg-[#f97316]"></div>
-                    <div className="bg-[#1e1511] border border-[#f97316]/20 rounded-lg p-5">
-                      {(() => {
-                        const channel = CHANNELS[dev.channel as string] ?? CHANNELS.wire;
-                        const Icon = channel.icon;
-                        return (
-                          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mb-3 text-[#f97316] text-xs font-bold uppercase tracking-wider">
-                            <Icon className="w-4 h-4" aria-hidden />
-                            <span>{channel.label}</span>
-                            {dev.source && (
-                              <>
-                                <span className="text-white/25" aria-hidden>/</span>
-                                <span className="text-white/60 normal-case tracking-normal font-medium">{dev.source}</span>
-                              </>
-                            )}
-                          </div>
-                        );
-                      })()}
-                      <h4 className="font-bold text-white text-lg mb-2">{dev.title}</h4>
-                      <p className="text-white/80 text-sm leading-relaxed whitespace-pre-wrap">{dev.content}</p>
-                    </div>
-                  </div>
+        {run.mode === 'facilitated' && (
+          <div className={cn("px-3 py-1 text-[9px] uppercase tracking-[0.2em] font-bold border", t.panelBorder, t.accentText)}>
+            Facilitated Mode
+          </div>
+        )}
+      </header>
 
-                  {/* Response Box */}
-                  {response && (
-                    <div className="relative border-l-2 border-white/20 pl-6 py-2 ml-4">
-                      <div className="absolute -left-[5px] top-3 w-2 h-2 rounded-full bg-white/40"></div>
-                      <div className="bg-[#07111e] border border-white/10 rounded-lg p-5">
-                        <div className="flex items-center gap-2 mb-2 text-white/40 text-xs font-bold uppercase tracking-wider">
-                          <CheckCircle2 className="w-4 h-4" /> Your Response Logged
-                        </div>
-                        <p className="text-white/90 text-sm whitespace-pre-wrap font-mono">{response.body}</p>
+      <main className="flex-1 flex flex-col lg:flex-row relative overflow-hidden">
+
+        {/* Left Panel: The Feed */}
+        <div className={cn("flex-1 flex flex-col border-r relative", t.panelBorder)}>
+          <div className="absolute inset-0 noise-bg opacity-[0.03] pointer-events-none mix-blend-overlay" />
+
+          <div className="flex-1 overflow-y-auto p-6 md:p-10 space-y-10 scroll-smooth">
+
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className={cn("border border-dashed p-6", t.panelBorder, t.fontBody, "text-white/60")}>
+              <h3 className={cn("text-[10px] mb-4 flex items-center gap-2", t.headerStyle, t.accentText)}>
+                <Target className="w-3.5 h-3.5" /> Initial Parameters
+              </h3>
+              <div className="whitespace-pre-wrap">{run.openingBrief}</div>
+            </motion.div>
+
+            <AnimatePresence>
+              {run.developments?.map((dev: any, index: number) => {
+                const response = run.responses?.find((r: any) => r.injectId === dev.id);
+                const isCurrent = currentDev?.id === dev.id;
+                const channel = CHANNELS[dev.channel as string] ?? CHANNELS.wire;
+                const Icon = channel.icon;
+
+                return (
+                  <motion.div
+                    key={dev.id}
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ duration: 0.4 }}
+                    className={cn("space-y-4", isCurrent && !hasRespondedToCurrent ? "opacity-100" : "opacity-60 grayscale-[0.3]")}
+                  >
+                    <div className={cn("p-6 md:p-8 relative overflow-hidden backdrop-blur-sm", t.devBox)}>
+
+                      <div className={cn("flex items-center gap-3 mb-4 text-[10px] uppercase tracking-[0.15em] font-bold", t.accentText)}>
+                        <Icon className="w-4 h-4" />
+                        <span>{channel.label}</span>
+                        {dev.source && (
+                          <>
+                            <span className="opacity-40">/</span>
+                            <span className="text-white normal-case font-mono tracking-normal">{dev.source}</span>
+                          </>
+                        )}
                       </div>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
 
-            {/* Waiting state for facilitated mode */}
+                      <h4 className={cn("text-xl md:text-2xl mb-4 text-white", t.headerStyle)}>{dev.title}</h4>
+                      <div className={cn("whitespace-pre-wrap", t.fontBody)}>{dev.content}</div>
+
+                    </div>
+
+                    {response && (
+                      <motion.div initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} className={cn("p-5 ml-8 border bg-black/20", t.panelBorder)}>
+                        <div className="flex items-center gap-2 mb-3 text-white/40 text-[10px] uppercase tracking-widest font-mono">
+                          <CheckCircle2 className="w-3.5 h-3.5" /> Logged Action
+                        </div>
+                        <p className="font-mono text-sm text-white/90 whitespace-pre-wrap">{response.body}</p>
+                      </motion.div>
+                    )}
+                  </motion.div>
+                );
+              })}
+            </AnimatePresence>
+
             {hasRespondedToCurrent && !isOwner && run.mode === 'facilitated' && run.status === 'active' && (
-              <div className="flex flex-col items-center justify-center p-10 border border-white/10 border-dashed rounded-lg text-white/50">
-                <RefreshCw className="w-8 h-8 animate-spin mb-4 text-[#f97316]" />
-                <p className="text-sm font-bold uppercase tracking-widest text-center">Awaiting Facilitator</p>
-                <p className="text-xs text-center mt-2 max-w-xs">The simulation is paused until the facilitator releases the next inject.</p>
-              </div>
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className={cn("flex flex-col items-center justify-center p-12 border border-dashed", t.panelBorder)}>
+                <RefreshCw className={cn("w-6 h-6 animate-spin mb-4", t.accentText)} />
+                <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-white/50 text-center">Holding for Host authorization...</p>
+              </motion.div>
             )}
+
+            {/* Spacer for bottom padding */}
+            <div className="h-10" />
           </div>
         </div>
 
-        {/* Right Panel: Action Station */}
-        <div className="w-full lg:w-[400px] shrink-0 flex flex-col bg-[#07111e]">
-          <div className="h-12 border-b border-white/10 flex items-center px-4 bg-[#0c1929] justify-between">
-            <span className="text-xs font-bold uppercase tracking-widest text-white/50">Command Input</span>
-            <div className="flex items-center gap-1.5 text-[#f97316] text-xs font-mono">
-              <Clock className="w-3.5 h-3.5" /> LIVE
-            </div>
+        {/* Right Panel: Terminal */}
+        <div className={cn("w-full lg:w-[420px] shrink-0 flex flex-col z-10 shadow-2xl lg:shadow-none border-t lg:border-t-0", t.terminalBg, t.panelBorder)}>
+          <div className={cn("h-14 border-b flex items-center justify-between px-6 shrink-0", t.panelBorder)}>
+            <span className={cn("text-[10px] uppercase tracking-[0.2em]", t.accentText, t.headerStyle)}>Action Terminal</span>
+            <span className="text-white/30 text-[10px] font-mono uppercase">User: {run.participantGroupId || 'Local'}</span>
           </div>
 
-          <div className="flex-1 flex flex-col p-4">
+          <div className="flex-1 flex flex-col p-6 overflow-y-auto">
             {isCompleted ? (
-              <div className="flex-1 flex flex-col items-center justify-center text-center p-6 border border-white/10 rounded-lg bg-white/5">
-                <CheckCircle2 className="w-12 h-12 text-[#f97316] mb-4" />
-                <h3 className="text-white font-bold text-lg mb-2">Exercise finished</h3>
-                <p className="text-white/60 text-sm mb-6">Nothing more can be sent. The debrief is being written.</p>
-                <Button onClick={() => refetch()} className="bg-white text-[#07111e] hover:bg-white/90">
-                  Show the debrief
+              <div className="flex-1 flex flex-col items-center justify-center text-center">
+                <CheckCircle2 className={cn("w-12 h-12 mb-6", t.accentText)} />
+                <h3 className={cn("text-lg mb-2", t.headerStyle)}>Scenario Terminated</h3>
+                <p className="text-white/40 font-mono text-xs mb-8">Debrief report has been generated.</p>
+                <Button onClick={() => refetch()} className={cn("uppercase tracking-widest text-xs rounded-none h-12 w-full", t.btn)}>
+                  View Report
                 </Button>
               </div>
             ) : !currentDev ? (
-               <div className="flex-1 flex flex-col items-center justify-center text-center p-6 border border-white/10 border-dashed rounded-lg text-white/50">
-                <Loader2 className="w-8 h-8 animate-spin mb-4 text-[#f97316]" />
-                <p className="text-sm font-bold uppercase tracking-widest">Waiting for initial inject...</p>
+               <div className="flex-1 flex flex-col items-center justify-center text-center">
+                <Loader2 className={cn("w-8 h-8 animate-spin mb-4", t.accentText)} />
+                <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-white/50">Awaiting inject data...</p>
               </div>
             ) : hasRespondedToCurrent || (isOwner && run.mode === 'facilitated') ? (
-              <div className="flex-1 flex flex-col gap-4">
+              <div className="flex-1 flex flex-col gap-6">
                 {run.mode === 'facilitated' && isOwner && run.joinCode && (
-                  <div className="bg-[#0c1929] border border-white/10 rounded-lg p-4">
-                    <div className="flex items-center gap-2 text-white/50 text-xs font-bold uppercase tracking-widest mb-2">
-                      <KeyRound className="w-3.5 h-3.5" aria-hidden /> Room code
-                    </div>
-                    <p className="font-mono text-3xl tracking-[0.3em] text-[#f97316]">{run.joinCode}</p>
-                    <p className="text-white/50 text-xs mt-2">Read this out. Anyone signed in can join with it.</p>
+                  <div className={cn("border p-5", t.panelBorder, t.devBox)}>
+                    <div className={cn("text-[10px] uppercase tracking-widest mb-2 font-bold", t.accentText)}>Session Key</div>
+                    <p className="font-mono text-3xl tracking-[0.25em] text-white">{run.joinCode}</p>
+                    <p className="text-white/40 text-[10px] uppercase tracking-wider mt-3 font-mono">Distribute for entry.</p>
                   </div>
                 )}
 
-                <div className="bg-[#0c1929] border border-white/10 rounded-lg p-5 text-center">
+                <div className="flex-1 flex flex-col justify-center text-center">
                   {hasRespondedToCurrent ? (
-                    <>
-                      <CheckCircle2 className="w-8 h-8 text-green-500 mx-auto mb-3" aria-hidden />
-                      <p className="text-white font-bold mb-1">Your response is in</p>
-                    </>
+                    <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="mb-8">
+                      <CheckCircle2 className="w-12 h-12 text-white/20 mx-auto mb-4" />
+                      <p className={cn("text-sm", t.headerStyle)}>Action Logged</p>
+                    </motion.div>
                   ) : (
-                    <>
-                      <Users className="w-8 h-8 text-[#f97316] mx-auto mb-3" aria-hidden />
-                      <p className="text-white font-bold mb-1">You are running this room</p>
-                    </>
+                    <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="mb-8">
+                      <Users className={cn("w-12 h-12 mx-auto mb-4", t.accentText)} />
+                      <p className={cn("text-sm", t.headerStyle)}>Host Controls Active</p>
+                    </motion.div>
                   )}
-                  <p className="text-white/60 text-sm mb-6">
+
+                  <p className="text-white/40 font-mono text-xs mb-8">
                     {run.mode === 'facilitated'
-                      ? `${run.responses?.filter((r: any) => r.injectId === currentDev.id).length ?? 0} answered so far.`
-                      : 'Move it on when you are ready.'}
+                      ? `${run.responses?.filter((r: any) => r.injectId === currentDev.id).length ?? 0} participants recorded.`
+                      : 'Scenario is paused awaiting your command.'}
                   </p>
 
                   {isOwner && (
-                    <>
+                    <div className="space-y-3 mt-auto">
                       <Button
                         onClick={handleAdvance}
                         disabled={advanceRun.isPending || completeRun.isPending || !anyoneAnswered}
-                        className="w-full bg-[#f97316] hover:bg-[#ea6d0a] text-[#07111e] font-bold uppercase tracking-wider"
+                        className={cn("w-full uppercase tracking-[0.2em] text-[10px] h-14 rounded-none font-bold", t.btn)}
                       >
-                        {advanceRun.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" aria-hidden /> : null}
-                        {advanceRun.isPending ? 'Writing what happens next' : 'What happens next'}
+                        {advanceRun.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Zap className="w-4 h-4 mr-2" />}
+                        Compute Next State
                       </Button>
                       <Button
                         onClick={handleComplete}
                         disabled={completeRun.isPending || advanceRun.isPending || !anyoneAnswered}
                         variant="outline"
-                        className="w-full mt-3 border-white/20 text-white hover:bg-white/10 font-bold uppercase tracking-wider"
+                        className={cn("w-full uppercase tracking-[0.2em] text-[10px] h-14 rounded-none border-white/20 text-white hover:bg-white/5", !anyoneAnswered && "opacity-50")}
                       >
-                        {completeRun.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" aria-hidden /> : null}
-                        {completeRun.isPending ? 'Writing the debrief' : 'End and debrief'}
+                        {completeRun.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+                        Terminate & Debrief
                       </Button>
-                      {!anyoneAnswered && (
-                        <p className="text-white/40 text-xs mt-3">
-                          Waiting for the first answer to this development.
-                        </p>
-                      )}
-                    </>
+                    </div>
                   )}
                 </div>
-
-                {isOwner && !hasRespondedToCurrent && run.mode === 'facilitated' && (
-                  <p className="text-white/40 text-xs text-center">
-                    You do not have to answer yourself. The room does.
-                  </p>
-                )}
               </div>
             ) : (
               <div className="flex-1 flex flex-col">
-                <div className="bg-[#1e1511] border border-[#f97316]/20 rounded-lg p-4 mb-4">
-                  <h4 className="text-xs font-bold uppercase tracking-widest text-[#f97316] mb-2">Required Action</h4>
-                  <p className="text-white/90 text-sm">{currentDev.responsePrompt}</p>
+                <div className={cn("p-5 border mb-6", t.panelBorder, "bg-white/[0.02]")}>
+                  <h4 className={cn("text-[10px] uppercase tracking-[0.2em] mb-3 font-bold", t.accentText)}>Required Action</h4>
+                  <p className="text-white/90 text-sm font-mono leading-relaxed">{currentDev.responsePrompt}</p>
                 </div>
-                
-                <div className="flex-1 flex flex-col min-h-[300px]">
+
+                <div className="flex-1 flex flex-col relative min-h-[300px]">
                   <Textarea
                     value={responseBody}
                     onChange={(e) => setResponseBody(e.target.value)}
-                    placeholder="Type your response, holding statement, or action plan here..."
-                    className="flex-1 resize-none bg-[#0c1929] border-white/20 text-white font-mono text-sm leading-relaxed p-4 focus-visible:ring-[#f97316] rounded-b-none"
+                    placeholder="ENTER RESPONSE PROTOCOL..."
+                    className={cn(
+                      "flex-1 resize-none bg-black/40 text-white font-mono text-sm leading-relaxed p-5 rounded-none border-b-0 placeholder:text-white/20 focus-visible:ring-1",
+                      t.panelBorder, "focus-visible:ring-current", t.accentText
+                    )}
                   />
                   <Button
                     onClick={handleSubmit}
                     disabled={!responseBody.trim() || submitResponse.isPending}
-                    className="h-14 rounded-t-none bg-[#f97316] hover:bg-[#ea6d0a] text-[#07111e] font-bold uppercase tracking-widest"
+                    className={cn("h-14 rounded-none uppercase tracking-[0.2em] text-[10px] font-bold w-full", t.btn)}
                   >
                     {submitResponse.isPending ? (
-                      <Loader2 className="w-5 h-5 animate-spin" />
+                      <Loader2 className="w-4 h-4 animate-spin" />
                     ) : (
-                      <><Send className="w-5 h-5 mr-2" /> Execute Action</>
+                      <><Send className="w-4 h-4 mr-2" /> Transmit</>
                     )}
                   </Button>
                 </div>
@@ -364,89 +389,100 @@ export default function SimulationRun({ id }: { id?: string }) {
           </div>
         </div>
 
-      </div>
-    </StudioLayout>
+      </main>
+    </div>
   );
 }
 
 function DebriefView({ run, onExit }: { run: any, onExit: () => void }) {
   const debrief = run.debrief;
-  
   if (!debrief) return null;
 
   return (
     <StudioLayout>
-      <div className="container max-w-4xl mx-auto py-10 px-6 z-10">
-        <div className="bg-[#0c1929] border border-white/10 rounded-2xl overflow-hidden shadow-2xl">
-          <div className="bg-[#f97316] px-8 py-6 flex items-center justify-between">
-            <div className="pr-4">
-              <h2 className="font-display text-3xl font-bold text-[#07111e]">After-action report</h2>
-              <p className="text-[#07111e]/80 font-medium">
-                {debrief.headline || 'The exercise is finished.'}
-              </p>
+      <div className="container max-w-4xl mx-auto py-12 px-6 z-10">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-[#050b14] border border-[#f97316]/30 shadow-[0_0_40px_rgba(249,115,22,0.1)] relative overflow-hidden"
+        >
+          <div className="bg-[#f97316] p-8 md:p-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+            <div>
+              <div className="flex items-center gap-2 text-black/50 text-[10px] font-mono uppercase tracking-[0.2em] mb-2 font-bold">
+                <Target className="w-3 h-3" /> Operation Debrief
+              </div>
+              <h2 className="font-display text-3xl md:text-4xl font-black text-[#030811] uppercase tracking-tight">
+                {debrief.headline || 'After-Action Report'}
+              </h2>
             </div>
-            <div className="w-20 h-20 rounded-full bg-[#07111e] flex items-center justify-center border-4 border-[#f97316] shadow-lg">
-              <span className="font-display font-black text-3xl text-white">{debrief.score}</span>
+
+            <div className="shrink-0 flex items-center justify-center w-24 h-24 bg-[#030811] border border-[#f97316]/20 relative">
+              <div className="absolute inset-1 border border-[#f97316]/20" />
+              <div className="text-center">
+                <span className="block text-3xl font-mono text-[#f97316] leading-none">{debrief.score}</span>
+                <span className="block text-[8px] uppercase tracking-widest text-white/50 mt-1">Rating</span>
+              </div>
             </div>
           </div>
-          
-          <div className="p-8 space-y-8">
-            <div className="grid md:grid-cols-2 gap-8">
-              <div className="space-y-4">
-                <h3 className="text-white font-bold uppercase tracking-widest text-sm flex items-center gap-2 border-b border-white/10 pb-2">
-                  <CheckCircle2 className="w-4 h-4 text-green-500" /> Key Strengths
+
+          <div className="p-8 md:p-10 space-y-10">
+            <div className="grid md:grid-cols-2 gap-10">
+              <div className="space-y-5">
+                <h3 className="text-white font-mono uppercase tracking-[0.2em] text-[10px] flex items-center gap-2 border-b border-white/10 pb-3">
+                  <span className="w-1.5 h-1.5 bg-green-500 rounded-full" /> Execution Strengths
                 </h3>
-                <ul className="space-y-3">
+                <ul className="space-y-4">
                   {debrief.strengths?.map((str: string, i: number) => (
-                    <li key={i} className="text-white/80 text-sm flex items-start gap-2">
-                      <span className="text-green-500 mt-0.5">•</span> <span>{str}</span>
+                    <li key={i} className="text-white/80 text-sm font-sans flex items-start gap-3">
+                      <ChevronRight className="w-4 h-4 text-green-500 shrink-0 mt-0.5" /> <span>{str}</span>
                     </li>
                   ))}
                 </ul>
               </div>
-              <div className="space-y-4">
-                <h3 className="text-white font-bold uppercase tracking-widest text-sm flex items-center gap-2 border-b border-white/10 pb-2">
-                  <AlertTriangle className="w-4 h-4 text-red-500" /> Identified Risks
+
+              <div className="space-y-5">
+                <h3 className="text-white font-mono uppercase tracking-[0.2em] text-[10px] flex items-center gap-2 border-b border-white/10 pb-3">
+                  <span className="w-1.5 h-1.5 bg-red-500 rounded-full" /> Vulnerabilities
                 </h3>
-                <ul className="space-y-3">
+                <ul className="space-y-4">
                   {debrief.risks?.map((risk: string, i: number) => (
-                    <li key={i} className="text-white/80 text-sm flex items-start gap-2">
-                      <span className="text-red-500 mt-0.5">•</span> <span>{risk}</span>
+                    <li key={i} className="text-white/80 text-sm font-sans flex items-start gap-3">
+                      <ChevronRight className="w-4 h-4 text-red-500 shrink-0 mt-0.5" /> <span>{risk}</span>
                     </li>
                   ))}
                 </ul>
               </div>
             </div>
 
-            <div className="space-y-4">
-              <h3 className="text-white font-bold uppercase tracking-widest text-sm flex items-center gap-2 border-b border-white/10 pb-2">
-                <Users className="w-4 h-4 text-[#f97316]" /> Stakeholder Impact
+            <div className="space-y-4 bg-white/[0.02] border border-white/5 p-6">
+              <h3 className="text-white font-mono uppercase tracking-[0.2em] text-[10px] flex items-center gap-2 border-b border-white/10 pb-3">
+                <Users className="w-3.5 h-3.5 text-[#f97316]" /> Stakeholder Fallout
               </h3>
-              <p className="text-white/90 text-sm leading-relaxed bg-white/5 p-4 rounded-lg">
+              <p className="text-white/90 text-sm leading-relaxed font-sans">
                 {debrief.stakeholderImpact}
               </p>
             </div>
 
-            <div className="space-y-4">
-              <h3 className="text-white font-bold uppercase tracking-widest text-sm flex items-center gap-2 border-b border-white/10 pb-2">
-                <Target className="w-4 h-4 text-[#f97316]" /> Recommendations
+            <div className="space-y-5">
+              <h3 className="text-[#f97316] font-mono uppercase tracking-[0.2em] text-[10px] flex items-center gap-2">
+                <Target className="w-3.5 h-3.5" /> Prescribed Countermeasures
               </h3>
               <ul className="space-y-3">
                 {debrief.recommendations?.map((rec: string, i: number) => (
-                  <li key={i} className="text-white/80 text-sm flex items-start gap-3 bg-[#07111e] p-3 rounded-lg border border-white/5">
-                    <ChevronRight className="w-4 h-4 text-[#f97316] shrink-0 mt-0.5" /> <span>{rec}</span>
+                  <li key={i} className="text-white/90 text-sm font-mono flex items-start gap-4 bg-[#030811] p-4 border border-[#f97316]/20">
+                    <span className="text-[#f97316] opacity-50">[{i+1}]</span> <span>{rec}</span>
                   </li>
                 ))}
               </ul>
             </div>
 
-            <div className="pt-6 border-t border-white/10">
-              <Button onClick={onExit} className="w-full h-14 bg-white text-[#07111e] hover:bg-white/90 font-bold uppercase tracking-widest">
-                Return to Command Center
+            <div className="pt-8 border-t border-white/10">
+              <Button onClick={onExit} className="w-full h-14 bg-white text-[#030811] hover:bg-white/90 font-bold uppercase tracking-[0.2em] text-[10px] rounded-none transition-all active:scale-[0.99]">
+                Sign Off & Return to Console
               </Button>
             </div>
           </div>
-        </div>
+        </motion.div>
       </div>
     </StudioLayout>
   );

@@ -1672,7 +1672,7 @@ export const ListSimulationsResponse = zod.array(ListSimulationsResponseItem)
 
 
 /**
- * @summary Check whether the signed-in user may enter Ananse Simulation Studio
+ * @summary Check whether the signed-in user may enter Simulation Studio
  */
 export const GetStudioAccessResponse = zod.object({
   "allowed": zod.boolean(),
@@ -1701,7 +1701,7 @@ export const RedeemStudioAccessResponse = zod.object({
 
 
 /**
- * @summary Create a one-time learner access code for Ananse Simulation Studio
+ * @summary Create a one-time learner access code for Simulation Studio
  */
 export const createStudioAccessCodeResponseCodeMin = 6;
 

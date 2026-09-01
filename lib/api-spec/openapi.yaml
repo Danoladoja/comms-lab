@@ -2011,7 +2011,7 @@ paths:
     get:
       operationId: getStudioAccess
       tags: [enrollments]
-      summary: Check whether the signed-in user may enter Ananse Simulation Studio
+      summary: Check whether the signed-in user may enter Simulation Studio
       responses:
         "200":
           description: Studio admission status
@@ -2036,7 +2036,7 @@ paths:
     post:
       operationId: createStudioAccessCode
       tags: [admin]
-      summary: Create a one-time learner access code for Ananse Simulation Studio
+      summary: Create a one-time learner access code for Simulation Studio
       responses:
         "201":
           description: Code created and shown once
