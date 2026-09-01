@@ -33,6 +33,15 @@ portfolio.
 - Coursework drafting (optional) needs `ANTHROPIC_API_KEY`, and optionally
   `ANTHROPIC_MODEL`. Without it slides and transcripts still upload and
   coursework is written by hand; only the drafting buttons are unavailable.
+- The Simulation Studio uses that same `ANTHROPIC_API_KEY`. Without it the
+  Studio loads and says plainly that the server has no AI key; it never crashes.
+  `ANTHROPIC_BASE_URL` optionally points the client at a proxy instead of
+  `api.anthropic.com`, which is what this workspace needs and production does
+  not. **Do not add a second Anthropic client.** The one in
+  `artifacts/api-server/src/lib/anthropic.ts` is shared on purpose: an earlier
+  second client read workspace-only variables and threw while being imported,
+  which would have taken the whole live site down on deploy, not just the
+  feature.
 
 ## Stack
 
@@ -65,6 +74,10 @@ portfolio.
 | What the drafter reads | `lib/domain/src/courseworkSource.ts` — combining the deck and the pasted transcript, and how the budget is split |
 | Recording rules | `lib/domain/src/recordingPipeline.ts` — when to look, what to name it, when to give up |
 | Google plumbing | `artifacts/api-server/src/lib/google/` — OAuth, Meet, Drive→YouTube transfer |
+| Simulation Studio rules | `lib/domain/src/simulations.ts` — who may drive a run, join codes, the lease that stops two people generating at once |
+| What we ask Claude for | `lib/domain/src/simulationPrompts.ts` — the scenario, development and debrief prompts, and the checking of what comes back. Edit the exercise's quality **here**, not in the route. |
+| Studio API | `artifacts/api-server/src/routes/studioSimulations.ts` |
+| Studio screens | `artifacts/afrienergy-comms-lab/src/pages/studio/` |
 | Web app | `artifacts/afrienergy-comms-lab/src` |
 | Design tokens | `artifacts/afrienergy-comms-lab/src/index.css` |
 | Editorial content | `artifacts/afrienergy-comms-lab/src/content/` |
@@ -266,6 +279,53 @@ portfolio.
 - Presence tracking adds columns to `session_attendance` and a `replay_progress`
   table; `pnpm --filter @workspace/db run push` covers both. Nothing to backfill
   — presence shipped before the first cohort was onboarded.
+
+## Working in this workspace
+
+This workspace is a **copy**. The live app is GitHub `main`, which deploys
+itself to Railway on every push. So:
+
+- Bring the copy up to date before starting, and never the other way round:
+  ```
+  git fetch origin
+  git checkout main
+  git reset --hard origin/main
+  ```
+  That discards anything uncommitted here, which is the point: work that only
+  exists in this workspace has not been reviewed or tested against the live
+  schema.
+- Push to a **branch**, never to `main`. Somebody merges it deliberately, after
+  the checks below pass.
+- The database here is this workspace's own. `pnpm --filter @workspace/db run
+  push --force` against it is safe and expected. The same command against the
+  production database is run by hand, in the Railway console, by a person.
+- Before pushing anything, all four must pass:
+  ```
+  pnpm run typecheck
+  pnpm --filter @workspace/domain run test
+  pnpm --filter @workspace/api-server run test
+  pnpm --filter @workspace/api-spec run codegen   # then: git diff must be empty
+  ```
+
+### Things that must not change without a deliberate decision
+
+- **`packageManager` is pinned to pnpm 10.26.1.** Bumping it caused an install
+  loop. `minimumReleaseAge` in `pnpm-workspace.yaml` is a supply-chain guard and
+  stays.
+- **Never hand-edit anything under `generated/`.** Edit `openapi.yaml` and run
+  codegen. CI fails if the two disagree.
+- **Roles come from Clerk `publicMetadata`, never `unsafeMetadata`**, which the
+  account holder can write from their own browser. An emailed invitation must
+  never be able to grant admin, and nothing grants super admin.
+- **Ask who somebody is with `satisfiesRole` and `isModuleStaff`, never
+  `role === "admin"`.** A super admin's row says `superadmin`, and that
+  comparison locked one out of half the Lab across twelve separate files.
+- **Railway has a Watch Paths setting.** When it is set, commits touching
+  nothing inside it are skipped and the deploy silently does not happen. It has
+  cost a day already.
+- **Brevo can restrict sending to listed IP addresses.** Railway's address
+  changes on restart, so that restriction is off. Turning it on breaks every
+  invitation with a 401 that reads like a bad key.
 
 ## Pointers
 

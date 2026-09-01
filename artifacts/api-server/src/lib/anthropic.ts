@@ -21,7 +21,18 @@ import { logger } from "./logger";
  * the tool makes the shape the model's only option.
  */
 
-const API_URL = "https://api.anthropic.com/v1/messages";
+/**
+ * Where the API lives.
+ *
+ * Overridable because the preview workspace reaches Claude through a proxy of
+ * its own rather than through api.anthropic.com, and the alternative was two
+ * clients again, which is how the last one ended up crashing the server. Unset
+ * everywhere else, which is the normal case.
+ */
+function apiUrl(): string {
+  const base = process.env.ANTHROPIC_BASE_URL?.trim().replace(/\/$/, "");
+  return base ? `${base}/v1/messages` : "https://api.anthropic.com/v1/messages";
+}
 
 export const MODEL = process.env.ANTHROPIC_MODEL ?? "claude-sonnet-4-5";
 
@@ -59,7 +70,7 @@ export async function askClaude(args: {
   const timer = setTimeout(() => controller.abort(), args.timeoutMs ?? 120_000);
 
   try {
-    const res = await fetch(API_URL, {
+    const res = await fetch(apiUrl(), {
       method: "POST",
       headers: {
         "content-type": "application/json",
