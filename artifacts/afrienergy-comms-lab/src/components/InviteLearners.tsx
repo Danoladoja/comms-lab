@@ -32,8 +32,9 @@ import { useToast } from '@/hooks/use-toast';
 const PLACEHOLDER = `Amina Bello\tamina@example.org
 Kwame Mensah\tkwame@example.org
 
-Or paste straight from Excel or Google Sheets — select the name and email
-columns, copy, and paste here. A heading row is fine.`;
+One person per line, each with an email address. You can paste straight from
+Excel or Google Sheets: select the name and email columns, copy, and paste
+here. A heading row is fine.`;
 
 function Row({ tone, children }: { tone: 'ok' | 'warn' | 'bad'; children: React.ReactNode }) {
   const colour =
@@ -69,6 +70,23 @@ export function InviteLearners() {
     () => programs.find((p) => String(p.id) === programId),
     [programs, programId],
   );
+
+  /** How many people the paste or the file actually yielded. */
+  const readyCount = reading?.entries.length ?? 0;
+  const canSend = !!programId && readyCount > 0;
+
+  /**
+   * Why the button cannot be pressed yet, in the order somebody meets the
+   * problems: nothing typed, then nothing readable in what was typed, then no
+   * programme chosen.
+   */
+  const whyNotYet = !text.trim()
+    ? 'Paste your list above, or upload the file.'
+    : readyCount === 0
+      ? 'No email addresses found. Each row needs a name and an email address, or just an email address.'
+      : !programId
+        ? 'Choose a programme to enrol them onto.'
+        : '';
 
   /** Places left, so an admin sees a cohort about to overflow before sending. */
   const overCapacity =
@@ -114,8 +132,9 @@ export function InviteLearners() {
           Invite learners from a list
         </h3>
         <p className="mt-1 text-xs text-muted-foreground">
-          Paste the names and emails from your spreadsheet, or upload the file. Everyone is invited
-          and enrolled on the programme you choose — nothing is sent until you have seen the list.
+          Paste the names and email addresses from your spreadsheet, or upload the file. Everyone is
+          invited and enrolled on the programme you choose, and nothing is sent until you have seen
+          the list and pressed the button.
         </p>
       </div>
 
@@ -215,24 +234,39 @@ export function InviteLearners() {
         </div>
       )}
 
-      {reading && reading.entries.length > 0 && (
+      {/*
+        The Send button is always here, even when it cannot yet be pressed.
+
+        It used to appear only once a list had been read successfully, which
+        meant that somebody who pasted names with no email addresses, or who had
+        not chosen a programme, saw no button at all and reasonably concluded
+        the form was broken. A disabled button that says why is a working
+        instruction; a missing button is a dead end.
+      */}
+      <div className="flex flex-wrap items-center gap-3">
         <Button
-          disabled={!programId || send.isPending}
+          disabled={!canSend || send.isPending}
           onClick={() =>
             send.mutate({
               data: {
                 programId: Number(programId),
-                entries: reading.entries.map((e) => ({ row: e.row, name: e.name, email: e.email })),
+                entries: (reading?.entries ?? []).map((e) => ({ row: e.row, name: e.name, email: e.email })),
               },
             })
           }
         >
           {send.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />}
           {send.isPending
-            ? `Inviting ${reading.entries.length}...`
-            : `Invite ${reading.entries.length} ${reading.entries.length === 1 ? 'person' : 'people'}`}
+            ? `Inviting ${readyCount}...`
+            : readyCount > 0
+              ? `Invite ${readyCount} ${readyCount === 1 ? 'person' : 'people'}`
+              : 'Invite them'}
         </Button>
-      )}
+
+        {!canSend && !send.isPending && (
+          <p className="text-xs text-muted-foreground">{whyNotYet}</p>
+        )}
+      </div>
 
       {result && (
         <div className="rounded-lg border border-border bg-background p-4">
