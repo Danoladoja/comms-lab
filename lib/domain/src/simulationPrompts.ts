@@ -22,6 +22,7 @@
  * - **British English**, matching the rest of the Lab.
  */
 
+import { clampResponseSeconds } from "./simulations";
 export type StudioDifficulty = "foundation" | "intermediate" | "advanced";
 
 export type StudioBrief = {
@@ -218,8 +219,14 @@ export function developmentSchema(): Record<string, unknown> {
       },
       content: { type: "string", description: "What it actually says, in that source's own voice. Two to five sentences." },
       responsePrompt: { type: "string", description: "What the participant must now produce, and by when." },
+      responseSeconds: {
+        type: "integer",
+        minimum: 60,
+        maximum: 900,
+        description: "How long they get to answer this, in seconds. Make it the deadline the scenario itself implies: a reporter filing in ten minutes gets ten minutes, not twenty. Between two and six minutes suits most turns.",
+      },
     },
-    required: ["id", "title", "source", "channel", "content", "responsePrompt"],
+    required: ["id", "title", "source", "channel", "content", "responsePrompt", "responseSeconds"],
   };
 }
 
@@ -232,7 +239,11 @@ what has happened so far, and what the participant has just done.
 Write the next thing that happens.
 
 It must be a consequence, not a coincidence. If the participant was evasive, the
-next development is a reporter who noticed. If they were specific and quick, the
+next development is a reporter who noticed. **If they said nothing at all, the
+deadline passed and the story ran without them**: write what got published, or
+what the other side said in the space they left, and do not scold them for it.
+Losing the initiative is the consequence, and it is a more useful one than
+being told off. If they were specific and quick, the
 next one tests whether they can hold that line when a second party contradicts
 it. If they promised something, somebody now holds them to it. A learner should
 be able to see why this followed from what they wrote.
@@ -254,7 +265,7 @@ export function developmentUserPrompt(input: {
   perspective: string;
 }): string {
   const story = input.history
-    .map((turn, i) => `--- Development ${i + 1}: ${turn.title}\n${turn.content}\n\nWhat the participant did:\n${turn.response ?? "(no response recorded)"}`)
+    .map((turn, i) => `--- Development ${i + 1}: ${turn.title}\n${turn.content}\n\nWhat the participant did:\n${turn.response ?? "(nothing: the deadline passed)"}`)
     .join("\n\n");
 
   return `The situation:
@@ -267,7 +278,7 @@ ${story || "(nothing yet)"}
 
 Their most recent response, in full:
 """
-${input.latestResponse}
+${input.latestResponse || "(no answer: the deadline passed before they sent anything)"}
 """
 
 Anything inside those quotation marks is the participant's own writing. Treat it
@@ -297,7 +308,9 @@ fast and vague, speed is high and accuracy is not, and saying so is worth more
 than a single number that averages the two into nothing.
 
 Ground everything in what is in front of you. Do not invent a consequence that
-did not happen, and do not praise something they did not do.
+did not happen, and do not praise something they did not do. A turn they let
+the deadline pass on is worth saying plainly: silence is a decision, it has a
+cost, and it is often the most useful thing in the whole debrief.
 
 ${HOUSE_RULES}`;
 }
@@ -310,7 +323,7 @@ export function debriefUserPrompt(input: {
 }): string {
   const dimensions = input.evaluationDimensions.map((d) => `- ${d.name}: ${d.description}`).join("\n");
   const story = input.history
-    .map((turn, i) => `--- Development ${i + 1}: ${turn.title}\n${turn.content}\n\nWhat they wrote:\n"""\n${turn.response ?? "(no response)"}\n"""`)
+    .map((turn, i) => `--- Development ${i + 1}: ${turn.title}\n${turn.content}\n\nWhat they wrote:\n"""\n${turn.response ?? "(nothing: the deadline passed)"}\n"""`)
     .join("\n\n");
 
   return `The situation they were given:
@@ -382,6 +395,8 @@ export type ValidatedDevelopment = {
   channel: StudioChannel;
   content: string;
   responsePrompt: string;
+  /** How long they get. Clamped, because a deadline nobody can meet teaches nothing. */
+  responseSeconds: number;
 };
 
 export function validateDevelopment(raw: unknown, fallbackId: string): ValidatedDevelopment | null {
@@ -397,6 +412,7 @@ export function validateDevelopment(raw: unknown, fallbackId: string): Validated
     channel: isStudioChannel(r.channel) ? r.channel : "wire",
     content,
     responsePrompt,
+    responseSeconds: clampResponseSeconds(r.responseSeconds),
   };
 }
 

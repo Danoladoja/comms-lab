@@ -1060,6 +1060,8 @@ export interface StudioDevelopment {
   responsePrompt: string;
   source?: string;
   channel?: StudioDevelopmentChannel;
+  responseSeconds?: number;
+  dueAt?: string;
 }
 
 export interface SimulationEvaluationDimension {
@@ -1225,6 +1227,14 @@ export interface SimulationDebrief {
   recommendations: string[];
 }
 
+export interface StudioRunClock {
+  sessionSecondsLeft: number;
+  /** @nullable */
+  responseSecondsLeft: number | null;
+  sessionExpired: boolean;
+  responseExpired: boolean;
+}
+
 export type StudioSimulationRunMode = typeof StudioSimulationRunMode[keyof typeof StudioSimulationRunMode];
 
 
@@ -1246,6 +1256,7 @@ export interface StudioSimulationRun {
   simulationId: number;
   mode: StudioSimulationRunMode;
   isOwner: boolean;
+  clock: StudioRunClock;
   status: StudioSimulationRunStatus;
   /** @nullable */
   joinCode: string | null;

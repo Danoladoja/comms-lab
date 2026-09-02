@@ -125,6 +125,7 @@ export * from './studioPracticeRecord';
 export * from './studioPracticeRecordTrendItem';
 export * from './studioRating';
 export * from './studioRecordDimension';
+export * from './studioRunClock';
 export * from './studioSimulation';
 export * from './studioSimulationDifficulty';
 export * from './studioSimulationMode';

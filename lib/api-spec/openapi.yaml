@@ -3265,6 +3265,10 @@ components:
         # Studio showed these as messages have neither.
         source: { type: string }
         channel: { type: string, enum: [wire, social, broadcast, internal, call, regulator, community] }
+        # The deadline on this one. dueAt is stamped when it goes on the table,
+        # so the clock is a fact on the server rather than a browser's guess.
+        responseSeconds: { type: integer }
+        dueAt: { type: string, format: date-time }
     SimulationEvaluationDimension:
       type: object
       required: [name, description]
@@ -3389,9 +3393,17 @@ components:
         risks: { type: array, items: { type: string } }
         stakeholderImpact: { type: string }
         recommendations: { type: array, items: { type: string } }
+    StudioRunClock:
+      type: object
+      required: [sessionSecondsLeft, responseSecondsLeft, sessionExpired, responseExpired]
+      properties:
+        sessionSecondsLeft: { type: integer }
+        responseSecondsLeft: { type: ["integer", "null"] }
+        sessionExpired: { type: boolean }
+        responseExpired: { type: boolean }
     StudioSimulationRun:
       type: object
-      required: [id, simulationId, mode, status, joinCode, isOwner, currentDevelopment, developments, responses, debrief, openingBrief, stakeholderGroups, participantGroupId]
+      required: [id, simulationId, mode, status, joinCode, isOwner, clock, currentDevelopment, developments, responses, debrief, openingBrief, stakeholderGroups, participantGroupId]
       properties:
         id: { type: integer }
         simulationId: { type: integer }
@@ -3400,6 +3412,9 @@ components:
         # controls of a room hang off this, so it cannot be inferred in the
         # browser from whether a join code came back.
         isOwner: { type: boolean }
+        # Both clocks, as the server sees them. The browser counts down from
+        # these; it never decides that time is up.
+        clock: { $ref: "#/components/schemas/StudioRunClock" }
         status: { type: string, enum: [active, completed] }
         joinCode: { type: ["string", "null"] }
         currentDevelopment:

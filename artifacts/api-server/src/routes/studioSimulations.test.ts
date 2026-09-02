@@ -232,3 +232,84 @@ describe("a solo exercise carries itself", () => {
     expect(ai.generateDevelopment).not.toHaveBeenCalled();
   });
 });
+
+
+describe("the clock, on the way in and out", () => {
+  const DEFINITION = {
+    id: 2, ownerId: 5, programId: null, published: false, durationMinutes: 30,
+    openingBrief: "b", participantPerspective: "spokesperson",
+    groups: [{ id: "g", name: "G", roleName: "r", confidentialBrief: "x" }],
+    injects: [{ id: "opening", title: "t", content: "c", responsePrompt: "p", responseSeconds: 240 }],
+    evaluationDimensions: [], debriefQuestions: [], title: "T", context: "", learningObjective: "",
+    difficulty: "intermediate", mode: "autonomous", createdAt: new Date(),
+  };
+  const ASSIGNMENT = { runId: 1, userId: 5, groupId: "g", assignedAt: new Date() };
+
+  function runRow(over: Record<string, unknown> = {}) {
+    return {
+      id: 1, ownerId: 5, definitionId: 2, mode: "autonomous", status: "active", responseVersion: 0,
+      operationToken: null, operationStartedAt: null, joinCode: null, debrief: null,
+      startedAt: new Date(), endedAt: null,
+      currentDevelopment: { id: "opening", title: "t", content: "c", responsePrompt: "p", responseSeconds: 240, dueAt: new Date(Date.now() + 240_000).toISOString() },
+      developments: [{ id: "opening", title: "t", content: "c", responsePrompt: "p" }],
+      ...over,
+    };
+  }
+
+  beforeEach(() => {
+    mocks.setUser({ id: 5, role: "admin" });
+    ai.generateDevelopment.mockClear();
+    ai.generateDebrief.mockClear();
+  });
+
+  it("tells the browser how long is left, on both clocks", async () => {
+    const run = runRow();
+    // the run, the permission check, the clock's definition, then the reply
+    mocks.setSelects([[run], [DEFINITION], [ASSIGNMENT], [], [DEFINITION], [DEFINITION], [ASSIGNMENT], []]);
+    const res = await fetch(`${baseUrl}/api/simulation-runs/1`);
+    expect(res.status).toBe(200);
+    const body = await res.json() as { clock: { sessionSecondsLeft: number; responseSecondsLeft: number } };
+    expect(body.clock.responseSecondsLeft).toBeGreaterThan(200);
+    expect(body.clock.sessionSecondsLeft).toBeGreaterThan(1700);
+  });
+
+  it("ends an exercise whose time is up, the moment somebody looks", async () => {
+    // There is no background job. Opening it is when the clock bites.
+    const over = runRow({ startedAt: new Date(Date.now() - 60 * 60_000) });
+    mocks.setSelects([
+      [over], [DEFINITION], [ASSIGNMENT], [],   // the run, then the permission check
+      [DEFINITION],                             // the clock's definition
+      [DEFINITION], [],                         // finishing: definition, then the story so far
+      [DEFINITION], [ASSIGNMENT], [],           // the reply
+    ]);
+    mocks.setUpdates([[{ ...over, operationToken: "t" }], [{ ...over, status: "completed" }]]);
+
+    const res = await fetch(`${baseUrl}/api/simulation-runs/1`);
+    expect(res.status).toBe(200);
+    expect(ai.generateDebrief, "an exercise past its time should end itself").toHaveBeenCalledTimes(1);
+  });
+
+  it("moves a solo run past a deadline nobody answered", async () => {
+    const late = runRow({ currentDevelopment: { id: "opening", title: "t", content: "c", responsePrompt: "p", dueAt: new Date(Date.now() - 5000).toISOString() } });
+    mocks.setSelects([
+      [late], [DEFINITION], [ASSIGNMENT], [],
+      [DEFINITION],
+      [DEFINITION], [],
+      [DEFINITION], [ASSIGNMENT], [],
+    ]);
+    mocks.setUpdates([[{ ...late, operationToken: "t" }], [late]]);
+
+    const res = await fetch(`${baseUrl}/api/simulation-runs/1`);
+    expect(res.status).toBe(200);
+    expect(ai.generateDevelopment, "the story should run without them").toHaveBeenCalledTimes(1);
+  });
+
+  it("leaves a room alone when a deadline passes, because the facilitator decides", async () => {
+    const room = runRow({ mode: "facilitated", currentDevelopment: { id: "opening", title: "t", content: "c", responsePrompt: "p", dueAt: new Date(Date.now() - 5000).toISOString() } });
+    mocks.setSelects([[room], [DEFINITION], [ASSIGNMENT], [], [DEFINITION], [DEFINITION], [ASSIGNMENT], []]);
+    const res = await fetch(`${baseUrl}/api/simulation-runs/1`);
+    expect(res.status).toBe(200);
+    expect(ai.generateDevelopment).not.toHaveBeenCalled();
+    expect(ai.generateDebrief).not.toHaveBeenCalled();
+  });
+});

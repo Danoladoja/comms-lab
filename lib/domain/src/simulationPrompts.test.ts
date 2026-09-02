@@ -4,6 +4,7 @@ import {
   STUDIO_CHANNELS,
   debriefSystemPrompt,
   debriefUserPrompt,
+  developmentSchema,
   developmentSystemPrompt,
   developmentUserPrompt,
   scenarioSystemPrompt,
@@ -344,5 +345,48 @@ describe("the per-dimension marks", () => {
     // Runs finished last week have no ratings, and their debriefs must still open.
     const { ratings: _omitted, ...older } = good;
     expect(validateDebrief(older)?.ratings).toEqual([]);
+  });
+});
+
+describe("deadlines on a development", () => {
+  it("keeps the one the scenario implies", () => {
+    const development = validateDevelopment({ ...goodDevelopment, responseSeconds: 300 }, "x");
+    expect(development?.responseSeconds).toBe(300);
+  });
+
+  it("never sets one nobody could meet, or one with no pressure in it", () => {
+    expect(validateDevelopment({ ...goodDevelopment, responseSeconds: 5 }, "x")?.responseSeconds).toBe(60);
+    expect(validateDevelopment({ ...goodDevelopment, responseSeconds: 99999 }, "x")?.responseSeconds).toBe(900);
+  });
+
+  it("gives one to a development that came back without it", () => {
+    // A turn with no deadline is a turn with no pressure, which is the whole
+    // point of the exercise gone.
+    const { responseSeconds: _none, ...without } = { ...goodDevelopment, responseSeconds: 300 };
+    expect(validateDevelopment(without, "x")?.responseSeconds).toBeGreaterThan(0);
+  });
+
+  it("asks the model for a deadline the scenario itself implies", () => {
+    expect(JSON.stringify(developmentSchema())).toMatch(/deadline the scenario itself implies/i);
+  });
+});
+
+describe("a turn nobody answered", () => {
+  it("tells the writer the story ran without them, and not to scold", () => {
+    const prompt = developmentSystemPrompt();
+    expect(prompt).toMatch(/story ran without them/i);
+    expect(prompt).toMatch(/do not scold/i);
+  });
+
+  it("says plainly in the prompt that nothing was sent", () => {
+    const prompt = developmentUserPrompt({
+      openingBrief: "b", history: [{ title: "First", content: "c", response: null }],
+      latestResponse: "", perspective: "a spokesperson",
+    });
+    expect(prompt).toMatch(/the deadline passed/i);
+  });
+
+  it("asks the debrief to treat silence as a decision with a cost", () => {
+    expect(debriefSystemPrompt()).toMatch(/silence is a decision/i);
   });
 });

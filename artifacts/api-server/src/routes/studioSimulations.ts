@@ -17,8 +17,8 @@ import {
 import {
   JOIN_CODE_ALPHABET, JOIN_CODE_LENGTH, accessCodeCount, mayAdvanceStudioRun, mayCompleteStudioRun,
   mayControlStudioRun, mayEnterStudio, mayJoinFacilitatedRun, maySeeStudioSimulation, normaliseJoinCode,
-  nextStudioStep, operationLeaseIsActive, plannedTurns, practiceRecord, satisfiesRole, studioInviteLetter,
-  type StudioProgrammeContext,
+  clampResponseSeconds, nextStudioStep, operationLeaseIsActive, plannedTurns, practiceRecord, runClock,
+  satisfiesRole, studioInviteLetter, whatTheClockSays, type StudioProgrammeContext,
 } from "@workspace/domain";
 import { getCurrentUser } from "../lib/auth";
 import { createBudget } from "../lib/rateBudget";
@@ -118,6 +118,7 @@ async function runView(run: typeof simulationRunsTable.$inferSelect, userId: num
     joinCode: isOwner ? run.joinCode : null, isOwner, currentDevelopment: run.currentDevelopment,
     developments: run.developments, responses: (isOwner ? allResponses : allResponses.filter((item) => item.groupId === participantGroupId)).map(response),
     debrief: run.debrief, openingBrief: definition.openingBrief, stakeholderGroups: safeGroups, participantGroupId,
+    clock: clockFor(run, definition),
   };
 }
 /**
@@ -251,6 +252,34 @@ function labLogoUrl(): string | null {
   return base ? `${base}/logo-white.png` : null;
 }
 
+/**
+ * Put a development on the table, with its deadline attached.
+ *
+ * The deadline becomes a timestamp here, at the moment it starts counting,
+ * rather than a number the browser counts down from. A laptop that sleeps for
+ * ten minutes wakes to a deadline that has passed, which is what would have
+ * happened in the real thing.
+ */
+function withDeadline<T extends { responseSeconds?: number }>(development: T, now = new Date()): T & { dueAt: string } {
+  const seconds = clampResponseSeconds(development.responseSeconds);
+  return { ...development, responseSeconds: seconds, dueAt: new Date(now.getTime() + seconds * 1000).toISOString() };
+}
+
+/** The two clocks, for a run as it stands. */
+function clockFor(
+  run: typeof simulationRunsTable.$inferSelect,
+  definition: { durationMinutes: number } | undefined,
+  now = new Date(),
+) {
+  return runClock({
+    startedAt: run.startedAt,
+    durationMinutes: definition?.durationMinutes ?? 30,
+    responseDueAt: run.currentDevelopment?.dueAt ?? null,
+    status: run.status as "active" | "completed",
+    now,
+  });
+}
+
 /* ---------- Moving a run along ---------- */
 
 type StepOutcome =
@@ -268,13 +297,20 @@ type StepOutcome =
 async function carryOn(
   runId: number,
   log: { error: (o: unknown, m: string) => void },
+  allowSilence = false,
 ): Promise<StepOutcome> {
   const claim = await claimOperation(runId);
   if (!claim) return { ok: false, status: 409, error: "This run is busy. Try again shortly." };
 
   const [definition] = await db.select().from(simulationDefinitionsTable).where(eq(simulationDefinitionsTable.id, claim.run.definitionId));
   const { history, latest } = await runHistory(claim.run, definition?.groups ?? []);
-  if (!latest || !claim.run.currentDevelopment) {
+  if (!claim.run.currentDevelopment) {
+    await releaseOperation(claim.run.id, claim.token);
+    return { ok: false, status: 409, error: "There is nothing on the table to move on from." };
+  }
+  // `latest` may be empty on purpose: the deadline passed and nothing was
+  // sent. The story still moves, which is the point of having a deadline.
+  if (!latest && !allowSilence) {
     await releaseOperation(claim.run.id, claim.token);
     return { ok: false, status: 409, error: "Nobody has answered the current development yet." };
   }
@@ -282,7 +318,7 @@ async function carryOn(
   const next = await generateDevelopment({
     openingBrief: definition?.openingBrief ?? "",
     history,
-    latestResponse: latest,
+    latestResponse: latest ?? "",
     perspective: definition?.participantPerspective ?? "the communications lead",
     turn: claim.run.developments.length + 1,
   });
@@ -292,8 +328,9 @@ async function carryOn(
     return { ok: false, status: 502, error: next.error };
   }
 
+  const dated = withDeadline(next.value);
   const [updated] = await db.update(simulationRunsTable)
-    .set({ currentDevelopment: next.value, developments: [...claim.run.developments, next.value], operationToken: null, operationStartedAt: null })
+    .set({ currentDevelopment: dated, developments: [...claim.run.developments, dated], operationToken: null, operationStartedAt: null })
     .where(and(eq(simulationRunsTable.id, claim.run.id), eq(simulationRunsTable.operationToken, claim.token), eq(simulationRunsTable.responseVersion, claim.run.responseVersion)))
     .returning();
   if (!updated) {
@@ -307,13 +344,14 @@ async function carryOn(
 async function finish(
   runId: number,
   log: { error: (o: unknown, m: string) => void },
+  allowSilence = false,
 ): Promise<StepOutcome> {
   const claim = await claimOperation(runId);
   if (!claim) return { ok: false, status: 409, error: "This run is busy. Try again shortly." };
 
   const [definition] = await db.select().from(simulationDefinitionsTable).where(eq(simulationDefinitionsTable.id, claim.run.definitionId));
   const { history, latest } = await runHistory(claim.run, definition?.groups ?? []);
-  if (!latest) {
+  if (!latest && !allowSilence) {
     await releaseOperation(claim.run.id, claim.token);
     return { ok: false, status: 409, error: "Nobody has answered the current development yet." };
   }
@@ -563,11 +601,13 @@ router.post("/simulation-runs", requireStudioAccess, async (req, res): Promise<v
   }
   const initial = definition.injects[0];
   if (!initial || definition.groups.length === 0) { res.status(400).json(message("Simulation has no initial development or stakeholder group")); return; }
+  // The clock starts here, and every deadline after this is measured from it.
+  const startedAt = new Date();
   const [run] = await db.insert(simulationRunsTable).values({
     ownerId: user.id, definitionId: definition.id, mode: definition.mode, status: "active",
     joinCode: definition.mode === "facilitated" ? joinCode() : null,
-    currentDevelopment: { id: initial.id, title: initial.title, content: initial.content, responsePrompt: initial.responsePrompt },
-    developments: [{ id: initial.id, title: initial.title, content: initial.content, responsePrompt: initial.responsePrompt }], startedAt: new Date(),
+    currentDevelopment: withDeadline(initial, startedAt),
+    developments: [withDeadline(initial, startedAt)], startedAt,
   }).returning();
   await db.insert(simulationGroupAssignmentsTable).values({ runId: run.id, userId: user.id, groupId: definition.groups[0].id });
   res.status(201).json(CreateSimulationRunResponse.parse(await runView(run, user.id)));
@@ -603,13 +643,39 @@ router.post("/simulation-runs/join", requireStudioAccess, async (req, res): Prom
   res.json(JoinSimulationRunResponse.parse(await runView(run, user.id)));
 });
 
+/**
+ * Reading a run is when the clocks bite.
+ *
+ * There is no background job watching every exercise, and there does not need
+ * to be: an exercise nobody is looking at is not one anybody is being timed
+ * on. The moment somebody opens it, the server works out what time it is and
+ * does what the clock says: end the exercise and write the debrief, or move a
+ * solo run past a deadline that went by while nothing was sent.
+ */
 router.get("/simulation-runs/:runId", requireStudioAccess, async (req, res): Promise<void> => {
   const user = await getCurrentUser(req);
   if (!user) { res.status(401).json(message("Unauthorized")); return; }
   const params = GetSimulationRunParams.safeParse(req.params);
   if (!params.success) { res.status(400).json(message(params.error.message)); return; }
-  const [run] = await db.select().from(simulationRunsTable).where(eq(simulationRunsTable.id, params.data.runId));
-  if (!run) { res.status(404).json(message("Simulation run not found")); return; }
+  const [found] = await db.select().from(simulationRunsTable).where(eq(simulationRunsTable.id, params.data.runId));
+  if (!found) { res.status(404).json(message("Simulation run not found")); return; }
+  if (!(await runView(found, user.id))) { res.status(403).json(message("Not a participant in this simulation run")); return; }
+
+  let run = found;
+  if (run.status === "active" && simulationAiConfigured()) {
+    const [definition] = await db.select().from(simulationDefinitionsTable).where(eq(simulationDefinitionsTable.id, run.definitionId));
+    const says = whatTheClockSays(clockFor(run, definition), run.mode as "autonomous" | "facilitated");
+    if (says === "finish") {
+      const ended = await finish(run.id, req.log, true);
+      if (ended.ok) run = ended.run;
+    } else if (says === "moveOn") {
+      const moved = await carryOn(run.id, req.log, true);
+      if (moved.ok) run = moved.run;
+    }
+    // A failure here is deliberately quiet. The person asked to see their
+    // exercise, and showing it with the clock still running beats an error.
+  }
+
   const view = await runView(run, user.id);
   if (!view) { res.status(403).json(message("Not a participant in this simulation run")); return; }
   res.json(GetSimulationRunResponse.parse(view));

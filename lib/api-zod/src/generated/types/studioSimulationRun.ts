@@ -8,6 +8,7 @@
 import type { SimulationDebrief } from './simulationDebrief';
 import type { SimulationResponse } from './simulationResponse';
 import type { StudioDevelopment } from './studioDevelopment';
+import type { StudioRunClock } from './studioRunClock';
 import type { StudioSimulationRunMode } from './studioSimulationRunMode';
 import type { StudioSimulationRunStatus } from './studioSimulationRunStatus';
 import type { StudioStakeholderGroup } from './studioStakeholderGroup';
@@ -17,6 +18,7 @@ export interface StudioSimulationRun {
   simulationId: number;
   mode: StudioSimulationRunMode;
   isOwner: boolean;
+  clock: StudioRunClock;
   status: StudioSimulationRunStatus;
   /** @nullable */
   joinCode: string | null;

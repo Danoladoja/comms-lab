@@ -242,3 +242,110 @@ function time(value: string | Date | null): number {
   const t = new Date(value).getTime();
   return Number.isFinite(t) ? t : 0;
 }
+
+/* ---------- The clock ---------- */
+
+/**
+ * Two clocks, and they do different jobs.
+ *
+ * The **session** clock is the exercise's length. When it runs out the
+ * exercise is over and the debrief is written, whatever state the current turn
+ * is in. That is the honest end: you had half an hour, and half an hour is
+ * what you got.
+ *
+ * The **response** clock is the deadline on the thing in front of you. A
+ * reporter files at six whether or not you called back. When it runs out the
+ * turn is over and the story moves on without your answer, which is not a
+ * punishment but the actual consequence, and it is the reason the room goes
+ * quiet when the number gets low.
+ *
+ * Both are computed from timestamps rather than counted down anywhere, because
+ * a countdown in a browser is a guess: laptops sleep, tabs are backgrounded,
+ * phones throttle timers. The browser shows a clock; the server decides what
+ * time it is.
+ */
+
+export type RunClock = {
+  /** Seconds left in the exercise. Zero once it is up. */
+  sessionSecondsLeft: number;
+  /** Seconds left to answer the thing on the table, or null when there is no deadline. */
+  responseSecondsLeft: number | null;
+  sessionExpired: boolean;
+  responseExpired: boolean;
+};
+
+/** Never less than a minute: a deadline nobody can meet teaches nothing. */
+export const MIN_RESPONSE_SECONDS = 60;
+export const MAX_RESPONSE_SECONDS = 15 * 60;
+
+export function clampResponseSeconds(seconds: unknown): number {
+  const n = typeof seconds === "number" ? seconds : Number.parseInt(String(seconds ?? ""), 10);
+  if (!Number.isFinite(n) || n <= 0) return 4 * 60;
+  return Math.max(MIN_RESPONSE_SECONDS, Math.min(MAX_RESPONSE_SECONDS, Math.round(n)));
+}
+
+/**
+ * How long the whole exercise lasts, from when it started.
+ *
+ * A grace of one turn's worth is added, because the person is answering in
+ * prose and the clock should not cut them off mid sentence on the last one.
+ */
+export function sessionEndsAt(startedAt: Date | string | null, durationMinutes: number, graceSeconds = 60): Date | null {
+  if (!startedAt) return null;
+  const start = new Date(startedAt).getTime();
+  if (!Number.isFinite(start)) return null;
+  const minutes = Number.isFinite(durationMinutes) && durationMinutes > 0 ? durationMinutes : 30;
+  return new Date(start + minutes * 60_000 + graceSeconds * 1000);
+}
+
+export function runClock(args: {
+  startedAt: Date | string | null;
+  durationMinutes: number;
+  /** When the answer to the current development is due. */
+  responseDueAt: Date | string | null;
+  status: StudioRunStatus;
+  now?: Date;
+}): RunClock {
+  const now = (args.now ?? new Date()).getTime();
+  const ends = sessionEndsAt(args.startedAt, args.durationMinutes);
+  const sessionSecondsLeft = ends ? Math.max(0, Math.round((ends.getTime() - now) / 1000)) : 0;
+
+  const due = args.responseDueAt ? new Date(args.responseDueAt).getTime() : NaN;
+  const responseSecondsLeft = Number.isFinite(due) ? Math.max(0, Math.round((due - now) / 1000)) : null;
+
+  // A finished run has no clock. Reporting one would make a completed exercise
+  // look as though it were still going, and would keep the debrief hidden.
+  if (args.status !== "active") {
+    return { sessionSecondsLeft: 0, responseSecondsLeft: null, sessionExpired: false, responseExpired: false };
+  }
+
+  return {
+    sessionSecondsLeft,
+    responseSecondsLeft,
+    sessionExpired: !!ends && sessionSecondsLeft === 0,
+    responseExpired: responseSecondsLeft === 0,
+  };
+}
+
+/** "4:05", or "0:12" when it is getting interesting. */
+export function formatClock(seconds: number | null): string {
+  if (seconds === null || !Number.isFinite(seconds) || seconds < 0) return "--:--";
+  const whole = Math.round(seconds);
+  return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, "0")}`;
+}
+
+/**
+ * What to do with a run somebody has just looked at.
+ *
+ * The clocks only bite when a request arrives, which is enough: an exercise
+ * nobody is watching is not one anybody is being timed on, and the moment they
+ * come back the right thing happens.
+ */
+export type ClockAction = "nothing" | "finish" | "moveOn";
+
+export function whatTheClockSays(clock: RunClock, mode: StudioMode): ClockAction {
+  if (clock.sessionExpired) return "finish";
+  // Only a solo run moves itself on. A room's facilitator is the clock.
+  if (clock.responseExpired && mode === "autonomous") return "moveOn";
+  return "nothing";
+}

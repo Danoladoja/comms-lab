@@ -16,4 +16,6 @@ export interface StudioDevelopment {
   responsePrompt: string;
   source?: string;
   channel?: StudioDevelopmentChannel;
+  responseSeconds?: number;
+  dueAt?: Date;
 }

@@ -6,7 +6,12 @@ import { sessionsTable } from "./sessions";
 import { usersTable } from "./users";
 
 export type SimulationGroup = { id: string; name: string; roleName: string; confidentialBrief: string };
-export type SimulationInject = { id: string; title: string; content: string; responsePrompt: string; responseMinutes: number };
+export type SimulationInject = {
+  id: string; title: string; content: string; responsePrompt: string; responseMinutes: number;
+  source?: string; channel?: string;
+  /** The deadline the scenario set for this one, in seconds. */
+  responseSeconds?: number;
+};
 /**
  * One thing that happens during a run.
  *
@@ -17,6 +22,16 @@ export type SimulationInject = { id: string; title: string; content: string; res
 export type SimulationDevelopment = {
   id: string; title: string; content: string; responsePrompt: string;
   source?: string; channel?: string;
+  /**
+   * How long they get to answer, and when that runs out.
+   *
+   * `dueAt` is written when the development is put on the table, so the
+   * deadline is a fact on the server rather than a countdown in a browser that
+   * a sleeping laptop can quietly stretch. Optional, because developments
+   * written before there were deadlines have neither.
+   */
+  responseSeconds?: number;
+  dueAt?: string;
 };
 export type SimulationEvaluationDimension = { name: string; description: string };
 export type SimulationRating = { name: string; score: number; note?: string };

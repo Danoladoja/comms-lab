@@ -9,6 +9,13 @@ import {
   mayCreateStudioRun,
   mayJoinFacilitatedRun,
   MAX_ACCESS_CODES_AT_ONCE,
+  MAX_RESPONSE_SECONDS,
+  MIN_RESPONSE_SECONDS,
+  clampResponseSeconds,
+  formatClock,
+  runClock,
+  whatTheClockSays,
+  type RunClock,
   MAX_STUDIO_TURNS,
   MIN_STUDIO_TURNS,
   nextStudioStep,
@@ -280,5 +287,122 @@ describe("a practice record", () => {
       { name: "Clarity", score: 55 },
     ] })]);
     expect(record.strengths.map((s) => s.name)).toEqual(["Clarity"]);
+  });
+});
+
+describe("the clock", () => {
+  const START = "2026-09-02T10:00:00Z";
+  const at = (mins: number) => new Date(Date.parse(START) + mins * 60_000);
+
+  it("counts the exercise down from when it started", () => {
+    const clock = runClock({ startedAt: START, durationMinutes: 30, responseDueAt: null, status: "active", now: at(10) });
+    // Twenty minutes left, plus the minute of grace.
+    expect(clock.sessionSecondsLeft).toBe(21 * 60);
+    expect(clock.sessionExpired).toBe(false);
+  });
+
+  it("does not cut somebody off mid sentence on the last turn", () => {
+    // A minute of grace, deliberately, so the clock reaching zero is not the
+    // same instant as the last full minute they were promised.
+    const clock = runClock({ startedAt: START, durationMinutes: 30, responseDueAt: null, status: "active", now: at(30) });
+    expect(clock.sessionExpired).toBe(false);
+    expect(clock.sessionSecondsLeft).toBe(60);
+  });
+
+  it("expires once the time really is up", () => {
+    const clock = runClock({ startedAt: START, durationMinutes: 30, responseDueAt: null, status: "active", now: at(32) });
+    expect(clock.sessionSecondsLeft).toBe(0);
+    expect(clock.sessionExpired).toBe(true);
+  });
+
+  it("counts the answer down to its own deadline", () => {
+    const clock = runClock({
+      startedAt: START, durationMinutes: 30, status: "active",
+      responseDueAt: at(12), now: at(10),
+    });
+    expect(clock.responseSecondsLeft).toBe(120);
+    expect(clock.responseExpired).toBe(false);
+  });
+
+  it("says the answer is late once its deadline passes", () => {
+    const clock = runClock({ startedAt: START, durationMinutes: 30, status: "active", responseDueAt: at(9), now: at(10) });
+    expect(clock.responseSecondsLeft).toBe(0);
+    expect(clock.responseExpired).toBe(true);
+  });
+
+  it("has no deadline on a development that was given none", () => {
+    const clock = runClock({ startedAt: START, durationMinutes: 30, status: "active", responseDueAt: null, now: at(10) });
+    expect(clock.responseSecondsLeft).toBeNull();
+    expect(clock.responseExpired).toBe(false);
+  });
+
+  it("stops entirely once the exercise is over", () => {
+    // A finished run showing a running clock would look unfinished and would
+    // keep the debrief out of the way.
+    const clock = runClock({ startedAt: START, durationMinutes: 30, status: "completed", responseDueAt: at(9), now: at(40) });
+    expect(clock.sessionExpired).toBe(false);
+    expect(clock.responseExpired).toBe(false);
+    expect(clock.responseSecondsLeft).toBeNull();
+  });
+
+  it("copes with a run that never started", () => {
+    const clock = runClock({ startedAt: null, durationMinutes: 30, responseDueAt: null, status: "active" });
+    expect(clock.sessionExpired).toBe(false);
+    expect(clock.sessionSecondsLeft).toBe(0);
+  });
+});
+
+describe("what the clock makes happen", () => {
+  const clock = (over: Partial<RunClock>): RunClock => ({
+    sessionSecondsLeft: 300, responseSecondsLeft: 60, sessionExpired: false, responseExpired: false, ...over,
+  });
+
+  it("ends the exercise when its time is up, in either mode", () => {
+    expect(whatTheClockSays(clock({ sessionExpired: true }), "autonomous")).toBe("finish");
+    expect(whatTheClockSays(clock({ sessionExpired: true }), "facilitated")).toBe("finish");
+  });
+
+  it("moves a solo exercise on when an answer is late", () => {
+    // The reporter files at six whether or not you called back.
+    expect(whatTheClockSays(clock({ responseExpired: true }), "autonomous")).toBe("moveOn");
+  });
+
+  it("leaves a room alone, because the facilitator is its clock", () => {
+    expect(whatTheClockSays(clock({ responseExpired: true }), "facilitated")).toBe("nothing");
+  });
+
+  it("ending beats moving on when both have run out", () => {
+    expect(whatTheClockSays(clock({ sessionExpired: true, responseExpired: true }), "autonomous")).toBe("finish");
+  });
+
+  it("does nothing while there is still time", () => {
+    expect(whatTheClockSays(clock({}), "autonomous")).toBe("nothing");
+  });
+});
+
+describe("response deadlines", () => {
+  it("never sets one nobody could meet", () => {
+    expect(clampResponseSeconds(5)).toBe(MIN_RESPONSE_SECONDS);
+    expect(clampResponseSeconds(-30)).toBe(4 * 60);
+  });
+
+  it("never sets one so long there is no pressure", () => {
+    expect(clampResponseSeconds(60 * 60)).toBe(MAX_RESPONSE_SECONDS);
+  });
+
+  it("falls back to four minutes when nothing sensible was given", () => {
+    for (const bad of [undefined, null, "soon", Number.NaN]) expect(clampResponseSeconds(bad)).toBe(4 * 60);
+  });
+});
+
+describe("formatClock", () => {
+  it("reads like a clock", () => {
+    expect(formatClock(245)).toBe("4:05");
+    expect(formatClock(12)).toBe("0:12");
+    expect(formatClock(0)).toBe("0:00");
+  });
+
+  it("shows nothing rather than a lie when there is no deadline", () => {
+    expect(formatClock(null)).toBe("--:--");
   });
 });

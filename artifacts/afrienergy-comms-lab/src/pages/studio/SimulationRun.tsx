@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo } from 'react';
+import { formatClock } from '@workspace/domain';
 import { useLocation } from 'wouter';
 import {
   useGetSimulationRun,
@@ -13,7 +14,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Loader2, Send, ShieldAlert, CheckCircle2, ChevronRight, RefreshCw, Target, Users,
-  Newspaper, MessageCircle, Radio, Mail, Phone, Scale, Megaphone, Zap,
+  Newspaper, MessageCircle, Radio, Mail, Phone, Scale, Megaphone, Zap, Clock, TimerOff,
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
@@ -78,6 +79,30 @@ const THEMES = {
   }
 };
 
+/**
+ * A clock that ticks between the server's answers.
+ *
+ * The server decides what time it is; this only counts down from the last
+ * number it gave us so the display does not sit frozen for five seconds at a
+ * stretch. It resets whenever a fresh number arrives, so it can drift for a
+ * moment but never for long, and it is never what decides that time is up.
+ */
+function useTicking(secondsFromServer: number | null | undefined) {
+  const [seconds, setSeconds] = useState<number | null>(secondsFromServer ?? null);
+
+  useEffect(() => {
+    setSeconds(secondsFromServer ?? null);
+  }, [secondsFromServer]);
+
+  useEffect(() => {
+    if (seconds === null) return;
+    const id = setInterval(() => setSeconds((s) => (s === null ? null : Math.max(0, s - 1))), 1000);
+    return () => clearInterval(id);
+  }, [seconds === null]);
+
+  return seconds;
+}
+
 export default function SimulationRun({ id }: { id?: string }) {
   const [location, setLocation] = useLocation();
   const { toast } = useToast();
@@ -115,6 +140,12 @@ export default function SimulationRun({ id }: { id?: string }) {
   const isCompleted = run?.status === 'completed';
   const currentDev = run?.currentDevelopment;
   const isOwner = !!run?.isOwner;
+  const sessionLeft = useTicking(run?.clock?.sessionSecondsLeft);
+  const responseLeft = useTicking(run?.clock?.responseSecondsLeft);
+  // Under a minute is when people start typing faster. It is the only moment
+  // the interface raises its voice.
+  const urgent = responseLeft !== null && responseLeft <= 60;
+  const missed = responseLeft === 0;
   const anyoneAnswered = useMemo(
     () => !!currentDev && !!run?.responses?.some((r: any) => r.injectId === currentDev.id),
     [run, currentDev],
@@ -202,11 +233,38 @@ export default function SimulationRun({ id }: { id?: string }) {
           <span className="font-mono text-xs text-white/50">{run.simulationId.toString().padStart(6, '0')}</span>
         </div>
 
-        {run.mode === 'facilitated' && (
-          <div className={cn("px-3 py-1 text-[9px] uppercase tracking-[0.2em] font-bold border", t.panelBorder, t.accentText)}>
-            Room
-          </div>
-        )}
+        <div className="flex items-center gap-3">
+          {run.status === 'active' && responseLeft !== null && (
+            <div
+              className={cn(
+                "flex items-center gap-2 px-3 py-1.5 border font-mono tabular-nums transition-colors",
+                missed ? "border-white/20 text-white/40"
+                  : urgent ? "border-red-500/60 text-red-400 bg-red-500/10 animate-pulse"
+                  : cn(t.panelBorder, t.accentText),
+              )}
+              role="timer"
+              aria-live={urgent ? "polite" : "off"}
+              aria-label={missed ? "The deadline for this response has passed" : `${formatClock(responseLeft)} left to answer`}
+            >
+              {missed ? <TimerOff className="w-3.5 h-3.5" aria-hidden /> : <Clock className="w-3.5 h-3.5" aria-hidden />}
+              <span className="text-sm font-bold">{missed ? 'Deadline passed' : formatClock(responseLeft)}</span>
+            </div>
+          )}
+
+          {run.status === 'active' && sessionLeft !== null && (
+            <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 border border-white/10 text-white/40 font-mono tabular-nums"
+                 aria-label={`${formatClock(sessionLeft)} left in this exercise`}>
+              <span className="text-[9px] uppercase tracking-[0.2em] font-bold">Session</span>
+              <span className="text-sm">{formatClock(sessionLeft)}</span>
+            </div>
+          )}
+
+          {run.mode === 'facilitated' && (
+            <div className={cn("px-3 py-1 text-[9px] uppercase tracking-[0.2em] font-bold border", t.panelBorder, t.accentText)}>
+              Room
+            </div>
+          )}
+        </div>
       </header>
 
       <main className="flex-1 flex flex-col lg:flex-row relative overflow-hidden">
@@ -364,9 +422,17 @@ export default function SimulationRun({ id }: { id?: string }) {
               </div>
             ) : (
               <div className="flex-1 flex flex-col">
-                <div className={cn("p-5 border mb-6", t.panelBorder, "bg-white/[0.02]")}>
-                  <h4 className={cn("text-[10px] uppercase tracking-[0.2em] mb-3 font-bold", t.accentText)}>What you need to do</h4>
+                <div className={cn("p-5 border mb-6", missed ? "border-white/20" : t.panelBorder, "bg-white/[0.02]")}>
+                  <h4 className={cn("text-[10px] uppercase tracking-[0.2em] mb-3 font-bold", missed ? "text-white/40" : t.accentText)}>
+                    What you need to do
+                  </h4>
                   <p className="text-white/90 text-sm font-mono leading-relaxed">{currentDev.responsePrompt}</p>
+                  {missed && (
+                    <p className="text-white/50 text-xs mt-4 leading-relaxed">
+                      The deadline has gone. The story is moving on without you, which is itself an
+                      outcome and will be in the debrief.
+                    </p>
+                  )}
                 </div>
 
                 <div className="flex-1 flex flex-col relative min-h-[300px]">
@@ -381,7 +447,7 @@ export default function SimulationRun({ id }: { id?: string }) {
                   />
                   <Button
                     onClick={handleSubmit}
-                    disabled={!responseBody.trim() || submitResponse.isPending}
+                    disabled={!responseBody.trim() || submitResponse.isPending || missed}
                     className={cn("h-14 rounded-none uppercase tracking-[0.2em] text-[10px] font-bold w-full", t.btn)}
                   >
                     {submitResponse.isPending ? (
