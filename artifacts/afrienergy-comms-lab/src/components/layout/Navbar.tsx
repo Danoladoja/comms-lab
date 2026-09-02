@@ -34,7 +34,7 @@ export function Navbar() {
 
   const navLinks = [
     { label: 'Programmes', href: '/courses' },
-    { label: 'Live Classes', href: '/live-sessions' },
+    { label: 'Live Sessions', href: '/live-sessions' },
     ...(isSignedIn ? [{ label: 'Simulation Studio', href: '/studio' }] : []),
     { label: 'About', href: '/about' },
   ];

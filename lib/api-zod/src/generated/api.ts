@@ -1706,6 +1706,205 @@ export const RedeemStudioAccessResponse = zod.object({
 
 
 /**
+ * One-off masterclasses and deep dives, not the classes inside a programme. Public. Never carries the joining link or the recording: both are handed out one person at a time by the endpoints below.
+ * @summary The standalone Live Sessions
+ */
+export const ListLiveSessionsResponseItem = zod.object({
+  "id": zod.int(),
+  "title": zod.string(),
+  "summary": zod.string(),
+  "description": zod.string(),
+  "topic": zod.string(),
+  "startsAt": zod.coerce.date().nullable(),
+  "durationMins": zod.int(),
+  "speaker": zod.string(),
+  "speakerTitle": zod.string(),
+  "status": zod.enum(['draft', 'published', 'cancelled']),
+  "capacity": zod.int(),
+  "state": zod.enum(['upcoming', 'live', 'past', 'unscheduled', 'cancelled']),
+  "registered": zod.boolean(),
+  "registeredCount": zod.int(),
+  "hasRecording": zod.boolean()
+})
+export const ListLiveSessionsResponse = zod.array(ListLiveSessionsResponseItem)
+
+
+/**
+ * Carries the joining link only for somebody registered while the room is open, and the recording only for somebody registered.
+ * @summary One Live Session
+ */
+export const GetLiveSessionParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const GetLiveSessionResponse = zod.object({
+  "id": zod.int(),
+  "title": zod.string(),
+  "summary": zod.string(),
+  "description": zod.string(),
+  "topic": zod.string(),
+  "startsAt": zod.coerce.date().nullable(),
+  "durationMins": zod.int(),
+  "speaker": zod.string(),
+  "speakerTitle": zod.string(),
+  "status": zod.enum(['draft', 'published', 'cancelled']),
+  "capacity": zod.int(),
+  "state": zod.enum(['upcoming', 'live', 'past', 'unscheduled', 'cancelled']),
+  "registered": zod.boolean(),
+  "registeredCount": zod.int(),
+  "hasRecording": zod.boolean()
+}).and(zod.object({
+  "joinUrl": zod.string().nullable(),
+  "recordingUrl": zod.string().nullable()
+}))
+
+
+/**
+ * Open from the moment the session is published until the moment it ends.
+ * @summary Put your name down
+ */
+export const RegisterForLiveSessionParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const RegisterForLiveSessionResponse = zod.object({
+  "registered": zod.boolean()
+})
+
+
+/**
+ * @summary Take your name off again
+ */
+export const CancelLiveSessionRegistrationParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const CancelLiveSessionRegistrationResponse = zod.void()
+
+
+/**
+ * Issues the joining link to a registered person once the room is open, and records that they turned up.
+ * @summary Open the room
+ */
+export const JoinLiveSessionParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const JoinLiveSessionResponse = zod.object({
+  "joinUrl": zod.string()
+})
+
+
+/**
+ * @summary Announce a Live Session
+ */
+export const createLiveSessionBodyDurationMinsMin = 5;
+export const createLiveSessionBodyDurationMinsMax = 480;
+
+export const createLiveSessionBodyCapacityMin = 0;
+
+
+
+export const CreateLiveSessionBody = zod.object({
+  "title": zod.string().optional(),
+  "summary": zod.string().optional(),
+  "description": zod.string().optional(),
+  "topic": zod.string().optional(),
+  "speaker": zod.string().optional(),
+  "speakerTitle": zod.string().optional(),
+  "startsAt": zod.coerce.date().nullish(),
+  "durationMins": zod.int().min(createLiveSessionBodyDurationMinsMin).max(createLiveSessionBodyDurationMinsMax).optional(),
+  "capacity": zod.int().min(createLiveSessionBodyCapacityMin).optional(),
+  "meetUrl": zod.string().nullish(),
+  "recordingUrl": zod.string().nullish(),
+  "status": zod.enum(['draft', 'published', 'cancelled']).optional()
+})
+
+export const CreateLiveSessionResponse = zod.object({
+  "id": zod.int(),
+  "title": zod.string(),
+  "summary": zod.string(),
+  "description": zod.string(),
+  "topic": zod.string(),
+  "startsAt": zod.coerce.date().nullable(),
+  "durationMins": zod.int(),
+  "speaker": zod.string(),
+  "speakerTitle": zod.string(),
+  "status": zod.enum(['draft', 'published', 'cancelled']),
+  "capacity": zod.int(),
+  "state": zod.enum(['upcoming', 'live', 'past', 'unscheduled', 'cancelled']),
+  "registered": zod.boolean(),
+  "registeredCount": zod.int(),
+  "hasRecording": zod.boolean()
+})
+
+
+/**
+ * @summary Change a Live Session
+ */
+export const UpdateLiveSessionParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const updateLiveSessionBodyDurationMinsMin = 5;
+export const updateLiveSessionBodyDurationMinsMax = 480;
+
+export const updateLiveSessionBodyCapacityMin = 0;
+
+
+
+export const UpdateLiveSessionBody = zod.object({
+  "title": zod.string().optional(),
+  "summary": zod.string().optional(),
+  "description": zod.string().optional(),
+  "topic": zod.string().optional(),
+  "speaker": zod.string().optional(),
+  "speakerTitle": zod.string().optional(),
+  "startsAt": zod.coerce.date().nullish(),
+  "durationMins": zod.int().min(updateLiveSessionBodyDurationMinsMin).max(updateLiveSessionBodyDurationMinsMax).optional(),
+  "capacity": zod.int().min(updateLiveSessionBodyCapacityMin).optional(),
+  "meetUrl": zod.string().nullish(),
+  "recordingUrl": zod.string().nullish(),
+  "status": zod.enum(['draft', 'published', 'cancelled']).optional()
+})
+
+export const UpdateLiveSessionResponse = zod.object({
+  "id": zod.int(),
+  "title": zod.string(),
+  "summary": zod.string(),
+  "description": zod.string(),
+  "topic": zod.string(),
+  "startsAt": zod.coerce.date().nullable(),
+  "durationMins": zod.int(),
+  "speaker": zod.string(),
+  "speakerTitle": zod.string(),
+  "status": zod.enum(['draft', 'published', 'cancelled']),
+  "capacity": zod.int(),
+  "state": zod.enum(['upcoming', 'live', 'past', 'unscheduled', 'cancelled']),
+  "registered": zod.boolean(),
+  "registeredCount": zod.int(),
+  "hasRecording": zod.boolean()
+})
+
+
+/**
+ * @summary Who registered, and who came
+ */
+export const ListLiveSessionRegistrationsParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const ListLiveSessionRegistrationsResponseItem = zod.object({
+  "userId": zod.int(),
+  "name": zod.string(),
+  "email": zod.string(),
+  "registeredAt": zod.coerce.date(),
+  "attendedAt": zod.coerce.date().nullable()
+})
+export const ListLiveSessionRegistrationsResponse = zod.array(ListLiveSessionRegistrationsResponseItem)
+
+
+/**
  * Their own completed runs only. No rank, no comparison, and no endpoint anywhere returns anybody else's.
  * @summary What the signed-in person has done in the Studio
  */

@@ -15,6 +15,7 @@ import partnershipsRouter from "./partnerships";
 import programThumbnailsRouter from "./programThumbnails";
 import bulkInvitesRouter from "./bulkInvites";
 import waitlistRouter from "./waitlist";
+import liveSessionsRouter from "./liveSessions";
 import studioSimulationsRouter from "./studioSimulations";
 
 const router: IRouter = Router();
@@ -28,6 +29,7 @@ router.use(programsRouter);
 router.use(sessionsRouter);
 router.use(enrollmentsRouter);
 router.use(courseworkRouter);
+router.use(liveSessionsRouter);
 router.use(studioSimulationsRouter);
 router.use(reviewsRouter);
 router.use(presenceRouter);

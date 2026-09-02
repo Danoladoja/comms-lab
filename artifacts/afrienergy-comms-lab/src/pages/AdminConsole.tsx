@@ -46,6 +46,7 @@ import {
 import CourseworkStudio from '@/components/CourseworkStudio';
 import InviteFacilitator from '@/components/InviteFacilitator';
 import InviteLearners from '@/components/InviteLearners';
+import LiveSessionsAdmin from '@/components/LiveSessionsAdmin';
 import RecordingsAdmin from '@/components/RecordingsAdmin';
 import ProgramThumbnail from '@/components/ProgramThumbnail';
 import { isMeasurableRecording } from '@/lib/embed';
@@ -56,7 +57,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { ChevronDown, ChevronUp, Plus, Trash2, CircleAlert, Pencil } from 'lucide-react';
 
-const TABS = ['Programmes', 'Enrolments', 'People', 'Recordings'] as const;
+const TABS = ['Programmes', 'Live Sessions', 'Enrolments', 'People', 'Recordings'] as const;
 type Tab = (typeof TABS)[number];
 
 function formatSessionDate(iso: string | null | undefined) {
@@ -1123,6 +1124,7 @@ export default function AdminConsole() {
       </div>
 
       {tab === 'Programmes' && <ProgramsTab instructors={instructors} />}
+      {tab === 'Live Sessions' && <LiveSessionsAdmin />}
       {tab === 'Enrolments' && <EnrollmentsTab />}
       {tab === 'People' && <PeopleTab selfId={user?.id} />}
       {tab === 'Recordings' && <RecordingsAdmin />}

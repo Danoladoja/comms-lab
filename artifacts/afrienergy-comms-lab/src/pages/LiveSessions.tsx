@@ -1,135 +1,225 @@
-import { Link } from 'wouter';
+import { useState } from 'react';
+import { useCurrentUser } from '@/lib/useCurrentUser';
 import {
-  useListPrograms, useListProgramSessions,
-  getListProgramsQueryKey, getListProgramSessionsQueryKey,
-  type Program, type SessionDetail,
+  useListLiveSessions,
+  useRegisterForLiveSession,
+  useCancelLiveSessionRegistration,
+  useJoinLiveSession,
+  getListLiveSessionsQueryKey,
+  type LiveSession,
 } from '@workspace/api-client-react';
-import { liveWindow } from '@workspace/domain';
+import { liveSessionCallToAction, sortLiveSessions } from '@workspace/domain';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Video, Clock, Radio, CalendarDays } from 'lucide-react';
+import { Video, Radio, CalendarDays, Users, Loader2, Check, PlayCircle } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
+import { useQueryClient } from '@tanstack/react-query';
 
 /**
- * The public class schedule.
+ * Live Sessions: the standalone evenings.
  *
- * This page used to render `mock.ts` — fake sessions with fake join links, on a
- * public marketing surface. It now reads the real programs and their real
- * sessions. Join links are never included here: the API only issues them
- * through the join endpoint, to enrolled learners.
+ * This page used to list the classes inside programmes, which meant a cohort's
+ * week-three module appeared here as though it were a public event. Those
+ * belong to their programme and are reached through it.
+ *
+ * What is here now is a different thing: a one-off masterclass or deep dive on
+ * something happening this month. No programme, no certificate, open to
+ * anybody with an account.
+ *
+ * The shape of it answers one question. Registration opens the moment a
+ * session is announced, so people can put their names down weeks ahead. The
+ * joining link appears only when the room opens, ten minutes before the start,
+ * because a link on a public page is a public link whatever the page says
+ * above it. The recording afterwards goes to everyone who registered, whether
+ * or not they made it: somebody who signed up and then had a power cut has
+ * done nothing wrong.
  */
 
-/** Times are shown with the zone spelled out — the cohort spans WAT to EAT. */
-function formatWhen(iso: string) {
+function formatWhen(iso: string | null) {
+  if (!iso) return 'Date to be announced';
   return new Date(iso).toLocaleString(undefined, {
     weekday: 'short', day: 'numeric', month: 'short',
     hour: 'numeric', minute: '2-digit', timeZoneName: 'short',
   });
 }
 
-function ProgramSchedule({ program }: { program: Program }) {
-  const { data: sessions = [], isLoading } = useListProgramSessions(program.id, {
-    query: { queryKey: getListProgramSessionsQueryKey(program.id) },
-  });
+function reason(err: any, fallback: string): string {
+  return err?.error || err?.data?.error || err?.message || fallback;
+}
 
-  if (isLoading) {
-    return <div className="h-24 bg-card border border-border rounded-2xl animate-pulse" />;
-  }
+function SessionCard({ session }: { session: LiveSession }) {
+  const { isSignedIn } = useCurrentUser();
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const [joining, setJoining] = useState(false);
 
-  const scheduled = (sessions as SessionDetail[])
-    .filter((s) => !!s.startsAt)
-    .sort((a, b) =>
-      new Date(a.startsAt as unknown as string).getTime() - new Date(b.startsAt as unknown as string).getTime());
+  const register = useRegisterForLiveSession();
+  const cancel = useCancelLiveSessionRegistration();
+  const join = useJoinLiveSession();
 
-  if (scheduled.length === 0) return null;
+  const refresh = () => qc.invalidateQueries({ queryKey: getListLiveSessionsQueryKey() });
+  const state = session.state;
+  const busy = register.isPending || cancel.isPending || joining;
+
+  const onRegister = () => {
+    if (!isSignedIn) {
+      toast({ title: 'Sign in to register', description: 'It takes a moment, and the joining link comes to your account.' });
+      return;
+    }
+    register.mutate({ id: session.id }, {
+      onSuccess: () => { toast({ title: `You are registered for ${session.title}` }); refresh(); },
+      onError: (err: any) => toast({ title: 'Could not register', description: reason(err, 'Try again in a moment.'), variant: 'destructive' }),
+    });
+  };
+
+  const onJoin = () => {
+    setJoining(true);
+    join.mutate({ id: session.id }, {
+      onSuccess: ({ joinUrl }) => {
+        setJoining(false);
+        // Opened rather than navigated to, so the Lab stays where it was.
+        window.open(joinUrl, '_blank', 'noopener,noreferrer');
+        refresh();
+      },
+      onError: (err: any) => {
+        setJoining(false);
+        toast({ title: 'Could not open the room', description: reason(err, 'Try again in a moment.'), variant: 'destructive' });
+      },
+    });
+  };
 
   return (
-    <section className="bg-card border border-border rounded-2xl p-6" aria-labelledby={`program-${program.id}`}>
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-1">
-        <h2 id={`program-${program.id}`} className="font-display font-bold text-lg">{program.title}</h2>
-        <Badge variant="outline" className="bg-background">{program.format}</Badge>
+    <article className="bg-card border border-border rounded-2xl p-6">
+      <div className="flex flex-wrap items-start justify-between gap-4 mb-3">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2 mb-2">
+            {session.topic && <Badge variant="secondary">{session.topic}</Badge>}
+            {state === 'live' && (
+              <Badge className="bg-red-600 hover:bg-red-600 text-white gap-1.5">
+                <Radio className="w-3 h-3" aria-hidden /> Live now
+              </Badge>
+            )}
+            {state === 'cancelled' && <Badge variant="outline">Cancelled</Badge>}
+            {session.status === 'draft' && <Badge variant="outline">Draft</Badge>}
+          </div>
+          <h3 className="font-display font-bold text-lg">{session.title}</h3>
+          {session.speaker && (
+            <p className="text-sm text-muted-foreground mt-1">
+              {session.speaker}{session.speakerTitle ? `, ${session.speakerTitle}` : ''}
+            </p>
+          )}
+        </div>
+
+        <div className="text-right shrink-0">
+          <p className="text-sm font-medium flex items-center gap-1.5 justify-end">
+            <CalendarDays className="w-3.5 h-3.5 text-muted-foreground" aria-hidden />
+            {formatWhen(session.startsAt)}
+          </p>
+          <p className="text-xs text-muted-foreground mt-1">
+            {session.durationMins} minutes
+            {session.registeredCount > 0 && (
+              <> · <Users className="w-3 h-3 inline align-[-1px]" aria-hidden /> {session.registeredCount} registered</>
+            )}
+          </p>
+        </div>
       </div>
-      <p className="text-xs text-muted-foreground mb-5">{program.duration} · starts {program.startDate}</p>
 
-      <ol className="space-y-2">
-        {scheduled.map((s) => {
-          const iso = s.startsAt as unknown as string;
-          const win = liveWindow({ startsAt: iso, durationMins: s.durationMins });
-          const date = new Date(iso);
-          return (
-            <li key={s.id} className="flex flex-col sm:flex-row sm:items-center gap-4 rounded-xl border border-border px-4 py-3">
-              <div className="bg-muted rounded-lg px-3 py-2 text-center min-w-[72px] flex-shrink-0">
-                <div className="text-[11px] font-bold text-[#C2410C] uppercase">
-                  {date.toLocaleDateString(undefined, { month: 'short' })}
-                </div>
-                <div className="text-2xl font-bold font-display leading-none">{date.getDate()}</div>
-              </div>
+      {session.summary && <p className="text-sm text-muted-foreground leading-relaxed mb-5">{session.summary}</p>}
 
-              <div className="flex-1 min-w-0">
-                <div className="flex flex-wrap items-center gap-2 mb-0.5">
-                  <h3 className="font-semibold">{s.title}</h3>
-                  {win.canJoin && (
-                    <span className="inline-flex items-center gap-1 bg-[#C2410C] text-white text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full">
-                      <Radio className="w-2.5 h-2.5" aria-hidden />Live now
-                    </span>
-                  )}
-                </div>
-                <p className="text-xs text-muted-foreground flex flex-wrap items-center gap-x-4 gap-y-1">
-                  <span className="inline-flex items-center gap-1.5">
-                    <Clock className="w-3.5 h-3.5" aria-hidden />{formatWhen(iso)} · {s.durationMins} min
-                  </span>
-                  {s.instructorName && <span>with {s.instructorName}</span>}
-                </p>
-              </div>
+      <div className="flex flex-wrap items-center gap-3">
+        {state === 'live' && session.registered && (
+          <Button onClick={onJoin} disabled={busy}>
+            {joining ? <Loader2 className="w-4 h-4 mr-2 animate-spin" aria-hidden /> : <Video className="w-4 h-4 mr-2" aria-hidden />}
+            Join now
+          </Button>
+        )}
 
-              <Button asChild size="sm" variant={win.canJoin ? 'default' : 'outline'} className="flex-shrink-0">
-                <Link href={`/programs/${program.id}`}>
-                  <Video className="w-4 h-4 mr-1.5" aria-hidden />
-                  {win.canJoin ? 'Enrolled? Open it' : 'Reserve a place'}
-                </Link>
-              </Button>
-            </li>
-          );
-        })}
-      </ol>
-    </section>
+        {!session.registered && state !== 'past' && state !== 'cancelled' && (
+          <Button onClick={onRegister} disabled={busy}>
+            {register.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" aria-hidden /> : null}
+            {liveSessionCallToAction(state, false)}
+          </Button>
+        )}
+
+        {session.registered && state !== 'live' && (
+          <span className="text-sm text-muted-foreground flex items-center gap-1.5">
+            <Check className="w-4 h-4 text-green-600" aria-hidden />
+            {state === 'past' ? 'You registered for this' : 'You are registered'}
+          </span>
+        )}
+
+        {state === 'past' && session.registered && session.hasRecording && (
+          <span className="text-sm text-muted-foreground flex items-center gap-1.5">
+            <PlayCircle className="w-4 h-4" aria-hidden /> The recording is on your Recordings page
+          </span>
+        )}
+
+        {session.registered && state === 'upcoming' && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-muted-foreground"
+            disabled={busy}
+            onClick={() => cancel.mutate({ id: session.id }, {
+              onSuccess: () => { toast({ title: 'Taken off the list' }); refresh(); },
+            })}
+          >
+            Cannot make it
+          </Button>
+        )}
+
+        {state === 'upcoming' && (
+          <span className="text-xs text-muted-foreground">
+            The joining link appears here ten minutes before the start.
+          </span>
+        )}
+      </div>
+    </article>
   );
 }
 
 export default function LiveSessions() {
-  const { data: programs = [], isLoading } = useListPrograms({
-    query: { queryKey: getListProgramsQueryKey() },
-  });
-
-  const published = programs.filter((p) => p.status === 'published');
+  const { data: sessions = [], isLoading } = useListLiveSessions();
+  const { upcoming, past } = sortLiveSessions(sessions as LiveSession[]);
 
   return (
-    <div className="container mx-auto px-4 md:px-6 py-12">
-      <header className="mb-10 max-w-2xl">
-        <h1 className="text-4xl font-display font-bold mb-4">Class schedule</h1>
-        <p className="text-lg text-muted-foreground">
-          Every live class across our current programs. Classes are recorded and released to everyone enrolled — if a
-          story breaks or the power goes, you have not lost the module.
+    <div className="container mx-auto px-4 py-12 max-w-3xl">
+      <header className="mb-10">
+        <h1 className="text-4xl font-display font-bold mb-3">Live Sessions</h1>
+        <p className="text-muted-foreground leading-relaxed">
+          One-off masterclasses and deep dives on what is happening in Africa's energy transition
+          right now. Each one stands alone: no programme to join and nothing to finish. Register
+          when it is announced, and the joining link appears here when the room opens.
         </p>
       </header>
 
       {isLoading ? (
-        <div className="space-y-6">
+        <div className="space-y-4" aria-busy>
           {[0, 1].map((i) => <div key={i} className="h-40 bg-card border border-border rounded-2xl animate-pulse" />)}
         </div>
-      ) : published.length === 0 ? (
-        <div className="bg-card border border-border rounded-2xl p-12 text-center max-w-xl">
-          <CalendarDays className="w-10 h-10 text-muted-foreground mx-auto mb-3" aria-hidden />
-          <h2 className="font-bold mb-1">No classes scheduled yet</h2>
-          <p className="text-sm text-muted-foreground mb-4">
-            The next cohort's schedule will be published here.
-          </p>
-          <Link href="/courses" className="text-sm font-semibold text-primary hover:underline">
-            Browse programs
-          </Link>
-        </div>
+      ) : sessions.length === 0 ? (
+        <p className="text-muted-foreground">
+          Nothing scheduled at the moment. The next one will be announced here.
+        </p>
       ) : (
-        <div className="space-y-6 max-w-4xl">
-          {published.map((p) => <ProgramSchedule key={p.id} program={p} />)}
+        <div className="space-y-10">
+          {upcoming.length > 0 && (
+            <section>
+              <h2 className="text-sm font-bold uppercase tracking-wider text-muted-foreground mb-4">Coming up</h2>
+              <div className="space-y-4">
+                {upcoming.map((s) => <SessionCard key={s.id} session={s} />)}
+              </div>
+            </section>
+          )}
+
+          {past.length > 0 && (
+            <section>
+              <h2 className="text-sm font-bold uppercase tracking-wider text-muted-foreground mb-4">Already run</h2>
+              <div className="space-y-4">
+                {past.map((s) => <SessionCard key={s.id} session={s} />)}
+              </div>
+            </section>
+          )}
         </div>
       )}
     </div>

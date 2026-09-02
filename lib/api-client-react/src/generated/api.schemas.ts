@@ -1178,6 +1178,101 @@ export interface SimulationResponseSubmission {
   body: string;
 }
 
+export type LiveSessionStatus = typeof LiveSessionStatus[keyof typeof LiveSessionStatus];
+
+
+export const LiveSessionStatus = {
+  draft: 'draft',
+  published: 'published',
+  cancelled: 'cancelled',
+} as const;
+
+export type LiveSessionState = typeof LiveSessionState[keyof typeof LiveSessionState];
+
+
+export const LiveSessionState = {
+  upcoming: 'upcoming',
+  live: 'live',
+  past: 'past',
+  unscheduled: 'unscheduled',
+  cancelled: 'cancelled',
+} as const;
+
+export interface LiveSession {
+  id: number;
+  title: string;
+  summary: string;
+  description: string;
+  topic: string;
+  /** @nullable */
+  startsAt: string | null;
+  durationMins: number;
+  speaker: string;
+  speakerTitle: string;
+  status: LiveSessionStatus;
+  capacity: number;
+  state: LiveSessionState;
+  registered: boolean;
+  registeredCount: number;
+  hasRecording: boolean;
+}
+
+export type LiveSessionDetail = LiveSession & ({
+  /** @nullable */
+  joinUrl: string | null;
+  /** @nullable */
+  recordingUrl: string | null;
+});
+
+export interface LiveSessionRegistered {
+  registered: boolean;
+}
+
+export interface LiveSessionJoin {
+  joinUrl: string;
+}
+
+export type LiveSessionInputStatus = typeof LiveSessionInputStatus[keyof typeof LiveSessionInputStatus];
+
+
+export const LiveSessionInputStatus = {
+  draft: 'draft',
+  published: 'published',
+  cancelled: 'cancelled',
+} as const;
+
+export interface LiveSessionInput {
+  title?: string;
+  summary?: string;
+  description?: string;
+  topic?: string;
+  speaker?: string;
+  speakerTitle?: string;
+  /** @nullable */
+  startsAt?: string | null;
+  /**
+     * @minimum 5
+     * @maximum 480
+     */
+  durationMins?: number;
+  /** @minimum 0 */
+  capacity?: number;
+  /** @nullable */
+  meetUrl?: string | null;
+  /** @nullable */
+  recordingUrl?: string | null;
+  status?: LiveSessionInputStatus;
+}
+
+export interface LiveSessionAttendee {
+  userId: number;
+  name: string;
+  email: string;
+  registeredAt: string;
+  /** @nullable */
+  attendedAt: string | null;
+}
+
 export interface StudioRating {
   name: string;
   /**

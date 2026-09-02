@@ -46,6 +46,12 @@ import type {
   InvitationInput,
   JoinResult,
   ListAllEnrollmentsParams,
+  LiveSession,
+  LiveSessionAttendee,
+  LiveSessionDetail,
+  LiveSessionInput,
+  LiveSessionJoin,
+  LiveSessionRegistered,
   MoreQuestionsInput,
   MyFeedback,
   NotFoundResponse,
@@ -5338,6 +5344,597 @@ export const useRedeemStudioAccess = <TError = ErrorType<BadRequestResponse | Un
       > => {
       return useMutation(getRedeemStudioAccessMutationOptions(options));
     }
+
+export const getListLiveSessionsUrl = () => {
+
+
+
+
+  return `/api/live-sessions`
+}
+
+/**
+ * One-off masterclasses and deep dives, not the classes inside a programme. Public. Never carries the joining link or the recording: both are handed out one person at a time by the endpoints below.
+ * @summary The standalone Live Sessions
+ */
+export const listLiveSessions = async ( options?: Parameters<typeof customFetch>[1]): Promise<LiveSession[]> => {
+
+  return customFetch<LiveSession[]>(getListLiveSessionsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListLiveSessionsQueryKey = () => {
+    return [
+    `/api/live-sessions`
+    ] as const;
+    }
+
+
+export const getListLiveSessionsQueryOptions = <TData = Awaited<ReturnType<typeof listLiveSessions>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listLiveSessions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListLiveSessionsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listLiveSessions>>> = ({ signal }) => listLiveSessions({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listLiveSessions>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListLiveSessionsQueryResult = NonNullable<Awaited<ReturnType<typeof listLiveSessions>>>
+export type ListLiveSessionsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary The standalone Live Sessions
+ */
+
+export function useListLiveSessions<TData = Awaited<ReturnType<typeof listLiveSessions>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listLiveSessions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListLiveSessionsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetLiveSessionUrl = (id: number,) => {
+
+
+
+
+  return `/api/live-sessions/${id}`
+}
+
+/**
+ * Carries the joining link only for somebody registered while the room is open, and the recording only for somebody registered.
+ * @summary One Live Session
+ */
+export const getLiveSession = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<LiveSessionDetail> => {
+
+  return customFetch<LiveSessionDetail>(getGetLiveSessionUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetLiveSessionQueryKey = (id: number,) => {
+    return [
+    `/api/live-sessions/${id}`
+    ] as const;
+    }
+
+
+export const getGetLiveSessionQueryOptions = <TData = Awaited<ReturnType<typeof getLiveSession>>, TError = ErrorType<NotFoundResponse>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getLiveSession>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetLiveSessionQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getLiveSession>>> = ({ signal }) => getLiveSession(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getLiveSession>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetLiveSessionQueryResult = NonNullable<Awaited<ReturnType<typeof getLiveSession>>>
+export type GetLiveSessionQueryError = ErrorType<NotFoundResponse>
+
+
+/**
+ * @summary One Live Session
+ */
+
+export function useGetLiveSession<TData = Awaited<ReturnType<typeof getLiveSession>>, TError = ErrorType<NotFoundResponse>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getLiveSession>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetLiveSessionQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getRegisterForLiveSessionUrl = (id: number,) => {
+
+
+
+
+  return `/api/live-sessions/${id}/register`
+}
+
+/**
+ * Open from the moment the session is published until the moment it ends.
+ * @summary Put your name down
+ */
+export const registerForLiveSession = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<LiveSessionRegistered> => {
+
+  return customFetch<LiveSessionRegistered>(getRegisterForLiveSessionUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getRegisterForLiveSessionMutationOptions = <TError = ErrorType<UnauthorizedResponse | NotFoundResponse | ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof registerForLiveSession>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof registerForLiveSession>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['registerForLiveSession'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof registerForLiveSession>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  registerForLiveSession(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RegisterForLiveSessionMutationResult = NonNullable<Awaited<ReturnType<typeof registerForLiveSession>>>
+
+    export type RegisterForLiveSessionMutationError = ErrorType<UnauthorizedResponse | NotFoundResponse | ApiMessage>
+
+    /**
+ * @summary Put your name down
+ */
+export const useRegisterForLiveSession = <TError = ErrorType<UnauthorizedResponse | NotFoundResponse | ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof registerForLiveSession>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof registerForLiveSession>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getRegisterForLiveSessionMutationOptions(options));
+    }
+
+export const getCancelLiveSessionRegistrationUrl = (id: number,) => {
+
+
+
+
+  return `/api/live-sessions/${id}/register`
+}
+
+/**
+ * @summary Take your name off again
+ */
+export const cancelLiveSessionRegistration = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+  return customFetch<void>(getCancelLiveSessionRegistrationUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getCancelLiveSessionRegistrationMutationOptions = <TError = ErrorType<UnauthorizedResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof cancelLiveSessionRegistration>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof cancelLiveSessionRegistration>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['cancelLiveSessionRegistration'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof cancelLiveSessionRegistration>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  cancelLiveSessionRegistration(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CancelLiveSessionRegistrationMutationResult = NonNullable<Awaited<ReturnType<typeof cancelLiveSessionRegistration>>>
+
+    export type CancelLiveSessionRegistrationMutationError = ErrorType<UnauthorizedResponse>
+
+    /**
+ * @summary Take your name off again
+ */
+export const useCancelLiveSessionRegistration = <TError = ErrorType<UnauthorizedResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof cancelLiveSessionRegistration>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof cancelLiveSessionRegistration>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getCancelLiveSessionRegistrationMutationOptions(options));
+    }
+
+export const getJoinLiveSessionUrl = (id: number,) => {
+
+
+
+
+  return `/api/live-sessions/${id}/join`
+}
+
+/**
+ * Issues the joining link to a registered person once the room is open, and records that they turned up.
+ * @summary Open the room
+ */
+export const joinLiveSession = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<LiveSessionJoin> => {
+
+  return customFetch<LiveSessionJoin>(getJoinLiveSessionUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getJoinLiveSessionMutationOptions = <TError = ErrorType<UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof joinLiveSession>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof joinLiveSession>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['joinLiveSession'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof joinLiveSession>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  joinLiveSession(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type JoinLiveSessionMutationResult = NonNullable<Awaited<ReturnType<typeof joinLiveSession>>>
+
+    export type JoinLiveSessionMutationError = ErrorType<UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | ApiMessage>
+
+    /**
+ * @summary Open the room
+ */
+export const useJoinLiveSession = <TError = ErrorType<UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof joinLiveSession>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof joinLiveSession>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getJoinLiveSessionMutationOptions(options));
+    }
+
+export const getCreateLiveSessionUrl = () => {
+
+
+
+
+  return `/api/admin/live-sessions`
+}
+
+/**
+ * @summary Announce a Live Session
+ */
+export const createLiveSession = async (liveSessionInput: LiveSessionInput, options?: Parameters<typeof customFetch>[1]): Promise<LiveSession> => {
+
+  return customFetch<LiveSession>(getCreateLiveSessionUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(liveSessionInput)
+  }
+);}
+
+
+
+
+
+export const getCreateLiveSessionMutationOptions = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ForbiddenResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createLiveSession>>, TError,{data: BodyType<LiveSessionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createLiveSession>>, TError,{data: BodyType<LiveSessionInput>}, TContext> => {
+
+const mutationKey = ['createLiveSession'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createLiveSession>>, {data: BodyType<LiveSessionInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createLiveSession(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateLiveSessionMutationResult = NonNullable<Awaited<ReturnType<typeof createLiveSession>>>
+    export type CreateLiveSessionMutationBody = BodyType<LiveSessionInput>
+    export type CreateLiveSessionMutationError = ErrorType<BadRequestResponse | UnauthorizedResponse | ForbiddenResponse>
+
+    /**
+ * @summary Announce a Live Session
+ */
+export const useCreateLiveSession = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ForbiddenResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createLiveSession>>, TError,{data: BodyType<LiveSessionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createLiveSession>>,
+        TError,
+        {data: BodyType<LiveSessionInput>},
+        TContext
+      > => {
+      return useMutation(getCreateLiveSessionMutationOptions(options));
+    }
+
+export const getUpdateLiveSessionUrl = (id: number,) => {
+
+
+
+
+  return `/api/admin/live-sessions/${id}`
+}
+
+/**
+ * @summary Change a Live Session
+ */
+export const updateLiveSession = async (id: number,
+    liveSessionInput: LiveSessionInput, options?: Parameters<typeof customFetch>[1]): Promise<LiveSession> => {
+
+  return customFetch<LiveSession>(getUpdateLiveSessionUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(liveSessionInput)
+  }
+);}
+
+
+
+
+
+export const getUpdateLiveSessionMutationOptions = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateLiveSession>>, TError,{id: number;data: BodyType<LiveSessionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateLiveSession>>, TError,{id: number;data: BodyType<LiveSessionInput>}, TContext> => {
+
+const mutationKey = ['updateLiveSession'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateLiveSession>>, {id: number;data: BodyType<LiveSessionInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateLiveSession(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateLiveSessionMutationResult = NonNullable<Awaited<ReturnType<typeof updateLiveSession>>>
+    export type UpdateLiveSessionMutationBody = BodyType<LiveSessionInput>
+    export type UpdateLiveSessionMutationError = ErrorType<BadRequestResponse | UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>
+
+    /**
+ * @summary Change a Live Session
+ */
+export const useUpdateLiveSession = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateLiveSession>>, TError,{id: number;data: BodyType<LiveSessionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateLiveSession>>,
+        TError,
+        {id: number;data: BodyType<LiveSessionInput>},
+        TContext
+      > => {
+      return useMutation(getUpdateLiveSessionMutationOptions(options));
+    }
+
+export const getListLiveSessionRegistrationsUrl = (id: number,) => {
+
+
+
+
+  return `/api/admin/live-sessions/${id}/registrations`
+}
+
+/**
+ * @summary Who registered, and who came
+ */
+export const listLiveSessionRegistrations = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<LiveSessionAttendee[]> => {
+
+  return customFetch<LiveSessionAttendee[]>(getListLiveSessionRegistrationsUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListLiveSessionRegistrationsQueryKey = (id: number,) => {
+    return [
+    `/api/admin/live-sessions/${id}/registrations`
+    ] as const;
+    }
+
+
+export const getListLiveSessionRegistrationsQueryOptions = <TData = Awaited<ReturnType<typeof listLiveSessionRegistrations>>, TError = ErrorType<UnauthorizedResponse | ForbiddenResponse>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listLiveSessionRegistrations>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListLiveSessionRegistrationsQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listLiveSessionRegistrations>>> = ({ signal }) => listLiveSessionRegistrations(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listLiveSessionRegistrations>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListLiveSessionRegistrationsQueryResult = NonNullable<Awaited<ReturnType<typeof listLiveSessionRegistrations>>>
+export type ListLiveSessionRegistrationsQueryError = ErrorType<UnauthorizedResponse | ForbiddenResponse>
+
+
+/**
+ * @summary Who registered, and who came
+ */
+
+export function useListLiveSessionRegistrations<TData = Awaited<ReturnType<typeof listLiveSessionRegistrations>>, TError = ErrorType<UnauthorizedResponse | ForbiddenResponse>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listLiveSessionRegistrations>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListLiveSessionRegistrationsQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getGetStudioRecordUrl = () => {
 

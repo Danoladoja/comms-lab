@@ -2032,6 +2032,148 @@ paths:
         "400": { $ref: "#/components/responses/BadRequest" }
         "401": { $ref: "#/components/responses/Unauthorized" }
         "404": { $ref: "#/components/responses/NotFound" }
+  /live-sessions:
+    get:
+      operationId: listLiveSessions
+      tags: [enrollments]
+      summary: The standalone Live Sessions
+      description: >-
+        One-off masterclasses and deep dives, not the classes inside a
+        programme. Public. Never carries the joining link or the recording:
+        both are handed out one person at a time by the endpoints below.
+      responses:
+        "200":
+          description: What is on
+          content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/LiveSession" } } } }
+  /live-sessions/{id}:
+    get:
+      operationId: getLiveSession
+      tags: [enrollments]
+      summary: One Live Session
+      description: >-
+        Carries the joining link only for somebody registered while the room is
+        open, and the recording only for somebody registered.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: The session
+          content: { application/json: { schema: { $ref: "#/components/schemas/LiveSessionDetail" } } }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /live-sessions/{id}/register:
+    post:
+      operationId: registerForLiveSession
+      tags: [enrollments]
+      summary: Put your name down
+      description: >-
+        Open from the moment the session is published until the moment it ends.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "201":
+          description: Registered
+          content: { application/json: { schema: { $ref: "#/components/schemas/LiveSessionRegistered" } } }
+        "200":
+          description: Already registered
+          content: { application/json: { schema: { $ref: "#/components/schemas/LiveSessionRegistered" } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409":
+          description: Full, finished or not open
+          content: { application/json: { schema: { $ref: "#/components/schemas/ApiMessage" } } }
+    delete:
+      operationId: cancelLiveSessionRegistration
+      tags: [enrollments]
+      summary: Take your name off again
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "204": { description: Cancelled }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+  /live-sessions/{id}/join:
+    post:
+      operationId: joinLiveSession
+      tags: [enrollments]
+      summary: Open the room
+      description: >-
+        Issues the joining link to a registered person once the room is open,
+        and records that they turned up.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: The joining link
+          content: { application/json: { schema: { $ref: "#/components/schemas/LiveSessionJoin" } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409":
+          description: The room is not open, or has no link
+          content: { application/json: { schema: { $ref: "#/components/schemas/ApiMessage" } } }
+  /admin/live-sessions:
+    post:
+      operationId: createLiveSession
+      tags: [admin]
+      summary: Announce a Live Session
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/LiveSessionInput" } } }
+      responses:
+        "201":
+          description: Created
+          content: { application/json: { schema: { $ref: "#/components/schemas/LiveSession" } } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+  /admin/live-sessions/{id}:
+    patch:
+      operationId: updateLiveSession
+      tags: [admin]
+      summary: Change a Live Session
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/LiveSessionInput" } } }
+      responses:
+        "200":
+          description: Changed
+          content: { application/json: { schema: { $ref: "#/components/schemas/LiveSession" } } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /admin/live-sessions/{id}/registrations:
+    get:
+      operationId: listLiveSessionRegistrations
+      tags: [admin]
+      summary: Who registered, and who came
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: The list
+          content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/LiveSessionAttendee" } } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
   /studio/record:
     get:
       operationId: getStudioRecord
@@ -3347,6 +3489,68 @@ components:
       required: [body]
       properties:
         body: { type: string, minLength: 1 }
+    LiveSession:
+      type: object
+      required: [id, title, summary, description, topic, startsAt, durationMins, speaker, speakerTitle, status, capacity, state, registered, registeredCount, hasRecording]
+      properties:
+        id: { type: integer }
+        title: { type: string }
+        summary: { type: string }
+        description: { type: string }
+        topic: { type: string }
+        startsAt: { type: ["string", "null"], format: date-time }
+        durationMins: { type: integer }
+        speaker: { type: string }
+        speakerTitle: { type: string }
+        status: { type: string, enum: [draft, published, cancelled] }
+        capacity: { type: integer }
+        state: { type: string, enum: [upcoming, live, past, unscheduled, cancelled] }
+        registered: { type: boolean }
+        registeredCount: { type: integer }
+        # Whether one exists, without saying where it is.
+        hasRecording: { type: boolean }
+    LiveSessionDetail:
+      allOf:
+        - $ref: "#/components/schemas/LiveSession"
+        - type: object
+          required: [joinUrl, recordingUrl]
+          properties:
+            joinUrl: { type: ["string", "null"] }
+            recordingUrl: { type: ["string", "null"] }
+    LiveSessionRegistered:
+      type: object
+      required: [registered]
+      properties:
+        registered: { type: boolean }
+    LiveSessionJoin:
+      type: object
+      required: [joinUrl]
+      properties:
+        joinUrl: { type: string }
+    LiveSessionInput:
+      type: object
+      properties:
+        title: { type: string }
+        summary: { type: string }
+        description: { type: string }
+        topic: { type: string }
+        speaker: { type: string }
+        speakerTitle: { type: string }
+        startsAt: { type: ["string", "null"], format: date-time }
+        durationMins: { type: integer, minimum: 5, maximum: 480 }
+        capacity: { type: integer, minimum: 0 }
+        meetUrl: { type: ["string", "null"] }
+        recordingUrl: { type: ["string", "null"] }
+        status: { type: string, enum: [draft, published, cancelled] }
+    LiveSessionAttendee:
+      type: object
+      required: [userId, name, email, registeredAt, attendedAt]
+      properties:
+        userId: { type: integer }
+        name: { type: string }
+        email: { type: string }
+        registeredAt: { type: string, format: date-time }
+        attendedAt: { type: ["string", "null"], format: date-time }
     StudioRating:
       type: object
       required: [name, score]

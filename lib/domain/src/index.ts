@@ -1,4 +1,5 @@
 export * from "./liveWindow";
+export * from "./liveSession";
 export * from "./presence";
 export * from "./progress";
 export * from "./reviews";

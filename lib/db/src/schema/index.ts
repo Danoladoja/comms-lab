@@ -14,3 +14,4 @@ export * from "./readings";
 export * from "./invitations";
 export * from "./waitlist";
 export * from "./simulations";
+export * from "./liveSessions";
