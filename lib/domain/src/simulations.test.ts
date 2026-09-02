@@ -9,6 +9,12 @@ import {
   mayCreateStudioRun,
   mayJoinFacilitatedRun,
   MAX_ACCESS_CODES_AT_ONCE,
+  MAX_STUDIO_TURNS,
+  MIN_STUDIO_TURNS,
+  nextStudioStep,
+  plannedTurns,
+  practiceRecord,
+  type CompletedRun,
   accessCodeCount,
   mayEnterStudio,
   maySeeStudioSimulation,
@@ -174,5 +180,105 @@ describe("how many codes at once", () => {
 
   it("will not make five hundred because somebody held a key down", () => {
     expect(accessCodeCount(500)).toBe(MAX_ACCESS_CODES_AT_ONCE);
+  });
+});
+
+describe("how long a solo exercise runs", () => {
+  it("takes its length from the time the person said they had", () => {
+    expect(plannedTurns(24)).toBe(3);
+    expect(plannedTurns(32)).toBe(4);
+    expect(plannedTurns(40)).toBe(5);
+  });
+
+  it("never runs an exercise too short to be one", () => {
+    // Two exchanges is an anecdote. Three is the least that can turn.
+    expect(plannedTurns(5)).toBe(MIN_STUDIO_TURNS);
+    expect(plannedTurns(0)).toBeGreaterThanOrEqual(MIN_STUDIO_TURNS);
+  });
+
+  it("never runs one so long that attention goes", () => {
+    expect(plannedTurns(240)).toBe(MAX_STUDIO_TURNS);
+  });
+
+  it("carries on until the planned number, then finishes", () => {
+    expect(nextStudioStep(1, 4)).toBe("continue");
+    expect(nextStudioStep(3, 4)).toBe("continue");
+    expect(nextStudioStep(4, 4)).toBe("finish");
+    // A run that somehow went past its length still finishes rather than
+    // continuing forever, because every turn is a paid call.
+    expect(nextStudioStep(9, 4)).toBe("finish");
+  });
+});
+
+describe("a practice record", () => {
+  const run = (over: Partial<CompletedRun> = {}): CompletedRun => ({
+    endedAt: "2026-09-01T10:00:00Z",
+    title: "Nine days of flare",
+    score: 60,
+    minutes: 30,
+    ratings: [{ name: "Speed", score: 70 }, { name: "Accuracy", score: 50 }],
+    ...over,
+  });
+
+  it("says nothing at all before anybody has practised", () => {
+    const record = practiceRecord([]);
+    expect(record.runs).toBe(0);
+    expect(record.latestScore).toBeNull();
+    expect(record.bestScore).toBeNull();
+    expect(record.strengths).toEqual([]);
+  });
+
+  it("counts what has been done", () => {
+    const record = practiceRecord([run(), run({ minutes: 45 })]);
+    expect(record.runs).toBe(2);
+    expect(record.minutes).toBe(75);
+  });
+
+  it("takes the latest score from the most recent run, not the last in the list", () => {
+    // The list arrives in whatever order the database felt like.
+    const record = practiceRecord([
+      run({ endedAt: "2026-09-05T10:00:00Z", score: 80 }),
+      run({ endedAt: "2026-09-01T10:00:00Z", score: 40 }),
+    ]);
+    expect(record.latestScore).toBe(80);
+    expect(record.bestScore).toBe(80);
+  });
+
+  it("averages each thing being judged across every run that judged it", () => {
+    const record = practiceRecord([
+      run({ ratings: [{ name: "Speed", score: 80 }] }),
+      run({ ratings: [{ name: "Speed", score: 60 }] }),
+    ]);
+    expect(record.strengths[0]).toEqual({ name: "Speed", score: 70, runs: 2 });
+  });
+
+  it("names what is strongest and what has not moved", () => {
+    const record = practiceRecord([run()]);
+    expect(record.strengths[0].name).toBe("Speed");
+    expect(record.toWorkOn[0].name).toBe("Accuracy");
+  });
+
+  it("gives a trend in the order it happened, oldest first", () => {
+    const record = practiceRecord([
+      run({ endedAt: "2026-09-05T10:00:00Z", score: 80, title: "Second" }),
+      run({ endedAt: "2026-09-01T10:00:00Z", score: 40, title: "First" }),
+    ]);
+    expect(record.trend.map((t) => t.title)).toEqual(["First", "Second"]);
+  });
+
+  it("has no rank, no badge and nobody else in it", () => {
+    // The point of practising privately is that nobody is watching.
+    const record = practiceRecord([run()]);
+    expect(Object.keys(record)).not.toContain("rank");
+    expect(JSON.stringify(record)).not.toMatch(/badge|percentile|leaderboard/i);
+  });
+
+  it("ignores a rating with no name or a score that is not a number", () => {
+    const record = practiceRecord([run({ ratings: [
+      { name: "  ", score: 90 },
+      { name: "Speed", score: Number.NaN },
+      { name: "Clarity", score: 55 },
+    ] })]);
+    expect(record.strengths.map((s) => s.name)).toEqual(["Clarity"]);
   });
 });

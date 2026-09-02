@@ -23,6 +23,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => {
   let selectResults: unknown[][] = [];
+  let updateResults: unknown[][] = [];
   let user: { id: number; role: string } | null = { id: 5, role: "learner" };
 
   const thenable = (get: () => unknown[]) => {
@@ -39,12 +40,12 @@ const mocks = vi.hoisted(() => {
     db: {
       select: vi.fn(() => thenable(() => selectResults.shift() ?? [])),
       insert: vi.fn(() => thenable(() => [])),
-      update: vi.fn(() => thenable(() => [])),
+      update: vi.fn(() => thenable(() => updateResults.shift() ?? [])),
       delete: vi.fn(() => thenable(() => [])),
       transaction: vi.fn(async (fn: (tx: unknown) => unknown) => fn({
         select: () => thenable(() => selectResults.shift() ?? []),
         insert: () => thenable(() => []),
-        update: () => thenable(() => []),
+        update: () => thenable(() => updateResults.shift() ?? []),
         delete: () => thenable(() => []),
         execute: async () => undefined,
       })),
@@ -52,7 +53,8 @@ const mocks = vi.hoisted(() => {
     getCurrentUser: vi.fn(async () => user),
     setUser(next: { id: number; role: string } | null) { user = next; },
     setSelects(rows: unknown[][]) { selectResults = [...rows]; },
-    reset() { selectResults = []; user = { id: 5, role: "learner" }; },
+    setUpdates(rows: unknown[][]) { updateResults = [...rows]; },
+    reset() { selectResults = []; updateResults = []; user = { id: 5, role: "learner" }; },
   };
 });
 
@@ -72,12 +74,12 @@ vi.mock("@workspace/db", () => ({
 vi.mock("../lib/auth", () => ({ getCurrentUser: mocks.getCurrentUser }));
 vi.mock("../lib/email", () => ({ emailConfigured: () => false, sendEmail: vi.fn() }));
 vi.mock("../lib/logger", () => ({ logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() } }));
-vi.mock("../lib/simulationAi", () => ({
-  simulationAiConfigured: () => true,
+const ai = vi.hoisted(() => ({
   generateScenario: vi.fn(),
-  generateDevelopment: vi.fn(),
-  generateDebrief: vi.fn(),
+  generateDevelopment: vi.fn(async () => ({ ok: true, value: { id: "turn-2", title: "Next", source: "Wire", channel: "wire", content: "c", responsePrompt: "p" } })),
+  generateDebrief: vi.fn(async () => ({ ok: true, value: { score: 60, headline: "h", ratings: [], strengths: [], risks: [], stakeholderImpact: "s", recommendations: [] } })),
 }));
+vi.mock("../lib/simulationAi", () => ({ simulationAiConfigured: () => true, ...ai }));
 
 import studioRouter from "./studioSimulations";
 
@@ -168,5 +170,65 @@ describe("the Studio gate itself", () => {
     mocks.setUser({ id: 5, role: "learner" });
     const res = await fetch(`${baseUrl}/api/studio/access-codes`, { method: "POST" });
     expect(res.status).toBe(403);
+  });
+});
+
+
+describe("a solo exercise carries itself", () => {
+  const RUN = {
+    id: 1, ownerId: 5, definitionId: 2, status: "active", responseVersion: 0,
+    operationToken: null, operationStartedAt: null,
+    currentDevelopment: { id: "opening", title: "t", content: "c", responsePrompt: "p" },
+    developments: [{ id: "opening", title: "t", content: "c", responsePrompt: "p" }],
+    debrief: null, joinCode: null,
+  };
+  const DEFINITION = {
+    id: 2, ownerId: 5, programId: null, published: false, durationMinutes: 30,
+    openingBrief: "b", participantPerspective: "spokesperson", groups: [{ id: "g", name: "G", roleName: "r", confidentialBrief: "x" }],
+    injects: [{ id: "opening", title: "t", content: "c", responsePrompt: "p" }],
+    evaluationDimensions: [], debriefQuestions: [], title: "T", context: "", learningObjective: "",
+    difficulty: "intermediate", mode: "autonomous", createdAt: new Date(),
+  };
+  const ASSIGNMENT = { runId: 1, userId: 5, groupId: "g", assignedAt: new Date() };
+  const ANSWER = { runId: 1, groupId: "g", injectId: "opening", body: "we are investigating", authorId: 5, createdAt: new Date(), updatedAt: new Date() };
+
+  function answer() {
+    return fetch(`${baseUrl}/api/simulation-runs/1/response`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ body: "we are investigating" }),
+    });
+  }
+
+  beforeEach(() => {
+    mocks.setUser({ id: 5, role: "admin" });
+    ai.generateDevelopment.mockClear();
+    ai.generateDebrief.mockClear();
+  });
+
+  it("writes what happens next the moment an answer lands, with nothing to press", async () => {
+    const solo = { ...RUN, mode: "autonomous" };
+    mocks.setSelects([
+      [solo], [ASSIGNMENT],                       // saving the answer
+      [DEFINITION],                               // how long is this exercise
+      [DEFINITION], [ANSWER],                     // carrying on: definition, then the story so far
+      [DEFINITION], [ASSIGNMENT], [ANSWER],       // building the reply
+    ]);
+    mocks.setUpdates([[solo], [{ ...solo, operationToken: "t" }], [solo]]);
+
+    const res = await answer();
+    expect(res.status).toBe(200);
+    expect(ai.generateDevelopment, "a solo run should not wait to be told to continue").toHaveBeenCalledTimes(1);
+  });
+
+  it("does not carry a room forward, because the facilitator decides that", async () => {
+    // Everybody in a room has to be on the same development at the same time.
+    const room = { ...RUN, mode: "facilitated", joinCode: "KD7X9M" };
+    mocks.setSelects([[room], [ASSIGNMENT], [DEFINITION], [ASSIGNMENT], [ANSWER]]);
+    mocks.setUpdates([[room]]);
+
+    const res = await answer();
+    expect(res.status).toBe(200);
+    expect(ai.generateDevelopment).not.toHaveBeenCalled();
   });
 });

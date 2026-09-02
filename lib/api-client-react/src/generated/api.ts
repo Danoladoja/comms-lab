@@ -93,6 +93,7 @@ import type {
   StudioAccessCodeInput,
   StudioAccessCodeRequest,
   StudioAccessGrantSummary,
+  StudioPracticeRecord,
   StudioSimulation,
   StudioSimulationRun,
   ThreadDetail,
@@ -5337,6 +5338,84 @@ export const useRedeemStudioAccess = <TError = ErrorType<BadRequestResponse | Un
       > => {
       return useMutation(getRedeemStudioAccessMutationOptions(options));
     }
+
+export const getGetStudioRecordUrl = () => {
+
+
+
+
+  return `/api/studio/record`
+}
+
+/**
+ * Their own completed runs only. No rank, no comparison, and no endpoint anywhere returns anybody else's.
+ * @summary What the signed-in person has done in the Studio
+ */
+export const getStudioRecord = async ( options?: Parameters<typeof customFetch>[1]): Promise<StudioPracticeRecord> => {
+
+  return customFetch<StudioPracticeRecord>(getGetStudioRecordUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetStudioRecordQueryKey = () => {
+    return [
+    `/api/studio/record`
+    ] as const;
+    }
+
+
+export const getGetStudioRecordQueryOptions = <TData = Awaited<ReturnType<typeof getStudioRecord>>, TError = ErrorType<UnauthorizedResponse | ForbiddenResponse>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getStudioRecord>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetStudioRecordQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getStudioRecord>>> = ({ signal }) => getStudioRecord({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getStudioRecord>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetStudioRecordQueryResult = NonNullable<Awaited<ReturnType<typeof getStudioRecord>>>
+export type GetStudioRecordQueryError = ErrorType<UnauthorizedResponse | ForbiddenResponse>
+
+
+/**
+ * @summary What the signed-in person has done in the Studio
+ */
+
+export function useGetStudioRecord<TData = Awaited<ReturnType<typeof getStudioRecord>>, TError = ErrorType<UnauthorizedResponse | ForbiddenResponse>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getStudioRecord>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetStudioRecordQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getCreateStudioAccessCodeUrl = () => {
 

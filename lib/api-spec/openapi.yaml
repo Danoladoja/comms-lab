@@ -2032,6 +2032,20 @@ paths:
         "400": { $ref: "#/components/responses/BadRequest" }
         "401": { $ref: "#/components/responses/Unauthorized" }
         "404": { $ref: "#/components/responses/NotFound" }
+  /studio/record:
+    get:
+      operationId: getStudioRecord
+      tags: [enrollments]
+      summary: What the signed-in person has done in the Studio
+      description: >-
+        Their own completed runs only. No rank, no comparison, and no endpoint
+        anywhere returns anybody else's.
+      responses:
+        "200":
+          description: Their practice record
+          content: { application/json: { schema: { $ref: "#/components/schemas/StudioPracticeRecord" } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
   /studio/access-codes:
     post:
       operationId: createStudioAccessCode
@@ -3329,12 +3343,48 @@ components:
       required: [body]
       properties:
         body: { type: string, minLength: 1 }
+    StudioRating:
+      type: object
+      required: [name, score]
+      properties:
+        name: { type: string }
+        score: { type: integer, minimum: 0, maximum: 100 }
+        note: { type: string }
+    StudioRecordDimension:
+      type: object
+      required: [name, score, runs]
+      properties:
+        name: { type: string }
+        score: { type: integer }
+        runs: { type: integer }
+    StudioPracticeRecord:
+      type: object
+      required: [runs, minutes, latestScore, bestScore, strengths, toWorkOn, trend]
+      properties:
+        runs: { type: integer }
+        minutes: { type: integer }
+        latestScore: { type: ["integer", "null"] }
+        bestScore: { type: ["integer", "null"] }
+        strengths: { type: array, items: { $ref: "#/components/schemas/StudioRecordDimension" } }
+        toWorkOn: { type: array, items: { $ref: "#/components/schemas/StudioRecordDimension" } }
+        trend:
+          type: array
+          items:
+            type: object
+            required: [title, score, endedAt]
+            properties:
+              title: { type: string }
+              score: { type: integer }
+              endedAt: { type: ["string", "null"], format: date-time }
     SimulationDebrief:
       type: object
       required: [score, strengths, risks, stakeholderImpact, recommendations]
       properties:
         score: { type: integer, minimum: 0, maximum: 100 }
         headline: { type: string }
+        # One per thing the scenario judged. Absent on runs finished before
+        # this existed, which is why it is not required.
+        ratings: { type: array, items: { $ref: "#/components/schemas/StudioRating" } }
         strengths: { type: array, items: { type: string } }
         risks: { type: array, items: { type: string } }
         stakeholderImpact: { type: string }

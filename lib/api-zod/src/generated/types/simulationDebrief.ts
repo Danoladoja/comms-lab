@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { StudioRating } from './studioRating';
 
 export interface SimulationDebrief {
   /**
@@ -13,6 +14,7 @@ export interface SimulationDebrief {
      */
   score: number;
   headline?: string;
+  ratings?: StudioRating[];
   strengths: string[];
   risks: string[];
   stakeholderImpact: string;

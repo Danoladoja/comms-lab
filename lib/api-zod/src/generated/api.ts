@@ -1704,6 +1704,33 @@ export const RedeemStudioAccessResponse = zod.object({
 
 
 /**
+ * Their own completed runs only. No rank, no comparison, and no endpoint anywhere returns anybody else's.
+ * @summary What the signed-in person has done in the Studio
+ */
+export const GetStudioRecordResponse = zod.object({
+  "runs": zod.int(),
+  "minutes": zod.int(),
+  "latestScore": zod.int().nullable(),
+  "bestScore": zod.int().nullable(),
+  "strengths": zod.array(zod.object({
+  "name": zod.string(),
+  "score": zod.int(),
+  "runs": zod.int()
+})),
+  "toWorkOn": zod.array(zod.object({
+  "name": zod.string(),
+  "score": zod.int(),
+  "runs": zod.int()
+})),
+  "trend": zod.array(zod.object({
+  "title": zod.string(),
+  "score": zod.int(),
+  "endedAt": zod.coerce.date().nullable()
+}))
+})
+
+
+/**
  * Returns the codes in clear exactly once. Only a digest is stored, so there is no screen anywhere that can show them again.
  * @summary Create one-time learner access codes for Simulation Studio
  */
@@ -1879,6 +1906,9 @@ export const CreateSimulationRunBody = zod.object({
 export const createSimulationRunResponseDebriefOneScoreMin = 0;
 export const createSimulationRunResponseDebriefOneScoreMax = 100;
 
+export const createSimulationRunResponseDebriefOneRatingsItemScoreMin = 0;
+export const createSimulationRunResponseDebriefOneRatingsItemScoreMax = 100;
+
 
 
 
@@ -1918,6 +1948,11 @@ export const CreateSimulationRunResponse = zod.object({
   "debrief": zod.union([zod.object({
   "score": zod.int().min(createSimulationRunResponseDebriefOneScoreMin).max(createSimulationRunResponseDebriefOneScoreMax),
   "headline": zod.string().optional(),
+  "ratings": zod.array(zod.object({
+  "name": zod.string(),
+  "score": zod.int().min(createSimulationRunResponseDebriefOneRatingsItemScoreMin).max(createSimulationRunResponseDebriefOneRatingsItemScoreMax),
+  "note": zod.string().optional()
+})).optional(),
   "strengths": zod.array(zod.string()),
   "risks": zod.array(zod.string()),
   "stakeholderImpact": zod.string(),
@@ -1951,6 +1986,9 @@ export const JoinSimulationRunBody = zod.object({
 
 export const joinSimulationRunResponseDebriefOneScoreMin = 0;
 export const joinSimulationRunResponseDebriefOneScoreMax = 100;
+
+export const joinSimulationRunResponseDebriefOneRatingsItemScoreMin = 0;
+export const joinSimulationRunResponseDebriefOneRatingsItemScoreMax = 100;
 
 
 
@@ -1991,6 +2029,11 @@ export const JoinSimulationRunResponse = zod.object({
   "debrief": zod.union([zod.object({
   "score": zod.int().min(joinSimulationRunResponseDebriefOneScoreMin).max(joinSimulationRunResponseDebriefOneScoreMax),
   "headline": zod.string().optional(),
+  "ratings": zod.array(zod.object({
+  "name": zod.string(),
+  "score": zod.int().min(joinSimulationRunResponseDebriefOneRatingsItemScoreMin).max(joinSimulationRunResponseDebriefOneRatingsItemScoreMax),
+  "note": zod.string().optional()
+})).optional(),
   "strengths": zod.array(zod.string()),
   "risks": zod.array(zod.string()),
   "stakeholderImpact": zod.string(),
@@ -2020,6 +2063,9 @@ export const GetSimulationRunParams = zod.object({
 
 export const getSimulationRunResponseDebriefOneScoreMin = 0;
 export const getSimulationRunResponseDebriefOneScoreMax = 100;
+
+export const getSimulationRunResponseDebriefOneRatingsItemScoreMin = 0;
+export const getSimulationRunResponseDebriefOneRatingsItemScoreMax = 100;
 
 
 
@@ -2060,6 +2106,11 @@ export const GetSimulationRunResponse = zod.object({
   "debrief": zod.union([zod.object({
   "score": zod.int().min(getSimulationRunResponseDebriefOneScoreMin).max(getSimulationRunResponseDebriefOneScoreMax),
   "headline": zod.string().optional(),
+  "ratings": zod.array(zod.object({
+  "name": zod.string(),
+  "score": zod.int().min(getSimulationRunResponseDebriefOneRatingsItemScoreMin).max(getSimulationRunResponseDebriefOneRatingsItemScoreMax),
+  "note": zod.string().optional()
+})).optional(),
   "strengths": zod.array(zod.string()),
   "risks": zod.array(zod.string()),
   "stakeholderImpact": zod.string(),
@@ -2096,6 +2147,9 @@ export const SubmitSimulationResponseBody = zod.object({
 
 export const submitSimulationResponseResponseDebriefOneScoreMin = 0;
 export const submitSimulationResponseResponseDebriefOneScoreMax = 100;
+
+export const submitSimulationResponseResponseDebriefOneRatingsItemScoreMin = 0;
+export const submitSimulationResponseResponseDebriefOneRatingsItemScoreMax = 100;
 
 
 
@@ -2136,6 +2190,11 @@ export const SubmitSimulationResponseResponse = zod.object({
   "debrief": zod.union([zod.object({
   "score": zod.int().min(submitSimulationResponseResponseDebriefOneScoreMin).max(submitSimulationResponseResponseDebriefOneScoreMax),
   "headline": zod.string().optional(),
+  "ratings": zod.array(zod.object({
+  "name": zod.string(),
+  "score": zod.int().min(submitSimulationResponseResponseDebriefOneRatingsItemScoreMin).max(submitSimulationResponseResponseDebriefOneRatingsItemScoreMax),
+  "note": zod.string().optional()
+})).optional(),
   "strengths": zod.array(zod.string()),
   "risks": zod.array(zod.string()),
   "stakeholderImpact": zod.string(),
@@ -2165,6 +2224,9 @@ export const AdvanceSimulationRunParams = zod.object({
 
 export const advanceSimulationRunResponseDebriefOneScoreMin = 0;
 export const advanceSimulationRunResponseDebriefOneScoreMax = 100;
+
+export const advanceSimulationRunResponseDebriefOneRatingsItemScoreMin = 0;
+export const advanceSimulationRunResponseDebriefOneRatingsItemScoreMax = 100;
 
 
 
@@ -2205,6 +2267,11 @@ export const AdvanceSimulationRunResponse = zod.object({
   "debrief": zod.union([zod.object({
   "score": zod.int().min(advanceSimulationRunResponseDebriefOneScoreMin).max(advanceSimulationRunResponseDebriefOneScoreMax),
   "headline": zod.string().optional(),
+  "ratings": zod.array(zod.object({
+  "name": zod.string(),
+  "score": zod.int().min(advanceSimulationRunResponseDebriefOneRatingsItemScoreMin).max(advanceSimulationRunResponseDebriefOneRatingsItemScoreMax),
+  "note": zod.string().optional()
+})).optional(),
   "strengths": zod.array(zod.string()),
   "risks": zod.array(zod.string()),
   "stakeholderImpact": zod.string(),
@@ -2234,6 +2301,9 @@ export const CompleteSimulationRunParams = zod.object({
 
 export const completeSimulationRunResponseDebriefOneScoreMin = 0;
 export const completeSimulationRunResponseDebriefOneScoreMax = 100;
+
+export const completeSimulationRunResponseDebriefOneRatingsItemScoreMin = 0;
+export const completeSimulationRunResponseDebriefOneRatingsItemScoreMax = 100;
 
 
 
@@ -2274,6 +2344,11 @@ export const CompleteSimulationRunResponse = zod.object({
   "debrief": zod.union([zod.object({
   "score": zod.int().min(completeSimulationRunResponseDebriefOneScoreMin).max(completeSimulationRunResponseDebriefOneScoreMax),
   "headline": zod.string().optional(),
+  "ratings": zod.array(zod.object({
+  "name": zod.string(),
+  "score": zod.int().min(completeSimulationRunResponseDebriefOneRatingsItemScoreMin).max(completeSimulationRunResponseDebriefOneRatingsItemScoreMax),
+  "note": zod.string().optional()
+})).optional(),
   "strengths": zod.array(zod.string()),
   "risks": zod.array(zod.string()),
   "stakeholderImpact": zod.string(),

@@ -19,7 +19,13 @@ export type SimulationDevelopment = {
   source?: string; channel?: string;
 };
 export type SimulationEvaluationDimension = { name: string; description: string };
-export type SimulationDebrief = { score: number; headline?: string; strengths: string[]; risks: string[]; stakeholderImpact: string; recommendations: string[] };
+export type SimulationRating = { name: string; score: number; note?: string };
+export type SimulationDebrief = {
+  score: number; headline?: string;
+  /** One per thing the scenario judged. Absent on runs finished before this existed. */
+  ratings?: SimulationRating[];
+  strengths: string[]; risks: string[]; stakeholderImpact: string; recommendations: string[];
+};
 
 export const simulationDefinitionsTable = pgTable("simulation_definitions", {
   id: serial("id").primaryKey(),

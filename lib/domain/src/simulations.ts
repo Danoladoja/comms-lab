@@ -128,3 +128,117 @@ export function accessCodeCount(requested: unknown): number {
   if (!Number.isFinite(n) || n < 1) return 1;
   return Math.min(n, MAX_ACCESS_CODES_AT_ONCE);
 }
+
+/* ---------- How long a solo exercise runs ---------- */
+
+/**
+ * How many things should happen before the debrief.
+ *
+ * A solo exercise should end by itself. Asking somebody to decide when they
+ * have practised enough is asking the wrong person: they do not know what is
+ * coming, and the honest answer is usually "when I get bored", which is not
+ * where the learning is.
+ *
+ * So the length comes from the time they said they had. Roughly eight minutes
+ * a turn, which is about what it takes to read a development properly and
+ * write something you would actually send. Never fewer than three, because two
+ * exchanges is an anecdote rather than an exercise; never more than six,
+ * because attention goes and every turn costs a call.
+ */
+export const MIN_STUDIO_TURNS = 3;
+export const MAX_STUDIO_TURNS = 6;
+
+export function plannedTurns(durationMinutes: number): number {
+  const minutes = Number.isFinite(durationMinutes) && durationMinutes > 0 ? durationMinutes : 30;
+  return Math.max(MIN_STUDIO_TURNS, Math.min(MAX_STUDIO_TURNS, Math.round(minutes / 8)));
+}
+
+/** What happens after this answer: another development, or the debrief. */
+export type NextStep = "continue" | "finish";
+
+/**
+ * Decides it for a solo run, once an answer is in.
+ *
+ * `developmentsSoFar` counts the opening one, so a run that has had its
+ * opening and nothing else is on turn one.
+ */
+export function nextStudioStep(developmentsSoFar: number, planned: number): NextStep {
+  return developmentsSoFar >= planned ? "finish" : "continue";
+}
+
+/* ---------- A practice record ---------- */
+
+export type StudioRating = { name: string; score: number; note?: string };
+
+export type CompletedRun = {
+  endedAt: string | Date | null;
+  title: string;
+  score: number;
+  ratings?: readonly StudioRating[];
+  minutes?: number;
+};
+
+export type PracticeRecord = {
+  runs: number;
+  minutes: number;
+  latestScore: number | null;
+  bestScore: number | null;
+  /** Mean across every run that scored it, strongest first. */
+  strengths: { name: string; score: number; runs: number }[];
+  /** The same list, weakest first. Same data, read the other way. */
+  toWorkOn: { name: string; score: number; runs: number }[];
+  /** Most recent last, for a line that goes somewhere. */
+  trend: { title: string; score: number; endedAt: string | null }[];
+};
+
+/**
+ * What somebody has actually done in the Studio.
+ *
+ * Deliberately not a grade and deliberately not comparative. There is no rank,
+ * no badge and nobody else's number anywhere in it. Senior people do not
+ * practise in a place that scores them against their peers; they practise
+ * where they can be bad at something privately and watch it improve.
+ *
+ * So what it shows is: how much you have done, what you are reliably good at,
+ * and what has not moved yet. The reward is the second and third of those
+ * becoming visible, which is a thing you cannot see from inside a single run.
+ */
+export function practiceRecord(runs: readonly CompletedRun[]): PracticeRecord {
+  const done = [...runs].sort((a, b) => time(a.endedAt) - time(b.endedAt));
+
+  const totals = new Map<string, { total: number; runs: number }>();
+  for (const run of done) {
+    for (const rating of run.ratings ?? []) {
+      const name = rating.name.trim();
+      if (!name || !Number.isFinite(rating.score)) continue;
+      const soFar = totals.get(name) ?? { total: 0, runs: 0 };
+      totals.set(name, { total: soFar.total + rating.score, runs: soFar.runs + 1 });
+    }
+  }
+
+  const averaged = [...totals.entries()]
+    .map(([name, { total, runs: n }]) => ({ name, score: Math.round(total / n), runs: n }))
+    .sort((a, b) => b.score - a.score || a.name.localeCompare(b.name));
+
+  const scores = done.map((run) => run.score).filter((s) => Number.isFinite(s));
+
+  return {
+    runs: done.length,
+    minutes: done.reduce((sum, run) => sum + (Number.isFinite(run.minutes) ? (run.minutes as number) : 0), 0),
+    latestScore: scores.length > 0 ? scores[scores.length - 1] : null,
+    bestScore: scores.length > 0 ? Math.max(...scores) : null,
+    strengths: averaged.slice(0, 3),
+    toWorkOn: [...averaged].reverse().slice(0, 3),
+    trend: done.slice(-8).map((run) => ({
+      title: run.title,
+      score: run.score,
+      endedAt: run.endedAt ? new Date(run.endedAt).toISOString() : null,
+    })),
+  };
+}
+
+function time(value: string | Date | null): number {
+  if (!value) return 0;
+  const t = new Date(value).getTime();
+  return Number.isFinite(t) ? t : 0;
+}

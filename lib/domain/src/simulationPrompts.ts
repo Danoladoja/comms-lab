@@ -287,8 +287,14 @@ own words where it helps them see it. Name the moment the exercise turned, and
 what a stronger answer at that moment would have looked like.
 
 Score out of 100 against the scenario's own evaluation dimensions and nothing
-else. A competent, unremarkable performance is around 60. Reserve above 85 for
-work that would stand up in front of the real thing.
+else, and score each dimension separately as well as overall. A competent,
+unremarkable performance is around 60. Reserve above 85 for work that would
+stand up in front of the real thing.
+
+The per-dimension scores are the useful part, because somebody who practises
+here more than once will watch them move. So be discriminating: if they were
+fast and vague, speed is high and accuracy is not, and saying so is worth more
+than a single number that averages the two into nothing.
 
 Ground everything in what is in front of you. Do not invent a consequence that
 did not happen, and do not praise something they did not do.
@@ -331,6 +337,20 @@ export function debriefSchema(): Record<string, unknown> {
     properties: {
       score: { type: "integer", minimum: 0, maximum: 100 },
       headline: { type: "string", description: "One sentence a colleague could read and understand how it went." },
+      ratings: {
+        type: "array",
+        minItems: 1,
+        description: "One entry per evaluation dimension, named exactly as the scenario named it.",
+        items: {
+          type: "object",
+          properties: {
+            name: { type: "string" },
+            score: { type: "integer", minimum: 0, maximum: 100 },
+            note: { type: "string", description: "One sentence, grounded in what they wrote." },
+          },
+          required: ["name", "score", "note"],
+        },
+      },
       strengths: { type: "array", minItems: 1, maxItems: 4, items: { type: "string" } },
       risks: { type: "array", minItems: 1, maxItems: 4, items: { type: "string" }, description: "What this answer would have cost in the real world." },
       stakeholderImpact: { type: "string", description: "How each stakeholder group would have read this, in two to four sentences." },
@@ -463,14 +483,39 @@ export const DEFAULT_DIMENSIONS: { name: string; description: string }[] = [
   { name: "Audience", description: "Did they speak to the people affected, rather than only to the press?" },
 ];
 
+export type ValidatedRating = { name: string; score: number; note: string };
+
 export type ValidatedDebrief = {
   score: number;
   headline: string;
+  ratings: ValidatedRating[];
   strengths: string[];
   risks: string[];
   stakeholderImpact: string;
   recommendations: string[];
 };
+
+/**
+ * The per-dimension marks, tidied.
+ *
+ * A rating with no name is dropped rather than kept as an empty row: these are
+ * averaged across every run somebody does, and one nameless entry would become
+ * a permanent blank line in their record.
+ */
+function ratings(raw: unknown): ValidatedRating[] {
+  if (!Array.isArray(raw)) return [];
+  const seen = new Set<string>();
+  const out: ValidatedRating[] = [];
+  for (const entry of raw.slice(0, 6)) {
+    const r = (entry ?? {}) as Record<string, unknown>;
+    const name = text(r.name, 80);
+    if (!name || seen.has(name.toLowerCase())) continue;
+    if (typeof r.score !== "number" || !Number.isFinite(r.score)) continue;
+    seen.add(name.toLowerCase());
+    out.push({ name, score: Math.max(0, Math.min(100, Math.round(r.score))), note: text(r.note, 400) });
+  }
+  return out;
+}
 
 export function validateDebrief(raw: unknown): ValidatedDebrief | null {
   if (!raw || typeof raw !== "object") return null;
@@ -483,6 +528,7 @@ export function validateDebrief(raw: unknown): ValidatedDebrief | null {
   return {
     score,
     headline: text(r.headline, 300),
+    ratings: ratings(r.ratings),
     strengths: list(r.strengths, 4),
     risks: list(r.risks, 4),
     stakeholderImpact,

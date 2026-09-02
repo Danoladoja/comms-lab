@@ -7,7 +7,7 @@ import {
 } from "@workspace/db";
 import {
   AdvanceSimulationRunParams, AdvanceSimulationRunResponse, CompleteSimulationRunParams, CompleteSimulationRunResponse,
-  CreateStudioAccessCodeResponse, GrantStudioAccessToProgrammeResponse,
+  CreateStudioAccessCodeResponse, GetStudioRecordResponse, GrantStudioAccessToProgrammeResponse,
   CreateSimulationRunBody, CreateSimulationRunResponse, GenerateSimulationBody, GenerateSimulationResponse,
   GetSimulationParams, GetSimulationResponse, GetSimulationRunParams, GetSimulationRunResponse,
   JoinSimulationRunBody, JoinSimulationRunResponse, ListSimulationsResponse, SubmitSimulationResponseBody,
@@ -17,7 +17,8 @@ import {
 import {
   JOIN_CODE_ALPHABET, JOIN_CODE_LENGTH, accessCodeCount, mayAdvanceStudioRun, mayCompleteStudioRun,
   mayControlStudioRun, mayEnterStudio, mayJoinFacilitatedRun, maySeeStudioSimulation, normaliseJoinCode,
-  operationLeaseIsActive, satisfiesRole, studioInviteLetter, type StudioProgrammeContext,
+  nextStudioStep, operationLeaseIsActive, plannedTurns, practiceRecord, satisfiesRole, studioInviteLetter,
+  type StudioProgrammeContext,
 } from "@workspace/domain";
 import { getCurrentUser } from "../lib/auth";
 import { createBudget } from "../lib/rateBudget";
@@ -248,6 +249,96 @@ function studioUrl(): string {
 function labLogoUrl(): string | null {
   const base = process.env.APP_BASE_URL?.trim().replace(/\/$/, "");
   return base ? `${base}/logo-white.png` : null;
+}
+
+/* ---------- Moving a run along ---------- */
+
+type StepOutcome =
+  | { ok: true; run: typeof simulationRunsTable.$inferSelect }
+  | { ok: false; status: number; error: string };
+
+/**
+ * Write the next development and put it on the table.
+ *
+ * Pulled out of the route because a solo run now does this by itself the
+ * moment an answer is in. Pressing a button called "what happens next" is not
+ * something that happens in a crisis, and it gave every turn a pause where the
+ * person stepped out of the exercise to operate the software.
+ */
+async function carryOn(
+  runId: number,
+  log: { error: (o: unknown, m: string) => void },
+): Promise<StepOutcome> {
+  const claim = await claimOperation(runId);
+  if (!claim) return { ok: false, status: 409, error: "This run is busy. Try again shortly." };
+
+  const [definition] = await db.select().from(simulationDefinitionsTable).where(eq(simulationDefinitionsTable.id, claim.run.definitionId));
+  const { history, latest } = await runHistory(claim.run, definition?.groups ?? []);
+  if (!latest || !claim.run.currentDevelopment) {
+    await releaseOperation(claim.run.id, claim.token);
+    return { ok: false, status: 409, error: "Nobody has answered the current development yet." };
+  }
+
+  const next = await generateDevelopment({
+    openingBrief: definition?.openingBrief ?? "",
+    history,
+    latestResponse: latest,
+    perspective: definition?.participantPerspective ?? "the communications lead",
+    turn: claim.run.developments.length + 1,
+  });
+  if (!next.ok) {
+    await releaseOperation(claim.run.id, claim.token);
+    log.error({ reason: next.error, runId }, "Simulation advancement failed");
+    return { ok: false, status: 502, error: next.error };
+  }
+
+  const [updated] = await db.update(simulationRunsTable)
+    .set({ currentDevelopment: next.value, developments: [...claim.run.developments, next.value], operationToken: null, operationStartedAt: null })
+    .where(and(eq(simulationRunsTable.id, claim.run.id), eq(simulationRunsTable.operationToken, claim.token), eq(simulationRunsTable.responseVersion, claim.run.responseVersion)))
+    .returning();
+  if (!updated) {
+    await releaseOperation(claim.run.id, claim.token);
+    return { ok: false, status: 409, error: "Somebody answered while that was generating. Refresh and try again." };
+  }
+  return { ok: true, run: updated };
+}
+
+/** End it and write the debrief. */
+async function finish(
+  runId: number,
+  log: { error: (o: unknown, m: string) => void },
+): Promise<StepOutcome> {
+  const claim = await claimOperation(runId);
+  if (!claim) return { ok: false, status: 409, error: "This run is busy. Try again shortly." };
+
+  const [definition] = await db.select().from(simulationDefinitionsTable).where(eq(simulationDefinitionsTable.id, claim.run.definitionId));
+  const { history, latest } = await runHistory(claim.run, definition?.groups ?? []);
+  if (!latest) {
+    await releaseOperation(claim.run.id, claim.token);
+    return { ok: false, status: 409, error: "Nobody has answered the current development yet." };
+  }
+
+  const debrief = await generateDebrief({
+    openingBrief: definition?.openingBrief ?? "",
+    evaluationDimensions: definition?.evaluationDimensions ?? [],
+    debriefQuestions: definition?.debriefQuestions ?? [],
+    history,
+  });
+  if (!debrief.ok) {
+    await releaseOperation(claim.run.id, claim.token);
+    log.error({ reason: debrief.error, runId }, "Simulation debrief failed");
+    return { ok: false, status: 502, error: debrief.error };
+  }
+
+  const [updated] = await db.update(simulationRunsTable)
+    .set({ status: "completed", debrief: debrief.value, endedAt: new Date(), operationToken: null, operationStartedAt: null })
+    .where(and(eq(simulationRunsTable.id, claim.run.id), eq(simulationRunsTable.operationToken, claim.token), eq(simulationRunsTable.responseVersion, claim.run.responseVersion)))
+    .returning();
+  if (!updated) {
+    await releaseOperation(claim.run.id, claim.token);
+    return { ok: false, status: 409, error: "Somebody answered while that was generating. Refresh and try again." };
+  }
+  return { ok: true, run: updated };
 }
 
 router.get("/studio/access", async (req, res): Promise<void> => {
@@ -547,9 +638,38 @@ router.post("/simulation-runs/:runId/response", requireStudioAccess, async (req,
   if (outcome.kind === "inactive") { res.status(409).json(message("This run is not accepting responses")); return; }
   if (outcome.kind === "busy") { res.status(409).json(message("This run is busy. Try again shortly.")); return; }
   if (outcome.kind === "forbidden") { res.status(403).json(message("Not a participant in this simulation run")); return; }
-  res.json(SubmitSimulationResponseResponse.parse(await runView(outcome.run, user.id)));
+
+  /*
+   * A solo exercise carries itself.
+   *
+   * The answer is in, so the next thing happens now: another development, or,
+   * once the exercise has run its length, the debrief. Nobody presses
+   * anything. A room is different, because everybody has to be on the same
+   * development at the same time and only the facilitator knows when the
+   * discussion has finished.
+   *
+   * The answer is already saved before any of this. If writing the next
+   * development fails, the person is told why and can try again, and what they
+   * wrote is still there.
+   */
+  const saved = outcome.run;
+  if (saved.mode === "autonomous" && saved.ownerId === user.id) {
+    const [definition] = await db.select().from(simulationDefinitionsTable).where(eq(simulationDefinitionsTable.id, saved.definitionId));
+    const planned = plannedTurns(definition?.durationMinutes ?? 30);
+    const step = nextStudioStep(saved.developments.length, planned);
+    const moved = step === "finish" ? await finish(saved.id, req.log) : await carryOn(saved.id, req.log);
+    if (!moved.ok) { res.status(moved.status).json(message(moved.error)); return; }
+    res.json(SubmitSimulationResponseResponse.parse(await runView(moved.run, user.id)));
+    return;
+  }
+
+  res.json(SubmitSimulationResponseResponse.parse(await runView(saved, user.id)));
 });
 
+/**
+ * Move a room on. Solo runs no longer come through here, because they move
+ * themselves, but a facilitator still decides when a room has finished talking.
+ */
 router.post("/simulation-runs/:runId/advance", requireStudioAccess, async (req, res): Promise<void> => {
   const user = await getCurrentUser(req);
   if (!user) { res.status(401).json(message("Unauthorized")); return; }
@@ -559,45 +679,15 @@ router.post("/simulation-runs/:runId/advance", requireStudioAccess, async (req, 
   const view = run ? await runView(run, user.id) : null;
   if (!run || !view) { res.status(403).json(message("Not a participant in this simulation run")); return; }
   if (!mayControlStudioRun(run.mode as "autonomous" | "facilitated", run.ownerId, user.id)) { res.status(403).json(message("Only the run owner can advance this simulation")); return; }
+  if (!mayAdvanceStudioRun(run.status as "active" | "completed", true)) { res.status(409).json(message("This run has finished")); return; }
   if (!simulationAiConfigured()) { res.status(503).json(message("The Studio needs an AI key on the server before it can continue an exercise.")); return; }
 
-  const claim = await claimOperation(run.id);
-  if (!claim) { res.status(409).json(message("This run is busy. Try again shortly.")); return; }
-
-  const [definition] = await db.select().from(simulationDefinitionsTable).where(eq(simulationDefinitionsTable.id, claim.run.definitionId));
-  const { history, latest } = await runHistory(claim.run, definition?.groups ?? []);
-
-  // Somebody must have answered the development on the table. In an autonomous
-  // run that is the owner themselves; in a room it is whoever is playing, and
-  // the facilitator is not required to write an answer of their own before
-  // moving the room on.
-  if (!latest || !mayAdvanceStudioRun(claim.run.status as "active" | "completed", true) || !claim.run.currentDevelopment) {
-    await releaseOperation(claim.run.id, claim.token);
-    res.status(409).json(message("Nobody has answered the current development yet.")); return;
-  }
-
-  const next = await generateDevelopment({
-    openingBrief: view.openingBrief,
-    history,
-    latestResponse: latest,
-    perspective: definition?.participantPerspective ?? "the communications lead",
-    turn: claim.run.developments.length + 1,
-  });
-  if (!next.ok) {
-    await releaseOperation(claim.run.id, claim.token);
-    req.log.error({ reason: next.error, runId: claim.run.id }, "Simulation advancement failed");
-    res.status(502).json(message(next.error));
-    return;
-  }
-
-  const [updated] = await db.update(simulationRunsTable)
-    .set({ currentDevelopment: next.value, developments: [...claim.run.developments, next.value], operationToken: null, operationStartedAt: null })
-    .where(and(eq(simulationRunsTable.id, claim.run.id), eq(simulationRunsTable.operationToken, claim.token), eq(simulationRunsTable.responseVersion, claim.run.responseVersion)))
-    .returning();
-  if (!updated) { await releaseOperation(claim.run.id, claim.token); res.status(409).json(message("Somebody answered while that was generating. Refresh and try again.")); return; }
-  res.json(AdvanceSimulationRunResponse.parse(await runView(updated, user.id)));
+  const moved = await carryOn(run.id, req.log);
+  if (!moved.ok) { res.status(moved.status).json(message(moved.error)); return; }
+  res.json(AdvanceSimulationRunResponse.parse(await runView(moved.run, user.id)));
 });
 
+/** End it early, or end a room. */
 router.post("/simulation-runs/:runId/complete", requireStudioAccess, async (req, res): Promise<void> => {
   const user = await getCurrentUser(req);
   if (!user) { res.status(401).json(message("Unauthorized")); return; }
@@ -607,37 +697,46 @@ router.post("/simulation-runs/:runId/complete", requireStudioAccess, async (req,
   const view = run ? await runView(run, user.id) : null;
   if (!run || !view) { res.status(403).json(message("Not a participant in this simulation run")); return; }
   if (!mayControlStudioRun(run.mode as "autonomous" | "facilitated", run.ownerId, user.id)) { res.status(403).json(message("Only the run owner can complete this simulation")); return; }
+  if (!mayCompleteStudioRun(run.status as "active" | "completed")) { res.status(409).json(message("This run has already finished")); return; }
   if (!simulationAiConfigured()) { res.status(503).json(message("The Studio needs an AI key on the server before it can write a debrief.")); return; }
 
-  const claim = await claimOperation(run.id);
-  if (!claim) { res.status(409).json(message("This run is busy. Try again shortly.")); return; }
+  const ended = await finish(run.id, req.log);
+  if (!ended.ok) { res.status(ended.status).json(message(ended.error)); return; }
+  res.json(CompleteSimulationRunResponse.parse(await runView(ended.run, user.id)));
+});
 
-  const [definition] = await db.select().from(simulationDefinitionsTable).where(eq(simulationDefinitionsTable.id, claim.run.definitionId));
-  const { history, latest } = await runHistory(claim.run, definition?.groups ?? []);
-  if (!latest || !mayCompleteStudioRun(claim.run.status as "active" | "completed")) {
-    await releaseOperation(claim.run.id, claim.token);
-    res.status(409).json(message("Nobody has answered the current development yet.")); return;
-  }
+/**
+ * What this person has done in the Studio.
+ *
+ * Private to them by construction: it reads only their own completed runs, and
+ * there is no endpoint anywhere that returns anybody else's.
+ */
+router.get("/studio/record", requireStudioAccess, async (req, res): Promise<void> => {
+  const user = await getCurrentUser(req);
+  if (!user) { res.status(401).json(message("Unauthorized")); return; }
 
-  const debrief = await generateDebrief({
-    openingBrief: view.openingBrief,
-    evaluationDimensions: definition?.evaluationDimensions ?? [],
-    debriefQuestions: definition?.debriefQuestions ?? [],
-    history,
-  });
-  if (!debrief.ok) {
-    await releaseOperation(claim.run.id, claim.token);
-    req.log.error({ reason: debrief.error, runId: claim.run.id }, "Simulation debrief failed");
-    res.status(502).json(message(debrief.error));
-    return;
-  }
+  const runs = await db
+    .select({
+      endedAt: simulationRunsTable.endedAt,
+      debrief: simulationRunsTable.debrief,
+      title: simulationDefinitionsTable.title,
+      minutes: simulationDefinitionsTable.durationMinutes,
+    })
+    .from(simulationRunsTable)
+    .innerJoin(simulationDefinitionsTable, eq(simulationRunsTable.definitionId, simulationDefinitionsTable.id))
+    .where(and(eq(simulationRunsTable.ownerId, user.id), eq(simulationRunsTable.status, "completed")));
 
-  const [updated] = await db.update(simulationRunsTable)
-    .set({ status: "completed", debrief: debrief.value, endedAt: new Date(), operationToken: null, operationStartedAt: null })
-    .where(and(eq(simulationRunsTable.id, claim.run.id), eq(simulationRunsTable.operationToken, claim.token), eq(simulationRunsTable.responseVersion, claim.run.responseVersion)))
-    .returning();
-  if (!updated) { await releaseOperation(claim.run.id, claim.token); res.status(409).json(message("Somebody answered while that was generating. Refresh and try again.")); return; }
-  res.json(CompleteSimulationRunResponse.parse(await runView(updated, user.id)));
+  res.json(GetStudioRecordResponse.parse(practiceRecord(
+    runs
+      .filter((row) => row.debrief)
+      .map((row) => ({
+        endedAt: row.endedAt,
+        title: row.title,
+        score: row.debrief!.score,
+        ratings: row.debrief!.ratings ?? [],
+        minutes: row.minutes,
+      })),
+  )));
 });
 
 export default router;

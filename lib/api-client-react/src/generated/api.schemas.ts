@@ -1176,6 +1176,41 @@ export interface SimulationResponseSubmission {
   body: string;
 }
 
+export interface StudioRating {
+  name: string;
+  /**
+     * @minimum 0
+     * @maximum 100
+     */
+  score: number;
+  note?: string;
+}
+
+export interface StudioRecordDimension {
+  name: string;
+  score: number;
+  runs: number;
+}
+
+export type StudioPracticeRecordTrendItem = {
+  title: string;
+  score: number;
+  /** @nullable */
+  endedAt: string | null;
+};
+
+export interface StudioPracticeRecord {
+  runs: number;
+  minutes: number;
+  /** @nullable */
+  latestScore: number | null;
+  /** @nullable */
+  bestScore: number | null;
+  strengths: StudioRecordDimension[];
+  toWorkOn: StudioRecordDimension[];
+  trend: StudioPracticeRecordTrendItem[];
+}
+
 export interface SimulationDebrief {
   /**
      * @minimum 0
@@ -1183,6 +1218,7 @@ export interface SimulationDebrief {
      */
   score: number;
   headline?: string;
+  ratings?: StudioRating[];
   strengths: string[];
   risks: string[];
   stakeholderImpact: string;

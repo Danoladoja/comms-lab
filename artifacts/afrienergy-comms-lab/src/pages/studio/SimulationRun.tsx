@@ -129,12 +129,13 @@ export default function SimulationRun({ id }: { id?: string }) {
     if (!responseBody.trim()) return;
     submitResponse.mutate({ runId: numericId, data: { body: responseBody } }, {
       onSuccess: () => {
-        toast({ title: "Action executed" });
+        // In a solo run the server has already written whatever happens next,
+        // so there is nothing to announce: the feed simply moves.
         setResponseBody('');
         refetch();
       },
       onError: (err: any) => {
-        toast({ title: "Transmission failed", description: reason(err, "Your action could not be logged."), variant: "destructive" });
+        toast({ title: "Not sent", description: reason(err, "Your response could not be saved."), variant: "destructive" });
       }
     });
   };
@@ -328,18 +329,24 @@ export default function SimulationRun({ id }: { id?: string }) {
 
                   <p className="text-white/40 font-mono text-xs mb-8">
                     {run.mode === 'facilitated'
-                      ? `${run.responses?.filter((r: any) => r.injectId === currentDev.id).length ?? 0} participants recorded.`
-                      : 'Scenario is paused awaiting your command.'}
+                      ? `${run.responses?.filter((r: any) => r.injectId === currentDev.id).length ?? 0} answered so far.`
+                      : 'The next development is being written.'}
                   </p>
 
-                  {isOwner && (
+                  {/*
+                    A room still waits for the person running it. A solo run
+                    does not: the server writes the next development the moment
+                    the answer lands, so there is nothing here to press. The
+                    only control left is the one that ends it early.
+                  */}
+                  {isOwner && run.mode === 'facilitated' && (
                     <div className="space-y-3 mt-auto">
                       <Button
                         onClick={handleAdvance}
                         disabled={advanceRun.isPending || completeRun.isPending || !anyoneAnswered}
                         className={cn("w-full uppercase tracking-[0.2em] text-[10px] h-14 rounded-none font-bold", t.btn)}
                       >
-                        {advanceRun.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Zap className="w-4 h-4 mr-2" />}
+                        {advanceRun.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" aria-hidden /> : <Zap className="w-4 h-4 mr-2" aria-hidden />}
                         What happens next
                       </Button>
                       <Button
@@ -348,7 +355,7 @@ export default function SimulationRun({ id }: { id?: string }) {
                         variant="outline"
                         className={cn("w-full uppercase tracking-[0.2em] text-[10px] h-14 rounded-none border-white/20 text-white hover:bg-white/5", !anyoneAnswered && "opacity-50")}
                       >
-                        {completeRun.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+                        {completeRun.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" aria-hidden /> : null}
                         End and debrief
                       </Button>
                     </div>
@@ -426,6 +433,30 @@ function DebriefView({ run, onExit }: { run: any, onExit: () => void }) {
           </div>
 
           <div className="p-8 md:p-10 space-y-10">
+            {debrief.ratings?.length > 0 && (
+              <div className="space-y-4">
+                <h3 className="text-white font-bold uppercase tracking-widest text-sm flex items-center gap-2 border-b border-white/10 pb-2">
+                  <Target className="w-4 h-4 text-[#f97316]" aria-hidden /> How each part went
+                </h3>
+                <div className="space-y-4">
+                  {debrief.ratings.map((rating: any) => (
+                    <div key={rating.name}>
+                      <div className="flex items-baseline justify-between gap-4 mb-1.5">
+                        <span className="text-white/90 text-sm font-semibold">{rating.name}</span>
+                        <span className="text-white/60 text-xs font-mono tabular-nums">{rating.score}</span>
+                      </div>
+                      {/* A bar, not a grade. It exists so that the same name
+                          next time can visibly be somewhere else. */}
+                      <div className="h-1.5 bg-white/10 overflow-hidden" role="img" aria-label={`${rating.name}: ${rating.score} out of 100`}>
+                        <div className="h-full bg-[#f97316]" style={{ width: `${Math.max(2, Math.min(100, rating.score))}%` }} />
+                      </div>
+                      {rating.note && <p className="text-white/50 text-xs mt-2 leading-relaxed">{rating.note}</p>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div className="grid md:grid-cols-2 gap-10">
               <div className="space-y-5">
                 <h3 className="text-white font-mono uppercase tracking-[0.2em] text-[10px] flex items-center gap-2 border-b border-white/10 pb-3">

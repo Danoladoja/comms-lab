@@ -302,3 +302,47 @@ describe("writing for a particular cohort", () => {
     expect(prompt).not.toMatch(/modules they are working through/i);
   });
 });
+
+describe("the per-dimension marks", () => {
+  const good = {
+    score: 71, headline: "Held the line, conceded late.",
+    ratings: [{ name: "Speed", score: 80, note: "Answered inside the deadline." }],
+    strengths: ["Quick"], risks: ["Vague"], stakeholderImpact: "The village noticed.", recommendations: ["Name the date"],
+  };
+
+  it("keeps them, so somebody can watch one move over several runs", () => {
+    expect(validateDebrief(good)?.ratings).toEqual([{ name: "Speed", score: 80, note: "Answered inside the deadline." }]);
+  });
+
+  it("asks the model to score each one separately, not just overall", () => {
+    expect(debriefSystemPrompt()).toMatch(/score each dimension separately/i);
+  });
+
+  it("drops a nameless one rather than leaving a blank line in a record", () => {
+    const debrief = validateDebrief({ ...good, ratings: [{ name: " ", score: 90, note: "x" }, ...good.ratings] });
+    expect(debrief?.ratings.map((r) => r.name)).toEqual(["Speed"]);
+  });
+
+  it("drops one whose score is not a number", () => {
+    const debrief = validateDebrief({ ...good, ratings: [{ name: "Accuracy", score: "high", note: "x" }] });
+    expect(debrief?.ratings).toEqual([]);
+  });
+
+  it("keeps one name only once", () => {
+    const debrief = validateDebrief({ ...good, ratings: [
+      { name: "Speed", score: 80, note: "a" }, { name: "speed", score: 20, note: "b" },
+    ] });
+    expect(debrief?.ratings).toHaveLength(1);
+  });
+
+  it("pulls a wild per-dimension score back into range", () => {
+    const debrief = validateDebrief({ ...good, ratings: [{ name: "Speed", score: 400, note: "x" }] });
+    expect(debrief?.ratings[0].score).toBe(100);
+  });
+
+  it("still accepts a debrief from before ratings existed", () => {
+    // Runs finished last week have no ratings, and their debriefs must still open.
+    const { ratings: _omitted, ...older } = good;
+    expect(validateDebrief(older)?.ratings).toEqual([]);
+  });
+});

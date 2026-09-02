@@ -12,7 +12,8 @@ import {
   useGetStudioAccess,
   useJoinSimulationRun,
   useListSimulations,
-} from '@workspace/api-client-react';
+
+  useGetStudioRecord,} from '@workspace/api-client-react';
 import { StudioLayout } from '@/components/simulation/StudioLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -67,6 +68,7 @@ export default function StudioHome() {
 
   const { data: simulations, isLoading: isLoadingSims } = useListSimulations();
   const { data: studioAccess } = useGetStudioAccess();
+  const { data: record } = useGetStudioRecord();
   const generateSim = useGenerateSimulation();
   const joinSim = useJoinSimulationRun();
   const createAccessCode = useCreateStudioAccessCode();
@@ -258,6 +260,72 @@ export default function StudioHome() {
                   )}
                 </div>
 
+              </motion.div>
+            )}
+
+            {/*
+              What they have actually done.
+              No rank, no badge, nobody else's number. Senior people do not
+              practise where they are scored against their peers; they practise
+              where they can be bad at something privately and watch it move.
+              This is the watching-it-move part, which no single run can show.
+            */}
+            {record && record.runs > 0 && (
+              <motion.div {...FADE_UP} className="mb-10 p-5 bg-white/[0.02] border border-white/10">
+                <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2 mb-4">
+                  <Activity className="w-4 h-4 text-[#f97316]" aria-hidden /> Your practice
+                </h3>
+
+                <div className="grid grid-cols-3 gap-4 mb-5">
+                  <div>
+                    <p className="font-display text-3xl font-bold text-white tabular-nums">{record.runs}</p>
+                    <p className="text-[10px] uppercase tracking-widest text-white/40 mt-1">
+                      {record.runs === 1 ? 'exercise' : 'exercises'}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="font-display text-3xl font-bold text-white tabular-nums">
+                      {record.minutes >= 60 ? `${Math.round(record.minutes / 60)}h` : `${record.minutes}m`}
+                    </p>
+                    <p className="text-[10px] uppercase tracking-widest text-white/40 mt-1">practised</p>
+                  </div>
+                  <div>
+                    <p className="font-display text-3xl font-bold text-[#f97316] tabular-nums">{record.latestScore ?? '—'}</p>
+                    <p className="text-[10px] uppercase tracking-widest text-white/40 mt-1">
+                      most recent{record.bestScore !== null && record.bestScore !== record.latestScore ? ` · best ${record.bestScore}` : ''}
+                    </p>
+                  </div>
+                </div>
+
+                {record.trend.length > 1 && (
+                  <div className="flex items-end gap-1.5 h-12 mb-5" role="img"
+                       aria-label={`Scores across your last ${record.trend.length} exercises: ${record.trend.map((t: any) => t.score).join(', ')}`}>
+                    {record.trend.map((point: any, i: number) => (
+                      <div key={i} className="flex-1 bg-[#f97316]/70 min-h-[2px]" style={{ height: `${Math.max(4, point.score)}%` }} title={`${point.title}: ${point.score}`} />
+                    ))}
+                  </div>
+                )}
+
+                {record.strengths.length > 0 && (
+                  <div className="grid sm:grid-cols-2 gap-5 pt-4 border-t border-white/10">
+                    <div>
+                      <p className="text-[10px] uppercase tracking-widest text-white/40 mb-2">Reliably strong</p>
+                      {record.strengths.map((d: any) => (
+                        <p key={d.name} className="text-sm text-white/80 flex justify-between gap-3">
+                          <span>{d.name}</span><span className="text-white/40 font-mono tabular-nums">{d.score}</span>
+                        </p>
+                      ))}
+                    </div>
+                    <div>
+                      <p className="text-[10px] uppercase tracking-widest text-white/40 mb-2">Has not moved yet</p>
+                      {record.toWorkOn.map((d: any) => (
+                        <p key={d.name} className="text-sm text-white/80 flex justify-between gap-3">
+                          <span>{d.name}</span><span className="text-white/40 font-mono tabular-nums">{d.score}</span>
+                        </p>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </motion.div>
             )}
 
