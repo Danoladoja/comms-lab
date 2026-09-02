@@ -22,55 +22,73 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
  */
 
 const mocks = vi.hoisted(() => {
-  let selectResults: unknown[][] = [];
-  let updateResults: unknown[][] = [];
+  /*
+   * Answers queries by which table they are against, not by the order they
+   * arrive in.
+   *
+   * The Studio writes the next development in the background now, so a request
+   * and the work it started are both talking to the database at once and the
+   * order is genuinely undefined. A queue of results keyed by call order was
+   * fine before that and is a coin toss after it.
+   */
+  let rows: Record<string, unknown[]> = {};
+  let updates: unknown[][] = [];
   let user: { id: number; role: string } | null = { id: 5, role: "learner" };
 
   const thenable = (get: () => unknown[]) => {
+    let table = "";
     const builder: Record<string, unknown> = {};
-    for (const key of ["from", "where", "leftJoin", "innerJoin", "orderBy", "returning", "limit", "for", "values", "set", "onConflictDoUpdate", "onConflictDoNothing"]) {
+    for (const key of ["where", "leftJoin", "innerJoin", "orderBy", "returning", "limit", "for", "values", "set", "onConflictDoUpdate", "onConflictDoNothing"]) {
       builder[key] = () => builder;
     }
+    builder.from = (t: unknown) => { table = (t as { __name?: string })?.__name ?? ""; return builder; };
     builder.then = (resolve: (v: unknown[]) => unknown, reject?: (r: unknown) => unknown) =>
-      Promise.resolve(get()).then(resolve, reject);
+      Promise.resolve(get.length === 0 ? get() : (get as (t: string) => unknown[])(table)).then(resolve, reject);
     return builder;
   };
 
+  const selectFor = (table: string) => rows[table] ?? [];
+
   return {
     db: {
-      select: vi.fn(() => thenable(() => selectResults.shift() ?? [])),
+      select: vi.fn(() => thenable(((t: string) => selectFor(t)) as unknown as () => unknown[])),
       insert: vi.fn(() => thenable(() => [])),
-      update: vi.fn(() => thenable(() => updateResults.shift() ?? [])),
+      update: vi.fn(() => thenable(() => updates.shift() ?? [])),
       delete: vi.fn(() => thenable(() => [])),
       transaction: vi.fn(async (fn: (tx: unknown) => unknown) => fn({
-        select: () => thenable(() => selectResults.shift() ?? []),
+        select: () => thenable(((t: string) => selectFor(t)) as unknown as () => unknown[]),
         insert: () => thenable(() => []),
-        update: () => thenable(() => updateResults.shift() ?? []),
+        update: () => thenable(() => updates.shift() ?? []),
         delete: () => thenable(() => []),
         execute: async () => undefined,
       })),
     },
     getCurrentUser: vi.fn(async () => user),
     setUser(next: { id: number; role: string } | null) { user = next; },
-    setSelects(rows: unknown[][]) { selectResults = [...rows]; },
-    setUpdates(rows: unknown[][]) { updateResults = [...rows]; },
-    reset() { selectResults = []; updateResults = []; user = { id: 5, role: "learner" }; },
+    /** What each table returns, for as long as the test runs. */
+    setRows(next: Record<string, unknown[]>) { rows = { ...next }; },
+    setUpdates(next: unknown[][]) { updates = [...next]; },
+    reset() { rows = {}; updates = []; user = { id: 5, role: "learner" }; },
   };
 });
 
-vi.mock("@workspace/db", () => ({
+vi.mock("@workspace/db", () => {
+  // Inside the factory: vi.mock is hoisted above every top-level declaration.
+  const table = (name: string, columns: Record<string, string>) => ({ __name: name, ...columns });
+  return ({
   db: mocks.db,
-  pendingInvitationsTable: { id: "id", acceptedByUserId: "accepted_by_user_id", role: "role" },
-  studioAccessCodesTable: { id: "id", codeHash: "code_hash", createdByUserId: "created_by", redeemedByUserId: "redeemed_by", redeemedAt: "redeemed_at" },
-  simulationDefinitionsTable: { id: "id", ownerId: "owner_id", createdAt: "created_at" },
-  simulationRunsTable: { id: "id", ownerId: "owner_id", joinCode: "join_code", status: "status", definitionId: "definition_id" },
-  simulationGroupAssignmentsTable: { id: "id", runId: "run_id", userId: "user_id", groupId: "group_id" },
-  simulationResponsesTable: { id: "id", runId: "run_id", groupId: "group_id", injectId: "inject_id", createdAt: "created_at" },
-  enrollmentsTable: { userId: "user_id", programId: "program_id", status: "status" },
-  programsTable: { id: "id", title: "title", description: "description", tag: "tag" },
-  sessionsTable: { id: "id", programId: "program_id", title: "title", startsAt: "starts_at" },
-  usersTable: { id: "id", name: "name", email: "email" },
-}));
+  pendingInvitationsTable: table("pendingInvitations", { id: "id", acceptedByUserId: "accepted_by_user_id", role: "role" }),
+  studioAccessCodesTable: table("studioAccessCodes", { id: "id", codeHash: "code_hash", createdByUserId: "created_by", redeemedByUserId: "redeemed_by", redeemedAt: "redeemed_at" }),
+  simulationDefinitionsTable: table("simulationDefinitions", { id: "id", ownerId: "owner_id", createdAt: "created_at" }),
+  simulationRunsTable: table("simulationRuns", { id: "id", ownerId: "owner_id", joinCode: "join_code", status: "status", definitionId: "definition_id" }),
+  simulationGroupAssignmentsTable: table("simulationGroupAssignments", { id: "id", runId: "run_id", userId: "user_id", groupId: "group_id" }),
+  simulationResponsesTable: table("simulationResponses", { id: "id", runId: "run_id", groupId: "group_id", injectId: "inject_id", createdAt: "created_at" }),
+  enrollmentsTable: table("enrollments", { userId: "user_id", programId: "program_id", status: "status" }),
+  programsTable: table("programs", { id: "id", title: "title", description: "description", tag: "tag" }),
+  sessionsTable: table("sessions", { id: "id", programId: "program_id", title: "title", startsAt: "starts_at" }),
+  usersTable: table("users", { id: "id", name: "name", email: "email" }),
+  });
+});
 vi.mock("../lib/auth", () => ({ getCurrentUser: mocks.getCurrentUser }));
 vi.mock("../lib/email", () => ({ emailConfigured: () => false, sendEmail: vi.fn() }));
 vi.mock("../lib/logger", () => ({ logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() } }));
@@ -113,7 +131,7 @@ describe("the Studio gate stays inside the Studio", () => {
   it("lets a learner with no Studio access reach the rest of the API", async () => {
     mocks.setUser({ id: 5, role: "learner" });
     for (const path of NEIGHBOURS) {
-      mocks.setSelects([[], []]);
+      mocks.setRows({});
       const res = await fetch(`${baseUrl}${path}`);
       expect(res.status, `${path} was blocked by the Studio gate`).toBe(200);
       expect(await res.json()).toEqual({ reached: true });
@@ -131,7 +149,7 @@ describe("the Studio gate stays inside the Studio", () => {
 describe("the Studio gate itself", () => {
   it("refuses a learner with no invitation and no code", async () => {
     mocks.setUser({ id: 5, role: "learner" });
-    mocks.setSelects([[], []]);
+    mocks.setRows({});
     const res = await fetch(`${baseUrl}/api/simulations`);
     expect(res.status).toBe(403);
     expect((await res.json() as { error: string }).error).toMatch(/invitation or access code/i);
@@ -139,7 +157,7 @@ describe("the Studio gate itself", () => {
 
   it("lets an admin straight in", async () => {
     mocks.setUser({ id: 1, role: "admin" });
-    mocks.setSelects([[]]);
+    mocks.setRows({});
     const res = await fetch(`${baseUrl}/api/simulations`);
     expect(res.status).toBe(200);
   });
@@ -147,15 +165,14 @@ describe("the Studio gate itself", () => {
   it("lets a super admin in too", async () => {
     // Same rule as everywhere else: a super admin's row does not say "admin".
     mocks.setUser({ id: 2, role: "superadmin" });
-    mocks.setSelects([[]]);
+    mocks.setRows({});
     const res = await fetch(`${baseUrl}/api/simulations`);
     expect(res.status).toBe(200);
   });
 
   it("lets a learner in once a code is redeemed against their account", async () => {
     mocks.setUser({ id: 5, role: "learner" });
-    // no invitation, one redeemed code, then the enrolments and the exercises
-    mocks.setSelects([[], [{ id: 9 }], [], []]);
+    mocks.setRows({ studioAccessCodes: [{ id: 9 }] });
     const res = await fetch(`${baseUrl}/api/simulations`);
     expect(res.status).toBe(200);
   });
@@ -208,12 +225,10 @@ describe("a solo exercise carries itself", () => {
 
   it("writes what happens next the moment an answer lands, with nothing to press", async () => {
     const solo = { ...RUN, mode: "autonomous" };
-    mocks.setSelects([
-      [solo], [ASSIGNMENT],                       // saving the answer
-      [DEFINITION],                               // how long is this exercise
-      [DEFINITION], [ANSWER],                     // carrying on: definition, then the story so far
-      [DEFINITION], [ASSIGNMENT], [ANSWER],       // building the reply
-    ]);
+    mocks.setRows({
+      simulationRuns: [solo], simulationDefinitions: [DEFINITION],
+      simulationGroupAssignments: [ASSIGNMENT], simulationResponses: [ANSWER],
+    });
     mocks.setUpdates([[solo], [{ ...solo, operationToken: "t" }], [solo]]);
 
     const res = await answer();
@@ -224,7 +239,10 @@ describe("a solo exercise carries itself", () => {
   it("does not carry a room forward, because the facilitator decides that", async () => {
     // Everybody in a room has to be on the same development at the same time.
     const room = { ...RUN, mode: "facilitated", joinCode: "KD7X9M" };
-    mocks.setSelects([[room], [ASSIGNMENT], [DEFINITION], [ASSIGNMENT], [ANSWER]]);
+    mocks.setRows({
+      simulationRuns: [room], simulationDefinitions: [DEFINITION],
+      simulationGroupAssignments: [ASSIGNMENT], simulationResponses: [ANSWER],
+    });
     mocks.setUpdates([[room]]);
 
     const res = await answer();
@@ -264,8 +282,7 @@ describe("the clock, on the way in and out", () => {
 
   it("tells the browser how long is left, on both clocks", async () => {
     const run = runRow();
-    // the run, the permission check, the clock's definition, then the reply
-    mocks.setSelects([[run], [DEFINITION], [ASSIGNMENT], [], [DEFINITION], [DEFINITION], [ASSIGNMENT], []]);
+    mocks.setRows({ simulationRuns: [run], simulationDefinitions: [DEFINITION], simulationGroupAssignments: [ASSIGNMENT] });
     const res = await fetch(`${baseUrl}/api/simulation-runs/1`);
     expect(res.status).toBe(200);
     const body = await res.json() as { clock: { sessionSecondsLeft: number; responseSecondsLeft: number } };
@@ -276,12 +293,7 @@ describe("the clock, on the way in and out", () => {
   it("ends an exercise whose time is up, the moment somebody looks", async () => {
     // There is no background job. Opening it is when the clock bites.
     const over = runRow({ startedAt: new Date(Date.now() - 60 * 60_000) });
-    mocks.setSelects([
-      [over], [DEFINITION], [ASSIGNMENT], [],   // the run, then the permission check
-      [DEFINITION],                             // the clock's definition
-      [DEFINITION], [],                         // finishing: definition, then the story so far
-      [DEFINITION], [ASSIGNMENT], [],           // the reply
-    ]);
+    mocks.setRows({ simulationRuns: [over], simulationDefinitions: [DEFINITION], simulationGroupAssignments: [ASSIGNMENT] });
     mocks.setUpdates([[{ ...over, operationToken: "t" }], [{ ...over, status: "completed" }]]);
 
     const res = await fetch(`${baseUrl}/api/simulation-runs/1`);
@@ -291,12 +303,7 @@ describe("the clock, on the way in and out", () => {
 
   it("moves a solo run past a deadline nobody answered", async () => {
     const late = runRow({ currentDevelopment: { id: "opening", title: "t", content: "c", responsePrompt: "p", dueAt: new Date(Date.now() - 5000).toISOString() } });
-    mocks.setSelects([
-      [late], [DEFINITION], [ASSIGNMENT], [],
-      [DEFINITION],
-      [DEFINITION], [],
-      [DEFINITION], [ASSIGNMENT], [],
-    ]);
+    mocks.setRows({ simulationRuns: [late], simulationDefinitions: [DEFINITION], simulationGroupAssignments: [ASSIGNMENT] });
     mocks.setUpdates([[{ ...late, operationToken: "t" }], [late]]);
 
     const res = await fetch(`${baseUrl}/api/simulation-runs/1`);
@@ -306,7 +313,7 @@ describe("the clock, on the way in and out", () => {
 
   it("leaves a room alone when a deadline passes, because the facilitator decides", async () => {
     const room = runRow({ mode: "facilitated", currentDevelopment: { id: "opening", title: "t", content: "c", responsePrompt: "p", dueAt: new Date(Date.now() - 5000).toISOString() } });
-    mocks.setSelects([[room], [DEFINITION], [ASSIGNMENT], [], [DEFINITION], [DEFINITION], [ASSIGNMENT], []]);
+    mocks.setRows({ simulationRuns: [room], simulationDefinitions: [DEFINITION], simulationGroupAssignments: [ASSIGNMENT] });
     const res = await fetch(`${baseUrl}/api/simulation-runs/1`);
     expect(res.status).toBe(200);
     expect(ai.generateDevelopment).not.toHaveBeenCalled();

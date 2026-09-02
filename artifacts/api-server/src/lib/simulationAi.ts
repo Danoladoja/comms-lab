@@ -68,7 +68,10 @@ export async function generateDevelopment(input: {
     toolName: "submit_development",
     toolDescription: "Return the next thing that happens.",
     schema: developmentSchema(),
-    maxTokens: 2000,
+    maxTokens: 1200,
+    // Somebody is watching a spinner for this one.
+    fast: true,
+    timeoutMs: 60_000,
     label: "studio-development",
   });
   if ("error" in answer) return { ok: false, error: answer.error };

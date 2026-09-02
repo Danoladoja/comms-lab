@@ -33,6 +33,10 @@ portfolio.
 - Coursework drafting (optional) needs `ANTHROPIC_API_KEY`, and optionally
   `ANTHROPIC_MODEL`. Without it slides and transcripts still upload and
   coursework is written by hand; only the drafting buttons are unavailable.
+- `ANTHROPIC_FAST_MODEL` optionally names a quicker model for the developments
+  written mid-run, where somebody is sitting watching for the answer. Unset it
+  uses the same model as everything else. The scenario and the debrief always
+  use `ANTHROPIC_MODEL`, because they are read closely and happen once each.
 - The Simulation Studio uses that same `ANTHROPIC_API_KEY`. Without it the
   Studio loads and says plainly that the server has no AI key; it never crashes.
   `ANTHROPIC_BASE_URL` optionally points the client at a proxy instead of

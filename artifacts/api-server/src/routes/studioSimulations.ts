@@ -119,6 +119,10 @@ async function runView(run: typeof simulationRunsTable.$inferSelect, userId: num
     developments: run.developments, responses: (isOwner ? allResponses : allResponses.filter((item) => item.groupId === participantGroupId)).map(response),
     debrief: run.debrief, openingBrief: definition.openingBrief, stakeholderGroups: safeGroups, participantGroupId,
     clock: clockFor(run, definition),
+    // Something is being written right now. The browser uses this to keep
+    // asking, and to say so, rather than leaving the person looking at a
+    // screen that appears to have stopped.
+    working: !!run.operationToken && operationLeaseIsActive(run.operationStartedAt, new Date(), operationLeaseMs),
   };
 }
 /**
@@ -281,6 +285,38 @@ function clockFor(
 }
 
 /* ---------- Moving a run along ---------- */
+/**
+ * Claim the run, answer straight away, and write in the background.
+ *
+ * Waiting for the model before answering made every turn feel broken. The
+ * person had pressed Send, their words had vanished from the box, and nothing
+ * happened for fifteen seconds. Now the lease is taken before we reply, so the
+ * page comes back at once saying the newsroom is reacting, and the development
+ * appears when it is ready.
+ *
+ * The lease is what makes this safe. It is claimed synchronously, so a second
+ * request cannot start the same work, and it expires on its own, so a crash
+ * mid-generation frees the run rather than wedging it forever.
+ */
+async function startStep(
+  runId: number,
+  kind: "carryOn" | "finish",
+  log: { error: (o: unknown, m: string) => void },
+): Promise<boolean> {
+  const claim = await claimOperation(runId);
+  if (!claim) return false;
+
+  // Deliberately not awaited. Whatever happens is written to the run, and the
+  // browser is already asking every couple of seconds.
+  void (kind === "finish" ? finishWith(claim, log) : carryOnWith(claim, log))
+    .catch((err) => {
+      log.error({ err, runId }, "Studio step threw");
+      return releaseOperation(runId, claim.token);
+    });
+  return true;
+}
+
+
 
 type StepOutcome =
   | { ok: true; run: typeof simulationRunsTable.$inferSelect }
@@ -301,7 +337,16 @@ async function carryOn(
 ): Promise<StepOutcome> {
   const claim = await claimOperation(runId);
   if (!claim) return { ok: false, status: 409, error: "This run is busy. Try again shortly." };
+  return carryOnWith(claim, log, allowSilence);
+}
 
+type Claim = NonNullable<Awaited<ReturnType<typeof claimOperation>>>;
+
+async function carryOnWith(
+  claim: Claim,
+  log: { error: (o: unknown, m: string) => void },
+  allowSilence = true,
+): Promise<StepOutcome> {
   const [definition] = await db.select().from(simulationDefinitionsTable).where(eq(simulationDefinitionsTable.id, claim.run.definitionId));
   const { history, latest } = await runHistory(claim.run, definition?.groups ?? []);
   if (!claim.run.currentDevelopment) {
@@ -324,7 +369,7 @@ async function carryOn(
   });
   if (!next.ok) {
     await releaseOperation(claim.run.id, claim.token);
-    log.error({ reason: next.error, runId }, "Simulation advancement failed");
+    log.error({ reason: next.error, runId: claim.run.id }, "Simulation advancement failed");
     return { ok: false, status: 502, error: next.error };
   }
 
@@ -348,7 +393,14 @@ async function finish(
 ): Promise<StepOutcome> {
   const claim = await claimOperation(runId);
   if (!claim) return { ok: false, status: 409, error: "This run is busy. Try again shortly." };
+  return finishWith(claim, log, allowSilence);
+}
 
+async function finishWith(
+  claim: Claim,
+  log: { error: (o: unknown, m: string) => void },
+  allowSilence = true,
+): Promise<StepOutcome> {
   const [definition] = await db.select().from(simulationDefinitionsTable).where(eq(simulationDefinitionsTable.id, claim.run.definitionId));
   const { history, latest } = await runHistory(claim.run, definition?.groups ?? []);
   if (!latest && !allowSilence) {
@@ -364,7 +416,7 @@ async function finish(
   });
   if (!debrief.ok) {
     await releaseOperation(claim.run.id, claim.token);
-    log.error({ reason: debrief.error, runId }, "Simulation debrief failed");
+    log.error({ reason: debrief.error, runId: claim.run.id }, "Simulation debrief failed");
     return { ok: false, status: 502, error: debrief.error };
   }
 
@@ -665,15 +717,14 @@ router.get("/simulation-runs/:runId", requireStudioAccess, async (req, res): Pro
   if (run.status === "active" && simulationAiConfigured()) {
     const [definition] = await db.select().from(simulationDefinitionsTable).where(eq(simulationDefinitionsTable.id, run.definitionId));
     const says = whatTheClockSays(clockFor(run, definition), run.mode as "autonomous" | "facilitated");
-    if (says === "finish") {
-      const ended = await finish(run.id, req.log, true);
-      if (ended.ok) run = ended.run;
-    } else if (says === "moveOn") {
-      const moved = await carryOn(run.id, req.log, true);
-      if (moved.ok) run = moved.run;
+    if (says !== "nothing") {
+      // Started rather than waited for: the person asked to see their
+      // exercise, and they should see it now, with a note that something is
+      // being written. It arrives on the next poll, a second or two later.
+      await startStep(run.id, says === "finish" ? "finish" : "carryOn", req.log);
+      const [fresh] = await db.select().from(simulationRunsTable).where(eq(simulationRunsTable.id, run.id));
+      if (fresh) run = fresh;
     }
-    // A failure here is deliberately quiet. The person asked to see their
-    // exercise, and showing it with the clock still running beats an error.
   }
 
   const view = await runView(run, user.id);
@@ -723,9 +774,11 @@ router.post("/simulation-runs/:runId/response", requireStudioAccess, async (req,
     const [definition] = await db.select().from(simulationDefinitionsTable).where(eq(simulationDefinitionsTable.id, saved.definitionId));
     const planned = plannedTurns(definition?.durationMinutes ?? 30);
     const step = nextStudioStep(saved.developments.length, planned);
-    const moved = step === "finish" ? await finish(saved.id, req.log) : await carryOn(saved.id, req.log);
-    if (!moved.ok) { res.status(moved.status).json(message(moved.error)); return; }
-    res.json(SubmitSimulationResponseResponse.parse(await runView(moved.run, user.id)));
+    // Started, not awaited. The answer is saved and the page comes straight
+    // back; whatever happens next arrives on the next poll.
+    await startStep(saved.id, step === "finish" ? "finish" : "carryOn", req.log);
+    const [fresh] = await db.select().from(simulationRunsTable).where(eq(simulationRunsTable.id, saved.id));
+    res.json(SubmitSimulationResponseResponse.parse(await runView(fresh ?? saved, user.id)));
     return;
   }
 

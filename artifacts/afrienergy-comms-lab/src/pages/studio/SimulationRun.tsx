@@ -14,7 +14,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Loader2, Send, ShieldAlert, CheckCircle2, ChevronRight, RefreshCw, Target, Users,
-  Newspaper, MessageCircle, Radio, Mail, Phone, Scale, Megaphone, Zap, Clock, TimerOff,
+  Newspaper, MessageCircle, Radio, Mail, Phone, Scale, Megaphone, Zap, Clock, TimerOff, Download,
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
@@ -118,11 +118,27 @@ export default function SimulationRun({ id }: { id?: string }) {
     query: {
       enabled: isValidId,
       queryKey: getGetSimulationRunQueryKey(numericId),
+      /*
+       * Keep asking for as long as anything can change.
+       *
+       * This used to poll only in a room, which meant a solo exercise never
+       * found out that anything had happened: the session clock ran on past
+       * zero with nothing stopping it, and the debrief sat on the server until
+       * somebody reloaded the page by hand. Both were the same bug.
+       *
+       * Fast while the newsroom is writing, because that is the wait people
+       * feel. Steady otherwise, so an expiring clock is noticed within a few
+       * seconds. Nothing at all once the exercise is over, because then
+       * nothing can change again.
+       */
       refetchInterval: (query) => {
         const data = query.state.data as any;
-        if (data?.status === 'active' && data?.mode === 'facilitated') return 5000;
-        return false;
-      }
+        if (!data || data.status !== 'active') return false;
+        if (data.working) return 1500;
+        const left = data.clock?.responseSecondsLeft;
+        if (typeof left === 'number' && left <= 0) return 2000;
+        return 4000;
+      },
     }
   });
 
@@ -146,6 +162,9 @@ export default function SimulationRun({ id }: { id?: string }) {
   // the interface raises its voice.
   const urgent = responseLeft !== null && responseLeft <= 60;
   const missed = responseLeft === 0;
+  // The server is writing. Say so, rather than showing a screen that looks
+  // like it has stopped.
+  const working = !!run?.working;
   const anyoneAnswered = useMemo(
     () => !!currentDev && !!run?.responses?.some((r: any) => r.injectId === currentDev.id),
     [run, currentDev],
@@ -471,6 +490,15 @@ function DebriefView({ run, onExit }: { run: any, onExit: () => void }) {
   const debrief = run.debrief;
   if (!debrief) return null;
 
+  /*
+   * Saving it.
+   *
+   * Every browser prints to PDF, so the work is in making the printed page a
+   * proper report rather than in shipping a library that would do the same job
+   * worse. The print rules live in index.css and key off data-print-root.
+   */
+  const save = () => window.print();
+
   return (
     <StudioLayout>
       <div className="container max-w-4xl mx-auto py-12 px-6 z-10">
@@ -478,6 +506,7 @@ function DebriefView({ run, onExit }: { run: any, onExit: () => void }) {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           className="bg-[#050b14] border border-[#f97316]/30 shadow-[0_0_40px_rgba(249,115,22,0.1)] relative overflow-hidden"
+          data-print-root
         >
           <div className="bg-[#f97316] p-8 md:p-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
             <div>
@@ -514,7 +543,7 @@ function DebriefView({ run, onExit }: { run: any, onExit: () => void }) {
                       {/* A bar, not a grade. It exists so that the same name
                           next time can visibly be somewhere else. */}
                       <div className="h-1.5 bg-white/10 overflow-hidden" role="img" aria-label={`${rating.name}: ${rating.score} out of 100`}>
-                        <div className="h-full bg-[#f97316]" style={{ width: `${Math.max(2, Math.min(100, rating.score))}%` }} />
+                        <div className="h-full bg-[#f97316]" data-print-keep style={{ width: `${Math.max(2, Math.min(100, rating.score))}%` }} />
                       </div>
                       {rating.note && <p className="text-white/50 text-xs mt-2 leading-relaxed">{rating.note}</p>}
                     </div>
@@ -573,11 +602,21 @@ function DebriefView({ run, onExit }: { run: any, onExit: () => void }) {
               </ul>
             </div>
 
-            <div className="pt-8 border-t border-white/10">
-              <Button onClick={onExit} className="w-full h-14 bg-white text-[#030811] hover:bg-white/90 font-bold uppercase tracking-[0.2em] text-[10px] rounded-none transition-all active:scale-[0.99]">
+            <div className="pt-8 border-t border-white/10 flex flex-col sm:flex-row gap-3" data-print-hide>
+              <Button
+                onClick={save}
+                variant="outline"
+                className="sm:w-auto h-14 px-8 border-white/20 bg-transparent text-white hover:bg-white/5 font-bold uppercase tracking-[0.2em] text-[10px] rounded-none"
+              >
+                <Download className="w-4 h-4 mr-2" aria-hidden /> Save as PDF
+              </Button>
+              <Button onClick={onExit} className="flex-1 h-14 bg-white text-[#030811] hover:bg-white/90 font-bold uppercase tracking-[0.2em] text-[10px] rounded-none transition-all active:scale-[0.99]">
                 Back to the Studio
               </Button>
             </div>
+            <p className="text-white/30 text-[10px] mt-3 leading-relaxed" data-print-hide>
+              Opens your browser's print window. Choose "Save as PDF" as the destination.
+            </p>
           </div>
         </motion.div>
       </div>

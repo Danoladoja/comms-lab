@@ -1931,6 +1931,7 @@ export const CreateSimulationRunResponse = zod.object({
   "sessionExpired": zod.boolean(),
   "responseExpired": zod.boolean()
 }),
+  "working": zod.boolean(),
   "status": zod.enum(['active', 'completed']),
   "joinCode": zod.string().nullable(),
   "currentDevelopment": zod.union([zod.object({
@@ -2022,6 +2023,7 @@ export const JoinSimulationRunResponse = zod.object({
   "sessionExpired": zod.boolean(),
   "responseExpired": zod.boolean()
 }),
+  "working": zod.boolean(),
   "status": zod.enum(['active', 'completed']),
   "joinCode": zod.string().nullable(),
   "currentDevelopment": zod.union([zod.object({
@@ -2109,6 +2111,7 @@ export const GetSimulationRunResponse = zod.object({
   "sessionExpired": zod.boolean(),
   "responseExpired": zod.boolean()
 }),
+  "working": zod.boolean(),
   "status": zod.enum(['active', 'completed']),
   "joinCode": zod.string().nullable(),
   "currentDevelopment": zod.union([zod.object({
@@ -2203,6 +2206,7 @@ export const SubmitSimulationResponseResponse = zod.object({
   "sessionExpired": zod.boolean(),
   "responseExpired": zod.boolean()
 }),
+  "working": zod.boolean(),
   "status": zod.enum(['active', 'completed']),
   "joinCode": zod.string().nullable(),
   "currentDevelopment": zod.union([zod.object({
@@ -2290,6 +2294,7 @@ export const AdvanceSimulationRunResponse = zod.object({
   "sessionExpired": zod.boolean(),
   "responseExpired": zod.boolean()
 }),
+  "working": zod.boolean(),
   "status": zod.enum(['active', 'completed']),
   "joinCode": zod.string().nullable(),
   "currentDevelopment": zod.union([zod.object({
@@ -2377,6 +2382,7 @@ export const CompleteSimulationRunResponse = zod.object({
   "sessionExpired": zod.boolean(),
   "responseExpired": zod.boolean()
 }),
+  "working": zod.boolean(),
   "status": zod.enum(['active', 'completed']),
   "joinCode": zod.string().nullable(),
   "currentDevelopment": zod.union([zod.object({

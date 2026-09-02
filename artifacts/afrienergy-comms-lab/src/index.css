@@ -413,3 +413,61 @@
     scroll-behavior: auto !important;
   }
 }
+
+/*
+ * Printing a debrief.
+ *
+ * People want to keep these: to read on paper, to send to a colleague, to put
+ * in a file. Every browser can already print to PDF, so the honest thing is to
+ * make the printed page good rather than to ship a PDF library to do the same
+ * job worse.
+ *
+ * The Studio is white on near-black, which is right on a screen and unkind to
+ * a printer. Everything inside the report is turned back to black on white,
+ * the dark panels lose their fills, and everything that is not the report is
+ * taken off the page.
+ */
+@media print {
+  body * { visibility: hidden !important; }
+
+  [data-print-root],
+  [data-print-root] * { visibility: visible !important; }
+
+  [data-print-root] {
+    position: absolute !important;
+    inset: 0 auto auto 0 !important;
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #fff !important;
+    color: #000 !important;
+    box-shadow: none !important;
+  }
+
+  [data-print-root] *,
+  [data-print-root] *::before,
+  [data-print-root] *::after {
+    background-image: none !important;
+    box-shadow: none !important;
+    color: #111 !important;
+    animation: none !important;
+    transition: none !important;
+  }
+
+  /* Panels keep their shape as a hairline rule rather than a block of ink. */
+  [data-print-root] [class*="bg-"] { background-color: transparent !important; }
+  [data-print-root] [class*="border"] { border-color: #ccc !important; }
+
+  /* The one thing that keeps its colour: the bars, so a score is still legible. */
+  [data-print-root] [data-print-keep] { background-color: #F97316 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+  /* Controls are noise on paper. */
+  [data-print-root] button,
+  [data-print-root] [data-print-hide] { display: none !important; }
+
+  [data-print-root] h1, [data-print-root] h2, [data-print-root] h3 { page-break-after: avoid; }
+  [data-print-root] li, [data-print-root] p { page-break-inside: avoid; }
+
+  @page { margin: 18mm; }
+}

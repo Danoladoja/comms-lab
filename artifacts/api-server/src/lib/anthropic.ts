@@ -36,6 +36,20 @@ function apiUrl(): string {
 
 export const MODEL = process.env.ANTHROPIC_MODEL ?? "claude-sonnet-4-5";
 
+/**
+ * For the turns in the middle of a run, where waiting is the whole problem.
+ *
+ * Writing the scenario and writing the debrief are worth a few seconds: they
+ * happen once each and they are the parts people read closely. The
+ * development between two answers is different, because somebody is sitting
+ * there watching for it, and a smaller model is markedly quicker.
+ *
+ * Defaults to the same model, so nothing changes unless it is set: a model
+ * name that does not exist is a 404 in the middle of an exercise, and that is
+ * not a thing to guess at on somebody else's live site.
+ */
+export const FAST_MODEL = process.env.ANTHROPIC_FAST_MODEL ?? MODEL;
+
 /** Is there a key at all? Callers use this to stay quiet rather than fail loudly. */
 export function anthropicConfigured(): boolean {
   return !!process.env.ANTHROPIC_API_KEY;
@@ -51,6 +65,8 @@ export async function askClaude(args: {
   schema: Record<string, unknown>;
   maxTokens?: number;
   timeoutMs?: number;
+  /** Use the quicker model, for the calls somebody is waiting on. */
+  fast?: boolean;
   /** What to call this in the logs when it goes wrong. */
   label: string;
 }): Promise<ClaudeAnswer> {
@@ -58,7 +74,7 @@ export async function askClaude(args: {
   if (!apiKey) return { error: "No AI key is configured on the server." };
 
   const body = {
-    model: MODEL,
+    model: args.fast ? FAST_MODEL : MODEL,
     max_tokens: args.maxTokens ?? 4000,
     system: args.system,
     tools: [{ name: args.toolName, description: args.toolDescription, input_schema: args.schema }],

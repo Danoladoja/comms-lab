@@ -3403,7 +3403,7 @@ components:
         responseExpired: { type: boolean }
     StudioSimulationRun:
       type: object
-      required: [id, simulationId, mode, status, joinCode, isOwner, clock, currentDevelopment, developments, responses, debrief, openingBrief, stakeholderGroups, participantGroupId]
+      required: [id, simulationId, mode, status, joinCode, isOwner, clock, working, currentDevelopment, developments, responses, debrief, openingBrief, stakeholderGroups, participantGroupId]
       properties:
         id: { type: integer }
         simulationId: { type: integer }
@@ -3415,6 +3415,9 @@ components:
         # Both clocks, as the server sees them. The browser counts down from
         # these; it never decides that time is up.
         clock: { $ref: "#/components/schemas/StudioRunClock" }
+        # Something is being written right now. The browser asks more often
+        # while this is true, and says so rather than looking stopped.
+        working: { type: boolean }
         status: { type: string, enum: [active, completed] }
         joinCode: { type: ["string", "null"] }
         currentDevelopment:

@@ -19,6 +19,7 @@ export interface StudioSimulationRun {
   mode: StudioSimulationRunMode;
   isOwner: boolean;
   clock: StudioRunClock;
+  working: boolean;
   status: StudioSimulationRunStatus;
   /** @nullable */
   joinCode: string | null;
