@@ -264,9 +264,15 @@ function labLogoUrl(): string | null {
  * ten minutes wakes to a deadline that has passed, which is what would have
  * happened in the real thing.
  */
-function withDeadline<T extends { responseSeconds?: number }>(development: T, now = new Date()): T & { dueAt: string } {
+function withDeadline<T extends { responseSeconds?: number }>(development: T, now = new Date()): T & { dueAt: string; at: string } {
   const seconds = clampResponseSeconds(development.responseSeconds);
-  return { ...development, responseSeconds: seconds, dueAt: new Date(now.getTime() + seconds * 1000).toISOString() };
+  return {
+    ...development,
+    responseSeconds: seconds,
+    // When it landed, and when the answer is due. Both facts on the server.
+    at: now.toISOString(),
+    dueAt: new Date(now.getTime() + seconds * 1000).toISOString(),
+  };
 }
 
 /** The two clocks, for a run as it stands. */

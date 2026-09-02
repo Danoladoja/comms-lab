@@ -3411,6 +3411,26 @@ components:
         # so the clock is a fact on the server rather than a browser's guess.
         responseSeconds: { type: integer }
         dueAt: { type: string, format: date-time }
+        at: { type: string, format: date-time }
+        # What it looks like where it came from. All optional: the Lab renders
+        # whatever is present and leaves out whatever is not.
+        handle: { type: string }
+        outlet: { type: string }
+        audience: { type: string }
+        reference: { type: string }
+        subjectLine: { type: string }
+        reposts: { type: integer }
+        likes: { type: integer }
+        replies: { type: integer }
+        figures:
+          type: array
+          items:
+            type: object
+            required: [label, value]
+            properties:
+              label: { type: string }
+              value: { type: number }
+              unit: { type: string }
     SimulationEvaluationDimension:
       type: object
       required: [name, description]

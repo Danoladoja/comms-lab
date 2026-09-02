@@ -9,6 +9,7 @@ import {
   getGetSimulationRunQueryKey
 } from '@workspace/api-client-react';
 import { StudioLayout } from '@/components/simulation/StudioLayout';
+import { DevelopmentCard } from '@/components/simulation/DevelopmentCard';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -24,15 +25,6 @@ function reason(err: any, fallback: string): string {
   return err?.error || err?.data?.error || err?.message || fallback;
 }
 
-const CHANNELS: Record<string, { icon: typeof Newspaper; label: string }> = {
-  wire: { icon: Newspaper, label: 'News wire' },
-  social: { icon: MessageCircle, label: 'Social media' },
-  broadcast: { icon: Radio, label: 'Broadcast' },
-  internal: { icon: Mail, label: 'Internal' },
-  call: { icon: Phone, label: 'Phone call' },
-  regulator: { icon: Scale, label: 'Regulator' },
-  community: { icon: Megaphone, label: 'Community' },
-};
 
 type Atmosphere = 'operational' | 'media' | 'executive';
 
@@ -305,9 +297,6 @@ export default function SimulationRun({ id }: { id?: string }) {
               {run.developments?.map((dev: any, index: number) => {
                 const response = run.responses?.find((r: any) => r.injectId === dev.id);
                 const isCurrent = currentDev?.id === dev.id;
-                const channel = CHANNELS[dev.channel as string] ?? CHANNELS.wire;
-                const Icon = channel.icon;
-
                 return (
                   <motion.div
                     key={dev.id}
@@ -316,23 +305,12 @@ export default function SimulationRun({ id }: { id?: string }) {
                     transition={{ duration: 0.4 }}
                     className={cn("space-y-4", isCurrent && !hasRespondedToCurrent ? "opacity-100" : "opacity-60 grayscale-[0.3]")}
                   >
-                    <div className={cn("p-6 md:p-8 relative overflow-hidden backdrop-blur-sm", t.devBox)}>
-
-                      <div className={cn("flex items-center gap-3 mb-4 text-[10px] uppercase tracking-[0.15em] font-bold", t.accentText)}>
-                        <Icon className="w-4 h-4" />
-                        <span>{channel.label}</span>
-                        {dev.source && (
-                          <>
-                            <span className="opacity-40">/</span>
-                            <span className="text-white normal-case font-mono tracking-normal">{dev.source}</span>
-                          </>
-                        )}
-                      </div>
-
-                      <h4 className={cn("text-xl md:text-2xl mb-4 text-white", t.headerStyle)}>{dev.title}</h4>
-                      <div className={cn("whitespace-pre-wrap", t.fontBody)}>{dev.content}</div>
-
-                    </div>
+                    {/*
+                      Each one drawn as the thing it is: a post as a post, a
+                      wire item as a bulletin, a regulator's letter with its
+                      reference on it. All from text the model already returns.
+                    */}
+                    <DevelopmentCard development={dev} />
 
                     {response && (
                       <motion.div initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} className={cn("p-5 ml-8 border bg-black/20", t.panelBorder)}>

@@ -390,3 +390,79 @@ describe("a turn nobody answered", () => {
     expect(debriefSystemPrompt()).toMatch(/silence is a decision/i);
   });
 });
+
+describe("what a development looks like where it came from", () => {
+  const post = {
+    ...goodDevelopment,
+    channel: "social",
+    handle: "@NigerDeltaWatch",
+    audience: "24,000 followers",
+    reposts: 412, likes: 1800, replies: 96,
+  };
+
+  it("keeps the details that make a post look like a post", () => {
+    const d = validateDevelopment(post, "x");
+    expect(d?.handle).toBe("@NigerDeltaWatch");
+    expect(d?.reposts).toBe(412);
+    expect(d?.audience).toBe("24,000 followers");
+  });
+
+  it("leaves out what was not given rather than rendering an empty field", () => {
+    // A post with a blank where the repost count goes reads as a mock-up of a
+    // post, which is worse than a post with no count at all.
+    const d = validateDevelopment(goodDevelopment, "x");
+    expect(d?.handle).toBeUndefined();
+    expect(d?.reposts).toBeUndefined();
+    expect(d?.figures).toBeUndefined();
+  });
+
+  it("ignores a count that is not a number, or is negative", () => {
+    const d = validateDevelopment({ ...post, reposts: "loads", likes: -5 }, "x");
+    expect(d?.reposts).toBeUndefined();
+    expect(d?.likes).toBeUndefined();
+  });
+
+  it("keeps a regulator's reference and an email's subject", () => {
+    const d = validateDevelopment({
+      ...goodDevelopment, channel: "regulator",
+      reference: "NUPRC/ENF/2026/114", subjectLine: "Notice of enforcement",
+    }, "x");
+    expect(d?.reference).toBe("NUPRC/ENF/2026/114");
+    expect(d?.subjectLine).toBe("Notice of enforcement");
+  });
+
+  it("asks the model to fill in the fields for whichever channel it chose", () => {
+    expect(developmentSystemPrompt()).toMatch(/renders each one as the thing it is/i);
+  });
+});
+
+describe("figures on a development", () => {
+  const withFigures = (figures: unknown) => validateDevelopment({ ...goodDevelopment, figures }, "x");
+
+  it("keeps a set of numbers worth charting", () => {
+    const d = withFigures([
+      { label: "Jan", value: 12, unit: "complaints" },
+      { label: "Feb", value: 48, unit: "complaints" },
+    ]);
+    expect(d?.figures).toHaveLength(2);
+    expect(d?.figures?.[1]).toEqual({ label: "Feb", value: 48, unit: "complaints" });
+  });
+
+  it("throws away a single figure, because one bar is not a chart", () => {
+    expect(withFigures([{ label: "Jan", value: 12 }])?.figures).toBeUndefined();
+  });
+
+  it("drops a row with no label or no number", () => {
+    const d = withFigures([
+      { label: "", value: 5 },
+      { label: "Feb", value: "lots" },
+      { label: "Mar", value: 9 },
+      { label: "Apr", value: 11 },
+    ]);
+    expect(d?.figures?.map((f) => f.label)).toEqual(["Mar", "Apr"]);
+  });
+
+  it("tells the model to leave them out unless the story turns on them", () => {
+    expect(JSON.stringify(developmentSchema())).toMatch(/Leave it out otherwise/i);
+  });
+});

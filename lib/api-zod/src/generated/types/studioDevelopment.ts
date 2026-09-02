@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { StudioDevelopmentChannel } from './studioDevelopmentChannel';
+import type { StudioDevelopmentFiguresItem } from './studioDevelopmentFiguresItem';
 
 export interface StudioDevelopment {
   /** @minLength 1 */
@@ -18,4 +19,14 @@ export interface StudioDevelopment {
   channel?: StudioDevelopmentChannel;
   responseSeconds?: number;
   dueAt?: Date;
+  at?: Date;
+  handle?: string;
+  outlet?: string;
+  audience?: string;
+  reference?: string;
+  subjectLine?: string;
+  reposts?: number;
+  likes?: number;
+  replies?: number;
+  figures?: StudioDevelopmentFiguresItem[];
 }

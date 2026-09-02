@@ -1664,7 +1664,21 @@ export const ListSimulationsResponseItem = zod.object({
   "source": zod.string().optional(),
   "channel": zod.enum(['wire', 'social', 'broadcast', 'internal', 'call', 'regulator', 'community']).optional(),
   "responseSeconds": zod.int().optional(),
-  "dueAt": zod.coerce.date().optional()
+  "dueAt": zod.coerce.date().optional(),
+  "at": zod.coerce.date().optional(),
+  "handle": zod.string().optional(),
+  "outlet": zod.string().optional(),
+  "audience": zod.string().optional(),
+  "reference": zod.string().optional(),
+  "subjectLine": zod.string().optional(),
+  "reposts": zod.int().optional(),
+  "likes": zod.int().optional(),
+  "replies": zod.int().optional(),
+  "figures": zod.array(zod.object({
+  "label": zod.string(),
+  "value": zod.number(),
+  "unit": zod.string().optional()
+})).optional()
 }),
   "evaluationDimensions": zod.array(zod.object({
   "name": zod.string().min(1),
@@ -2032,7 +2046,21 @@ export const GenerateSimulationResponse = zod.object({
   "source": zod.string().optional(),
   "channel": zod.enum(['wire', 'social', 'broadcast', 'internal', 'call', 'regulator', 'community']).optional(),
   "responseSeconds": zod.int().optional(),
-  "dueAt": zod.coerce.date().optional()
+  "dueAt": zod.coerce.date().optional(),
+  "at": zod.coerce.date().optional(),
+  "handle": zod.string().optional(),
+  "outlet": zod.string().optional(),
+  "audience": zod.string().optional(),
+  "reference": zod.string().optional(),
+  "subjectLine": zod.string().optional(),
+  "reposts": zod.int().optional(),
+  "likes": zod.int().optional(),
+  "replies": zod.int().optional(),
+  "figures": zod.array(zod.object({
+  "label": zod.string(),
+  "value": zod.number(),
+  "unit": zod.string().optional()
+})).optional()
 }),
   "evaluationDimensions": zod.array(zod.object({
   "name": zod.string().min(1),
@@ -2086,7 +2114,21 @@ export const GetSimulationResponse = zod.object({
   "source": zod.string().optional(),
   "channel": zod.enum(['wire', 'social', 'broadcast', 'internal', 'call', 'regulator', 'community']).optional(),
   "responseSeconds": zod.int().optional(),
-  "dueAt": zod.coerce.date().optional()
+  "dueAt": zod.coerce.date().optional(),
+  "at": zod.coerce.date().optional(),
+  "handle": zod.string().optional(),
+  "outlet": zod.string().optional(),
+  "audience": zod.string().optional(),
+  "reference": zod.string().optional(),
+  "subjectLine": zod.string().optional(),
+  "reposts": zod.int().optional(),
+  "likes": zod.int().optional(),
+  "replies": zod.int().optional(),
+  "figures": zod.array(zod.object({
+  "label": zod.string(),
+  "value": zod.number(),
+  "unit": zod.string().optional()
+})).optional()
 }),
   "evaluationDimensions": zod.array(zod.object({
   "name": zod.string().min(1),
@@ -2141,7 +2183,21 @@ export const CreateSimulationRunResponse = zod.object({
   "source": zod.string().optional(),
   "channel": zod.enum(['wire', 'social', 'broadcast', 'internal', 'call', 'regulator', 'community']).optional(),
   "responseSeconds": zod.int().optional(),
-  "dueAt": zod.coerce.date().optional()
+  "dueAt": zod.coerce.date().optional(),
+  "at": zod.coerce.date().optional(),
+  "handle": zod.string().optional(),
+  "outlet": zod.string().optional(),
+  "audience": zod.string().optional(),
+  "reference": zod.string().optional(),
+  "subjectLine": zod.string().optional(),
+  "reposts": zod.int().optional(),
+  "likes": zod.int().optional(),
+  "replies": zod.int().optional(),
+  "figures": zod.array(zod.object({
+  "label": zod.string(),
+  "value": zod.number(),
+  "unit": zod.string().optional()
+})).optional()
 }),zod.null()]),
   "developments": zod.array(zod.object({
   "id": zod.string().min(1),
@@ -2151,7 +2207,21 @@ export const CreateSimulationRunResponse = zod.object({
   "source": zod.string().optional(),
   "channel": zod.enum(['wire', 'social', 'broadcast', 'internal', 'call', 'regulator', 'community']).optional(),
   "responseSeconds": zod.int().optional(),
-  "dueAt": zod.coerce.date().optional()
+  "dueAt": zod.coerce.date().optional(),
+  "at": zod.coerce.date().optional(),
+  "handle": zod.string().optional(),
+  "outlet": zod.string().optional(),
+  "audience": zod.string().optional(),
+  "reference": zod.string().optional(),
+  "subjectLine": zod.string().optional(),
+  "reposts": zod.int().optional(),
+  "likes": zod.int().optional(),
+  "replies": zod.int().optional(),
+  "figures": zod.array(zod.object({
+  "label": zod.string(),
+  "value": zod.number(),
+  "unit": zod.string().optional()
+})).optional()
 })),
   "responses": zod.array(zod.object({
   "injectId": zod.string(),
@@ -2233,7 +2303,21 @@ export const JoinSimulationRunResponse = zod.object({
   "source": zod.string().optional(),
   "channel": zod.enum(['wire', 'social', 'broadcast', 'internal', 'call', 'regulator', 'community']).optional(),
   "responseSeconds": zod.int().optional(),
-  "dueAt": zod.coerce.date().optional()
+  "dueAt": zod.coerce.date().optional(),
+  "at": zod.coerce.date().optional(),
+  "handle": zod.string().optional(),
+  "outlet": zod.string().optional(),
+  "audience": zod.string().optional(),
+  "reference": zod.string().optional(),
+  "subjectLine": zod.string().optional(),
+  "reposts": zod.int().optional(),
+  "likes": zod.int().optional(),
+  "replies": zod.int().optional(),
+  "figures": zod.array(zod.object({
+  "label": zod.string(),
+  "value": zod.number(),
+  "unit": zod.string().optional()
+})).optional()
 }),zod.null()]),
   "developments": zod.array(zod.object({
   "id": zod.string().min(1),
@@ -2243,7 +2327,21 @@ export const JoinSimulationRunResponse = zod.object({
   "source": zod.string().optional(),
   "channel": zod.enum(['wire', 'social', 'broadcast', 'internal', 'call', 'regulator', 'community']).optional(),
   "responseSeconds": zod.int().optional(),
-  "dueAt": zod.coerce.date().optional()
+  "dueAt": zod.coerce.date().optional(),
+  "at": zod.coerce.date().optional(),
+  "handle": zod.string().optional(),
+  "outlet": zod.string().optional(),
+  "audience": zod.string().optional(),
+  "reference": zod.string().optional(),
+  "subjectLine": zod.string().optional(),
+  "reposts": zod.int().optional(),
+  "likes": zod.int().optional(),
+  "replies": zod.int().optional(),
+  "figures": zod.array(zod.object({
+  "label": zod.string(),
+  "value": zod.number(),
+  "unit": zod.string().optional()
+})).optional()
 })),
   "responses": zod.array(zod.object({
   "injectId": zod.string(),
@@ -2321,7 +2419,21 @@ export const GetSimulationRunResponse = zod.object({
   "source": zod.string().optional(),
   "channel": zod.enum(['wire', 'social', 'broadcast', 'internal', 'call', 'regulator', 'community']).optional(),
   "responseSeconds": zod.int().optional(),
-  "dueAt": zod.coerce.date().optional()
+  "dueAt": zod.coerce.date().optional(),
+  "at": zod.coerce.date().optional(),
+  "handle": zod.string().optional(),
+  "outlet": zod.string().optional(),
+  "audience": zod.string().optional(),
+  "reference": zod.string().optional(),
+  "subjectLine": zod.string().optional(),
+  "reposts": zod.int().optional(),
+  "likes": zod.int().optional(),
+  "replies": zod.int().optional(),
+  "figures": zod.array(zod.object({
+  "label": zod.string(),
+  "value": zod.number(),
+  "unit": zod.string().optional()
+})).optional()
 }),zod.null()]),
   "developments": zod.array(zod.object({
   "id": zod.string().min(1),
@@ -2331,7 +2443,21 @@ export const GetSimulationRunResponse = zod.object({
   "source": zod.string().optional(),
   "channel": zod.enum(['wire', 'social', 'broadcast', 'internal', 'call', 'regulator', 'community']).optional(),
   "responseSeconds": zod.int().optional(),
-  "dueAt": zod.coerce.date().optional()
+  "dueAt": zod.coerce.date().optional(),
+  "at": zod.coerce.date().optional(),
+  "handle": zod.string().optional(),
+  "outlet": zod.string().optional(),
+  "audience": zod.string().optional(),
+  "reference": zod.string().optional(),
+  "subjectLine": zod.string().optional(),
+  "reposts": zod.int().optional(),
+  "likes": zod.int().optional(),
+  "replies": zod.int().optional(),
+  "figures": zod.array(zod.object({
+  "label": zod.string(),
+  "value": zod.number(),
+  "unit": zod.string().optional()
+})).optional()
 })),
   "responses": zod.array(zod.object({
   "injectId": zod.string(),
@@ -2416,7 +2542,21 @@ export const SubmitSimulationResponseResponse = zod.object({
   "source": zod.string().optional(),
   "channel": zod.enum(['wire', 'social', 'broadcast', 'internal', 'call', 'regulator', 'community']).optional(),
   "responseSeconds": zod.int().optional(),
-  "dueAt": zod.coerce.date().optional()
+  "dueAt": zod.coerce.date().optional(),
+  "at": zod.coerce.date().optional(),
+  "handle": zod.string().optional(),
+  "outlet": zod.string().optional(),
+  "audience": zod.string().optional(),
+  "reference": zod.string().optional(),
+  "subjectLine": zod.string().optional(),
+  "reposts": zod.int().optional(),
+  "likes": zod.int().optional(),
+  "replies": zod.int().optional(),
+  "figures": zod.array(zod.object({
+  "label": zod.string(),
+  "value": zod.number(),
+  "unit": zod.string().optional()
+})).optional()
 }),zod.null()]),
   "developments": zod.array(zod.object({
   "id": zod.string().min(1),
@@ -2426,7 +2566,21 @@ export const SubmitSimulationResponseResponse = zod.object({
   "source": zod.string().optional(),
   "channel": zod.enum(['wire', 'social', 'broadcast', 'internal', 'call', 'regulator', 'community']).optional(),
   "responseSeconds": zod.int().optional(),
-  "dueAt": zod.coerce.date().optional()
+  "dueAt": zod.coerce.date().optional(),
+  "at": zod.coerce.date().optional(),
+  "handle": zod.string().optional(),
+  "outlet": zod.string().optional(),
+  "audience": zod.string().optional(),
+  "reference": zod.string().optional(),
+  "subjectLine": zod.string().optional(),
+  "reposts": zod.int().optional(),
+  "likes": zod.int().optional(),
+  "replies": zod.int().optional(),
+  "figures": zod.array(zod.object({
+  "label": zod.string(),
+  "value": zod.number(),
+  "unit": zod.string().optional()
+})).optional()
 })),
   "responses": zod.array(zod.object({
   "injectId": zod.string(),
@@ -2504,7 +2658,21 @@ export const AdvanceSimulationRunResponse = zod.object({
   "source": zod.string().optional(),
   "channel": zod.enum(['wire', 'social', 'broadcast', 'internal', 'call', 'regulator', 'community']).optional(),
   "responseSeconds": zod.int().optional(),
-  "dueAt": zod.coerce.date().optional()
+  "dueAt": zod.coerce.date().optional(),
+  "at": zod.coerce.date().optional(),
+  "handle": zod.string().optional(),
+  "outlet": zod.string().optional(),
+  "audience": zod.string().optional(),
+  "reference": zod.string().optional(),
+  "subjectLine": zod.string().optional(),
+  "reposts": zod.int().optional(),
+  "likes": zod.int().optional(),
+  "replies": zod.int().optional(),
+  "figures": zod.array(zod.object({
+  "label": zod.string(),
+  "value": zod.number(),
+  "unit": zod.string().optional()
+})).optional()
 }),zod.null()]),
   "developments": zod.array(zod.object({
   "id": zod.string().min(1),
@@ -2514,7 +2682,21 @@ export const AdvanceSimulationRunResponse = zod.object({
   "source": zod.string().optional(),
   "channel": zod.enum(['wire', 'social', 'broadcast', 'internal', 'call', 'regulator', 'community']).optional(),
   "responseSeconds": zod.int().optional(),
-  "dueAt": zod.coerce.date().optional()
+  "dueAt": zod.coerce.date().optional(),
+  "at": zod.coerce.date().optional(),
+  "handle": zod.string().optional(),
+  "outlet": zod.string().optional(),
+  "audience": zod.string().optional(),
+  "reference": zod.string().optional(),
+  "subjectLine": zod.string().optional(),
+  "reposts": zod.int().optional(),
+  "likes": zod.int().optional(),
+  "replies": zod.int().optional(),
+  "figures": zod.array(zod.object({
+  "label": zod.string(),
+  "value": zod.number(),
+  "unit": zod.string().optional()
+})).optional()
 })),
   "responses": zod.array(zod.object({
   "injectId": zod.string(),
@@ -2592,7 +2774,21 @@ export const CompleteSimulationRunResponse = zod.object({
   "source": zod.string().optional(),
   "channel": zod.enum(['wire', 'social', 'broadcast', 'internal', 'call', 'regulator', 'community']).optional(),
   "responseSeconds": zod.int().optional(),
-  "dueAt": zod.coerce.date().optional()
+  "dueAt": zod.coerce.date().optional(),
+  "at": zod.coerce.date().optional(),
+  "handle": zod.string().optional(),
+  "outlet": zod.string().optional(),
+  "audience": zod.string().optional(),
+  "reference": zod.string().optional(),
+  "subjectLine": zod.string().optional(),
+  "reposts": zod.int().optional(),
+  "likes": zod.int().optional(),
+  "replies": zod.int().optional(),
+  "figures": zod.array(zod.object({
+  "label": zod.string(),
+  "value": zod.number(),
+  "unit": zod.string().optional()
+})).optional()
 }),zod.null()]),
   "developments": zod.array(zod.object({
   "id": zod.string().min(1),
@@ -2602,7 +2798,21 @@ export const CompleteSimulationRunResponse = zod.object({
   "source": zod.string().optional(),
   "channel": zod.enum(['wire', 'social', 'broadcast', 'internal', 'call', 'regulator', 'community']).optional(),
   "responseSeconds": zod.int().optional(),
-  "dueAt": zod.coerce.date().optional()
+  "dueAt": zod.coerce.date().optional(),
+  "at": zod.coerce.date().optional(),
+  "handle": zod.string().optional(),
+  "outlet": zod.string().optional(),
+  "audience": zod.string().optional(),
+  "reference": zod.string().optional(),
+  "subjectLine": zod.string().optional(),
+  "reposts": zod.int().optional(),
+  "likes": zod.int().optional(),
+  "replies": zod.int().optional(),
+  "figures": zod.array(zod.object({
+  "label": zod.string(),
+  "value": zod.number(),
+  "unit": zod.string().optional()
+})).optional()
 })),
   "responses": zod.array(zod.object({
   "injectId": zod.string(),

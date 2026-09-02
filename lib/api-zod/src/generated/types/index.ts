@@ -130,6 +130,7 @@ export * from './studioAccessGrantSummary';
 export * from './studioAccessSource';
 export * from './studioDevelopment';
 export * from './studioDevelopmentChannel';
+export * from './studioDevelopmentFiguresItem';
 export * from './studioPracticeRecord';
 export * from './studioPracticeRecordTrendItem';
 export * from './studioRating';

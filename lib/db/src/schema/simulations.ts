@@ -32,6 +32,18 @@ export type SimulationDevelopment = {
    */
   responseSeconds?: number;
   dueAt?: string;
+  /** When it landed, so the feed can show a real time rather than an order. */
+  at?: string;
+  /** What it looks like where it came from. All optional; rendered when present. */
+  handle?: string;
+  outlet?: string;
+  audience?: string;
+  reference?: string;
+  subjectLine?: string;
+  reposts?: number;
+  likes?: number;
+  replies?: number;
+  figures?: { label: string; value: number; unit?: string }[];
 };
 export type SimulationEvaluationDimension = { name: string; description: string };
 export type SimulationRating = { name: string; score: number; note?: string };

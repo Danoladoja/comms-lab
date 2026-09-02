@@ -225,6 +225,28 @@ export function developmentSchema(): Record<string, unknown> {
         maximum: 900,
         description: "How long they get to answer this, in seconds. Make it the deadline the scenario itself implies: a reporter filing in ten minutes gets ten minutes, not twenty. Between two and six minutes suits most turns.",
       },
+      handle: { type: "string", description: "For social: the account posting, with the @. Invented, like everything else." },
+      outlet: { type: "string", description: "For a wire or a broadcast: the publication or programme. Invented." },
+      audience: { type: "string", description: "How far this reaches, in the words the platform would use: '24,000 followers', 'prime time, 1.2m viewers', 'the operations group, 40 people'." },
+      reference: { type: "string", description: "For a regulator or an internal document: its reference number." },
+      subjectLine: { type: "string", description: "For an internal message: the subject line." },
+      reposts: { type: "integer", description: "For social: how far it has already travelled." },
+      likes: { type: "integer" },
+      replies: { type: "integer" },
+      figures: {
+        type: "array",
+        maxItems: 5,
+        description: "Include ONLY when the development turns on numbers somebody has to read: production down a cliff, a tariff over four years, complaints by month. Leave it out otherwise.",
+        items: {
+          type: "object",
+          properties: {
+            label: { type: "string" },
+            value: { type: "number" },
+            unit: { type: "string", description: "Short: '%', 'MW', 'naira', 'complaints'." },
+          },
+          required: ["label", "value"],
+        },
+      },
     },
     required: ["id", "title", "source", "channel", "content", "responsePrompt", "responseSeconds"],
   };
@@ -250,6 +272,12 @@ be able to see why this followed from what they wrote.
 
 Change the source. If the last one came from a wire reporter, this one comes
 from somewhere else: the community, the regulator, a colleague, the internet.
+
+Fill in the fields that belong to whichever channel you chose, because the Lab
+renders each one as the thing it is: a post appears as a post with a handle and
+a repost count, a wire item as a bulletin with its outlet, a regulator's letter
+with its reference. An empty handle on a social post reads as a mock-up of a
+social post, and the whole point is that it should not.
 
 Never reveal the confidential brief of a role the participant does not hold, and
 never break character to comment on their performance. That is what the debrief
@@ -388,6 +416,8 @@ export function slugId(value: unknown, fallback: string): string {
   return slug || fallback;
 }
 
+export type StudioFigure = { label: string; value: number; unit?: string };
+
 export type ValidatedDevelopment = {
   id: string;
   title: string;
@@ -397,7 +427,43 @@ export type ValidatedDevelopment = {
   responsePrompt: string;
   /** How long they get. Clamped, because a deadline nobody can meet teaches nothing. */
   responseSeconds: number;
+  /**
+   * What this thing looks like where it came from.
+   *
+   * All optional, because the Lab renders whatever is present and leaves out
+   * whatever is not. A post with no repost count is still a post; a post with
+   * an empty one where the number should be is a mock-up.
+   */
+  handle?: string;
+  outlet?: string;
+  audience?: string;
+  reference?: string;
+  subjectLine?: string;
+  reposts?: number;
+  likes?: number;
+  replies?: number;
+  /** Only when the development turns on numbers somebody has to read. */
+  figures?: StudioFigure[];
 };
+
+/**
+ * The numbers, when the story turns on numbers.
+ *
+ * Dropped entirely unless there are at least two, because one bar is not a
+ * chart, it is a number with a rectangle next to it.
+ */
+function figures(raw: unknown): StudioFigure[] | undefined {
+  if (!Array.isArray(raw)) return undefined;
+  const out: StudioFigure[] = [];
+  for (const entry of raw.slice(0, 5)) {
+    const f = (entry ?? {}) as Record<string, unknown>;
+    const label = text(f.label, 40);
+    const value = typeof f.value === "number" ? f.value : Number.parseFloat(String(f.value ?? ""));
+    if (!label || !Number.isFinite(value)) continue;
+    out.push({ label, value, ...(text(f.unit, 16) ? { unit: text(f.unit, 16) } : {}) });
+  }
+  return out.length >= 2 ? out : undefined;
+}
 
 export function validateDevelopment(raw: unknown, fallbackId: string): ValidatedDevelopment | null {
   if (!raw || typeof raw !== "object") return null;
@@ -405,6 +471,12 @@ export function validateDevelopment(raw: unknown, fallbackId: string): Validated
   const content = text(r.content);
   const responsePrompt = text(r.responsePrompt, 1000);
   if (!content || !responsePrompt) return null;
+  const counted = (value: unknown): number | undefined => {
+    const n = typeof value === "number" ? value : Number.parseInt(String(value ?? ""), 10);
+    return Number.isFinite(n) && n >= 0 ? Math.min(Math.round(n), 100_000_000) : undefined;
+  };
+  const said = (value: unknown, max = 120): string | undefined => text(value, max) || undefined;
+
   return {
     id: slugId(r.id, fallbackId),
     title: text(r.title, 120) || "Incoming",
@@ -413,6 +485,15 @@ export function validateDevelopment(raw: unknown, fallbackId: string): Validated
     content,
     responsePrompt,
     responseSeconds: clampResponseSeconds(r.responseSeconds),
+    handle: said(r.handle, 60),
+    outlet: said(r.outlet),
+    audience: said(r.audience, 80),
+    reference: said(r.reference, 80),
+    subjectLine: said(r.subjectLine, 160),
+    reposts: counted(r.reposts),
+    likes: counted(r.likes),
+    replies: counted(r.replies),
+    figures: figures(r.figures),
   };
 }
 

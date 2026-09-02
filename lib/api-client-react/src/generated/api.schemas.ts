@@ -1051,6 +1051,12 @@ export const StudioDevelopmentChannel = {
   community: 'community',
 } as const;
 
+export type StudioDevelopmentFiguresItem = {
+  label: string;
+  value: number;
+  unit?: string;
+};
+
 export interface StudioDevelopment {
   /** @minLength 1 */
   id: string;
@@ -1062,6 +1068,16 @@ export interface StudioDevelopment {
   channel?: StudioDevelopmentChannel;
   responseSeconds?: number;
   dueAt?: string;
+  at?: string;
+  handle?: string;
+  outlet?: string;
+  audience?: string;
+  reference?: string;
+  subjectLine?: string;
+  reposts?: number;
+  likes?: number;
+  replies?: number;
+  figures?: StudioDevelopmentFiguresItem[];
 }
 
 export interface SimulationEvaluationDimension {
