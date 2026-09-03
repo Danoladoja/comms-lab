@@ -155,6 +155,8 @@ export interface Invitation {
   email: string;
   role: string;
   sessionIds: number[];
+  programId?: number | null;
+  programTitle?: string | null;
   createdAt: string;
   acceptedAt?: string | null;
   summary: string;

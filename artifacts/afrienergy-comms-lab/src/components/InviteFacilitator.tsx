@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
-  useListInvitations, useInviteFacilitator, useRevokeInvitation,
+  useListInvitations, useInviteFacilitator, useRevokeInvitation, useResendInvitation,
   useListPrograms, useListProgramSessions,
   getListInvitationsQueryKey, getListUsersQueryKey, getListProgramSessionsQueryKey,
 } from '@workspace/api-client-react';
@@ -9,7 +9,7 @@ import { MAX_SESSIONS_PER_INVITE } from '@workspace/domain';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { Mail, X, Check, Clock } from 'lucide-react';
+import { Mail, X, Check, Clock, Send } from 'lucide-react';
 
 /**
  * Inviting a facilitator instead of asking them to sign up.
@@ -76,11 +76,32 @@ export default function InviteFacilitator({ canInviteAdmin = false }: { canInvit
     },
   });
 
+  const resend = useResendInvitation({
+    mutation: {
+      onSuccess: () => { toast({ title: 'Sent again', description: 'The earlier link no longer works.' }); refresh(); },
+      onError: (err) => toast({
+        title: 'Could not send it again',
+        description: (err as unknown as { error?: string })?.error,
+        variant: 'destructive',
+      }),
+    },
+  });
+
   const toggle = (id: number) =>
     setChosen(c => (c.includes(id) ? c.filter(x => x !== id) : c.length >= MAX_SESSIONS_PER_INVITE ? c : [...c, id]));
 
-  const pending = invitations.filter(i => !i.acceptedAt);
-  const arrived = invitations.filter(i => i.acceptedAt);
+  /*
+   * Staff only, on both lists.
+   *
+   * This used to show every unanswered invitation the Lab had ever sent, which
+   * on a cohort of fifty meant fifty learners stacked above the one facilitator
+   * an admin had come here to chase. A learner's invitation belongs to their
+   * cohort and is now listed under it, in Enrolments, where the question about
+   * them is always "which programme, and have they arrived".
+   */
+  const staff = invitations.filter(i => i.role !== 'learner');
+  const pending = staff.filter(i => !i.acceptedAt);
+  const arrived = staff.filter(i => i.acceptedAt);
 
   return (
     <div className="space-y-4">
@@ -204,14 +225,24 @@ export default function InviteFacilitator({ canInviteAdmin = false }: { canInvit
                   <span className="block text-sm font-medium truncate">{i.email}</span>
                   <span className="block text-xs text-muted-foreground">{i.summary}</span>
                 </span>
-                <Button
-                  variant="ghost" size="sm"
-                  className="text-muted-foreground hover:text-destructive flex-shrink-0"
-                  disabled={revoke.isPending}
-                  onClick={() => revoke.mutate({ id: i.id })}
-                >
-                  <X className="w-3.5 h-3.5 mr-1" aria-hidden />Withdraw
-                </Button>
+                <span className="flex flex-shrink-0 items-center gap-1">
+                  <Button
+                    variant="ghost" size="sm"
+                    className="text-muted-foreground hover:text-foreground"
+                    disabled={resend.isPending || revoke.isPending}
+                    onClick={() => resend.mutate({ id: i.id })}
+                  >
+                    <Send className="w-3.5 h-3.5 mr-1" aria-hidden />Send again
+                  </Button>
+                  <Button
+                    variant="ghost" size="sm"
+                    className="text-muted-foreground hover:text-destructive"
+                    disabled={revoke.isPending || resend.isPending}
+                    onClick={() => revoke.mutate({ id: i.id })}
+                  >
+                    <X className="w-3.5 h-3.5 mr-1" aria-hidden />Withdraw
+                  </Button>
+                </span>
               </li>
             ))}
           </ul>

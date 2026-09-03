@@ -1249,6 +1249,8 @@ export const ListInvitationsResponseItem = zod.object({
   "email": zod.string(),
   "role": zod.string(),
   "sessionIds": zod.array(zod.int()),
+  "programId": zod.union([zod.int(),zod.null()]).optional(),
+  "programTitle": zod.union([zod.string(),zod.null()]).optional(),
   "createdAt": zod.string(),
   "acceptedAt": zod.union([zod.string(),zod.null()]).optional(),
   "summary": zod.string()
@@ -1277,6 +1279,8 @@ export const InviteFacilitatorResponse = zod.object({
   "email": zod.string(),
   "role": zod.string(),
   "sessionIds": zod.array(zod.int()),
+  "programId": zod.union([zod.int(),zod.null()]).optional(),
+  "programTitle": zod.union([zod.string(),zod.null()]).optional(),
   "createdAt": zod.string(),
   "acceptedAt": zod.union([zod.string(),zod.null()]).optional(),
   "summary": zod.string()
@@ -1291,6 +1295,27 @@ export const RevokeInvitationParams = zod.object({
 })
 
 export const RevokeInvitationResponse = zod.void()
+
+
+/**
+ * Withdraws the existing link and issues a new one to the same address, with the same role, classes and programme. The old link stops working: two live invitations to one inbox is the state this avoids everywhere else. An invitation that has already been accepted cannot be resent.
+ * @summary Send an unanswered invitation again
+ */
+export const ResendInvitationParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const ResendInvitationResponse = zod.object({
+  "id": zod.int(),
+  "email": zod.string(),
+  "role": zod.string(),
+  "sessionIds": zod.array(zod.int()),
+  "programId": zod.union([zod.int(),zod.null()]).optional(),
+  "programTitle": zod.union([zod.string(),zod.null()]).optional(),
+  "createdAt": zod.string(),
+  "acceptedAt": zod.union([zod.string(),zod.null()]).optional(),
+  "summary": zod.string()
+})
 
 
 /**

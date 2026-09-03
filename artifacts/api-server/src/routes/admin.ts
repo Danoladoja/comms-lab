@@ -4,7 +4,7 @@ import {
 } from "@workspace/db";
 import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { UpdateUserRoleBody, UpdateEnrollmentBody, InviteFacilitatorBody } from "@workspace/api-zod";
-import { checkRoleChange, validateInvite, describeInvite } from "@workspace/domain";
+import { checkRoleChange, validateInvite, describeInvite, mayResendInvitation } from "@workspace/domain";
 import { currentRole, founderId, requireRole, getCurrentUser } from "../lib/auth";
 import { revokeInvitation, invitesConfigured } from "../lib/clerkInvites";
 import { deliverInvitation } from "../lib/invitationDelivery";
@@ -380,12 +380,128 @@ router.get("/admin/invitations", async (_req, res) => {
   // a plain date ordering they would eventually push a still-live invitation
   // off the end of the list — where it could no longer be withdrawn, which is
   // exactly the invitation most likely to need withdrawing.
+  //
+  // The programme comes along because a learner's invitation belongs to a
+  // cohort: without it the console cannot put an invited learner under the
+  // programme they were invited to, which is the only place an admin looks.
   const rows = await db
-    .select()
+    .select({
+      id: pendingInvitationsTable.id,
+      email: pendingInvitationsTable.email,
+      role: pendingInvitationsTable.role,
+      sessionIds: pendingInvitationsTable.sessionIds,
+      programId: pendingInvitationsTable.programId,
+      programTitle: programsTable.title,
+      createdAt: pendingInvitationsTable.createdAt,
+      acceptedAt: pendingInvitationsTable.acceptedAt,
+    })
     .from(pendingInvitationsTable)
+    .leftJoin(programsTable, eq(programsTable.id, pendingInvitationsTable.programId))
     .orderBy(sql`${pendingInvitationsTable.acceptedAt} is not null`, desc(pendingInvitationsTable.createdAt))
     .limit(200);
   res.json(rows.map(invitePayload));
+});
+
+/**
+ * Send the same invitation again.
+ *
+ * The commonest reason an invitation goes unanswered is not refusal: it went to
+ * spam, or it was read on a phone in a queue and forgotten. Before this the only
+ * remedy was to withdraw the invitation and re-invite the person from the
+ * roster tool, which meant retyping their details and hoping the admin got the
+ * programme right the second time.
+ *
+ * A resend is a genuinely new link. The old one is withdrawn first, because two
+ * live invitations to one inbox is exactly the state this codebase works
+ * everywhere else to avoid, and because a spent-but-unrecorded link is the one
+ * kind that cannot later be taken back.
+ */
+router.post("/admin/invitations/:id/resend", async (req, res) => {
+  if (!invitesConfigured()) {
+    res.status(503).json({ error: "Clerk is not configured on the server, so invitations cannot be sent." });
+    return;
+  }
+
+  const id = Number(req.params.id);
+  const [invite] = await db
+    .select({
+      id: pendingInvitationsTable.id,
+      email: pendingInvitationsTable.email,
+      role: pendingInvitationsTable.role,
+      sessionIds: pendingInvitationsTable.sessionIds,
+      programId: pendingInvitationsTable.programId,
+      programTitle: programsTable.title,
+      programStart: programsTable.startDate,
+      clerkInvitationId: pendingInvitationsTable.clerkInvitationId,
+      createdAt: pendingInvitationsTable.createdAt,
+      acceptedAt: pendingInvitationsTable.acceptedAt,
+    })
+    .from(pendingInvitationsTable)
+    .leftJoin(programsTable, eq(programsTable.id, pendingInvitationsTable.programId))
+    .where(eq(pendingInvitationsTable.id, id));
+  if (!invite) { res.status(404).json({ error: "Invitation not found" }); return; }
+
+  const allowed = mayResendInvitation(invite);
+  if (!allowed.allowed) { res.status(400).json({ error: allowed.reason }); return; }
+
+  // Take the old link back first. acceptedAt is only written when the person
+  // first uses the app, so somebody who finished signing up but has not browsed
+  // still looks pending here — Clerk is the authority on whether a link has
+  // been spent, and it is asked before anything is sent.
+  if (invite.clerkInvitationId) {
+    const outcome = await revokeInvitation(invite.clerkInvitationId);
+    if (outcome === "failed") {
+      res.status(502).json({
+        error: "Could not withdraw the previous invitation, so a new one was not sent. Try again shortly.",
+      });
+      return;
+    }
+    if (outcome === "already-accepted") {
+      await db
+        .update(pendingInvitationsTable)
+        .set({ acceptedAt: new Date() })
+        .where(eq(pendingInvitationsTable.id, id));
+      res.status(400).json({
+        error: "They have already used their invitation. They will appear in the lists once they sign in.",
+      });
+      return;
+    }
+  }
+
+  // Same narrowing as the original send: an invited admin travels to Clerk as a
+  // facilitator, and is raised on arrival from our own row. A resend must not be
+  // the one path that hands admin to a link.
+  const sent = await deliverInvitation({
+    email: invite.email,
+    role: invite.role === "admin" ? "instructor" : (invite.role as "instructor" | "learner"),
+    describeAs: invite.role as "admin" | "instructor" | "learner",
+    programmeTitle: invite.programTitle,
+    programmeStart: invite.programStart,
+  });
+  if (!sent.ok) { res.status(400).json({ error: sent.error }); return; }
+
+  let saved;
+  try {
+    [saved] = await db
+      .update(pendingInvitationsTable)
+      .set({
+        clerkInvitationId: sent.invitationId,
+        // Dated as what it is: a new invitation. Keeping the original date would
+        // leave it sorted to the bottom of the list still looking a fortnight
+        // stale on the day it was sent.
+        createdAt: new Date(),
+      })
+      .where(eq(pendingInvitationsTable.id, id))
+      .returning();
+  } catch (err) {
+    await revokeInvitation(sent.invitationId);
+    logger.error({ err, email: invite.email }, "Could not record a resent invitation; withdrew it again");
+    res.status(500).json({ error: "Could not record that invitation, so it has been withdrawn. Try again." });
+    return;
+  }
+
+  logger.info({ email: invite.email, role: invite.role }, "Invitation resent");
+  res.json(invitePayload({ ...saved, programTitle: invite.programTitle }));
 });
 
 router.delete("/admin/invitations/:id", async (req, res) => {
@@ -433,6 +549,8 @@ function invitePayload(row: {
   email: string;
   role: string;
   sessionIds: number[];
+  programId?: number | null;
+  programTitle?: string | null;
   createdAt: Date;
   acceptedAt: Date | null;
 }) {
@@ -441,6 +559,8 @@ function invitePayload(row: {
     email: row.email,
     role: row.role,
     sessionIds: row.sessionIds ?? [],
+    programId: row.programId ?? null,
+    programTitle: row.programTitle ?? null,
     createdAt: row.createdAt.toISOString(),
     acceptedAt: row.acceptedAt ? row.acceptedAt.toISOString() : null,
     summary: describeInvite({
@@ -448,6 +568,7 @@ function invitePayload(row: {
       role: row.role,
       sessionCount: (row.sessionIds ?? []).length,
       createdAt: row.createdAt,
+      programmeTitle: row.programTitle ?? null,
     }),
   };
 }

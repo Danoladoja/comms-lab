@@ -201,14 +201,74 @@ export function describeInvite(invite: {
   role: string;
   sessionCount: number;
   createdAt: Date | string;
+  /** The cohort a learner was invited onto, where there is one. */
+  programmeTitle?: string | null;
 }): string {
-  const at = typeof invite.createdAt === "string" ? new Date(invite.createdAt) : invite.createdAt;
-  const when = Number.isNaN(at.getTime())
-    ? ""
-    : at.toLocaleDateString("en-GB", { day: "numeric", month: "long" });
+  const when = inviteDate(invite.createdAt);
+
+  // A learner is invited to a cohort, not to a set of classes. Telling an admin
+  // that somebody was "invited as learner with no classes yet" describes the
+  // facilitator machinery rather than the thing that happened.
+  if (invite.role === "learner") {
+    const where = invite.programmeTitle?.trim();
+    return `Invited${where ? ` to ${where}` : ""}${when ? ` on ${when}` : ""}.`;
+  }
+
   const what = invite.role === "instructor" ? "facilitator" : invite.role;
   const classes = invite.sessionCount === 0
     ? "no classes yet"
     : `${invite.sessionCount} class${invite.sessionCount === 1 ? "" : "es"}`;
   return `Invited as ${what} with ${classes}${when ? ` on ${when}` : ""}.`;
+}
+
+function inviteDate(value: Date | string): string {
+  const at = typeof value === "string" ? new Date(value) : value;
+  return Number.isNaN(at.getTime()) ? "" : at.toLocaleDateString("en-GB", { day: "numeric", month: "long" });
+}
+
+/** Whole days between when an invitation was sent and now. */
+export function daysWaiting(createdAt: Date | string, now: number = Date.now()): number | null {
+  const at = typeof createdAt === "string" ? new Date(createdAt) : createdAt;
+  if (Number.isNaN(at.getTime())) return null;
+  const days = Math.floor((now - at.getTime()) / 86_400_000);
+  return days < 0 ? 0 : days;
+}
+
+/**
+ * When an unanswered invitation has been waiting long enough to chase.
+ *
+ * A week. Sooner than that and the admin is nagging somebody who has simply not
+ * opened their inbox since Friday; much later and the link has gone stale in a
+ * folder nobody looks at.
+ */
+export const CHASE_AFTER_DAYS = 7;
+
+export function inviteWorthChasing(
+  invite: { acceptedAt?: Date | string | null; createdAt: Date | string },
+  now: number = Date.now(),
+): boolean {
+  if (invite.acceptedAt) return false;
+  const days = daysWaiting(invite.createdAt, now);
+  return days !== null && days >= CHASE_AFTER_DAYS;
+}
+
+/**
+ * May this invitation be sent again?
+ *
+ * The reason to resend is mundane and common: the first one went to spam, or
+ * was read on a phone in a queue and forgotten. The reason not to is that an
+ * invitation already taken up is a record of something that happened, and
+ * re-issuing it would withdraw a live account's route in and replace it with a
+ * link the person does not need.
+ */
+export function mayResendInvitation(invite: {
+  acceptedAt?: Date | string | null;
+}): { allowed: boolean; reason: string | null } {
+  if (invite.acceptedAt) {
+    return {
+      allowed: false,
+      reason: "They have already accepted. There is nothing left to send.",
+    };
+  }
+  return { allowed: true, reason: null };
 }

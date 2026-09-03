@@ -1518,6 +1518,58 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiMessage"
+  /admin/invitations/{id}/resend:
+    post:
+      operationId: resendInvitation
+      tags: [admin]
+      summary: Send an unanswered invitation again
+      description: >
+        Withdraws the existing link and issues a new one to the same address,
+        with the same role, classes and programme. The old link stops working:
+        two live invitations to one inbox is the state this avoids everywhere
+        else. An invitation that has already been accepted cannot be resent.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: A new invitation was sent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Invitation"
+        "400":
+          description: Already accepted, or the email could not be sent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "502":
+          description: The previous invitation could not be withdrawn, so nothing was sent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "503":
+          description: Clerk is not configured on the server
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
   /admin/users/{id}/role:
     patch:
       operationId: updateUserRole
@@ -2568,6 +2620,17 @@ components:
         sessionIds:
           type: array
           items: { type: integer }
+        # The cohort a learner was invited onto. Null for a facilitator or admin
+        # invitation, which is to a set of classes rather than to a programme,
+        # and null for a learner whose programme has since been deleted.
+        programId:
+          oneOf:
+            - type: integer
+            - type: "null"
+        programTitle:
+          oneOf:
+            - type: string
+            - type: "null"
         createdAt: { type: string }
         # Set once the person has arrived and their classes have been handed over.
         acceptedAt:

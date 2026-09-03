@@ -11,6 +11,10 @@ import {
   useListAllEnrollments,
   useUpdateEnrollment,
   useRemoveEnrollment,
+  useListInvitations,
+  useRevokeInvitation,
+  useResendInvitation,
+  getListInvitationsQueryKey,
   useListUsers,
   useListStaff,
   useListWaitlist,
@@ -26,11 +30,14 @@ import {
   type Program,
   type ProgramStatus,
   type Session,
+  type Invitation,
 } from '@workspace/api-client-react';
 import {
   ROLE_NOTES,
   isStaffRole,
   satisfiesRole,
+  daysWaiting,
+  inviteWorthChasing,
   describeWaitlist,
   canAppointStaff,
   groupStaff,
@@ -55,7 +62,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { ChevronDown, ChevronUp, Plus, Trash2, CircleAlert, Pencil } from 'lucide-react';
+import { ChevronDown, ChevronUp, Plus, Trash2, CircleAlert, Pencil, Clock, Send, X } from 'lucide-react';
 
 const TABS = ['Programmes', 'Live Sessions', 'Enrolments', 'People', 'Recordings'] as const;
 type Tab = (typeof TABS)[number];
@@ -639,17 +646,120 @@ function ProgramsTab({ instructors }: { instructors: { id: number; name: string;
 
 /* ---------- Enrollments tab ---------- */
 
+/**
+ * The value that means "take this person off the programme entirely".
+ *
+ * Not a status — no enrolment is ever saved as this. It rides in the same menu
+ * as the statuses because that menu is where an admin already goes to change
+ * what somebody's place on a cohort is, and deleting the record is the far end
+ * of that same question.
+ */
+const DELETE_CHOICE = '__delete';
+
+/**
+ * Invitations sent for this cohort that nobody has answered yet.
+ *
+ * These used to sit under People, stacked in with the facilitators and admins,
+ * which meant a cohort of fifty buried the two members of staff an admin had
+ * come to find — and gave no way at all to see who on *this* programme had not
+ * turned up yet. An invited learner is a fact about a cohort, so it belongs
+ * under the cohort.
+ */
+function InvitedLearners({
+  invites, onResend, onWithdraw, pending,
+}: {
+  invites: Invitation[];
+  onResend: (invite: Invitation) => void;
+  onWithdraw: (invite: Invitation) => void;
+  pending: boolean;
+}) {
+  if (invites.length === 0) return null;
+
+  return (
+    <div className="border-t border-border bg-muted/20 p-5">
+      <h4 className="flex items-center gap-1.5 text-sm font-semibold">
+        <Clock className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
+        Invited, not yet accepted
+        <span className="font-normal text-muted-foreground">({invites.length})</span>
+      </h4>
+      <p className="mt-0.5 text-xs text-muted-foreground">
+        They have a link in their inbox and no account here yet. They join the list above the
+        moment they accept.
+      </p>
+
+      <ul className="mt-3 divide-y divide-border">
+        {invites.map(i => {
+          const days = daysWaiting(i.createdAt);
+          const chase = inviteWorthChasing(i);
+          return (
+            <li key={i.id} className="flex flex-wrap items-center gap-3 py-3">
+              <div className="min-w-[200px] flex-1">
+                <p className="text-sm font-medium">{i.email}</p>
+                <p className="text-xs text-muted-foreground">
+                  {days === null
+                    ? 'Invited'
+                    : days === 0
+                      ? 'Invited today'
+                      : `Invited ${days} day${days === 1 ? '' : 's'} ago`}
+                  {chase && (
+                    <span className="ml-1.5 text-[#B45309]">· worth sending again</span>
+                  )}
+                </p>
+              </div>
+
+              <div className="flex flex-shrink-0 items-center gap-1">
+                {/* Sending again is the ordinary case, so it reads as ordinary:
+                    most unanswered invitations went to spam rather than being
+                    refused. Withdrawing is the destructive one and looks it. */}
+                <Button
+                  variant="outline" size="sm"
+                  disabled={pending}
+                  onClick={() => onResend(i)}
+                >
+                  <Send className="mr-1.5 h-3.5 w-3.5" aria-hidden />
+                  Send again
+                </Button>
+                <Button
+                  variant="ghost" size="sm"
+                  className="text-muted-foreground hover:text-destructive"
+                  disabled={pending}
+                  onClick={() => onWithdraw(i)}
+                >
+                  <X className="mr-1 h-3.5 w-3.5" aria-hidden />
+                  Withdraw
+                </Button>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
 /** One programme's cohort: everybody on it, and how they are getting on. */
 function CohortSection({
-  programme, rows, onStatus, onRemove, pending,
+  programme, rows, invites, onStatus, onRemove, onResend, onWithdraw, pending,
 }: {
   programme: { id: number; title: string; capacity: number; status: string };
   rows: { id: number; userName: string; userEmail: string; status: string }[];
+  invites: Invitation[];
   onStatus: (enrollmentId: number, status: string) => void;
   onRemove: (enrollmentId: number, who: string) => void;
+  onResend: (invite: Invitation) => void;
+  onWithdraw: (invite: Invitation) => void;
   pending: boolean;
 }) {
-  const [open, setOpen] = useState(true);
+  /*
+   * Shut, until an admin asks.
+   *
+   * Open by default, four programmes of fifty put two hundred names on the
+   * screen before anybody had asked a question about any of them, and the
+   * counts — which are the thing you actually come here to read — were pushed
+   * off the bottom. Closed, the page is the list of cohorts and how full each
+   * one is, and the names are one click away.
+   */
+  const [open, setOpen] = useState(false);
   const active = rows.filter(r => r.status === 'enrolled' || r.status === 'completed').length;
 
   return (
@@ -657,12 +767,14 @@ function CohortSection({
       <button
         type="button"
         onClick={() => setOpen(!open)}
+        aria-expanded={open}
         className="flex w-full flex-wrap items-center gap-3 p-5 text-left"
       >
         <div className="min-w-[200px] flex-1">
           <h3 className="font-semibold">{programme.title}</h3>
           <p className="text-xs text-muted-foreground">
-            {active} of {programme.capacity} places taken · {rows.length} on this list ·{' '}
+            {active} of {programme.capacity} places taken · {rows.length} on this list
+            {invites.length > 0 && ` · ${invites.length} invited, not yet accepted`} ·{' '}
             {programStatusNote(programme.status)}
           </p>
         </div>
@@ -673,13 +785,15 @@ function CohortSection({
         <div className="border-t border-border">
           {rows.length === 0 ? (
             <p className="p-5 text-sm text-muted-foreground">
-              Nobody on this programme yet. Invite a cohort below.
+              {invites.length > 0
+                ? 'Nobody has accepted yet. The invitations sent are below.'
+                : 'Nobody on this programme yet. Invite a cohort below.'}
             </p>
           ) : (
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border text-left text-xs uppercase tracking-wider text-muted-foreground">
-                  <th className="p-4">Learner</th><th className="p-4">Status</th><th className="p-4"></th>
+                  <th className="p-4">Learner</th><th className="p-4">Their place on this programme</th>
                 </tr>
               </thead>
               <tbody>
@@ -690,37 +804,62 @@ function CohortSection({
                       <p className="text-xs text-muted-foreground">{r.userEmail}</p>
                     </td>
                     <td className="p-4">
+                      {/*
+                        One menu, because there is really only one question here:
+                        what is this person's place on this programme? Removed
+                        revokes access and keeps the record — that is the tool
+                        for somebody taken off a cohort for cause. Deleting the
+                        record is the separate, rarer thing, and it is worded as
+                        what it does rather than as another status.
+
+                        A controlled select makes the confirm safe: decline it
+                        and React re-renders the original value, so a mis-click
+                        changes nothing.
+                      */}
                       <select
                         className="rounded-md border border-border bg-background px-2 py-1.5 text-sm"
                         value={r.status}
                         disabled={pending}
-                        onChange={ev => onStatus(r.id, ev.target.value)}
+                        aria-label={`Place of ${r.userName || r.userEmail} on ${programme.title}`}
+                        onChange={ev => {
+                          if (ev.target.value === DELETE_CHOICE) {
+                            onRemove(r.id, r.userName || r.userEmail);
+                          } else {
+                            onStatus(r.id, ev.target.value);
+                          }
+                        }}
                       >
-                        <option value="enrolled">Enrolled</option>
-                        <option value="waitlisted">Waitlisted</option>
-                        <option value="completed">Completed</option>
-                        <option value="cancelled">Cancelled</option>
+                        <optgroup label="On the programme">
+                          <option value="enrolled">Enrolled</option>
+                          <option value="waitlisted">Waitlisted</option>
+                          <option value="completed">Completed</option>
+                        </optgroup>
+                        <optgroup label="Access revoked">
+                          <option value="cancelled">Removed — keeps the record</option>
+                        </optgroup>
+                        <optgroup label="Careful">
+                          <option value={DELETE_CHOICE}>Delete the record entirely…</option>
+                        </optgroup>
                       </select>
-                    </td>
-                    <td className="p-4 text-right">
-                      {/* For somebody who should not be on this list at all: a
-                          test enrolment, or a member of staff who ended up in
-                          the cohort. Withdrawing a real learner is Cancelled. */}
-                      <Button
-                        variant="ghost" size="icon"
-                        className="text-muted-foreground hover:text-destructive"
-                        disabled={pending}
-                        aria-label={`Remove ${r.userName || r.userEmail} from ${programme.title}`}
-                        onClick={() => onRemove(r.id, r.userName || r.userEmail)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      {r.status === 'cancelled' && (
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          Removed. They can sign in but cannot open this programme, its classes or
+                          its Studio work.
+                        </p>
+                      )}
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           )}
+
+          <InvitedLearners
+            invites={invites}
+            onResend={onResend}
+            onWithdraw={onWithdraw}
+            pending={pending}
+          />
         </div>
       )}
     </section>
@@ -834,6 +973,9 @@ function EnrollmentsTab() {
   const { toast } = useToast();
   const { data: enrollments = [], isLoading } = useListAllEnrollments();
   const { data: programmes = [] } = useListPrograms();
+  const { data: invitations = [] } = useListInvitations({
+    query: { queryKey: getListInvitationsQueryKey(), retry: false },
+  });
   const update = useUpdateEnrollment({
     mutation: {
       onSuccess: () => { toast({ title: 'Enrolment updated' }); qc.invalidateQueries({ queryKey: getListAllEnrollmentsQueryKey() }); },
@@ -851,13 +993,59 @@ function EnrollmentsTab() {
     },
   });
 
+  const refreshInvites = () => qc.invalidateQueries({ queryKey: getListInvitationsQueryKey() });
+
+  const resend = useResendInvitation({
+    mutation: {
+      onSuccess: () => {
+        toast({ title: 'Invitation sent again', description: 'The earlier link no longer works.' });
+        refreshInvites();
+      },
+      onError: (err) => toast({
+        title: 'Could not send it again',
+        description: (err as unknown as { error?: string })?.error,
+        variant: 'destructive',
+      }),
+    },
+  });
+
+  const withdraw = useRevokeInvitation({
+    mutation: {
+      onSuccess: () => { toast({ title: 'Invitation withdrawn' }); refreshInvites(); },
+      onError: (err) => toast({
+        title: 'Could not withdraw it',
+        description: (err as unknown as { error?: string })?.error,
+        variant: 'destructive',
+      }),
+    },
+  });
+
   const setStatus = (id: number, status: string) =>
     update.mutate({ id, data: { status: status as 'enrolled' | 'waitlisted' | 'completed' | 'cancelled' } });
 
   const removeFromProgramme = (id: number, who: string) => {
-    if (!confirm(`Remove ${who} from this programme? Their progress on it goes too. To keep the record, set them to Cancelled instead.`)) return;
+    if (!confirm(`Delete ${who}'s record on this programme? Their work and progress on it go too, and this cannot be undone. To revoke their access but keep the record, choose "Removed" instead.`)) return;
     remove.mutate({ id });
   };
+
+  const withdrawInvite = (invite: Invitation) => {
+    if (!confirm(`Withdraw the invitation to ${invite.email}? Their link stops working. To give them another one instead, choose Send again.`)) return;
+    withdraw.mutate({ id: invite.id });
+  };
+
+  // Learners only, and only the ones who have not arrived. A facilitator's
+  // invitation is not a fact about a cohort, and an accepted one is a person in
+  // the list above rather than a line in this one.
+  const invitesFor = (programId: number) =>
+    invitations.filter(i => i.role === 'learner' && !i.acceptedAt && i.programId === programId);
+
+  // Invited before this console recorded which programme they were invited to,
+  // or invited onto a programme that has since been deleted. Rare, but they are
+  // real people with live links, and a list they cannot appear in is a list
+  // that quietly loses them.
+  const homeless = invitations.filter(i => i.role === 'learner' && !i.acceptedAt && !i.programId);
+
+  const invitesPending = resend.isPending || withdraw.isPending;
 
   if (isLoading) return <div className="h-32 animate-pulse rounded-xl border border-border bg-card" />;
 
@@ -873,11 +1061,33 @@ function EnrollmentsTab() {
             key={p.id}
             programme={p}
             rows={enrollments.filter(e => e.programId === p.id)}
+            invites={invitesFor(p.id)}
             onStatus={setStatus}
             onRemove={removeFromProgramme}
-            pending={update.isPending || remove.isPending}
+            onResend={(i) => resend.mutate({ id: i.id })}
+            onWithdraw={withdrawInvite}
+            pending={update.isPending || remove.isPending || invitesPending}
           />
         ))
+      )}
+
+      {homeless.length > 0 && (
+        <section className="rounded-xl border border-border bg-card">
+          <div className="p-5 pb-0">
+            <h3 className="font-semibold">Invited, but not to a programme</h3>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              Either they were invited before the Lab recorded which cohort an invitation was for, or
+              that programme has since been deleted. Withdraw them, or invite them again to a
+              programme with the tool below.
+            </p>
+          </div>
+          <InvitedLearners
+            invites={homeless}
+            onResend={(i) => resend.mutate({ id: i.id })}
+            onWithdraw={withdrawInvite}
+            pending={invitesPending}
+          />
+        </section>
       )}
 
       <WaitlistSection />

@@ -5,6 +5,7 @@ import {
   useListPrograms,
   useInviteLearnersInBulk,
   getListAllEnrollmentsQueryKey,
+  getListInvitationsQueryKey,
   type BulkInviteResult,
 } from '@workspace/api-client-react';
 import {
@@ -60,6 +61,10 @@ export function InviteLearners() {
       onSuccess: (data) => {
         setResult(data);
         qc.invalidateQueries({ queryKey: getListAllEnrollmentsQueryKey() });
+        // Whoever was invited rather than enrolled outright appears under their
+        // programme as "invited, not yet accepted" — but only if that list is
+        // asked to look again.
+        qc.invalidateQueries({ queryKey: getListInvitationsQueryKey() });
         toast({ title: `${data.invited + data.enrolled} of ${data.outcomes.length} handled` });
       },
       onError: () => toast({ title: 'Could not send those invitations', variant: 'destructive' }),

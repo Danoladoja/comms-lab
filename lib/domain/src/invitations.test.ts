@@ -9,6 +9,10 @@ import {
   validateInvite,
   planAssignments,
   describeInvite,
+  daysWaiting,
+  inviteWorthChasing,
+  mayResendInvitation,
+  CHASE_AFTER_DAYS,
   INVITABLE_ROLES,
   MAX_SESSIONS_PER_INVITE,
 } from "./invitations";
@@ -239,5 +243,83 @@ describe("describeInvite", () => {
   it("survives an unreadable date", () => {
     const line = describeInvite({ email: "a@b.org", role: "learner", sessionCount: 0, createdAt: "nonsense" });
     expect(line).not.toMatch(/Invalid/);
+  });
+
+  it("describes a learner by their cohort, not by classes they were never given", () => {
+    const line = describeInvite({
+      email: "amina@example.org",
+      role: "learner",
+      sessionCount: 0,
+      createdAt: new Date("2026-08-30T10:00:00Z"),
+      programmeTitle: "Energy Reporting Foundations",
+    });
+    expect(line).toBe("Invited to Energy Reporting Foundations on 30 August.");
+    expect(line).not.toContain("class");
+  });
+
+  it("still reads properly for a learner whose programme has since been deleted", () => {
+    const line = describeInvite({
+      email: "amina@example.org",
+      role: "learner",
+      sessionCount: 0,
+      createdAt: new Date("2026-08-30T10:00:00Z"),
+      programmeTitle: null,
+    });
+    expect(line).toBe("Invited on 30 August.");
+  });
+});
+
+describe("daysWaiting", () => {
+  const sent = new Date("2026-08-01T09:00:00Z");
+
+  it("counts whole days since the invitation went out", () => {
+    expect(daysWaiting(sent, new Date("2026-08-01T10:00:00Z").getTime())).toBe(0);
+    expect(daysWaiting(sent, new Date("2026-08-09T09:00:00Z").getTime())).toBe(8);
+  });
+
+  it("takes a string as readily as a date", () => {
+    expect(daysWaiting("2026-08-01T09:00:00Z", new Date("2026-08-04T09:00:00Z").getTime())).toBe(3);
+  });
+
+  it("never reports a negative wait for a clock that disagrees", () => {
+    expect(daysWaiting(sent, new Date("2026-07-30T09:00:00Z").getTime())).toBe(0);
+  });
+
+  it("returns null rather than a number for an unreadable date", () => {
+    expect(daysWaiting("nonsense")).toBeNull();
+  });
+});
+
+describe("inviteWorthChasing", () => {
+  const sent = "2026-08-01T09:00:00Z";
+  const at = (iso: string) => new Date(iso).getTime();
+
+  it("leaves a fresh invitation alone", () => {
+    expect(inviteWorthChasing({ acceptedAt: null, createdAt: sent }, at("2026-08-03T09:00:00Z"))).toBe(false);
+  });
+
+  it("flags one that has gone unanswered for a week", () => {
+    expect(inviteWorthChasing({ acceptedAt: null, createdAt: sent }, at("2026-08-08T09:00:00Z"))).toBe(true);
+    expect(CHASE_AFTER_DAYS).toBe(7);
+  });
+
+  it("never flags one that was accepted, however long ago it was sent", () => {
+    expect(inviteWorthChasing(
+      { acceptedAt: "2026-08-02T09:00:00Z", createdAt: sent },
+      at("2026-12-01T09:00:00Z"),
+    )).toBe(false);
+  });
+});
+
+describe("mayResendInvitation", () => {
+  it("allows a second attempt at an invitation nobody has answered", () => {
+    expect(mayResendInvitation({ acceptedAt: null })).toEqual({ allowed: true, reason: null });
+    expect(mayResendInvitation({ acceptedAt: undefined }).allowed).toBe(true);
+  });
+
+  it("refuses to reissue one that has already been taken up", () => {
+    const outcome = mayResendInvitation({ acceptedAt: "2026-08-02T09:00:00Z" });
+    expect(outcome.allowed).toBe(false);
+    expect(outcome.reason).toMatch(/already accepted/i);
   });
 });

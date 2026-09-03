@@ -4083,6 +4083,78 @@ export const useRevokeInvitation = <TError = ErrorType<ApiMessage>,
       return useMutation(getRevokeInvitationMutationOptions(options));
     }
 
+export const getResendInvitationUrl = (id: number,) => {
+
+
+
+
+  return `/api/admin/invitations/${id}/resend`
+}
+
+/**
+ * Withdraws the existing link and issues a new one to the same address, with the same role, classes and programme. The old link stops working: two live invitations to one inbox is the state this avoids everywhere else. An invitation that has already been accepted cannot be resent.
+ * @summary Send an unanswered invitation again
+ */
+export const resendInvitation = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<Invitation> => {
+
+  return customFetch<Invitation>(getResendInvitationUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getResendInvitationMutationOptions = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof resendInvitation>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof resendInvitation>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['resendInvitation'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof resendInvitation>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  resendInvitation(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ResendInvitationMutationResult = NonNullable<Awaited<ReturnType<typeof resendInvitation>>>
+
+    export type ResendInvitationMutationError = ErrorType<ApiMessage>
+
+    /**
+ * @summary Send an unanswered invitation again
+ */
+export const useResendInvitation = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof resendInvitation>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof resendInvitation>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getResendInvitationMutationOptions(options));
+    }
+
 export const getUpdateUserRoleUrl = (id: number,) => {
 
 
