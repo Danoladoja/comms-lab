@@ -5,7 +5,7 @@ import {
   useListPrograms, useListProgramSessions,
   getListInvitationsQueryKey, getListUsersQueryKey, getListProgramSessionsQueryKey,
 } from '@workspace/api-client-react';
-import { MAX_SESSIONS_PER_INVITE } from '@workspace/domain';
+import { MAX_SESSIONS_PER_INVITE, apiReason } from '@workspace/domain';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
@@ -59,7 +59,7 @@ export default function InviteFacilitator({ canInviteAdmin = false }: { canInvit
       },
       onError: (err) => toast({
         title: 'Could not send that invitation',
-        description: (err as unknown as { error?: string })?.error,
+        description: apiReason(err, 'Try again in a moment.'),
         variant: 'destructive',
       }),
     },
@@ -70,7 +70,7 @@ export default function InviteFacilitator({ canInviteAdmin = false }: { canInvit
       onSuccess: () => { toast({ title: 'Invitation withdrawn' }); refresh(); },
       onError: (err) => toast({
         title: 'Could not withdraw it',
-        description: (err as unknown as { error?: string })?.error,
+        description: apiReason(err, 'Try again in a moment.'),
         variant: 'destructive',
       }),
     },
@@ -81,7 +81,7 @@ export default function InviteFacilitator({ canInviteAdmin = false }: { canInvit
       onSuccess: () => { toast({ title: 'Sent again', description: 'The earlier link no longer works.' }); refresh(); },
       onError: (err) => toast({
         title: 'Could not send it again',
-        description: (err as unknown as { error?: string })?.error,
+        description: apiReason(err, 'Try again in a moment.'),
         variant: 'destructive',
       }),
     },

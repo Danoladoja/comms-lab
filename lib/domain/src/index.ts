@@ -23,3 +23,4 @@ export * from "./staffRoles";
 export * from "./invitationEmail";
 export * from "./studioInviteEmail";
 export * from "./emailFailure";
+export * from "./apiFailure";

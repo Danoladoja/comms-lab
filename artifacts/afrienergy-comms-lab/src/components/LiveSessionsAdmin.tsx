@@ -7,7 +7,7 @@ import {
   getListLiveSessionsQueryKey,
   type LiveSession,
 } from '@workspace/api-client-react';
-import { sessionDateTimeFromInput, sessionDateTimeInput, sortLiveSessions } from '@workspace/domain';
+import { sessionDateTimeFromInput, sessionDateTimeInput, sortLiveSessions, apiReason } from '@workspace/domain';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -30,10 +30,6 @@ const EMPTY = {
   startsAt: '', durationMins: 60, capacity: 0,
   meetUrl: '', recordingUrl: '', status: 'draft' as const,
 };
-
-function reason(err: any, fallback: string): string {
-  return err?.error || err?.data?.error || err?.message || fallback;
-}
 
 function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
   return (
@@ -108,7 +104,7 @@ function SessionRow({ session }: { session: LiveSession }) {
       ...extra,
     } as any }, {
       onSuccess: () => { toast({ title: 'Saved' }); refresh(); setOpen('closed'); },
-      onError: (err: any) => toast({ title: 'Could not save', description: reason(err, 'Try again.'), variant: 'destructive' }),
+      onError: (err: any) => toast({ title: 'Could not save', description: apiReason(err, 'Try again.'), variant: 'destructive' }),
     });
   };
 
@@ -205,7 +201,7 @@ export default function LiveSessionsAdmin() {
         setTitle('');
         qc.invalidateQueries({ queryKey: getListLiveSessionsQueryKey() });
       },
-      onError: (err: any) => toast({ title: 'Could not create it', description: reason(err, 'Try again.'), variant: 'destructive' }),
+      onError: (err: any) => toast({ title: 'Could not create it', description: apiReason(err, 'Try again.'), variant: 'destructive' }),
     });
   };
 

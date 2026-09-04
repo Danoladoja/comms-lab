@@ -6,7 +6,7 @@ import {
   getGetSessionSlidesQueryKey, getGetSessionNotesQueryKey, getGetCourseworkDraftHistoryQueryKey,
   type DraftQuestion,
 } from '@workspace/api-client-react';
-import { draftDisclaimer, MIN_USABLE_SLIDE_CHARS } from '@workspace/domain';
+import { draftDisclaimer, MIN_USABLE_SLIDE_CHARS, apiReason } from '@workspace/domain';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import SlideDeckPanel from '@/components/SlideDeckPanel';
@@ -70,7 +70,7 @@ export default function CourseworkStudio({ sessionId }: { sessionId: number }) {
       },
       onError: (err) => toast({
         title: 'Could not draft from this material',
-        description: (err as unknown as { error?: string })?.error,
+        description: apiReason(err, 'Try again in a moment.'),
         variant: 'destructive',
       }),
     },

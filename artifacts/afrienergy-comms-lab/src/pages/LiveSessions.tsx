@@ -8,7 +8,7 @@ import {
   getListLiveSessionsQueryKey,
   type LiveSession,
 } from '@workspace/api-client-react';
-import { liveSessionCallToAction, sortLiveSessions } from '@workspace/domain';
+import { liveSessionCallToAction, sortLiveSessions, apiReason } from '@workspace/domain';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Video, Radio, CalendarDays, Users, Loader2, Check, PlayCircle } from 'lucide-react';
@@ -43,10 +43,6 @@ function formatWhen(iso: string | null) {
   });
 }
 
-function reason(err: any, fallback: string): string {
-  return err?.error || err?.data?.error || err?.message || fallback;
-}
-
 function SessionCard({ session }: { session: LiveSession }) {
   const { isSignedIn } = useCurrentUser();
   const { toast } = useToast();
@@ -68,7 +64,7 @@ function SessionCard({ session }: { session: LiveSession }) {
     }
     register.mutate({ id: session.id }, {
       onSuccess: () => { toast({ title: `You are registered for ${session.title}` }); refresh(); },
-      onError: (err: any) => toast({ title: 'Could not register', description: reason(err, 'Try again in a moment.'), variant: 'destructive' }),
+      onError: (err: any) => toast({ title: 'Could not register', description: apiReason(err, 'Try again in a moment.'), variant: 'destructive' }),
     });
   };
 
@@ -83,7 +79,7 @@ function SessionCard({ session }: { session: LiveSession }) {
       },
       onError: (err: any) => {
         setJoining(false);
-        toast({ title: 'Could not open the room', description: reason(err, 'Try again in a moment.'), variant: 'destructive' });
+        toast({ title: 'Could not open the room', description: apiReason(err, 'Try again in a moment.'), variant: 'destructive' });
       },
     });
   };

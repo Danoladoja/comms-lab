@@ -12,6 +12,7 @@ import { useToast } from '@/hooks/use-toast';
 import {
   CheckCircle2, Lock, MessagesSquare, PenLine, Quote, Users,
 } from 'lucide-react';
+import { apiReason } from '@workspace/domain';
 
 /** Mirrors MIN_REVIEW_COMMENT_LENGTH on the server — the counter must agree with the validator. */
 const MIN_COMMENT = 120;
@@ -88,7 +89,7 @@ function CritiqueForm({
       },
       onError: (err) => toast({
         title: 'Could not file that critique',
-        description: (err as unknown as { error?: string })?.error ?? 'Check every criterion is scored and your notes are long enough.',
+        description: apiReason(err, 'Check every criterion is scored and your notes are long enough.'),
         variant: 'destructive',
       }),
     },

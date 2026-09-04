@@ -49,6 +49,7 @@ import {
   sessionDateTimeFromInput,
   sessionDateTimeInput,
   sessionMinutes,
+  apiReason,
 } from '@workspace/domain';
 import CourseworkStudio from '@/components/CourseworkStudio';
 import InviteFacilitator from '@/components/InviteFacilitator';
@@ -987,7 +988,7 @@ function EnrollmentsTab() {
       onSuccess: () => { toast({ title: 'Removed from the programme' }); qc.invalidateQueries({ queryKey: getListAllEnrollmentsQueryKey() }); },
       onError: (err) => toast({
         title: 'Could not remove them',
-        description: (err as unknown as { error?: string })?.error,
+        description: apiReason(err, 'Try again in a moment.'),
         variant: 'destructive',
       }),
     },
@@ -1003,7 +1004,7 @@ function EnrollmentsTab() {
       },
       onError: (err) => toast({
         title: 'Could not send it again',
-        description: (err as unknown as { error?: string })?.error,
+        description: apiReason(err, 'Try again in a moment.'),
         variant: 'destructive',
       }),
     },
@@ -1014,7 +1015,7 @@ function EnrollmentsTab() {
       onSuccess: () => { toast({ title: 'Invitation withdrawn' }); refreshInvites(); },
       onError: (err) => toast({
         title: 'Could not withdraw it',
-        description: (err as unknown as { error?: string })?.error,
+        description: apiReason(err, 'Try again in a moment.'),
         variant: 'destructive',
       }),
     },
@@ -1181,7 +1182,7 @@ function PeopleTab({ selfId }: { selfId: number | undefined }) {
       },
       onError: (err) => toast({
         title: 'Could not update role',
-        description: (err as unknown as { error?: string })?.error,
+        description: apiReason(err, 'Try again in a moment.'),
         variant: 'destructive',
       }),
     },

@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from 'react';
-import { formatClock } from '@workspace/domain';
+import { formatClock, apiReason } from '@workspace/domain';
 import { useLocation } from 'wouter';
 import {
   useGetSimulationRun,
@@ -20,10 +20,6 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { useQueryClient } from '@tanstack/react-query';
-
-function reason(err: any, fallback: string): string {
-  return err?.error || err?.data?.error || err?.message || fallback;
-}
 
 
 type Atmosphere = 'operational' | 'media' | 'executive';
@@ -177,7 +173,7 @@ export default function SimulationRun({ id }: { id?: string }) {
         refetch();
       },
       onError: (err: any) => {
-        toast({ title: "Not sent", description: reason(err, "Your response could not be saved."), variant: "destructive" });
+        toast({ title: "Not sent", description: apiReason(err, "Your response could not be saved."), variant: "destructive" });
       }
     });
   };
@@ -185,14 +181,14 @@ export default function SimulationRun({ id }: { id?: string }) {
   const handleAdvance = () => {
     advanceRun.mutate({ runId: numericId }, {
       onSuccess: () => refetch(),
-      onError: (err: any) => toast({ title: "System error", description: reason(err, "Unable to compute next state."), variant: "destructive" })
+      onError: (err: any) => toast({ title: "System error", description: apiReason(err, "Unable to compute next state."), variant: "destructive" })
     });
   };
 
   const handleComplete = () => {
     completeRun.mutate({ runId: numericId }, {
       onSuccess: () => refetch(),
-      onError: (err: any) => toast({ title: "System error", description: reason(err, "Unable to finalize scenario."), variant: "destructive" })
+      onError: (err: any) => toast({ title: "System error", description: apiReason(err, "Unable to finalize scenario."), variant: "destructive" })
     });
   };
 

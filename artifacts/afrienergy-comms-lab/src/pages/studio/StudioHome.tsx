@@ -24,6 +24,7 @@ import { Activity, Check, Clipboard, Loader2, Users, Clock, Hash, KeyRound, Radi
 import { format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+import { apiReason } from '@workspace/domain';
 
 const generateSchema = z.object({
   sectorTopic: z.string().min(5, "Topic must be at least 5 characters"),
@@ -45,17 +46,6 @@ const FADE_UP = {
   exit: { opacity: 0, y: -15 },
   transition: { duration: 0.3, ease: "easeOut" as const }
 };
-
-/**
- * What the server actually said went wrong.
- *
- * These calls fail for reasons a person can do something about: the AI is
- * busy, the daily allowance is spent, the room code was mistyped. "Generation
- * failed" told them none of it, so they pressed the button again.
- */
-function reason(err: any, fallback: string): string {
-  return err?.error || err?.data?.error || err?.message || fallback;
-}
 
 export default function StudioHome() {
   const [, setLocation] = useLocation();
@@ -103,7 +93,7 @@ export default function StudioHome() {
         setLocation(`/studio/scenarios/${res.id}`);
       },
       onError: (err: any) => {
-        toast({ title: "Could not write the exercise", description: reason(err, "Something went wrong. Try again."), variant: "destructive" });
+        toast({ title: "Could not write the exercise", description: apiReason(err, "Something went wrong. Try again."), variant: "destructive" });
       }
     });
   }
@@ -115,7 +105,7 @@ export default function StudioHome() {
         setLocation(`/studio/run/${res.id}`);
       },
       onError: (err: any) => {
-        toast({ title: "Could not join", description: reason(err, "Check the room code and try again."), variant: "destructive" });
+        toast({ title: "Could not join", description: apiReason(err, "Check the room code and try again."), variant: "destructive" });
       }
     });
   }
@@ -129,7 +119,7 @@ export default function StudioHome() {
         setCopied(false);
       },
       onError: (err: any) => {
-        toast({ title: "Could not make the codes", description: reason(err, "Try again in a moment."), variant: "destructive" });
+        toast({ title: "Could not make the codes", description: apiReason(err, "Try again in a moment."), variant: "destructive" });
       },
     });
   }
@@ -153,7 +143,7 @@ export default function StudioHome() {
         toast({ title: `${r.programmeTitle} can use the Studio`, description: parts.join(' ') });
       },
       onError: (err: any) => {
-        toast({ title: "Could not open the Studio to them", description: reason(err, "Try again in a moment."), variant: "destructive" });
+        toast({ title: "Could not open the Studio to them", description: apiReason(err, "Try again in a moment."), variant: "destructive" });
       },
     });
   }

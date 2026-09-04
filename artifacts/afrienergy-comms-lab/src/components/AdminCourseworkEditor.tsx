@@ -9,6 +9,7 @@ import {
 } from '@workspace/api-client-react';
 import {
   originFor, resolveOrigin, MAX_QUIZ_QUESTIONS, roomForMoreQuestions, type CourseworkOrigin,
+  apiReason,
 } from '@workspace/domain';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -195,7 +196,7 @@ export function QuizEditor({ sessionId, seed, seedVersion = 0 }: {
       },
       onError: (err) => toast({
         title: 'Could not redo that question',
-        description: (err as unknown as { error?: string })?.error,
+        description: apiReason(err, 'Try again in a moment.'),
         variant: 'destructive',
       }),
     },
@@ -219,7 +220,7 @@ export function QuizEditor({ sessionId, seed, seedVersion = 0 }: {
       },
       onError: (err) => toast({
         title: 'Could not draft more questions',
-        description: (err as unknown as { error?: string })?.error,
+        description: apiReason(err, 'Try again in a moment.'),
         variant: 'destructive',
       }),
     },
