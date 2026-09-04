@@ -34,8 +34,12 @@ import {
 } from '@workspace/api-client-react';
 import {
   ROLE_NOTES,
+  ROLE_LABELS,
   isStaffRole,
   satisfiesRole,
+  findPeople,
+  describeAppointment,
+  MIN_SEARCH,
   daysWaiting,
   inviteWorthChasing,
   describeWaitlist,
@@ -1161,6 +1165,94 @@ function StaffRow({
 }
 
 /**
+ * Appointing somebody who is already here.
+ *
+ * Inviting is for a stranger. It is refused, correctly, for anybody with an
+ * account: they cannot be invited to a place they already are. But the refusal
+ * used to say "change their role in the list below", and the list below is the
+ * staff list, which by design does not contain learners — so an admin trying to
+ * promote an enrolled learner was sent to a list that could never contain them,
+ * and the only route left was the database.
+ *
+ * A search rather than another list. The reason People stopped showing every
+ * account is that a cohort of fifty buried the four people who run the place;
+ * putting the fifty back to solve this would undo that.
+ */
+function AppointExisting({ people, selfId, pending, onAppoint }: {
+  people: { id: number; name: string; email: string; role: string }[];
+  selfId: number | undefined;
+  pending: boolean;
+  onAppoint: (person: { id: number; name: string; email: string; role: string }, role: string) => void;
+}) {
+  const [query, setQuery] = useState('');
+  // Nobody appoints themselves — the server refuses it, so offering it here
+  // would only produce an error the admin could have been spared.
+  const matches = findPeople(query, people, { exclude: selfId ? [selfId] : [] });
+  const searching = query.trim().length >= MIN_SEARCH;
+
+  return (
+    <section className="rounded-xl border border-border bg-card p-5">
+      <h3 className="font-semibold">Already has an account?</h3>
+      <p className="mt-0.5 text-xs text-muted-foreground">
+        Somebody who is already on the Lab — a learner on one of your cohorts, say — cannot be
+        invited, because they are already here. Find them by name or email address and appoint them
+        instead. They keep their place on any programme.
+      </p>
+
+      <Input
+        className="mt-3 max-w-md text-sm"
+        placeholder="Type a name or an email address"
+        value={query}
+        onChange={e => setQuery(e.target.value)}
+        aria-label="Find somebody who already has an account"
+      />
+
+      {searching && matches.length === 0 && (
+        <p className="mt-3 text-sm text-muted-foreground">
+          Nobody matches that. Check the spelling, or invite them above if they have never signed in.
+        </p>
+      )}
+
+      {matches.length > 0 && (
+        <ul className="mt-3 divide-y divide-border">
+          {matches.map(p => (
+            <li key={p.id} className="flex flex-wrap items-center gap-3 py-3">
+              <div className="min-w-[200px] flex-1">
+                <p className="text-sm font-medium">{p.name || p.email || '—'}</p>
+                <p className="text-xs text-muted-foreground">
+                  {p.email}
+                  {' · '}
+                  <span className="capitalize">{ROLE_LABELS[p.role as keyof typeof ROLE_LABELS] ?? p.role}</span>
+                </p>
+              </div>
+              <div className="flex flex-shrink-0 items-center gap-2">
+                <span className="hidden max-w-[260px] text-xs text-muted-foreground sm:block">
+                  {describeAppointment(p, 'admin')}
+                </span>
+                <Button
+                  size="sm" variant="outline"
+                  disabled={pending || p.role === 'instructor'}
+                  onClick={() => onAppoint(p, 'instructor')}
+                >
+                  Make facilitator
+                </Button>
+                <Button
+                  size="sm"
+                  disabled={pending || p.role === 'admin' || p.role === 'superadmin'}
+                  onClick={() => onAppoint(p, 'admin')}
+                >
+                  Make admin
+                </Button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+/**
  * The people who run the Lab.
  *
  * This used to be everyone with an account. On a cohort of fifty that is a wall
@@ -1169,7 +1261,10 @@ function StaffRow({
  * under their programme, in Enrollments, where the question about them is
  * always "which cohort, and how are they doing".
  */
-function PeopleTab({ selfId }: { selfId: number | undefined }) {
+function PeopleTab({ selfId, everybody }: {
+  selfId: number | undefined;
+  everybody: { id: number; name: string; email: string; role: string }[];
+}) {
   const qc = useQueryClient();
   const { toast } = useToast();
   const { data, isLoading } = useListStaff();
@@ -1213,9 +1308,26 @@ function PeopleTab({ selfId }: { selfId: number | undefined }) {
     setRole(person.id, 'learner');
   };
 
+  /** Appointing a person who is already on the Lab, from the search below. */
+  const appoint = (person: { id: number; name: string; email: string; role: string }, role: string) => {
+    const who = person.name || person.email;
+    const what = role === 'admin' ? 'an admin' : 'a facilitator';
+    if (!confirm(`Make ${who} ${what}? ${describeAppointment(person, role)}`)) return;
+    setRole(person.id, role);
+  };
+
   return (
     <div className="space-y-6">
       <InviteFacilitator canInviteAdmin={canAppoint} />
+
+      {canAppoint && (
+        <AppointExisting
+          people={everybody}
+          selfId={selfId}
+          pending={update.isPending}
+          onAppoint={appoint}
+        />
+      )}
 
       {!canAppoint && (
         <p className="rounded-lg border border-border bg-card px-4 py-3 text-xs text-muted-foreground">
@@ -1289,7 +1401,8 @@ function PeopleTab({ selfId }: { selfId: number | undefined }) {
       </section>
 
       <p className="text-xs text-muted-foreground">
-        Learners are not listed here. They belong to a programme, and live under Enrollments.
+        Learners are not listed here. They belong to a programme, and live under Enrolments. To make
+        one of them staff, find them in “Already has an account?” above.
       </p>
     </div>
   );
@@ -1337,7 +1450,7 @@ export default function AdminConsole() {
       {tab === 'Programmes' && <ProgramsTab instructors={instructors} />}
       {tab === 'Live Sessions' && <LiveSessionsAdmin />}
       {tab === 'Enrolments' && <EnrollmentsTab />}
-      {tab === 'People' && <PeopleTab selfId={user?.id} />}
+      {tab === 'People' && <PeopleTab selfId={user?.id} everybody={users} />}
       {tab === 'Recordings' && <RecordingsAdmin />}
     </div>
   );

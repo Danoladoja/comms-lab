@@ -289,7 +289,13 @@ router.post("/admin/invitations", async (req, res) => {
     .from(usersTable)
     .where(and(sql`lower(${usersTable.email}) = ${invite.email}`, sql`${usersTable.email} <> ''`));
   if (existing) {
-    res.status(400).json({ error: "That person already has an account. Change their role in the list below instead." });
+    // Naming the exact place matters here. This used to say "the list below",
+    // meaning the staff list — which by design does not contain learners, so an
+    // admin promoting an enrolled learner was sent somewhere that could never
+    // show them.
+    res.status(400).json({
+      error: `${existing.name || invite.email} already has an account here, so there is nothing to invite them to. Appoint them instead: People, then “Already has an account?”, and search for them. They keep their place on any programme.`,
+    });
     return;
   }
 
