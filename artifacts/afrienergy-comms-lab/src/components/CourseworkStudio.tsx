@@ -101,7 +101,7 @@ export default function CourseworkStudio({ sessionId }: { sessionId: number }) {
 
         {!canDraft && (
           <p className="text-xs text-muted-foreground mb-3">
-            Upload a .pptx above, or paste the class transcript, and the quiz and task can be drafted from it.
+            Upload the deck or handout above, or paste the class transcript, and the quiz and task can be drafted from it.
             Either on its own is enough.
           </p>
         )}

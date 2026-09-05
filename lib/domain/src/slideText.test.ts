@@ -3,6 +3,8 @@ import {
   assembleSlideText,
   slideTextQuality,
   slideTypeFor,
+  listSlideFormats,
+  SLIDE_UPLOAD_EXTENSIONS,
   MIN_USABLE_SLIDE_CHARS,
   MAX_SLIDE_CHARS,
 } from "./slideText";
@@ -75,18 +77,48 @@ describe("slideTypeFor", () => {
     expect(slideTypeFor("notes.md", null)?.readable).toBe(true);
   });
 
-  it("accepts a PDF but flags that text cannot be read from it", () => {
+  it("reads a PDF, which it used to accept and then ignore", () => {
+    // PowerPoint was quietly the price of using the drafting at all. Material
+    // arrives as a PDF export more often than as a .pptx.
     const t = slideTypeFor("deck.pdf", "application/pdf");
     expect(t).not.toBeNull();
-    expect(t?.readable).toBe(false);
+    expect(t?.readable).toBe(true);
+  });
+
+  it("accepts a Word document, by type and by extension", () => {
+    const declared = slideTypeFor(
+      "handout.docx",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    );
+    expect(declared?.readable).toBe(true);
+    expect(slideTypeFor("handout.docx", "application/octet-stream")?.mimeType)
+      .toContain("wordprocessingml");
   });
 
   it("is case-insensitive about extensions", () => {
     expect(slideTypeFor("DECK.PPTX", null)?.readable).toBe(true);
+    expect(slideTypeFor("Handout.DOCX", null)?.readable).toBe(true);
+  });
+
+  it("does not mistake the old formats for the new ones", () => {
+    // .doc and .ppt are a different container entirely — not a zip of XML — so
+    // accepting them would mean accepting a file nothing can read.
+    expect(slideTypeFor("handout.doc", null)).toBeNull();
+    expect(slideTypeFor("deck.ppt", null)).toBeNull();
   });
 
   it("rejects anything else", () => {
     expect(slideTypeFor("virus.exe", null)).toBeNull();
     expect(slideTypeFor("photo.png", "image/png")).toBeNull();
+  });
+});
+
+describe("listSlideFormats", () => {
+  it("reads as a sentence and names every accepted format", () => {
+    const listed = listSlideFormats();
+    for (const extension of SLIDE_UPLOAD_EXTENSIONS) {
+      expect(listed).toContain(extension);
+    }
+    expect(listed).toMatch(/ or \.\w+$/);
   });
 });

@@ -4,7 +4,7 @@ import {
   useGetSessionSlides, useDeleteSessionSlides, useSetSlidesVisibility,
   getGetSessionSlidesQueryKey,
 } from '@workspace/api-client-react';
-import { MAX_SLIDE_UPLOAD_BYTES } from '@workspace/domain';
+import { MAX_SLIDE_UPLOAD_BYTES, SLIDE_UPLOAD_ACCEPT } from '@workspace/domain';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { Upload, FileText, Trash2, Eye, EyeOff, CircleAlert, Loader } from 'lucide-react';
@@ -14,12 +14,14 @@ import { Upload, FileText, Trash2, Eye, EyeOff, CircleAlert, Loader } from 'luci
  *
  * Uploading it does two jobs: learners get something to read alongside the
  * recording, and the coursework drafter gets something to work from. The panel
- * says which of those a given file can actually do — a PDF is perfectly good
- * reading material and useless for drafting, and that is worth knowing before
- * someone clicks Draft and waits.
+ * says which of those a given file can actually do. Nearly everything now
+ * gives up its text — PowerPoint, Word, PDF, plain text — so the cases left are
+ * about the particular file rather than its format: a scan is pictures of
+ * words, and a deck of stock photos has nothing in it to ask questions about.
+ * Worth knowing before someone clicks Draft and waits.
  */
 
-const ACCEPT = '.pptx,.pdf,.txt,.md';
+const ACCEPT = SLIDE_UPLOAD_ACCEPT;
 
 function prettySize(bytes: number) {
   return bytes >= 1024 * 1024
@@ -111,8 +113,8 @@ export default function SlideDeckPanel({ sessionId }: { sessionId: number }) {
           <FileText className="w-7 h-7 text-muted-foreground mx-auto mb-2" aria-hidden />
           <p className="text-sm font-medium mb-1">No slides yet</p>
           <p className="text-xs text-muted-foreground mb-4 max-w-sm mx-auto">
-            Upload the deck and learners can read it alongside the recording. A <strong>.pptx</strong> can also be
-            used to draft the quiz and task — export from Google Slides or PowerPoint.
+            Upload the deck and learners can read it alongside the recording. The quiz and task can be
+            drafted from it too — <strong>PowerPoint, Word, PDF</strong> or plain text, whichever you have.
           </p>
           <Button size="sm" disabled={uploading} onClick={() => fileRef.current?.click()}>
             {uploading
@@ -146,7 +148,7 @@ export default function SlideDeckPanel({ sessionId }: { sessionId: number }) {
               <span>
                 {deck.hasReadableText
                   ? 'There is too little text here to draft coursework from — mostly headings and images. Learners can still read it.'
-                  : 'No text could be read from this file, so it cannot be used for drafting. Learners can still read it. Upload the .pptx to enable drafting.'}
+                  : 'No text could be read from this file — a scan, or slides that are pictures of words. Learners can still read it, but the quiz and task cannot be drafted from it. Paste the transcript instead.'}
               </span>
             </p>
           )}

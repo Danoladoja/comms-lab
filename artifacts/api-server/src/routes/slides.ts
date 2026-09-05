@@ -21,6 +21,7 @@ import {
   type CombinedSource,
   type MaterialKind,
   isModuleStaff,
+  listSlideFormats,
 } from "@workspace/domain";
 import {
   SetSlidesVisibilityBody, SetSessionReadingsBody, SetSessionNotesBody,
@@ -121,7 +122,7 @@ router.post(
     const declaredMime = req.header("x-file-type") ?? req.header("content-type");
     const type = slideTypeFor(filename, declaredMime);
     if (!type) {
-      res.status(400).json({ error: "Upload a .pptx, .pdf, .txt or .md file" });
+      res.status(400).json({ error: `Upload a ${listSlideFormats()} file` });
       return;
     }
 
@@ -131,7 +132,7 @@ router.post(
       return;
     }
 
-    const extractedText = extractSlideText(data, type.mimeType);
+    const extractedText = await extractSlideText(data, type.mimeType);
     const values = {
       sessionId,
       uploadedByUserId: user.id,
@@ -325,7 +326,7 @@ async function materialFor(sessionId: number): Promise<
   const deckUnreadable = !!deck && slideTextQuality(deck.extractedText).chars === 0;
   const error = quality.reason === "empty"
     ? deckUnreadable
-      ? "No text could be read from this deck — PDFs and image-only slides give nothing to work from. Upload the .pptx, or paste the class transcript below."
+      ? "No text could be read from this file. A scan, or slides that are pictures of words, give nothing to work from. Paste the class transcript below instead."
       : "There is nothing to draft from yet. Upload a deck, or paste the class transcript below."
     : "There is too little here to draft from. Paste the class transcript below, or upload a fuller deck.";
 
