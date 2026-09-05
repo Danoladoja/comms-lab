@@ -243,3 +243,128 @@ describe("POST /admin/invitations/:id/resend", () => {
     expect(mocks.deliverInvitation).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * Sending several again at once.
+ *
+ * The batch shares its whole implementation with the single resend, which is
+ * the point: it is the obvious place for "withdraw the old link first" or
+ * "never let an admin invitation carry admin to Clerk" to get quietly dropped
+ * by a second, hastier implementation. These tests hold it to the same rules,
+ * and to the one rule that is its own: nobody's failure takes the others down.
+ */
+describe("POST /admin/invitations/resend-batch", () => {
+  const batch = (ids: unknown) =>
+    fetch(`${baseUrl}/api/admin/invitations/resend-batch`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ ids }),
+    });
+
+  const another = { ...PENDING_LEARNER, id: 8, email: "kwame@example.org", clerkInvitationId: "inv_old_8" };
+
+  it("sends to everybody asked for", async () => {
+    mocks.setSelects([[PENDING_LEARNER], [another]]);
+    mocks.setUpdates([[PENDING_LEARNER], [another]]);
+
+    const res = await batch([7, 8]);
+
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { sent: number; failed: number; outcomes: { email: string; status: string }[] };
+    expect(body.sent).toBe(2);
+    expect(body.failed).toBe(0);
+    expect(mocks.deliverInvitation).toHaveBeenCalledTimes(2);
+  });
+
+  it("lets one failure alone rather than taking the rest with it", async () => {
+    // The middle one has already been accepted, which the single path refuses.
+    mocks.setSelects([
+      [PENDING_LEARNER],
+      [{ ...another, acceptedAt: new Date("2026-08-02T09:00:00Z") }],
+      [{ ...another, id: 9, email: "ngozi@example.org" }],
+    ]);
+    mocks.setUpdates([[PENDING_LEARNER], [another]]);
+
+    const body = (await (await batch([7, 8, 9])).json()) as {
+      sent: number; failed: number;
+      outcomes: { id: number; email: string; status: string; detail: string }[];
+    };
+
+    expect(body.sent).toBe(2);
+    expect(body.failed).toBe(1);
+    // And it says which one, and why — "2 of 3 sent" leaves an admin hunting.
+    const failure = body.outcomes.find((o) => o.status === "failed")!;
+    expect(failure.id).toBe(8);
+    expect(failure.email).toBe("kwame@example.org");
+    expect(failure.detail).toMatch(/already accepted/i);
+  });
+
+  it("withdraws each old link before minting its replacement", async () => {
+    mocks.setSelects([[PENDING_LEARNER], [another]]);
+    mocks.setUpdates([[PENDING_LEARNER], [another]]);
+
+    await batch([7, 8]);
+
+    expect(mocks.revokeInvitation).toHaveBeenCalledWith("inv_old");
+    expect(mocks.revokeInvitation).toHaveBeenCalledWith("inv_old_8");
+    // Every send is preceded by a withdrawal, not merely accompanied by one.
+    for (const send of mocks.deliverInvitation.mock.invocationCallOrder) {
+      const revokesBefore = mocks.revokeInvitation.mock.invocationCallOrder.filter((at) => at < send);
+      expect(revokesBefore.length).toBeGreaterThan(0);
+    }
+  });
+
+  it("never puts admin on a link here either", async () => {
+    mocks.setSelects([[{ ...PENDING_LEARNER, role: "admin", programId: null, programTitle: null, programStart: null }]]);
+    mocks.setUpdates([[PENDING_LEARNER]]);
+
+    await batch([7]);
+
+    const args = mocks.deliverInvitation.mock.calls[0]![0] as { role: string; describeAs: string };
+    expect(args.role).toBe("instructor");
+    expect(args.describeAs).toBe("admin");
+  });
+
+  it("sends one after another rather than all at once", async () => {
+    // Parallel is faster and is also the quickest way to be rate-limited
+    // halfway through with nobody able to say who was sent to.
+    let inFlight = 0;
+    let mostAtOnce = 0;
+    mocks.deliverInvitation.mockImplementation(async () => {
+      inFlight += 1;
+      mostAtOnce = Math.max(mostAtOnce, inFlight);
+      await new Promise((r) => setTimeout(r, 5));
+      inFlight -= 1;
+      return { ok: true, invitationId: "inv_new", sentBy: "us" };
+    });
+    mocks.setSelects([[PENDING_LEARNER], [another], [{ ...another, id: 9 }]]);
+    mocks.setUpdates([[PENDING_LEARNER], [another], [another]]);
+
+    await batch([7, 8, 9]);
+
+    expect(mostAtOnce).toBe(1);
+  });
+
+  it("asks for at least one, and refuses an implausible number", async () => {
+    expect((await batch([])).status).toBe(400);
+    expect((await batch(["nonsense"])).status).toBe(400);
+    expect((await batch(Array.from({ length: 60 }, (_, i) => i + 1))).status).toBe(400);
+    expect(mocks.deliverInvitation).not.toHaveBeenCalled();
+  });
+
+  it("ignores a duplicate id rather than sending twice to one inbox", async () => {
+    mocks.setSelects([[PENDING_LEARNER]]);
+    mocks.setUpdates([[PENDING_LEARNER]]);
+
+    const body = (await (await batch([7, 7, 7])).json()) as { sent: number };
+
+    expect(body.sent).toBe(1);
+    expect(mocks.deliverInvitation).toHaveBeenCalledTimes(1);
+  });
+
+  it("says so plainly when Clerk is not configured", async () => {
+    mocks.invitesConfigured.mockReturnValue(false);
+    expect((await batch([7, 8])).status).toBe(503);
+    expect(mocks.deliverInvitation).not.toHaveBeenCalled();
+  });
+});

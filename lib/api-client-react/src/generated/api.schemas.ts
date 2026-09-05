@@ -162,6 +162,35 @@ export interface Invitation {
   summary: string;
 }
 
+export interface ResendBatchInput {
+  /**
+     * @minItems 1
+     * @maxItems 50
+     */
+  ids: number[];
+}
+
+export type ResendBatchResultOutcomesItemStatus = typeof ResendBatchResultOutcomesItemStatus[keyof typeof ResendBatchResultOutcomesItemStatus];
+
+
+export const ResendBatchResultOutcomesItemStatus = {
+  sent: 'sent',
+  failed: 'failed',
+} as const;
+
+export type ResendBatchResultOutcomesItem = {
+  id: number;
+  email: string;
+  status: ResendBatchResultOutcomesItemStatus;
+  detail: string;
+};
+
+export interface ResendBatchResult {
+  outcomes: ResendBatchResultOutcomesItem[];
+  sent: number;
+  failed: number;
+}
+
 export type InvitationInputRole = typeof InvitationInputRole[keyof typeof InvitationInputRole];
 
 

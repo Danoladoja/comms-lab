@@ -14,6 +14,7 @@ import {
   useListInvitations,
   useRevokeInvitation,
   useResendInvitation,
+  useResendInvitationsInBulk,
   getListInvitationsQueryKey,
   useListUsers,
   useListStaff,
@@ -42,6 +43,8 @@ import {
   MIN_SEARCH,
   daysWaiting,
   inviteWorthChasing,
+  byLongestWait,
+  MAX_RESEND_AT_ONCE,
   describeWaitlist,
   canAppointStaff,
   groupStaff,
@@ -671,13 +674,37 @@ const DELETE_CHOICE = '__delete';
  * under the cohort.
  */
 function InvitedLearners({
-  invites, onResend, onWithdraw, pending,
+  invites, onResend, onResendMany, onWithdraw, pending,
 }: {
   invites: Invitation[];
   onResend: (invite: Invitation) => void;
+  onResendMany: (invites: Invitation[]) => void;
   onWithdraw: (invite: Invitation) => void;
   pending: boolean;
 }) {
+  const [picked, setPicked] = useState<number[]>([]);
+
+  /*
+   * Longest wait at the top.
+   *
+   * The list is a queue of work, so the top should be whoever most needs
+   * attention. Newest-first — which is what the API returns — did the opposite:
+   * sending somebody a fresh invitation re-dates it to now, so the one person
+   * just dealt with jumped to the top and stayed there while the neglected
+   * sank. Working down a list of twelve meant watching it reverse under you.
+   */
+  const ordered = byLongestWait(invites);
+  const waiting = ordered.filter(i => inviteWorthChasing(i));
+
+  const chosen = ordered.filter(i => picked.includes(i.id));
+  const toggle = (id: number) =>
+    setPicked(p => (p.includes(id) ? p.filter(x => x !== id) : [...p, id]));
+
+  const sendChosen = () => {
+    onResendMany(chosen);
+    setPicked([]);
+  };
+
   if (invites.length === 0) return null;
 
   return (
@@ -688,16 +715,54 @@ function InvitedLearners({
         <span className="font-normal text-muted-foreground">({invites.length})</span>
       </h4>
       <p className="mt-0.5 text-xs text-muted-foreground">
-        They have a link in their inbox and no account here yet. They join the list above the
-        moment they accept.
+        They have a link in their inbox and no account here yet. Longest wait first, so whoever
+        most needs chasing is at the top. They join the list above the moment they accept.
       </p>
 
+      {/* Chasing a dozen people one at a time is a job an admin quietly stops
+          doing, which means the invitations stop being chased at all. */}
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <Button
+          size="sm"
+          disabled={pending || chosen.length === 0}
+          onClick={sendChosen}
+        >
+          <Send className="mr-1.5 h-3.5 w-3.5" aria-hidden />
+          {chosen.length > 0 ? `Send again to ${chosen.length}` : 'Send again to the selected'}
+        </Button>
+
+        {waiting.length > 0 && (
+          <Button
+            size="sm" variant="outline"
+            disabled={pending}
+            onClick={() => setPicked(waiting.map(i => i.id))}
+          >
+            Select the {waiting.length} waiting over a week
+          </Button>
+        )}
+        <Button
+          size="sm" variant="ghost" className="text-muted-foreground"
+          disabled={pending}
+          onClick={() => setPicked(picked.length === ordered.length ? [] : ordered.map(i => i.id))}
+        >
+          {picked.length === ordered.length ? 'Clear' : 'Select all'}
+        </Button>
+      </div>
+
       <ul className="mt-3 divide-y divide-border">
-        {invites.map(i => {
+        {ordered.map(i => {
           const days = daysWaiting(i.createdAt);
           const chase = inviteWorthChasing(i);
           return (
             <li key={i.id} className="flex flex-wrap items-center gap-3 py-3">
+              <input
+                type="checkbox"
+                className="h-4 w-4 shrink-0 accent-primary"
+                checked={picked.includes(i.id)}
+                disabled={pending}
+                onChange={() => toggle(i.id)}
+                aria-label={`Include ${i.email} when sending again`}
+              />
               <div className="min-w-[200px] flex-1">
                 <p className="text-sm font-medium">{i.email}</p>
                 <p className="text-xs text-muted-foreground">
@@ -744,7 +809,7 @@ function InvitedLearners({
 
 /** One programme's cohort: everybody on it, and how they are getting on. */
 function CohortSection({
-  programme, rows, invites, onStatus, onRemove, onResend, onWithdraw, pending,
+  programme, rows, invites, onStatus, onRemove, onResend, onResendMany, onWithdraw, pending,
 }: {
   programme: { id: number; title: string; capacity: number; status: string };
   rows: { id: number; userName: string; userEmail: string; status: string }[];
@@ -752,6 +817,7 @@ function CohortSection({
   onStatus: (enrollmentId: number, status: string) => void;
   onRemove: (enrollmentId: number, who: string) => void;
   onResend: (invite: Invitation) => void;
+  onResendMany: (invites: Invitation[]) => void;
   onWithdraw: (invite: Invitation) => void;
   pending: boolean;
 }) {
@@ -862,6 +928,7 @@ function CohortSection({
           <InvitedLearners
             invites={invites}
             onResend={onResend}
+            onResendMany={onResendMany}
             onWithdraw={onWithdraw}
             pending={pending}
           />
@@ -1014,6 +1081,36 @@ function EnrollmentsTab() {
     },
   });
 
+  /**
+   * Sending to several at once.
+   *
+   * The toast says how many, and names the ones that failed. "9 of 12 sent"
+   * leaves an admin hunting for the three, which is worse than the one-by-one
+   * clicking this replaced.
+   */
+  const resendMany = useResendInvitationsInBulk({
+    mutation: {
+      onSuccess: (result) => {
+        const failures = result.outcomes.filter(o => o.status === 'failed');
+        toast({
+          title: result.failed === 0
+            ? `Sent again to ${result.sent}`
+            : `${result.sent} sent, ${result.failed} could not be`,
+          description: failures.length > 0
+            ? failures.map(o => `${o.email || 'One of them'}: ${o.detail}`).join(' ')
+            : 'Their earlier links no longer work.',
+          variant: result.failed > 0 ? 'destructive' : undefined,
+        });
+        refreshInvites();
+      },
+      onError: (err) => toast({
+        title: 'Could not send those',
+        description: apiReason(err, 'Try again in a moment.'),
+        variant: 'destructive',
+      }),
+    },
+  });
+
   const withdraw = useRevokeInvitation({
     mutation: {
       onSuccess: () => { toast({ title: 'Invitation withdrawn' }); refreshInvites(); },
@@ -1033,6 +1130,27 @@ function EnrollmentsTab() {
     remove.mutate({ id });
   };
 
+  /**
+   * Confirm once for the whole batch, and say the number out loud.
+   *
+   * Fifteen emails leaving at once is worth a moment's pause — but a
+   * confirmation per person would rebuild by hand the very clicking this exists
+   * to remove.
+   */
+  const sendAgainToMany = (chosen: Invitation[]) => {
+    if (chosen.length === 0) return;
+    if (chosen.length > MAX_RESEND_AT_ONCE) {
+      toast({
+        title: `That is more than ${MAX_RESEND_AT_ONCE} at once`,
+        description: 'Send these in smaller batches.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    if (!confirm(`Send a new invitation to ${chosen.length} ${chosen.length === 1 ? 'person' : 'people'}? Their earlier links stop working.`)) return;
+    resendMany.mutate({ data: { ids: chosen.map(i => i.id) } });
+  };
+
   const withdrawInvite = (invite: Invitation) => {
     if (!confirm(`Withdraw the invitation to ${invite.email}? Their link stops working. To give them another one instead, choose Send again.`)) return;
     withdraw.mutate({ id: invite.id });
@@ -1050,7 +1168,7 @@ function EnrollmentsTab() {
   // that quietly loses them.
   const homeless = invitations.filter(i => i.role === 'learner' && !i.acceptedAt && !i.programId);
 
-  const invitesPending = resend.isPending || withdraw.isPending;
+  const invitesPending = resend.isPending || resendMany.isPending || withdraw.isPending;
 
   if (isLoading) return <div className="h-32 animate-pulse rounded-xl border border-border bg-card" />;
 
@@ -1070,6 +1188,7 @@ function EnrollmentsTab() {
             onStatus={setStatus}
             onRemove={removeFromProgramme}
             onResend={(i) => resend.mutate({ id: i.id })}
+            onResendMany={sendAgainToMany}
             onWithdraw={withdrawInvite}
             pending={update.isPending || remove.isPending || invitesPending}
           />
@@ -1089,6 +1208,7 @@ function EnrollmentsTab() {
           <InvitedLearners
             invites={homeless}
             onResend={(i) => resend.mutate({ id: i.id })}
+            onResendMany={sendAgainToMany}
             onWithdraw={withdrawInvite}
             pending={invitesPending}
           />

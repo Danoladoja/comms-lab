@@ -4,7 +4,9 @@ import {
 } from "@workspace/db";
 import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { UpdateUserRoleBody, UpdateEnrollmentBody, InviteFacilitatorBody } from "@workspace/api-zod";
-import { checkRoleChange, validateInvite, describeInvite, mayResendInvitation } from "@workspace/domain";
+import {
+  checkRoleChange, validateInvite, describeInvite, mayResendInvitation, MAX_RESEND_AT_ONCE,
+} from "@workspace/domain";
 import { currentRole, founderId, requireRole, getCurrentUser } from "../lib/auth";
 import { revokeInvitation, invitesConfigured } from "../lib/clerkInvites";
 import { deliverInvitation } from "../lib/invitationDelivery";
@@ -422,13 +424,21 @@ router.get("/admin/invitations", async (_req, res) => {
  * everywhere else to avoid, and because a spent-but-unrecorded link is the one
  * kind that cannot later be taken back.
  */
-router.post("/admin/invitations/:id/resend", async (req, res) => {
-  if (!invitesConfigured()) {
-    res.status(503).json({ error: "Clerk is not configured on the server, so invitations cannot be sent." });
-    return;
-  }
+type ResendOutcome =
+  | { ok: true; invitation: ReturnType<typeof invitePayload> }
+  // The address rides along on a failure too. In a batch, "3 could not be sent"
+  // without saying which three is a worse answer than not reporting at all.
+  | { ok: false; status: number; error: string; email?: string };
 
-  const id = Number(req.params.id);
+/**
+ * One resend, all of it.
+ *
+ * Extracted so that sending to one person and sending to forty are the same
+ * code rather than two copies that agree today. The batch path is exactly the
+ * place where "withdraw the old link first" or "never let admin ride a link"
+ * would quietly get dropped, and a second implementation is how that happens.
+ */
+async function resendOne(id: number): Promise<ResendOutcome> {
   const [invite] = await db
     .select({
       id: pendingInvitationsTable.id,
@@ -445,10 +455,10 @@ router.post("/admin/invitations/:id/resend", async (req, res) => {
     .from(pendingInvitationsTable)
     .leftJoin(programsTable, eq(programsTable.id, pendingInvitationsTable.programId))
     .where(eq(pendingInvitationsTable.id, id));
-  if (!invite) { res.status(404).json({ error: "Invitation not found" }); return; }
+  if (!invite) return { ok: false, status: 404, error: "Invitation not found" };
 
   const allowed = mayResendInvitation(invite);
-  if (!allowed.allowed) { res.status(400).json({ error: allowed.reason }); return; }
+  if (!allowed.allowed) return { ok: false, status: 400, error: allowed.reason ?? "That cannot be sent again.", email: invite.email };
 
   // Take the old link back first. acceptedAt is only written when the person
   // first uses the app, so somebody who finished signing up but has not browsed
@@ -457,20 +467,22 @@ router.post("/admin/invitations/:id/resend", async (req, res) => {
   if (invite.clerkInvitationId) {
     const outcome = await revokeInvitation(invite.clerkInvitationId);
     if (outcome === "failed") {
-      res.status(502).json({
+      return {
+        ok: false, status: 502,
         error: "Could not withdraw the previous invitation, so a new one was not sent. Try again shortly.",
-      });
-      return;
+        email: invite.email,
+      };
     }
     if (outcome === "already-accepted") {
       await db
         .update(pendingInvitationsTable)
         .set({ acceptedAt: new Date() })
         .where(eq(pendingInvitationsTable.id, id));
-      res.status(400).json({
+      return {
+        ok: false, status: 400,
         error: "They have already used their invitation. They will appear in the lists once they sign in.",
-      });
-      return;
+        email: invite.email,
+      };
     }
   }
 
@@ -484,7 +496,7 @@ router.post("/admin/invitations/:id/resend", async (req, res) => {
     programmeTitle: invite.programTitle,
     programmeStart: invite.programStart,
   });
-  if (!sent.ok) { res.status(400).json({ error: sent.error }); return; }
+  if (!sent.ok) return { ok: false, status: 400, error: sent.error, email: invite.email };
 
   let saved;
   try {
@@ -492,9 +504,9 @@ router.post("/admin/invitations/:id/resend", async (req, res) => {
       .update(pendingInvitationsTable)
       .set({
         clerkInvitationId: sent.invitationId,
-        // Dated as what it is: a new invitation. Keeping the original date would
-        // leave it sorted to the bottom of the list still looking a fortnight
-        // stale on the day it was sent.
+        // Dated as what it is: a new invitation. The console lists these
+        // longest-wait-first, so this is also what moves somebody just dealt
+        // with off the top of the queue and down to the bottom.
         createdAt: new Date(),
       })
       .where(eq(pendingInvitationsTable.id, id))
@@ -502,12 +514,99 @@ router.post("/admin/invitations/:id/resend", async (req, res) => {
   } catch (err) {
     await revokeInvitation(sent.invitationId);
     logger.error({ err, email: invite.email }, "Could not record a resent invitation; withdrew it again");
-    res.status(500).json({ error: "Could not record that invitation, so it has been withdrawn. Try again." });
-    return;
+    return {
+      ok: false, status: 500,
+      error: "Could not record that invitation, so it has been withdrawn. Try again.",
+      email: invite.email,
+    };
   }
 
   logger.info({ email: invite.email, role: invite.role }, "Invitation resent");
-  res.json(invitePayload({ ...saved, programTitle: invite.programTitle }));
+  return { ok: true, invitation: invitePayload({ ...saved, programTitle: invite.programTitle }) };
+}
+
+/**
+ * Send the same invitation again.
+ *
+ * The commonest reason an invitation goes unanswered is not refusal: it went to
+ * spam, or it was read on a phone in a queue and forgotten. Before this the only
+ * remedy was to withdraw the invitation and re-invite the person from the
+ * roster tool, which meant retyping their details and hoping the admin got the
+ * programme right the second time.
+ *
+ * A resend is a genuinely new link. The old one is withdrawn first, because two
+ * live invitations to one inbox is exactly the state this codebase works
+ * everywhere else to avoid, and because a spent-but-unrecorded link is the one
+ * kind that cannot later be taken back.
+ */
+router.post("/admin/invitations/:id/resend", async (req, res) => {
+  if (!invitesConfigured()) {
+    res.status(503).json({ error: "Clerk is not configured on the server, so invitations cannot be sent." });
+    return;
+  }
+
+  const outcome = await resendOne(Number(req.params.id));
+  if (!outcome.ok) { res.status(outcome.status).json({ error: outcome.error }); return; }
+  res.json(outcome.invitation);
+});
+
+/**
+ * Send several again, in one go.
+ *
+ * A cohort of fifty produces a dozen people who never answered, and clicking
+ * through them one at a time — waiting for each to finish, watching the list
+ * reorder itself under the cursor — is the kind of task an admin quietly stops
+ * doing. Which means the invitations stop being chased at all.
+ *
+ * Two things it borrows from inviting a cohort in the first place, for the same
+ * reasons. Each person is attempted alone and reported on alone, so one dead
+ * address does not cost the other eleven their second chance. And they are sent
+ * one after another rather than all at once: fifty simultaneous requests is the
+ * quickest way to be rate-limited halfway through, leaving nobody able to say
+ * who was sent to and who was not.
+ */
+router.post("/admin/invitations/resend-batch", async (req, res) => {
+  if (!invitesConfigured()) {
+    res.status(503).json({ error: "Clerk is not configured on the server, so invitations cannot be sent." });
+    return;
+  }
+
+  const raw = (req.body ?? {}) as { ids?: unknown };
+  const ids = Array.from(new Set(
+    (Array.isArray(raw.ids) ? raw.ids : [])
+      .map((value) => Number(value))
+      .filter((value) => Number.isInteger(value) && value > 0),
+  ));
+
+  if (ids.length === 0) {
+    res.status(400).json({ error: "Choose at least one invitation to send again." });
+    return;
+  }
+  if (ids.length > MAX_RESEND_AT_ONCE) {
+    res.status(400).json({
+      error: `That is more than ${MAX_RESEND_AT_ONCE} at once. Send these, then do the rest.`,
+    });
+    return;
+  }
+
+  const outcomes: { id: number; email: string; status: "sent" | "failed"; detail: string }[] = [];
+
+  for (const id of ids) {
+    try {
+      const outcome = await resendOne(id);
+      outcomes.push(outcome.ok
+        ? { id, email: outcome.invitation.email, status: "sent", detail: "A new invitation is on its way." }
+        : { id, email: outcome.email ?? "", status: "failed", detail: outcome.error });
+    } catch (err) {
+      // One person's failure is theirs alone; the rest of the list continues.
+      logger.error({ err, invitationId: id }, "Resending one invitation failed inside a batch");
+      outcomes.push({ id, email: "", status: "failed", detail: "Something went wrong for this one. Try them again." });
+    }
+  }
+
+  const sent = outcomes.filter((o) => o.status === "sent").length;
+  logger.info({ asked: ids.length, sent, failed: outcomes.length - sent }, "Batch invitation resend");
+  res.json({ outcomes, sent, failed: outcomes.length - sent });
 });
 
 router.delete("/admin/invitations/:id", async (req, res) => {

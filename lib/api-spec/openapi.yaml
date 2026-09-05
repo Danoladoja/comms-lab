@@ -1518,6 +1518,47 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiMessage"
+  /admin/invitations/resend-batch:
+    post:
+      operationId: resendInvitationsInBulk
+      tags: [admin]
+      summary: Send several unanswered invitations again
+      description: >
+        Each one is attempted alone and reported on alone, so a single dead
+        address does not cost the others their second chance. They are sent one
+        after another rather than all at once, which is slower and does not get
+        rate-limited halfway through with nobody able to say who was sent to.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResendBatchInput"
+      responses:
+        "200":
+          description: What happened to each one
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResendBatchResult"
+        "400":
+          description: No invitations chosen, or more than the limit at once
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "503":
+          description: Clerk is not configured on the server
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
   /admin/invitations/{id}/resend:
     post:
       operationId: resendInvitation
@@ -2638,6 +2679,36 @@ components:
             - type: string
             - type: "null"
         summary: { type: string }
+    ResendBatchInput:
+      type: object
+      required: [ids]
+      properties:
+        ids:
+          type: array
+          minItems: 1
+          maxItems: 50
+          items: { type: integer }
+    ResendBatchResult:
+      type: object
+      required: [outcomes, sent, failed]
+      properties:
+        outcomes:
+          type: array
+          items:
+            type: object
+            required: [id, email, status, detail]
+            properties:
+              id: { type: integer }
+              email: { type: string }
+              status:
+                type: string
+                enum: [sent, failed]
+              # Why this one failed, in the words the single resend would have
+              # used. "3 could not be sent" without saying which three, or why,
+              # is a worse answer than not reporting at all.
+              detail: { type: string }
+        sent: { type: integer }
+        failed: { type: integer }
     InvitationInput:
       type: object
       required: [email]

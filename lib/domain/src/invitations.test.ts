@@ -12,6 +12,7 @@ import {
   daysWaiting,
   inviteWorthChasing,
   mayResendInvitation,
+  byLongestWait,
   CHASE_AFTER_DAYS,
   INVITABLE_ROLES,
   MAX_SESSIONS_PER_INVITE,
@@ -308,6 +309,64 @@ describe("inviteWorthChasing", () => {
       { acceptedAt: "2026-08-02T09:00:00Z", createdAt: sent },
       at("2026-12-01T09:00:00Z"),
     )).toBe(false);
+  });
+});
+
+describe("byLongestWait", () => {
+  const invite = (email: string, createdAt: string) => ({ email, createdAt });
+
+  it("puts whoever has waited longest at the top", () => {
+    const list = [
+      invite("new@x.org", "2026-09-01T09:00:00Z"),
+      invite("ancient@x.org", "2026-08-01T09:00:00Z"),
+      invite("middling@x.org", "2026-08-20T09:00:00Z"),
+    ];
+    expect(byLongestWait(list).map((i) => i.email)).toEqual([
+      "ancient@x.org", "middling@x.org", "new@x.org",
+    ]);
+  });
+
+  it("drops somebody just sent to down to the bottom", () => {
+    // The behaviour Daniel asked for: resending re-dates the invitation to now,
+    // and the person dealt with should leave the top rather than claim it.
+    const before = [
+      invite("waiting-longest@x.org", "2026-08-01T09:00:00Z"),
+      invite("waiting-a-while@x.org", "2026-08-15T09:00:00Z"),
+    ];
+    expect(byLongestWait(before)[0].email).toBe("waiting-longest@x.org");
+
+    const after = [
+      invite("waiting-longest@x.org", "2026-09-05T09:00:00Z"), // just resent
+      invite("waiting-a-while@x.org", "2026-08-15T09:00:00Z"),
+    ];
+    const order = byLongestWait(after).map((i) => i.email);
+    expect(order[0]).toBe("waiting-a-while@x.org");
+    expect(order[order.length - 1]).toBe("waiting-longest@x.org");
+  });
+
+  it("does not disturb the list it was given", () => {
+    const list = [invite("b@x.org", "2026-09-01T09:00:00Z"), invite("a@x.org", "2026-08-01T09:00:00Z")];
+    const copy = [...list];
+    byLongestWait(list);
+    expect(list).toEqual(copy);
+  });
+
+  it("orders a cohort invited in one go the same way every time", () => {
+    const sameMoment = "2026-08-01T09:00:00Z";
+    const list = [invite("zara@x.org", sameMoment), invite("amina@x.org", sameMoment), invite("kwame@x.org", sameMoment)];
+    expect(byLongestWait(list).map((i) => i.email)).toEqual(byLongestWait(list).map((i) => i.email));
+    expect(byLongestWait(list)[0].email).toBe("amina@x.org");
+  });
+
+  it("puts an unreadable date last instead of scrambling everything", () => {
+    const list = [
+      invite("broken@x.org", "nonsense"),
+      invite("real@x.org", "2026-08-01T09:00:00Z"),
+      invite("newer@x.org", "2026-09-01T09:00:00Z"),
+    ];
+    expect(byLongestWait(list).map((i) => i.email)).toEqual([
+      "real@x.org", "newer@x.org", "broken@x.org",
+    ]);
   });
 });
 

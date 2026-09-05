@@ -1298,6 +1298,30 @@ export const RevokeInvitationResponse = zod.void()
 
 
 /**
+ * Each one is attempted alone and reported on alone, so a single dead address does not cost the others their second chance. They are sent one after another rather than all at once, which is slower and does not get rate-limited halfway through with nobody able to say who was sent to.
+ * @summary Send several unanswered invitations again
+ */
+export const resendInvitationsInBulkBodyIdsMax = 50;
+
+
+
+export const ResendInvitationsInBulkBody = zod.object({
+  "ids": zod.array(zod.int()).min(1).max(resendInvitationsInBulkBodyIdsMax)
+})
+
+export const ResendInvitationsInBulkResponse = zod.object({
+  "outcomes": zod.array(zod.object({
+  "id": zod.int(),
+  "email": zod.string(),
+  "status": zod.enum(['sent', 'failed']),
+  "detail": zod.string()
+})),
+  "sent": zod.int(),
+  "failed": zod.int()
+})
+
+
+/**
  * Withdraws the existing link and issues a new one to the same address, with the same role, classes and programme. The old link stops working: two live invitations to one inbox is the state this avoids everywhere else. An invitation that has already been accepted cannot be resent.
  * @summary Send an unanswered invitation again
  */

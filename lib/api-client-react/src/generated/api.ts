@@ -78,6 +78,8 @@ import type {
   ReplaceQuestionInput,
   ReplayProgressInput,
   ReplayProgressResult,
+  ResendBatchInput,
+  ResendBatchResult,
   ReviewInput,
   ReviewQueue,
   Session,
@@ -4081,6 +4083,78 @@ export const useRevokeInvitation = <TError = ErrorType<ApiMessage>,
         TContext
       > => {
       return useMutation(getRevokeInvitationMutationOptions(options));
+    }
+
+export const getResendInvitationsInBulkUrl = () => {
+
+
+
+
+  return `/api/admin/invitations/resend-batch`
+}
+
+/**
+ * Each one is attempted alone and reported on alone, so a single dead address does not cost the others their second chance. They are sent one after another rather than all at once, which is slower and does not get rate-limited halfway through with nobody able to say who was sent to.
+ * @summary Send several unanswered invitations again
+ */
+export const resendInvitationsInBulk = async (resendBatchInput: ResendBatchInput, options?: Parameters<typeof customFetch>[1]): Promise<ResendBatchResult> => {
+
+  return customFetch<ResendBatchResult>(getResendInvitationsInBulkUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(resendBatchInput)
+  }
+);}
+
+
+
+
+
+export const getResendInvitationsInBulkMutationOptions = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof resendInvitationsInBulk>>, TError,{data: BodyType<ResendBatchInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof resendInvitationsInBulk>>, TError,{data: BodyType<ResendBatchInput>}, TContext> => {
+
+const mutationKey = ['resendInvitationsInBulk'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof resendInvitationsInBulk>>, {data: BodyType<ResendBatchInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  resendInvitationsInBulk(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ResendInvitationsInBulkMutationResult = NonNullable<Awaited<ReturnType<typeof resendInvitationsInBulk>>>
+    export type ResendInvitationsInBulkMutationBody = BodyType<ResendBatchInput>
+    export type ResendInvitationsInBulkMutationError = ErrorType<ApiMessage>
+
+    /**
+ * @summary Send several unanswered invitations again
+ */
+export const useResendInvitationsInBulk = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof resendInvitationsInBulk>>, TError,{data: BodyType<ResendBatchInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof resendInvitationsInBulk>>,
+        TError,
+        {data: BodyType<ResendBatchInput>},
+        TContext
+      > => {
+      return useMutation(getResendInvitationsInBulkMutationOptions(options));
     }
 
 export const getResendInvitationUrl = (id: number,) => {

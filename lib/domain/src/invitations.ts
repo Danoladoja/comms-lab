@@ -243,6 +243,16 @@ export function daysWaiting(createdAt: Date | string, now: number = Date.now()):
  */
 export const CHASE_AFTER_DAYS = 7;
 
+/**
+ * How many invitations one batch will send again.
+ *
+ * They go one after another rather than all at once, so a large batch is a long
+ * request. This is the point where an admin would start wondering whether the
+ * page had frozen — and a cohort that needs more than this chased at once has a
+ * bigger problem than the button.
+ */
+export const MAX_RESEND_AT_ONCE = 50;
+
 export function inviteWorthChasing(
   invite: { acceptedAt?: Date | string | null; createdAt: Date | string },
   now: number = Date.now(),
@@ -250,6 +260,41 @@ export function inviteWorthChasing(
   if (invite.acceptedAt) return false;
   const days = daysWaiting(invite.createdAt, now);
   return days !== null && days >= CHASE_AFTER_DAYS;
+}
+
+/**
+ * The order to show unanswered invitations in: longest wait first.
+ *
+ * The list is a queue of work, so the top of it should be whoever most needs
+ * attention — and that is the person who has been sitting unanswered longest,
+ * not the person most recently touched.
+ *
+ * Sorting by newest first, which is what the API returns and what the list did,
+ * produced exactly the wrong behaviour: sending somebody a fresh invitation
+ * re-dates it to now, so the one person you had just dealt with jumped to the
+ * top and stayed there, while the people still waiting sank. Working down a
+ * list of fifty meant watching it reverse itself under you.
+ *
+ * Oldest first fixes both ends at once. The neglected rise; anybody just sent
+ * to drops to the bottom, which is the visible confirmation that it worked.
+ */
+export function byLongestWait<T extends { createdAt: Date | string; email?: string }>(
+  invites: readonly T[],
+): T[] {
+  const at = (invite: T) => {
+    const time = new Date(invite.createdAt).getTime();
+    // An unreadable date sorts last rather than throwing the whole list into
+    // an arbitrary order around a NaN comparison.
+    return Number.isFinite(time) ? time : Number.POSITIVE_INFINITY;
+  };
+
+  return [...invites].sort((a, b) => {
+    const difference = at(a) - at(b);
+    if (difference !== 0) return difference;
+    // A stable tiebreak, so a cohort invited in one go does not reshuffle
+    // itself every time the list is drawn.
+    return (a.email ?? "").localeCompare(b.email ?? "");
+  });
 }
 
 /**
