@@ -1,5 +1,5 @@
-import { escapeHtml } from "./partnership";
 import type { Role } from "./invitations";
+import { labLetter, labGreeting, LAB_CONTACT_EMAIL } from "./labLetter";
 
 /**
  * The invitation the Lab sends.
@@ -46,17 +46,14 @@ export type InvitationAudience = {
 };
 
 /** Where somebody can write back. Printed, because a no-reply invitation is rude. */
-export const INVITATION_CONTACT_EMAIL = "africaenergypulse@gmail.com";
+export const INVITATION_CONTACT_EMAIL = LAB_CONTACT_EMAIL;
 
 function tidy(value: string | null | undefined): string {
   return (value ?? "").replace(/\s+/g, " ").trim();
 }
 
-/** "Amina," or "there," — never "Hi ," with a hole where a name should be. */
-export function invitationGreeting(name: string | null | undefined): string {
-  const first = tidy(name).split(" ")[0] ?? "";
-  return first || "there";
-}
+/** Kept as a name callers already use; the rule itself lives with the letter. */
+export const invitationGreeting = labGreeting;
 
 export function invitationSubject(audience: InvitationAudience): string {
   const programme = tidy(audience.programmeTitle);
@@ -128,72 +125,20 @@ export function invitationCallToAction(role: Role): string {
  * the name is set in type underneath it.
  */
 export function invitationLetter(audience: InvitationAudience): InvitationLetter {
-  const greeting = escapeHtml(invitationGreeting(audience.name));
-  const paragraphs = invitationParagraphs(audience);
-  const url = audience.url;
-  const safeUrl = escapeHtml(url);
-  const logo = tidy(audience.logoUrl);
-
-  const masthead = logo
-    ? `<img src="${escapeHtml(logo)}" alt="Ananse Comms Lab" width="180"
-             style="display: block; width: 180px; max-width: 60%; height: auto; border: 0;" />`
-    : `<span style="color: #F4F0E8; font-size: 20px; font-weight: bold; letter-spacing: 0.02em;">Ananse Comms Lab</span>`;
-
-  const body = paragraphs
-    .map((p) => `<p style="margin: 0 0 16px; font-size: 15px; line-height: 1.6;">${escapeHtml(p)}</p>`)
-    .join("\n      ");
-
-  const html = `
-<div style="background: #EFEAE0; padding: 24px 12px; font-family: Arial, Helvetica, sans-serif;">
-  <div style="max-width: 560px; margin: 0 auto; background: #FFFFFF; border-radius: 14px; overflow: hidden;">
-
-    <div style="background: #07111E; padding: 24px 28px;">
-      ${masthead}
-      <p style="margin: 12px 0 0; color: #F4F0E8; opacity: 0.75; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase;">
-        Africa's learning hub for energy communicators
-      </p>
-    </div>
-
-    <div style="padding: 28px; color: #07111E;">
-      <p style="margin: 0 0 16px; font-size: 15px; line-height: 1.6;">Hello ${greeting},</p>
-      ${body}
-
-      <p style="margin: 28px 0 8px;">
-        <a href="${safeUrl}"
-           style="background: #F97316; color: #07111E; font-weight: bold; font-size: 15px; padding: 14px 28px; border-radius: 999px; text-decoration: none; display: inline-block;">
-          ${escapeHtml(invitationCallToAction(audience.role))}
-        </a>
-      </p>
-
-      <p style="margin: 16px 0 0; font-size: 12px; color: #5B6470; line-height: 1.6;">
-        If the button does not work, copy this address into your browser:<br />
-        <span style="word-break: break-all;">${safeUrl}</span>
-      </p>
-
-      <p style="margin: 20px 0 0; padding-top: 16px; border-top: 1px solid #E4DFD4; font-size: 12px; color: #5B6470; line-height: 1.6;">
-        This link is for you alone and can only be used once. If you were not expecting it, you can ignore
-        this message and nothing will happen.
-      </p>
-    </div>
-
-    <div style="background: #F4F0E8; padding: 16px 28px; font-size: 11px; color: #5B6470;">
-      Ananse Comms Lab · <a href="mailto:${INVITATION_CONTACT_EMAIL}" style="color: #5B6470;">${INVITATION_CONTACT_EMAIL}</a>
-    </div>
-
-  </div>
-</div>`.trim();
-
-  const text = [
-    `Hello ${invitationGreeting(audience.name)},`,
-    "",
-    ...paragraphs.flatMap((p) => [p, ""]),
-    url,
-    "",
-    "This link is for you alone and can only be used once. If you were not expecting it, you can ignore this message.",
-    "",
-    "Ananse Comms Lab · Africa's learning hub for energy communicators",
-    INVITATION_CONTACT_EMAIL,
-  ].join("\n");
+  const { html, text } = labLetter({
+    greetingName: audience.name,
+    paragraphs: invitationParagraphs(audience),
+    action: {
+      label: invitationCallToAction(audience.role),
+      url: audience.url,
+      // An invitation link is single-use and cannot be got any other way, so it
+      // is printed in full for the clients that strip the button.
+      showUrl: true,
+    },
+    footnote:
+      "This link is for you alone and can only be used once. If you were not expecting it, you can ignore this message and nothing will happen.",
+    logoUrl: audience.logoUrl,
+  });
 
   return { subject: invitationSubject(audience), html, text };
 }

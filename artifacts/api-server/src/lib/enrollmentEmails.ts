@@ -1,3 +1,4 @@
+import { labLetter } from "@workspace/domain";
 import { sendEmail, EmailRejectedError } from "./email";
 import { logger } from "./logger";
 
@@ -18,22 +19,33 @@ function appUrl(path: string): string {
   return domain ? `https://${domain}${basePath}${path}` : `${basePath}${path}`;
 }
 
+/** The white logo, absolute, for the dark band. Null where no address is set. */
+export function labLogoUrl(): string | null {
+  const base = process.env.APP_BASE_URL?.trim().replace(/\/$/, "");
+  return base ? `${base}/logo-white.png` : null;
+}
+
 type Learner = { email: string; name: string };
 type Program = { title: string; startDate: string };
 
-function wrap(heading: string, body: string): string {
-  return `
-    <div style="font-family: Arial, sans-serif; max-width: 560px; margin: 0 auto; color: #07111E;">
-      <h2 style="color: #C2410C;">${heading}</h2>
-      ${body}
-      <p style="margin: 24px 0;">
-        <a href="${appUrl("/dashboard")}"
-           style="background: #F97316; color: #07111E; font-weight: bold; padding: 12px 24px; border-radius: 999px; text-decoration: none;">
-          Open my dashboard
-        </a>
-      </p>
-      <p style="color: #5B6470; font-size: 12px;">Ananse Comms Lab · Africa's learning hub for energy communicators</p>
-    </div>`;
+/**
+ * These used to have their own plainer wrapper: no masthead, no card, an orange
+ * heading on a white page. A learner meets this within minutes of meeting the
+ * invitation, and the two arriving as different-looking things from the same
+ * organisation reads as carelessness at best. They now use the same letter as
+ * everything else; only the words differ.
+ */
+function letter(args: {
+  learner: Learner;
+  paragraphs: string[];
+  action?: { label: string; url: string };
+}) {
+  return labLetter({
+    greetingName: args.learner.name,
+    paragraphs: args.paragraphs,
+    action: args.action ?? { label: "Open my dashboard", url: appUrl("/dashboard") },
+    logoUrl: labLogoUrl(),
+  });
 }
 
 /**
@@ -42,21 +54,30 @@ function wrap(heading: string, body: string): string {
  * one send attempt; failures (definite or ambiguous) are logged, never retried
  * automatically — retrying an ambiguous failure could double-send.
  */
-export function sendEnrollmentConfirmation(learner: Learner, program: Program): void {
+function send(args: { learner: Learner; program: Program; subject: string; paragraphs: string[]; what: string }): void {
+  const { html, text } = letter({ learner: args.learner, paragraphs: args.paragraphs });
   void sendEmail({
-    to: { email: learner.email, name: learner.name },
-    subject: `You're enrolled: ${program.title}`,
-    html: wrap(
-      "You're enrolled!",
-      `<p>Hi ${learner.name},</p>
-       <p>Your place in <strong>${program.title}</strong> is confirmed. The program starts <strong>${program.startDate}</strong>.</p>
-       <p>We'll email you a reminder before each live class. Attending live is what unlocks the replay afterwards, so keep an eye on your inbox.</p>`,
-    ),
+    to: { email: args.learner.email, name: args.learner.name || args.learner.email },
+    subject: args.subject,
+    html,
+    text,
   }).catch((err) => {
     logger.error(
-      { err, to: learner.email, program: program.title, definite: err instanceof EmailRejectedError },
-      "Enrollment confirmation email failed",
+      { err, to: args.learner.email, program: args.program.title, definite: err instanceof EmailRejectedError },
+      `${args.what} email failed`,
     );
+  });
+}
+
+export function sendEnrollmentConfirmation(learner: Learner, program: Program): void {
+  send({
+    learner, program,
+    what: "Enrolment confirmation",
+    subject: `You are enrolled: ${program.title}`,
+    paragraphs: [
+      `Your place on ${program.title} is confirmed, and the programme starts ${program.startDate}.`,
+      "We will email you a reminder before each live class. Attending live is what unlocks the replay afterwards, so it is worth keeping an eye on your inbox.",
+    ],
   });
 }
 
@@ -69,56 +90,37 @@ export function sendEnrollmentConfirmation(learner: Learner, program: Program): 
  * reasonably concluded the feature was broken.
  */
 export function sendAdminEnrollment(learner: Learner, program: Program): void {
-  void sendEmail({
-    to: { email: learner.email, name: learner.name },
+  send({
+    learner, program,
+    what: "Admin enrolment",
     subject: `You have been added to ${program.title}`,
-    html: wrap(
-      "You have a place",
-      `<p>Hi ${learner.name || "there"},</p>
-       <p>The Ananse Comms Lab team has added you to <strong>${program.title}</strong>, starting
-       <strong>${program.startDate}</strong>. There is nothing you need to do — your place is confirmed.</p>
-       <p>Sign in with this address to see the class schedule and materials.</p>`,
-    ),
-  }).catch((err) => {
-    logger.error(
-      { err, to: learner.email, program: program.title, definite: err instanceof EmailRejectedError },
-      "Admin enrollment email failed",
-    );
+    paragraphs: [
+      `The Ananse Comms Lab team has added you to ${program.title}, starting ${program.startDate}. There is nothing you need to do: your place is confirmed.`,
+      "Sign in with this address to see the schedule of classes and the materials for each one.",
+    ],
   });
 }
 
 export function sendWaitlistConfirmation(learner: Learner, program: Program): void {
-  void sendEmail({
-    to: { email: learner.email, name: learner.name },
-    subject: `You're on the waitlist: ${program.title}`,
-    html: wrap(
-      "You're on the waitlist",
-      `<p>Hi ${learner.name},</p>
-       <p><strong>${program.title}</strong> (starting <strong>${program.startDate}</strong>) is currently full, so you've been added to the waitlist.</p>
-       <p>Places are offered in the order learners joined the waitlist. If a spot opens up, we'll enroll you automatically and email you right away.</p>`,
-    ),
-  }).catch((err) => {
-    logger.error(
-      { err, to: learner.email, program: program.title, definite: err instanceof EmailRejectedError },
-      "Waitlist confirmation email failed",
-    );
+  send({
+    learner, program,
+    what: "Waitlist confirmation",
+    subject: `You are on the waitlist: ${program.title}`,
+    paragraphs: [
+      `${program.title}, starting ${program.startDate}, is full at the moment, so you have been added to the waitlist.`,
+      "Places are offered in the order people joined the list. If one opens up we will enrol you and email you straight away. Nothing is needed from you in the meantime.",
+    ],
   });
 }
 
 export function sendWaitlistPromotion(learner: Learner, program: Program): void {
-  void sendEmail({
-    to: { email: learner.email, name: learner.name },
-    subject: `A spot opened up — you're in: ${program.title}`,
-    html: wrap(
-      "You're off the waitlist!",
-      `<p>Hi ${learner.name},</p>
-       <p>Good news — a place opened up in <strong>${program.title}</strong> and it's yours. The program starts <strong>${program.startDate}</strong>.</p>
-       <p>We'll email you a reminder before each live class so you don't miss your spot.</p>`,
-    ),
-  }).catch((err) => {
-    logger.error(
-      { err, to: learner.email, program: program.title, definite: err instanceof EmailRejectedError },
-      "Waitlist promotion email failed",
-    );
+  send({
+    learner, program,
+    what: "Waitlist promotion",
+    subject: `A place has opened up: ${program.title}`,
+    paragraphs: [
+      `Good news. A place has opened up on ${program.title} and it is yours. The programme starts ${program.startDate}.`,
+      "We will email you a reminder before each live class.",
+    ],
   });
 }

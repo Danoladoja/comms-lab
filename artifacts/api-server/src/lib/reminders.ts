@@ -1,6 +1,8 @@
 import { db, enrollmentsTable, programsTable, sessionsTable, usersTable, sessionRemindersTable } from "@workspace/db";
 import { and, eq, gt, inArray, lte, sql } from "drizzle-orm";
+import { labLetter } from "@workspace/domain";
 import { sendEmail, EmailRejectedError } from "./email";
+import { labLogoUrl } from "./enrollmentEmails";
 import { logger } from "./logger";
 
 const CHECK_EVERY_MS = 5 * 60 * 1000;
@@ -14,7 +16,17 @@ const REMINDER_KINDS = [
   { kind: "1h", windowMs: 60 * 60 * 1000, minLeadMs: 0, lead: "in the next hour" },
 ] as const;
 
+/**
+ * APP_BASE_URL first, which is what Railway sets and what invitation links
+ * already use. The Replit variables below exist only in that workspace, and on
+ * Railway neither did — which left every "open my classroom" link in every
+ * reminder as a bare path that opens nothing from an inbox. The same bug was
+ * found and fixed in the enrolment emails; this copy was missed.
+ */
 function appUrl(path: string): string {
+  const configured = process.env.APP_BASE_URL?.trim().replace(/\/$/, "");
+  if (configured) return `${configured}${path}`;
+
   const domain = process.env.REPLIT_DOMAINS?.split(",")[0] ?? process.env.REPLIT_DEV_DOMAIN;
   return domain ? `https://${domain}${APP_BASE_PATH}${path}` : `${APP_BASE_PATH}${path}`;
 }
@@ -67,24 +79,21 @@ async function runOnce(): Promise<void> {
           .returning();
         if (claimed.length === 0) continue;
         try {
+          const { html, text } = labLetter({
+            greetingName: learner.name,
+            paragraphs: [
+              `${session.title}, part of ${session.programTitle}, starts ${lead}.`,
+              whenText(session.startsAt, session.durationMins),
+              "The classroom opens fifteen minutes before the start. Joining from the classroom checks you in, and attending live is what unlocks the replay afterwards.",
+            ],
+            action: { label: "Open my classroom", url: appUrl(`/classroom/${session.id}`) },
+            logoUrl: labLogoUrl(),
+          });
           await sendEmail({
-            to: { email: learner.email, name: learner.name },
-            subject: `Reminder: "${session.title}" starts ${lead}`,
-            html: `
-              <div style="font-family: Arial, sans-serif; max-width: 560px; margin: 0 auto; color: #07111E;">
-                <h2 style="color: #C2410C;">Your live class starts ${lead}</h2>
-                <p>Hi ${learner.name},</p>
-                <p><strong>${session.title}</strong> (${session.programTitle}) starts on:</p>
-                <p style="font-size: 16px;"><strong>${whenText(session.startsAt, session.durationMins)}</strong></p>
-                <p>The classroom opens 15 minutes before start. Joining from the classroom checks you in for attendance, and attending live is what unlocks the replay later.</p>
-                <p style="margin: 24px 0;">
-                  <a href="${appUrl(`/classroom/${session.id}`)}"
-                     style="background: #F97316; color: #07111E; font-weight: bold; padding: 12px 24px; border-radius: 999px; text-decoration: none;">
-                    Open my classroom
-                  </a>
-                </p>
-                <p style="color: #5B6470; font-size: 12px;">Ananse Comms Lab · Africa's learning hub for energy communicators</p>
-              </div>`,
+            to: { email: learner.email, name: learner.name || learner.email },
+            subject: `Reminder: ${session.title} starts ${lead}`,
+            html,
+            text,
           });
         } catch (err) {
           // Only release the claim when the provider definitively rejected the

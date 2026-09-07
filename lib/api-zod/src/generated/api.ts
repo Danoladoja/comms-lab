@@ -1298,6 +1298,87 @@ export const RevokeInvitationResponse = zod.void()
 
 
 /**
+ * Both audiences in one answer, so the console can switch between them without asking again and the number on the send button is always the real number of people rather than the count of enrolments. Cancelled and waitlisted enrolments are never included, and one address counts once.
+ * @summary Who a message to this cohort would reach
+ */
+export const PreviewCohortRecipientsParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const PreviewCohortRecipientsResponse = zod.object({
+  "active": zod.object({
+  "count": zod.int(),
+  "sample": zod.array(zod.object({
+  "name": zod.string(),
+  "email": zod.string()
+}))
+}),
+  "everyone": zod.object({
+  "count": zod.int(),
+  "sample": zod.array(zod.object({
+  "name": zod.string(),
+  "email": zod.string()
+}))
+})
+})
+
+
+/**
+ * @summary What has already been sent to this cohort
+ */
+export const ListCohortMessagesParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const ListCohortMessagesResponseItem = zod.object({
+  "id": zod.int(),
+  "subject": zod.string(),
+  "body": zod.string(),
+  "audience": zod.string(),
+  "sentCount": zod.int(),
+  "failedCount": zod.int(),
+  "createdAt": zod.string(),
+  "sentByName": zod.string()
+})
+export const ListCohortMessagesResponse = zod.array(ListCohortMessagesResponseItem)
+
+
+/**
+ * Sends one email per person, one after another, in the Lab's standard letter. The body is the admin's own words, escaped and rendered as paragraphs: no markup reaches an inbox. Every person is reported on by name, and the message is recorded whether or not it sent.
+ * @summary Write to everybody on a programme
+ */
+export const SendCohortMessageParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const sendCohortMessageBodySubjectMax = 140;
+
+export const sendCohortMessageBodyBodyMax = 4000;
+
+
+
+export const SendCohortMessageBody = zod.object({
+  "subject": zod.string().max(sendCohortMessageBodySubjectMax),
+  "body": zod.string().max(sendCohortMessageBodyBodyMax),
+  "audience": zod.enum(['active', 'everyone']).optional(),
+  "actionLabel": zod.union([zod.string(),zod.null()]).optional(),
+  "actionUrl": zod.union([zod.string(),zod.null()]).optional()
+})
+
+export const SendCohortMessageResponse = zod.object({
+  "id": zod.int(),
+  "sent": zod.int(),
+  "failed": zod.int(),
+  "outcomes": zod.array(zod.object({
+  "email": zod.string(),
+  "name": zod.string(),
+  "status": zod.enum(['sent', 'failed']),
+  "detail": zod.string()
+}))
+})
+
+
+/**
  * Each one is attempted alone and reported on alone, so a single dead address does not cost the others their second chance. They are sent one after another rather than all at once, which is slower and does not get rate-limited halfway through with nobody able to say who was sent to.
  * @summary Send several unanswered invitations again
  */

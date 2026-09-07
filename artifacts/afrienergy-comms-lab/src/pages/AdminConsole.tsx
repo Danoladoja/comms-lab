@@ -61,6 +61,7 @@ import {
 import CourseworkStudio from '@/components/CourseworkStudio';
 import InviteFacilitator from '@/components/InviteFacilitator';
 import InviteLearners from '@/components/InviteLearners';
+import MessageCohort from '@/components/MessageCohort';
 import LiveSessionsAdmin from '@/components/LiveSessionsAdmin';
 import RecordingsAdmin from '@/components/RecordingsAdmin';
 import ProgramThumbnail from '@/components/ProgramThumbnail';
@@ -932,6 +933,8 @@ function CohortSection({
             onWithdraw={onWithdraw}
             pending={pending}
           />
+
+          <MessageCohort programId={programme.id} programmeTitle={programme.title} />
         </div>
       )}
     </section>

@@ -30,6 +30,10 @@ import type {
   BulkInviteBody,
   BulkInviteResult,
   Certificate,
+  CohortMessage,
+  CohortMessageInput,
+  CohortMessageResult,
+  CohortRecipients,
   ConflictResponse,
   CourseworkDraftResult,
   CourseworkDraftRun,
@@ -4083,6 +4087,234 @@ export const useRevokeInvitation = <TError = ErrorType<ApiMessage>,
         TContext
       > => {
       return useMutation(getRevokeInvitationMutationOptions(options));
+    }
+
+export const getPreviewCohortRecipientsUrl = (id: number,) => {
+
+
+
+
+  return `/api/admin/programmes/${id}/recipients`
+}
+
+/**
+ * Both audiences in one answer, so the console can switch between them without asking again and the number on the send button is always the real number of people rather than the count of enrolments. Cancelled and waitlisted enrolments are never included, and one address counts once.
+ * @summary Who a message to this cohort would reach
+ */
+export const previewCohortRecipients = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<CohortRecipients> => {
+
+  return customFetch<CohortRecipients>(getPreviewCohortRecipientsUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getPreviewCohortRecipientsQueryKey = (id: number,) => {
+    return [
+    `/api/admin/programmes/${id}/recipients`
+    ] as const;
+    }
+
+
+export const getPreviewCohortRecipientsQueryOptions = <TData = Awaited<ReturnType<typeof previewCohortRecipients>>, TError = ErrorType<ApiMessage>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof previewCohortRecipients>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getPreviewCohortRecipientsQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof previewCohortRecipients>>> = ({ signal }) => previewCohortRecipients(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof previewCohortRecipients>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type PreviewCohortRecipientsQueryResult = NonNullable<Awaited<ReturnType<typeof previewCohortRecipients>>>
+export type PreviewCohortRecipientsQueryError = ErrorType<ApiMessage>
+
+
+/**
+ * @summary Who a message to this cohort would reach
+ */
+
+export function usePreviewCohortRecipients<TData = Awaited<ReturnType<typeof previewCohortRecipients>>, TError = ErrorType<ApiMessage>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof previewCohortRecipients>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getPreviewCohortRecipientsQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListCohortMessagesUrl = (id: number,) => {
+
+
+
+
+  return `/api/admin/programmes/${id}/messages`
+}
+
+/**
+ * @summary What has already been sent to this cohort
+ */
+export const listCohortMessages = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<CohortMessage[]> => {
+
+  return customFetch<CohortMessage[]>(getListCohortMessagesUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListCohortMessagesQueryKey = (id: number,) => {
+    return [
+    `/api/admin/programmes/${id}/messages`
+    ] as const;
+    }
+
+
+export const getListCohortMessagesQueryOptions = <TData = Awaited<ReturnType<typeof listCohortMessages>>, TError = ErrorType<ApiMessage>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listCohortMessages>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListCohortMessagesQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listCohortMessages>>> = ({ signal }) => listCohortMessages(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listCohortMessages>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListCohortMessagesQueryResult = NonNullable<Awaited<ReturnType<typeof listCohortMessages>>>
+export type ListCohortMessagesQueryError = ErrorType<ApiMessage>
+
+
+/**
+ * @summary What has already been sent to this cohort
+ */
+
+export function useListCohortMessages<TData = Awaited<ReturnType<typeof listCohortMessages>>, TError = ErrorType<ApiMessage>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listCohortMessages>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListCohortMessagesQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getSendCohortMessageUrl = (id: number,) => {
+
+
+
+
+  return `/api/admin/programmes/${id}/messages`
+}
+
+/**
+ * Sends one email per person, one after another, in the Lab's standard letter. The body is the admin's own words, escaped and rendered as paragraphs: no markup reaches an inbox. Every person is reported on by name, and the message is recorded whether or not it sent.
+ * @summary Write to everybody on a programme
+ */
+export const sendCohortMessage = async (id: number,
+    cohortMessageInput: CohortMessageInput, options?: Parameters<typeof customFetch>[1]): Promise<CohortMessageResult> => {
+
+  return customFetch<CohortMessageResult>(getSendCohortMessageUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(cohortMessageInput)
+  }
+);}
+
+
+
+
+
+export const getSendCohortMessageMutationOptions = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sendCohortMessage>>, TError,{id: number;data: BodyType<CohortMessageInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof sendCohortMessage>>, TError,{id: number;data: BodyType<CohortMessageInput>}, TContext> => {
+
+const mutationKey = ['sendCohortMessage'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof sendCohortMessage>>, {id: number;data: BodyType<CohortMessageInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  sendCohortMessage(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SendCohortMessageMutationResult = NonNullable<Awaited<ReturnType<typeof sendCohortMessage>>>
+    export type SendCohortMessageMutationBody = BodyType<CohortMessageInput>
+    export type SendCohortMessageMutationError = ErrorType<ApiMessage>
+
+    /**
+ * @summary Write to everybody on a programme
+ */
+export const useSendCohortMessage = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sendCohortMessage>>, TError,{id: number;data: BodyType<CohortMessageInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof sendCohortMessage>>,
+        TError,
+        {id: number;data: BodyType<CohortMessageInput>},
+        TContext
+      > => {
+      return useMutation(getSendCohortMessageMutationOptions(options));
     }
 
 export const getResendInvitationsInBulkUrl = () => {

@@ -1518,6 +1518,116 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiMessage"
+  /admin/programmes/{id}/recipients:
+    get:
+      operationId: previewCohortRecipients
+      tags: [admin]
+      summary: Who a message to this cohort would reach
+      description: >
+        Both audiences in one answer, so the console can switch between them
+        without asking again and the number on the send button is always the
+        real number of people rather than the count of enrolments. Cancelled and
+        waitlisted enrolments are never included, and one address counts once.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: The audience, counted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CohortRecipients"
+        "400":
+          description: Not a programme
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+  /admin/programmes/{id}/messages:
+    get:
+      operationId: listCohortMessages
+      tags: [admin]
+      summary: What has already been sent to this cohort
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Messages, most recent first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CohortMessage"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+    post:
+      operationId: sendCohortMessage
+      tags: [admin]
+      summary: Write to everybody on a programme
+      description: >
+        Sends one email per person, one after another, in the Lab's standard
+        letter. The body is the admin's own words, escaped and rendered as
+        paragraphs: no markup reaches an inbox. Every person is reported on by
+        name, and the message is recorded whether or not it sent.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CohortMessageInput"
+      responses:
+        "201":
+          description: What happened to each person
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CohortMessageResult"
+        "400":
+          description: The message was not usable, or there was nobody to send it to
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "404":
+          description: No such programme
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "503":
+          description: No mail provider is configured on the server
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
   /admin/invitations/resend-batch:
     post:
       operationId: resendInvitationsInBulk
@@ -2679,6 +2789,78 @@ components:
             - type: string
             - type: "null"
         summary: { type: string }
+    CohortAudience:
+      type: object
+      required: [count, sample]
+      properties:
+        count: { type: integer }
+        # Enough to recognise the list, not the whole cohort pasted into a page.
+        sample:
+          type: array
+          items:
+            type: object
+            required: [name, email]
+            properties:
+              name: { type: string }
+              email: { type: string }
+    CohortRecipients:
+      type: object
+      required: [active, everyone]
+      properties:
+        active:
+          $ref: "#/components/schemas/CohortAudience"
+        everyone:
+          $ref: "#/components/schemas/CohortAudience"
+    CohortMessageInput:
+      type: object
+      required: [subject, body]
+      properties:
+        subject: { type: string, maxLength: 140 }
+        body: { type: string, maxLength: 4000 }
+        audience:
+          type: string
+          enum: [active, everyone]
+        # Both parts or neither. Half a button renders as dead orange, or as
+        # nothing at all.
+        actionLabel:
+          oneOf:
+            - type: string
+            - type: "null"
+        actionUrl:
+          oneOf:
+            - type: string
+            - type: "null"
+    CohortMessageResult:
+      type: object
+      required: [id, sent, failed, outcomes]
+      properties:
+        id: { type: integer }
+        sent: { type: integer }
+        failed: { type: integer }
+        outcomes:
+          type: array
+          items:
+            type: object
+            required: [email, name, status, detail]
+            properties:
+              email: { type: string }
+              name: { type: string }
+              status:
+                type: string
+                enum: [sent, failed]
+              detail: { type: string }
+    CohortMessage:
+      type: object
+      required: [id, subject, body, audience, sentCount, failedCount, createdAt, sentByName]
+      properties:
+        id: { type: integer }
+        subject: { type: string }
+        body: { type: string }
+        audience: { type: string }
+        sentCount: { type: integer }
+        failedCount: { type: integer }
+        createdAt: { type: string }
+        sentByName: { type: string }
     ResendBatchInput:
       type: object
       required: [ids]

@@ -14,6 +14,7 @@ import googleRecordingsRouter from "./googleRecordings";
 import partnershipsRouter from "./partnerships";
 import programThumbnailsRouter from "./programThumbnails";
 import bulkInvitesRouter from "./bulkInvites";
+import cohortMessagesRouter from "./cohortMessages";
 import waitlistRouter from "./waitlist";
 import liveSessionsRouter from "./liveSessions";
 import studioSimulationsRouter from "./studioSimulations";
@@ -36,6 +37,7 @@ router.use(presenceRouter);
 router.use(slidesRouter);
 router.use(forumRouter);
 router.use(adminRouter);
+router.use(cohortMessagesRouter);
 router.use(googleRecordingsRouter);
 router.use(partnershipsRouter);
 

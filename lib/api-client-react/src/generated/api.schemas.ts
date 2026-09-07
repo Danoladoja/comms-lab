@@ -162,6 +162,72 @@ export interface Invitation {
   summary: string;
 }
 
+export type CohortAudienceSampleItem = {
+  name: string;
+  email: string;
+};
+
+export interface CohortAudience {
+  count: number;
+  sample: CohortAudienceSampleItem[];
+}
+
+export interface CohortRecipients {
+  active: CohortAudience;
+  everyone: CohortAudience;
+}
+
+export type CohortMessageInputAudience = typeof CohortMessageInputAudience[keyof typeof CohortMessageInputAudience];
+
+
+export const CohortMessageInputAudience = {
+  active: 'active',
+  everyone: 'everyone',
+} as const;
+
+export interface CohortMessageInput {
+  /** @maxLength 140 */
+  subject: string;
+  /** @maxLength 4000 */
+  body: string;
+  audience?: CohortMessageInputAudience;
+  actionLabel?: string | null;
+  actionUrl?: string | null;
+}
+
+export type CohortMessageResultOutcomesItemStatus = typeof CohortMessageResultOutcomesItemStatus[keyof typeof CohortMessageResultOutcomesItemStatus];
+
+
+export const CohortMessageResultOutcomesItemStatus = {
+  sent: 'sent',
+  failed: 'failed',
+} as const;
+
+export type CohortMessageResultOutcomesItem = {
+  email: string;
+  name: string;
+  status: CohortMessageResultOutcomesItemStatus;
+  detail: string;
+};
+
+export interface CohortMessageResult {
+  id: number;
+  sent: number;
+  failed: number;
+  outcomes: CohortMessageResultOutcomesItem[];
+}
+
+export interface CohortMessage {
+  id: number;
+  subject: string;
+  body: string;
+  audience: string;
+  sentCount: number;
+  failedCount: number;
+  createdAt: string;
+  sentByName: string;
+}
+
 export interface ResendBatchInput {
   /**
      * @minItems 1

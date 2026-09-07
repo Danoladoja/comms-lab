@@ -6,9 +6,11 @@ import {
   showsInCatalogue,
   validateWaitlistSignup,
   waitlistConfirmation,
+  labLetter,
 } from "@workspace/domain";
 import { getCurrentUser, requireRole } from "../lib/auth";
 import { emailConfigured, sendEmail } from "../lib/email";
+import { labLogoUrl } from "../lib/enrollmentEmails";
 import { createBudget } from "../lib/rateBudget";
 import { logger } from "../lib/logger";
 
@@ -107,11 +109,14 @@ router.post("/waitlist", async (req, res) => {
       await sendEmail({
         to: { email, name },
         subject: programme ? `You are on the waitlist for ${programme.title}` : "You are on the Ananse Comms Lab waitlist",
-        html:
-          `<p>Hello ${escapeText(name)},</p>` +
-          `<p>${escapeText(waitlistConfirmation(programme?.title ?? null))}</p>` +
-          `<p>We invite people from this list as places open. Nothing is needed from you in the meantime.</p>` +
-          `<p>— Ananse Comms Lab</p>`,
+        ...labLetter({
+          greetingName: name,
+          paragraphs: [
+            waitlistConfirmation(programme?.title ?? null),
+            "We invite people from this list as places open up. Nothing is needed from you in the meantime.",
+          ],
+          logoUrl: labLogoUrl(),
+        }),
       });
     } catch (err) {
       logger.warn({ err, email }, "Waitlist entry saved but the confirmation email did not send");

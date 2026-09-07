@@ -1,5 +1,4 @@
-import { escapeHtml } from "./partnership";
-import { INVITATION_CONTACT_EMAIL } from "./invitationEmail";
+import { labLetter } from "./labLetter";
 
 /**
  * The note that goes out when a cohort is given the Simulation Studio.
@@ -53,65 +52,15 @@ export function studioInviteParagraphs(invite: StudioInvite): string[] {
 }
 
 export function studioInviteLetter(invite: StudioInvite): { subject: string; html: string; text: string } {
-  const name = escapeHtml(greeting(invite.name));
-  const paragraphs = studioInviteParagraphs(invite);
-  const url = invite.url;
-  const safeUrl = escapeHtml(url);
-  const logo = tidy(invite.logoUrl);
-
-  const masthead = logo
-    ? `<img src="${escapeHtml(logo)}" alt="Ananse Comms Lab" width="180"
-             style="display: block; width: 180px; max-width: 60%; height: auto; border: 0;" />`
-    : `<span style="color: #F4F0E8; font-size: 20px; font-weight: bold; letter-spacing: 0.02em;">Ananse Comms Lab</span>`;
-
-  const body = paragraphs
-    .map((p) => `<p style="margin: 0 0 16px; font-size: 15px; line-height: 1.6;">${escapeHtml(p)}</p>`)
-    .join("\n      ");
-
-  const html = `
-<div style="background: #EFEAE0; padding: 24px 12px; font-family: Arial, Helvetica, sans-serif;">
-  <div style="max-width: 560px; margin: 0 auto; background: #FFFFFF; border-radius: 14px; overflow: hidden;">
-
-    <div style="background: #07111E; padding: 24px 28px;">
-      ${masthead}
-      <p style="margin: 12px 0 0; color: #F4F0E8; opacity: 0.75; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase;">
-        The Simulation Studio
-      </p>
-    </div>
-
-    <div style="padding: 28px; color: #07111E;">
-      <p style="margin: 0 0 16px; font-size: 15px; line-height: 1.6;">Hello ${name},</p>
-      ${body}
-
-      <p style="margin: 28px 0 8px;">
-        <a href="${safeUrl}"
-           style="background: #F97316; color: #07111E; font-weight: bold; font-size: 15px; padding: 14px 28px; border-radius: 999px; text-decoration: none; display: inline-block;">
-          Open the Studio
-        </a>
-      </p>
-
-      <p style="margin: 16px 0 0; font-size: 12px; color: #5B6470; line-height: 1.6;">
-        If the button does not work, copy this address into your browser:<br />
-        <span style="word-break: break-all;">${safeUrl}</span>
-      </p>
-    </div>
-
-    <div style="background: #F4F0E8; padding: 16px 28px; font-size: 11px; color: #5B6470;">
-      Ananse Comms Lab · <a href="mailto:${INVITATION_CONTACT_EMAIL}" style="color: #5B6470;">${INVITATION_CONTACT_EMAIL}</a>
-    </div>
-
-  </div>
-</div>`.trim();
-
-  const text = [
-    `Hello ${greeting(invite.name)},`,
-    "",
-    ...paragraphs.flatMap((p) => [p, ""]),
-    url,
-    "",
-    "Ananse Comms Lab · The Simulation Studio",
-    INVITATION_CONTACT_EMAIL,
-  ].join("\n");
+  const { html, text } = labLetter({
+    greetingName: invite.name,
+    paragraphs: studioInviteParagraphs(invite),
+    action: { label: "Open the Studio", url: invite.url, showUrl: true },
+    logoUrl: invite.logoUrl,
+    // Same letter, different line under the masthead: this one is announcing
+    // the Studio rather than the Lab.
+    tagline: "The Simulation Studio",
+  });
 
   return { subject: studioInviteSubject(invite), html, text };
 }
