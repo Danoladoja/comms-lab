@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { ProgramInputProgression } from './programInputProgression';
 import type { ProgramInputStatus } from './programInputStatus';
 
 export interface ProgramInput {
@@ -24,4 +25,5 @@ export interface ProgramInput {
   /** @minimum 1 */
   capacity?: number;
   status?: ProgramInputStatus;
+  progression?: ProgramInputProgression;
 }

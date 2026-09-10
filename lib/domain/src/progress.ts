@@ -1,4 +1,5 @@
 import { ON_TIME_GRACE_MS } from "./liveWindow";
+import { whyWeekLocked } from "./teachingWeek";
 import {
   presenceStatus,
   EMPTY_PRESENCE,
@@ -36,6 +37,12 @@ export type SessionLite = {
   startsAt: Date | null;
   durationMins: number;
   sortOrder: number;
+  /**
+   * Only ever used to name the module a learner has to finish first. Optional
+   * so that callers written before locked modules explained themselves keep
+   * working; the sentence falls back to a general one without it.
+   */
+  title?: string | null;
 };
 
 export type CourseworkStatus = {
@@ -95,8 +102,38 @@ export type ProgressEntry = {
   /** Deadlines, so a learner sees them without opening each piece of work. */
   quizDueAt: string | null;
   assignmentDueAt: string | null;
+  /**
+   * Why this one is shut, in words, or null when it is open.
+   *
+   * Worked out here rather than in the browser because the answer depends on
+   * how the programme advances, and only this function knows that. The browser
+   * used to guess "the module above this one", which is the wrong sentence
+   * entirely for a programme that moves a week at a time.
+   */
+  lockedReason: string | null;
   /** Peer feedback is unlocked by giving your own — this mirrors that rule. */
   feedbackUnlocked: boolean;
+};
+
+/**
+ * How a programme advances.
+ *
+ * "module": each class opens when the one before it is finished. The original
+ * rule, and still the right one for a programme taught one class at a time.
+ *
+ * "week": every class in a week opens together, and the next week waits until
+ * the whole of this one is done — both classes attended or watched, both
+ * quizzes, both tasks. Written for a programme taught on Tuesdays and
+ * Thursdays, where module-by-module locking shuts Thursday's class against a
+ * cohort who cannot possibly have finished Tuesday's yet.
+ */
+export type Progression = "module" | "week";
+
+export type ProgressOptions = {
+  /** Programmes that advance a week at a time. Anything absent advances by module. */
+  progressionByProgram?: Map<number, Progression>;
+  /** Which week each class belongs to, by session id. Classes with no date have none. */
+  weekOfSession?: Map<number, string>;
 };
 
 function sortSessions(list: SessionLite[]): SessionLite[] {
@@ -119,6 +156,9 @@ export function computeProgress(
   coursework: Map<number, CourseworkStatus>,
   presenceBySession: Map<number, PresenceInput> = new Map(),
   now = Date.now(),
+  // Added last so that every existing caller keeps working untouched. A
+  // programme with nothing here behaves exactly as it always has.
+  options: ProgressOptions = {},
 ): ProgressEntry[] {
   const byProgram = new Map<number, SessionLite[]>();
   for (const s of sessions) {
@@ -131,7 +171,16 @@ export function computeProgress(
   for (const [programId, unsorted] of byProgram.entries()) {
     const list = sortSessions(unsorted);
     const enrolledAt = enrolledAtByProgram.get(programId)?.getTime() ?? 0;
-    let previousSatisfied = true; // the first module is always unlocked
+    const progression = options.progressionByProgram?.get(programId) ?? "module";
+
+    /**
+     * Two passes, because a week cannot be judged until all of it has been read.
+     *
+     * The first works out what is true of each class on its own. The second
+     * decides what is open, which is the only part that differs between a
+     * programme taught module by module and one taught week by week.
+     */
+    const rows: { session: SessionLite; entry: ProgressEntry; satisfied: boolean }[] = [];
 
     for (const s of list) {
       const joined = attendance.get(s.id);
@@ -189,7 +238,7 @@ export function computeProgress(
           ? 0
           : Math.round(parts.reduce((a, b) => a + b, 0) / parts.length);
 
-      entries.push({
+      const entry: ProgressEntry = {
         sessionId: s.id,
         programId: s.programId,
         progressPct,
@@ -197,7 +246,9 @@ export function computeProgress(
         attended,
         presence,
         completed,
-        locked: !previousSatisfied,
+        // Filled in by the second pass below.
+        locked: false,
+        lockedReason: null,
         hasQuiz: cw.hasQuiz,
         quizPassed,
         quizBestScore: cw.quizBestScore,
@@ -209,15 +260,78 @@ export function computeProgress(
         quizDueAt: cw.quizDueAt ?? null,
         assignmentDueAt: cw.assignmentDueAt ?? null,
         feedbackUnlocked: reviewsRequired === 0 || reviewsDone,
-      });
+      };
 
       // Waived prerequisites: unscheduled modules, and modules that ended before
       // this learner enrolled (late joiners are not locked out forever).
       const waived = start === null || (end !== null && end < enrolledAt);
-      previousSatisfied = completed || waived;
+      rows.push({ session: s, entry, satisfied: completed || waived });
     }
+
+    if (progression === "week") {
+      lockByWeek(rows, options.weekOfSession ?? new Map());
+    } else {
+      lockByModule(rows);
+    }
+
+    for (const row of rows) entries.push(row.entry);
   }
   return entries;
+}
+
+type Row = { session: SessionLite; entry: ProgressEntry; satisfied: boolean };
+
+/** The original rule: each class waits on the one immediately before it. */
+function lockByModule(rows: Row[]): void {
+  let previousSatisfied = true; // the first module is always unlocked
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i];
+    row.entry.locked = !previousSatisfied;
+    row.entry.lockedReason = previousSatisfied ? null : whyModuleLocked(rows[i - 1]?.session.title);
+    previousSatisfied = row.satisfied;
+  }
+}
+
+/**
+ * A week at a time: everything in a week opens together, and the next week
+ * waits on the whole of the last one.
+ *
+ * The gate is the *previous* week rather than every week before it, which
+ * matches how module-by-module locking already behaves — a learner who has been
+ * let past one gate is not sent back through it later.
+ *
+ * A class with no date sits outside the weeks entirely. It is never locked and
+ * never holds a week up, because there is no way to say where in the term it
+ * falls.
+ */
+function lockByWeek(rows: Row[], weekOfSession: Map<number, string>): void {
+  const order: string[] = [];
+  const satisfiedByWeek = new Map<string, boolean>();
+
+  for (const row of rows) {
+    const week = weekOfSession.get(row.session.id);
+    if (!week) continue;
+    if (!satisfiedByWeek.has(week)) {
+      satisfiedByWeek.set(week, true);
+      order.push(week);
+    }
+    // Every class in the week has to be done, so one unfinished class fails it.
+    satisfiedByWeek.set(week, satisfiedByWeek.get(week)! && row.satisfied);
+  }
+
+  for (const row of rows) {
+    const week = weekOfSession.get(row.session.id);
+    if (!week) {
+      row.entry.locked = false;
+      row.entry.lockedReason = null;
+      continue;
+    }
+    const previous = order[order.indexOf(week) - 1];
+    // The first week of a programme has nothing behind it.
+    const open = previous === undefined || satisfiedByWeek.get(previous) === true;
+    row.entry.locked = !open;
+    row.entry.lockedReason = open ? null : whyWeekLocked();
+  }
 }
 
 /**

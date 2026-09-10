@@ -30,6 +30,7 @@ function programColumns() {
     thumbnailUrl: programsTable.thumbnailUrl,
     capacity: programsTable.capacity,
     status: programsTable.status,
+    progression: programsTable.progression,
     enrolledCount: enrolledCountSql,
   };
 }

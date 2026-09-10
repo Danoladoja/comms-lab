@@ -20,4 +20,6 @@ export interface Quiz {
   draft?: boolean;
   /** @nullable */
   postedAt?: string | null;
+  /** @nullable */
+  suggestedDueAt?: string | null;
 }

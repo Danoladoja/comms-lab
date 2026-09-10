@@ -7,7 +7,7 @@ import { and, asc, eq, sql } from "drizzle-orm";
 import { UpsertSessionQuizBody, SubmitQuizAttemptBody, UpsertSessionAssignmentBody, SubmitAssignmentBody } from "@workspace/api-zod";
 import {
   QUIZ_PASS_MARK, DEFAULT_RUBRIC, DEFAULT_REVIEWS_REQUIRED, isModuleStaff, isValidRubric,
-  isPastDue, pastDueMessage, readyToPost, describePost, postAnnouncement, labLetter,
+  isPastDue, pastDueMessage, readyToPost, describePost, postAnnouncement, labLetter, weekDeadline,
   type CourseworkPiece, type SendOutcome,
 } from "@workspace/domain";
 import { currentRole, getCurrentUser } from "../lib/auth";
@@ -53,7 +53,9 @@ export async function learnerAccessError(role: string | null, user: User, sessio
   if (!enrollment) return "You are not enrolled on this programme";
   const progress = await progressForUser(user.id, [session.programId]);
   const entry = progress.find((p) => p.sessionId === session.id);
-  if (entry?.locked) return "Finish the previous module's work to unlock this one";
+  // The reason comes from the rules themselves, because a programme taught week
+  // by week is not shut for the same reason as one taught module by module.
+  if (entry?.locked) return entry.lockedReason ?? "Finish the previous module's work to unlock this one";
   return null;
 }
 
@@ -68,6 +70,25 @@ export async function learnerAccessError(role: string | null, user: User, sessio
 function deadline(dueAt: Date | null | undefined) {
   const iso = dueAt ? dueAt.toISOString() : null;
   return { dueAt: iso, closed: isPastDue(iso, Date.now()) };
+}
+
+/**
+ * The date the Lab would pick for this module's coursework, if asked.
+ *
+ * Offered only for a programme taught week by week, where the answer is not a
+ * matter of taste: everything from a week is due at the end of the following
+ * Monday. It is a suggestion and nothing more — the editor fills an empty box
+ * with it so a person sees the date and can change it, rather than the server
+ * quietly inventing deadlines nobody chose.
+ */
+async function suggestedDueAt(session: { programId: number; startsAt: Date | null }): Promise<string | null> {
+  if (!session.startsAt) return null;
+  const [programme] = await db
+    .select({ progression: programsTable.progression })
+    .from(programsTable)
+    .where(eq(programsTable.id, session.programId));
+  if (programme?.progression !== "week") return null;
+  return weekDeadline(session.startsAt);
 }
 
 async function bestScore(userId: number, sessionId: number): Promise<number | null> {
@@ -121,6 +142,8 @@ router.get("/sessions/:id/quiz", async (req, res) => {
     ...deadline(session.quizDueAt),
     draft: session.quizDraft,
     postedAt: session.quizPostedAt?.toISOString() ?? null,
+    // Only staff are offered a date to set; a learner is told the one that is set.
+    ...(staff ? { suggestedDueAt: await suggestedDueAt(session) } : {}),
   });
 });
 
@@ -291,6 +314,7 @@ router.get("/sessions/:id/assignment", async (req, res) => {
     ...deadline(assignment.dueAt),
     draft: assignment.draft,
     postedAt: assignment.postedAt?.toISOString() ?? null,
+    ...(staff ? { suggestedDueAt: await suggestedDueAt(session) } : {}),
     mySubmission: submission
       ? { sessionId, body: submission.body, submittedAt: submission.submittedAt.toISOString() }
       : null,
@@ -472,6 +496,10 @@ router.get("/sessions/:id/coursework/post", async (req, res) => {
     assignmentDraft: pieces[1].draft && pieces[1].exists,
     quizPostedAt: session.quizPostedAt?.toISOString() ?? null,
     canPost: readyToPost(pieces).length > 0,
+    // Offered to the two editors above, which fill an empty date box with it
+    // when nothing has been saved yet. Null on a programme taught module by
+    // module, where there is no obvious date to suggest.
+    suggestedDueAt: await suggestedDueAt(session),
   });
 });
 

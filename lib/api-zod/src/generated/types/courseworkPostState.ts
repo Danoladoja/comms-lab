@@ -15,4 +15,6 @@ export interface CourseworkPostState {
   /** @nullable */
   quizPostedAt?: string | null;
   canPost: boolean;
+  /** @nullable */
+  suggestedDueAt?: string | null;
 }

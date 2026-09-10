@@ -43,6 +43,7 @@ export const ListProgramsResponseItem = zod.object({
   "thumbnailUrl": zod.string().nullish(),
   "capacity": zod.int(),
   "status": zod.enum(['draft', 'published', 'closed', 'archived']),
+  "progression": zod.enum(['module', 'week']).optional(),
   "enrolledCount": zod.int()
 })
 export const ListProgramsResponse = zod.array(ListProgramsResponseItem)
@@ -69,7 +70,8 @@ export const CreateProgramBody = zod.object({
   "duration": zod.string().min(1),
   "thumbnailUrl": zod.string().optional(),
   "capacity": zod.int().min(1).optional(),
-  "status": zod.enum(['draft', 'published', 'closed', 'archived']).optional()
+  "status": zod.enum(['draft', 'published', 'closed', 'archived']).optional(),
+  "progression": zod.enum(['module', 'week']).optional()
 })
 
 export const CreateProgramResponse = zod.object({
@@ -83,6 +85,7 @@ export const CreateProgramResponse = zod.object({
   "thumbnailUrl": zod.string().nullish(),
   "capacity": zod.int(),
   "status": zod.enum(['draft', 'published', 'closed', 'archived']),
+  "progression": zod.enum(['module', 'week']).optional(),
   "enrolledCount": zod.int()
 })
 
@@ -105,6 +108,7 @@ export const GetProgramResponse = zod.object({
   "thumbnailUrl": zod.string().nullish(),
   "capacity": zod.int(),
   "status": zod.enum(['draft', 'published', 'closed', 'archived']),
+  "progression": zod.enum(['module', 'week']).optional(),
   "enrolledCount": zod.int()
 })
 
@@ -134,7 +138,8 @@ export const UpdateProgramBody = zod.object({
   "duration": zod.string().min(1).optional(),
   "thumbnailUrl": zod.string().optional(),
   "capacity": zod.int().min(1).optional(),
-  "status": zod.enum(['draft', 'published', 'closed', 'archived']).optional()
+  "status": zod.enum(['draft', 'published', 'closed', 'archived']).optional(),
+  "progression": zod.enum(['module', 'week']).optional()
 })
 
 export const UpdateProgramResponse = zod.object({
@@ -148,6 +153,7 @@ export const UpdateProgramResponse = zod.object({
   "thumbnailUrl": zod.string().nullish(),
   "capacity": zod.int(),
   "status": zod.enum(['draft', 'published', 'closed', 'archived']),
+  "progression": zod.enum(['module', 'week']).optional(),
   "enrolledCount": zod.int()
 })
 
@@ -304,7 +310,8 @@ export const GetSessionQuizResponse = zod.object({
   "dueAt": zod.string().nullish(),
   "closed": zod.boolean().optional(),
   "draft": zod.boolean().optional(),
-  "postedAt": zod.string().nullish()
+  "postedAt": zod.string().nullish(),
+  "suggestedDueAt": zod.string().nullish()
 })
 
 
@@ -349,7 +356,8 @@ export const UpsertSessionQuizResponse = zod.object({
   "dueAt": zod.string().nullish(),
   "closed": zod.boolean().optional(),
   "draft": zod.boolean().optional(),
-  "postedAt": zod.string().nullish()
+  "postedAt": zod.string().nullish(),
+  "suggestedDueAt": zod.string().nullish()
 })
 
 
@@ -407,6 +415,7 @@ export const GetSessionAssignmentResponse = zod.object({
   "closed": zod.boolean().optional(),
   "draft": zod.boolean().optional(),
   "postedAt": zod.string().nullish(),
+  "suggestedDueAt": zod.string().nullish(),
   "mySubmission": zod.union([zod.object({
   "sessionId": zod.int(),
   "body": zod.string(),
@@ -470,6 +479,7 @@ export const UpsertSessionAssignmentResponse = zod.object({
   "closed": zod.boolean().optional(),
   "draft": zod.boolean().optional(),
   "postedAt": zod.string().nullish(),
+  "suggestedDueAt": zod.string().nullish(),
   "mySubmission": zod.union([zod.object({
   "sessionId": zod.int(),
   "body": zod.string(),
@@ -492,7 +502,8 @@ export const GetCourseworkPostStateResponse = zod.object({
   "quizDraft": zod.boolean(),
   "assignmentDraft": zod.boolean(),
   "quizPostedAt": zod.string().nullish(),
-  "canPost": zod.boolean()
+  "canPost": zod.boolean(),
+  "suggestedDueAt": zod.string().nullish()
 })
 
 
@@ -1018,6 +1029,7 @@ export const ListMyProgressResponseItem = zod.object({
   "reviewsReceived": zod.int(),
   "quizDueAt": zod.string().nullish(),
   "assignmentDueAt": zod.string().nullish(),
+  "lockedReason": zod.string().nullish(),
   "feedbackUnlocked": zod.boolean()
 })
 export const ListMyProgressResponse = zod.array(ListMyProgressResponseItem)
@@ -1746,6 +1758,7 @@ export const UploadProgramThumbnailResponse = zod.object({
   "thumbnailUrl": zod.string().nullish(),
   "capacity": zod.int(),
   "status": zod.enum(['draft', 'published', 'closed', 'archived']),
+  "progression": zod.enum(['module', 'week']).optional(),
   "enrolledCount": zod.int()
 })
 
@@ -1769,6 +1782,7 @@ export const DeleteProgramThumbnailResponse = zod.object({
   "thumbnailUrl": zod.string().nullish(),
   "capacity": zod.int(),
   "status": zod.enum(['draft', 'published', 'closed', 'archived']),
+  "progression": zod.enum(['module', 'week']).optional(),
   "enrolledCount": zod.int()
 })
 

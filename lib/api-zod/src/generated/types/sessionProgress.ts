@@ -29,5 +29,7 @@ export interface SessionProgress {
   quizDueAt?: string | null;
   /** @nullable */
   assignmentDueAt?: string | null;
+  /** @nullable */
+  lockedReason?: string | null;
   feedbackUnlocked: boolean;
 }

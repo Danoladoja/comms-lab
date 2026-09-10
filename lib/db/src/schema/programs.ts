@@ -14,6 +14,19 @@ export const programsTable = pgTable("programs", {
   thumbnailUrl: text("thumbnail_url"),
   capacity: integer("capacity").notNull().default(30),
   status: text("status").notNull().default("draft"),
+  /**
+   * How this programme advances: "module" or "week".
+   *
+   * "module" is the original rule and the default, so every programme that
+   * already exists goes on behaving exactly as it does today.
+   *
+   * "week" is for a programme taught twice a week — Tuesday and Thursday — where
+   * both classes of a week open together and the next week waits until all of
+   * this one is in. Under the module rule Thursday's class is shut until
+   * Tuesday's is finished, and Tuesday's cannot be finished until its quiz is
+   * in, which is not due until the following Monday.
+   */
+  progression: text("progression").notNull().default("module"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

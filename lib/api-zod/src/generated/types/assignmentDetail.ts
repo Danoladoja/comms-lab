@@ -22,5 +22,7 @@ export interface AssignmentDetail {
   draft?: boolean;
   /** @nullable */
   postedAt?: string | null;
+  /** @nullable */
+  suggestedDueAt?: string | null;
   mySubmission?: AssignmentSubmission | null;
 }

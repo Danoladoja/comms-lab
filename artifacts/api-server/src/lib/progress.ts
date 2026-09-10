@@ -1,5 +1,5 @@
 import {
-  db, attendanceTable, replayProgressTable, enrollmentsTable, sessionsTable,
+  db, attendanceTable, replayProgressTable, enrollmentsTable, sessionsTable, programsTable,
   quizQuestionsTable, quizAttemptsTable, assignmentsTable, assignmentSubmissionsTable,
   submissionReviewsTable,
 } from "@workspace/db";
@@ -12,6 +12,8 @@ import {
   type CourseworkStatus,
   type PresenceInput,
   type ProgressEntry,
+  type Progression,
+  weeksOfSessions,
 } from "@workspace/domain";
 
 export type { ProgressEntry };
@@ -32,10 +34,23 @@ export async function progressForUser(userId: number, programIds: number[]): Pro
       startsAt: sessionsTable.startsAt,
       durationMins: sessionsTable.durationMins,
       sortOrder: sessionsTable.sortOrder,
+      title: sessionsTable.title,
       quizDueAt: sessionsTable.quizDueAt,
     })
     .from(sessionsTable)
     .where(inArray(sessionsTable.programId, programIds));
+
+  // How each programme advances. Only a programme explicitly set to "week"
+  // behaves differently; everything else takes the original module-by-module
+  // rule, which is also what an unreadable value falls back to.
+  const programmes = await db
+    .select({ id: programsTable.id, progression: programsTable.progression })
+    .from(programsTable)
+    .where(inArray(programsTable.id, programIds));
+  const progressionByProgram = new Map<number, Progression>(
+    programmes.map((p) => [p.id, p.progression === "week" ? "week" : "module"]),
+  );
+  const weekOfSession = weeksOfSessions(sessions);
 
   // `.concat(-1)` keeps the IN clause non-empty for programs with no sessions.
   const sessionIds = sessions.map((s) => s.id).concat(-1);
@@ -162,7 +177,10 @@ export async function progressForUser(userId: number, programIds: number[]): Pro
     ]),
   );
 
-  return computeProgress(sessions, attendance, enrolledAtByProgram, coursework, presenceBySession);
+  return computeProgress(
+    sessions, attendance, enrolledAtByProgram, coursework, presenceBySession, Date.now(),
+    { progressionByProgram, weekOfSession },
+  );
 }
 
 export async function enrolledProgramIds(userId: number): Promise<number[]> {

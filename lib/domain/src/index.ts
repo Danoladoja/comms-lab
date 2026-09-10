@@ -30,3 +30,4 @@ export * from "./findPeople";
 export * from "./theme";
 export * from "./dueDate";
 export * from "./courseworkPost";
+export * from "./teachingWeek";

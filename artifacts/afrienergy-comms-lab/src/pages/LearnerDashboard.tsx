@@ -114,7 +114,7 @@ export default function LearnerDashboard() {
     if (entry?.locked) {
       toast({
         title: 'Module locked',
-        description: 'Complete the previous module to unlock this one.',
+        description: entry.lockedReason || 'Complete the previous module to unlock this one.',
         variant: 'destructive',
       });
       return;
@@ -183,9 +183,14 @@ export default function LearnerDashboard() {
                             const state = moduleState(m, now);
                             const entry = progressBySession.get(m.id);
                             const locked = entry?.locked ?? false;
-                            // A padlock on its own says nothing. The module that
-                            // opens this one is the one directly above it.
-                            const lockedReason = locked ? whyModuleLocked(mods[i - 1]?.title) : '';
+                            // A padlock on its own says nothing. The reason is
+                            // worked out by the rules themselves — a programme
+                            // taught week by week is not shut for the same
+                            // reason as one taught module by module — and the
+                            // module above is only the fallback.
+                            const lockedReason = locked
+                              ? entry?.lockedReason || whyModuleLocked(mods[i - 1]?.title)
+                              : '';
                             const pct = entry?.completed ? 100 : entry?.progressPct ?? 0;
                             const owed = Math.max(0, (entry?.reviewsRequired ?? 0) - (entry?.reviewsGiven ?? 0));
                             // The class itself is outstanding once it has ended and
@@ -381,7 +386,7 @@ function CourseworkList({ kind, sessions, progressBySession, onOpen }: {
                 {done
                   ? kind === 'quiz' ? `Passed with ${e.quizBestScore}%` : 'Submitted'
                   : e.locked
-                    ? 'Unlocks after the previous module'
+                    ? e.lockedReason || 'Unlocks after the previous module'
                     : kind === 'quiz' && e.quizBestScore != null
                       ? `Best score so far ${e.quizBestScore}% — 70% needed`
                       : 'Not started'}

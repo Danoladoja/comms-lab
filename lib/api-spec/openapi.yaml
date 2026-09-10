@@ -2948,6 +2948,9 @@ components:
         assignmentDraft: { type: boolean }
         quizPostedAt: { type: ["string", "null"] }
         canPost: { type: boolean }
+        # The Monday-night deadline the Lab would pick for this class, on a
+        # programme taught week by week. Null otherwise.
+        suggestedDueAt: { type: ["string", "null"] }
     CourseworkPostResult:
       type: object
       required: [sessionId, posted, emailed, failed, mailConfigured, outcomes]
@@ -3121,6 +3124,9 @@ components:
         # quiz and task. Null means no deadline. They affect no rule above.
         quizDueAt: { type: ["string", "null"] }
         assignmentDueAt: { type: ["string", "null"] }
+        # Why this one is shut, in words, or null when it is open. Worded by the
+        # server because only it knows how the programme advances.
+        lockedReason: { type: ["string", "null"] }
         feedbackUnlocked: { type: boolean }
     QuizQuestionPublic:
       type: object
@@ -3158,6 +3164,9 @@ components:
         # all — this reaches staff only.
         draft: { type: boolean }
         postedAt: { type: ["string", "null"] }
+        # For a programme taught week by week: the Monday-night deadline the
+        # Lab would pick for this class. Staff only, and only a suggestion.
+        suggestedDueAt: { type: ["string", "null"] }
     QuizInput:
       type: object
       required: [questions]
@@ -3478,6 +3487,9 @@ components:
         # Saved but not yet posted. Staff only; learners never see a draft.
         draft: { type: boolean }
         postedAt: { type: ["string", "null"] }
+        # For a programme taught week by week: the Monday-night deadline the
+        # Lab would pick for this class. Staff only, and only a suggestion.
+        suggestedDueAt: { type: ["string", "null"] }
         mySubmission:
           oneOf:
             - $ref: "#/components/schemas/AssignmentSubmission"
@@ -3623,6 +3635,10 @@ components:
         thumbnailUrl: { type: ["string", "null"] }
         capacity: { type: integer }
         status: { type: string, enum: [draft, published, closed, archived] }
+        # How the programme advances: "module" (each class opens when the one
+        # before it is finished) or "week" (both classes of a week open
+        # together, and the next week waits on all of this one).
+        progression: { type: string, enum: [module, week] }
         enrolledCount: { type: integer }
     ProgramInput:
       type: object
@@ -3637,6 +3653,10 @@ components:
         thumbnailUrl: { type: string }
         capacity: { type: integer, minimum: 1 }
         status: { type: string, enum: [draft, published, closed, archived] }
+        # How the programme advances: "module" (each class opens when the one
+        # before it is finished) or "week" (both classes of a week open
+        # together, and the next week waits on all of this one).
+        progression: { type: string, enum: [module, week] }
     ProgramUpdate:
       type: object
       properties:
@@ -3649,6 +3669,10 @@ components:
         thumbnailUrl: { type: string }
         capacity: { type: integer, minimum: 1 }
         status: { type: string, enum: [draft, published, closed, archived] }
+        # How the programme advances: "module" (each class opens when the one
+        # before it is finished) or "week" (both classes of a week open
+        # together, and the next week waits on all of this one).
+        progression: { type: string, enum: [module, week] }
     Session:
       type: object
       required: [id, programId, title, description, sortOrder, durationMins]

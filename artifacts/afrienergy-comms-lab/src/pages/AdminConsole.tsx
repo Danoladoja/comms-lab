@@ -578,6 +578,29 @@ function ProgramCard({ program, instructors, onWriteToCohort }: {
           Write to the cohort
         </Button>
       </div>
+      {open && (
+        <div className="mt-4 rounded-lg border border-border bg-muted/20 px-3 py-2.5">
+          <label className="flex items-start gap-2.5 text-sm">
+            <input
+              type="checkbox"
+              className="mt-0.5 h-4 w-4 shrink-0 accent-primary"
+              checked={program.progression === 'week'}
+              onChange={e => update.mutate({
+                id: program.id,
+                data: { progression: e.target.checked ? 'week' : 'module' },
+              })}
+            />
+            <span>
+              <span className="font-medium">This programme runs a week at a time</span>
+              <span className="mt-0.5 block text-xs text-muted-foreground">
+                {program.progression === 'week'
+                  ? 'Both of a week’s classes open together. The next week waits until every class that week has been attended or watched and every quiz and task is in — all due by the end of the following Monday.'
+                  : 'Off: each class opens when the one before it is finished. Turn this on for a programme taught twice a week, where the second class would otherwise be shut until the first one’s quiz is in.'}
+              </span>
+            </span>
+          </label>
+        </div>
+      )}
       {editing && <ProgramEditor program={program} onDone={() => setEditing(false)} />}
       {open && <ProgramSessions programId={program.id} instructors={instructors} />}
     </div>

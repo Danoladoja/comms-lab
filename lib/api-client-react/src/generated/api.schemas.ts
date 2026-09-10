@@ -226,6 +226,8 @@ export interface CourseworkPostState {
   /** @nullable */
   quizPostedAt?: string | null;
   canPost: boolean;
+  /** @nullable */
+  suggestedDueAt?: string | null;
 }
 
 export type CourseworkPostResultOutcomesItemStatus = typeof CourseworkPostResultOutcomesItemStatus[keyof typeof CourseworkPostResultOutcomesItemStatus];
@@ -413,6 +415,8 @@ export interface SessionProgress {
   quizDueAt?: string | null;
   /** @nullable */
   assignmentDueAt?: string | null;
+  /** @nullable */
+  lockedReason?: string | null;
   feedbackUnlocked: boolean;
 }
 
@@ -440,6 +444,8 @@ export interface Quiz {
   draft?: boolean;
   /** @nullable */
   postedAt?: string | null;
+  /** @nullable */
+  suggestedDueAt?: string | null;
 }
 
 export type QuizInputQuestionsItemOrigin = typeof QuizInputQuestionsItemOrigin[keyof typeof QuizInputQuestionsItemOrigin];
@@ -677,6 +683,8 @@ export interface AssignmentDetail {
   draft?: boolean;
   /** @nullable */
   postedAt?: string | null;
+  /** @nullable */
+  suggestedDueAt?: string | null;
   mySubmission?: AssignmentSubmission | null;
 }
 
@@ -810,6 +818,14 @@ export const ProgramStatus = {
   archived: 'archived',
 } as const;
 
+export type ProgramProgression = typeof ProgramProgression[keyof typeof ProgramProgression];
+
+
+export const ProgramProgression = {
+  module: 'module',
+  week: 'week',
+} as const;
+
 export interface Program {
   id: number;
   tag: string;
@@ -822,6 +838,7 @@ export interface Program {
   thumbnailUrl?: string | null;
   capacity: number;
   status: ProgramStatus;
+  progression?: ProgramProgression;
   enrolledCount: number;
 }
 
@@ -833,6 +850,14 @@ export const ProgramInputStatus = {
   published: 'published',
   closed: 'closed',
   archived: 'archived',
+} as const;
+
+export type ProgramInputProgression = typeof ProgramInputProgression[keyof typeof ProgramInputProgression];
+
+
+export const ProgramInputProgression = {
+  module: 'module',
+  week: 'week',
 } as const;
 
 export interface ProgramInput {
@@ -852,6 +877,7 @@ export interface ProgramInput {
   /** @minimum 1 */
   capacity?: number;
   status?: ProgramInputStatus;
+  progression?: ProgramInputProgression;
 }
 
 export type ProgramUpdateStatus = typeof ProgramUpdateStatus[keyof typeof ProgramUpdateStatus];
@@ -862,6 +888,14 @@ export const ProgramUpdateStatus = {
   published: 'published',
   closed: 'closed',
   archived: 'archived',
+} as const;
+
+export type ProgramUpdateProgression = typeof ProgramUpdateProgression[keyof typeof ProgramUpdateProgression];
+
+
+export const ProgramUpdateProgression = {
+  module: 'module',
+  week: 'week',
 } as const;
 
 export interface ProgramUpdate {
@@ -881,6 +915,7 @@ export interface ProgramUpdate {
   /** @minimum 1 */
   capacity?: number;
   status?: ProgramUpdateStatus;
+  progression?: ProgramUpdateProgression;
 }
 
 export interface Session {

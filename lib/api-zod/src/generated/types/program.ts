@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { ProgramProgression } from './programProgression';
 import type { ProgramStatus } from './programStatus';
 
 export interface Program {
@@ -19,5 +20,6 @@ export interface Program {
   thumbnailUrl?: string | null;
   capacity: number;
   status: ProgramStatus;
+  progression?: ProgramProgression;
   enrolledCount: number;
 }

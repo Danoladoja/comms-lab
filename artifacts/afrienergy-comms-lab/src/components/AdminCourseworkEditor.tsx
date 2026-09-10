@@ -142,13 +142,21 @@ function asExisting(questions: EditableQuestion[]) {
   return questions.map(q => ({ prompt: q.prompt.trim(), options: q.options.map(o => o.trim()).filter(Boolean) }));
 }
 
-export function QuizEditor({ sessionId, seed, seedVersion = 0, onSaved }: {
+export function QuizEditor({ sessionId, seed, seedVersion = 0, onSaved, suggestedDueAt }: {
   sessionId: number;
   /** A drafted quiz to load in for editing. Never saved until the facilitator saves it. */
   seed?: SeedQuestion[];
   seedVersion?: number;
   /** Called once the save has actually landed, so the panel can shut itself. */
   onSaved?: () => void;
+  /**
+   * The deadline the Lab would pick, on a programme taught week by week.
+   *
+   * Offered only for a quiz that has never been saved. After that the saved
+   * date is the answer, including when the saved date is deliberately none —
+   * a facilitator who clears a deadline should not find it back tomorrow.
+   */
+  suggestedDueAt?: string | null;
 }) {
   const qc = useQueryClient();
   const { toast } = useToast();
@@ -175,7 +183,6 @@ export function QuizEditor({ sessionId, seed, seedVersion = 0, onSaved }: {
         savedOrigin: (q.origin ?? 'manual') as CourseworkOrigin,
         savedSnapshot: { prompt: q.prompt, options: [...q.options], correctIndex: q.correctIndex ?? 0 },
       })));
-      setDue(dueDateInputValue(quiz.dueAt));
       setLoaded(true);
     }
   }, [quiz, loaded]);
@@ -279,6 +286,10 @@ export function QuizEditor({ sessionId, seed, seedVersion = 0, onSaved }: {
   const update = (i: number, patch: Partial<EditableQuestion>) =>
     setQuestions(qs => qs.map((q, j) => (j === i ? { ...q, ...patch } : q)));
 
+  // What has been typed this sitting, otherwise what is saved, otherwise — only
+  // for a quiz that does not exist yet — the Lab's suggestion.
+  const dueValue = due ?? dueDateInputValue(quiz ? quiz.dueAt : suggestedDueAt);
+
   const valid = questions.every(q =>
     q.prompt.trim() && q.options.filter(o => o.trim()).length >= 2 && q.options[q.correctIndex]?.trim(),
   );
@@ -356,7 +367,7 @@ export function QuizEditor({ sessionId, seed, seedVersion = 0, onSaved }: {
       <DueDateField
         id={`quiz-due-${sessionId}`}
         label="Answers close"
-        value={due ?? ''}
+        value={dueValue}
         onChange={setDue}
       />
       {questions.map((q, i) => (
@@ -440,7 +451,7 @@ export function QuizEditor({ sessionId, seed, seedVersion = 0, onSaved }: {
           onClick={() => save.mutate({
             id: sessionId,
             data: {
-              dueAt: dueDateFromInput(due),
+              dueAt: dueDateFromInput(dueValue),
               questions: questions.map(q => {
                 const clean = tidy(q);
                 return { ...clean, origin: originAtSave(clean, q) };
@@ -487,12 +498,14 @@ function assignmentOrigin(
   });
 }
 
-export function AssignmentEditor({ sessionId, seed, seedVersion = 0, onSaved }: {
+export function AssignmentEditor({ sessionId, seed, seedVersion = 0, onSaved, suggestedDueAt }: {
   sessionId: number;
   seed?: { title: string; instructions: string };
   seedVersion?: number;
   /** Called once the save has actually landed, so the panel can shut itself. */
   onSaved?: () => void;
+  /** As on the quiz: offered only for a task that has never been saved. */
+  suggestedDueAt?: string | null;
 }) {
   const qc = useQueryClient();
   const { toast } = useToast();
@@ -520,7 +533,7 @@ export function AssignmentEditor({ sessionId, seed, seedVersion = 0, onSaved }: 
   const instructionsValue = instructions ?? assignment?.instructions ?? '';
   // Same fall-back shape as the two above: what has been typed this sitting,
   // otherwise whatever is saved.
-  const dueValue = due ?? dueDateInputValue(assignment?.dueAt);
+  const dueValue = due ?? dueDateInputValue(assignment ? assignment.dueAt : suggestedDueAt);
 
   const save = useUpsertSessionAssignment({
     mutation: {

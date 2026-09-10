@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   useDraftCourseworkFromSlides, useGetSessionSlides, useGetSessionNotes,
-  useGetCourseworkDraftHistory, useGetSessionQuiz, useGetSessionAssignment,
+  useGetCourseworkDraftHistory, useGetSessionQuiz, useGetSessionAssignment, useGetCourseworkPostState,
   getGetSessionSlidesQueryKey, getGetSessionNotesQueryKey, getGetCourseworkDraftHistoryQueryKey,
   getGetSessionQuizQueryKey, getGetSessionAssignmentQueryKey, getGetCourseworkPostStateQueryKey,
   type DraftQuestion,
@@ -94,6 +94,10 @@ export default function CourseworkStudio({ sessionId }: { sessionId: number }) {
   });
   const { data: savedTask } = useGetSessionAssignment(sessionId, {
     query: { queryKey: getGetSessionAssignmentQueryKey(sessionId), retry: false },
+  });
+  // Shares its cache with the Post notice below, so this costs nothing extra.
+  const { data: postState } = useGetCourseworkPostState(sessionId, {
+    query: { queryKey: getGetCourseworkPostStateQueryKey(sessionId), retry: false },
   });
 
   const count = savedQuiz?.questions.length ?? 0;
@@ -244,6 +248,7 @@ export default function CourseworkStudio({ sessionId }: { sessionId: number }) {
               seed={questions}
               seedVersion={version}
               onSaved={savedSomething}
+              suggestedDueAt={postState?.suggestedDueAt}
             />
           </Drawer>
           <Drawer
@@ -257,6 +262,7 @@ export default function CourseworkStudio({ sessionId }: { sessionId: number }) {
               seed={assignment}
               seedVersion={version}
               onSaved={savedSomething}
+              suggestedDueAt={postState?.suggestedDueAt}
             />
           </Drawer>
 
