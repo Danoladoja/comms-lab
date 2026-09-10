@@ -71,7 +71,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { ChevronDown, ChevronUp, Plus, Trash2, CircleAlert, Pencil, Clock, Send, X } from 'lucide-react';
+import { ChevronDown, ChevronUp, Plus, Trash2, CircleAlert, Pencil, Clock, Send, X, Mail } from 'lucide-react';
 
 const TABS = ['Programmes', 'Live Sessions', 'Enrolments', 'People', 'Recordings'] as const;
 type Tab = (typeof TABS)[number];
@@ -465,7 +465,11 @@ function ProgramEditor({ program, onDone }: { program: Program; onDone: () => vo
   );
 }
 
-function ProgramCard({ program, instructors }: { program: Program; instructors: { id: number; name: string; email: string }[] }) {
+function ProgramCard({ program, instructors, onWriteToCohort }: {
+  program: Program;
+  instructors: { id: number; name: string; email: string }[];
+  onWriteToCohort: (programId: number) => void;
+}) {
   const qc = useQueryClient();
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
@@ -497,23 +501,46 @@ function ProgramCard({ program, instructors }: { program: Program; instructors: 
   return (
     <div className="bg-card border border-border rounded-xl p-5">
       <div className="flex flex-wrap items-center gap-3">
-        {/* A glance at the picture the catalogue is actually showing, so a
-            missing or wrong thumbnail is obvious from the list. */}
-        {program.thumbnailUrl && (
-          <img
-            src={program.thumbnailUrl}
-            alt=""
-            className="h-12 w-20 shrink-0 rounded-md border border-border object-cover"
-          />
-        )}
-        <div className="flex-1 min-w-[200px]">
-          <p className="text-xs uppercase tracking-widest text-[#C2410C] font-medium">{program.tag}</p>
-          <h3 className="font-semibold">{program.title}</h3>
-          <p className="text-xs text-muted-foreground">{program.startDate} · {program.format} · {program.duration} · {program.enrolledCount}/{program.capacity} enrolled</p>
-          {/* What this state actually does, in words, next to the control that
-              changes it — so nobody has to remember what "closed" means. */}
-          <p className="text-xs text-muted-foreground/80 mt-0.5">{programStatusNote(program.status)}</p>
-        </div>
+        {/*
+          The programme itself opens the programme.
+
+          There used to be a "Modules" button at the far end of a row of seven
+          controls, and nothing about the name of the programme suggested it
+          could be pressed. An admin looking for a class had to know that the
+          way in was a button labelled after what it revealed rather than after
+          what they were looking at. Pressing the thing you mean is the whole
+          of the fix.
+
+          The controls stay outside this button rather than inside it: a select
+          nested in a button is not operable by keyboard.
+        */}
+        <button
+          type="button"
+          onClick={() => setOpen(!open)}
+          aria-expanded={open}
+          className="flex flex-1 basis-full lg:basis-0 min-w-[280px] items-center gap-3 text-left rounded-lg -m-1 p-1 hover:bg-muted/50 transition-colors"
+        >
+          {/* A glance at the picture the catalogue is actually showing, so a
+              missing or wrong thumbnail is obvious from the list. */}
+          {program.thumbnailUrl && (
+            <img
+              src={program.thumbnailUrl}
+              alt=""
+              className="h-12 w-20 shrink-0 rounded-md border border-border object-cover"
+            />
+          )}
+          <span className="min-w-0">
+            <span className="block text-xs uppercase tracking-widest text-[#C2410C] font-medium">{program.tag}</span>
+            <span className="block font-display font-semibold">{program.title}</span>
+            <span className="block text-xs text-muted-foreground">{program.startDate} · {program.format} · {program.duration} · {program.enrolledCount}/{program.capacity} enrolled</span>
+            {/* What this state actually does, in words, next to the control that
+                changes it — so nobody has to remember what "closed" means. */}
+            <span className="block text-xs text-muted-foreground/80 mt-0.5">{programStatusNote(program.status)}</span>
+          </span>
+          {open
+            ? <ChevronUp className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden />
+            : <ChevronDown className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden />}
+        </button>
         <select
           className="border border-border rounded-md px-3 py-2 text-sm bg-background"
           value={program.status}
@@ -543,8 +570,12 @@ function ProgramCard({ program, instructors }: { program: Program; instructors: 
         <Button variant="outline" size="sm" onClick={() => setEditing(!editing)}>
           <Pencil className="w-4 h-4 mr-1.5" />{editing ? 'Done' : 'Edit'}
         </Button>
-        <Button variant="outline" size="sm" onClick={() => setOpen(!open)}>
-          Modules {open ? <ChevronUp className="w-4 h-4 ml-1" /> : <ChevronDown className="w-4 h-4 ml-1" />}
+        {/* Where an admin actually looks when they want to tell a cohort
+            something: at the programme. It was four steps down a different tab,
+            and one of them asked her to know the word "enrolments". */}
+        <Button size="sm" onClick={() => onWriteToCohort(program.id)}>
+          <Mail className="w-4 h-4 mr-1.5" aria-hidden />
+          Write to the cohort
         </Button>
       </div>
       {editing && <ProgramEditor program={program} onDone={() => setEditing(false)} />}
@@ -558,7 +589,10 @@ const EMPTY_PROGRAM = {
   tag: '', title: '', description: '', startDate: '', format: 'Cohort', duration: '', capacity: '30',
 };
 
-function ProgramsTab({ instructors }: { instructors: { id: number; name: string; email: string }[] }) {
+function ProgramsTab({ instructors, onWriteToCohort }: {
+  instructors: { id: number; name: string; email: string }[];
+  onWriteToCohort: (programId: number) => void;
+}) {
   const qc = useQueryClient();
   const { toast } = useToast();
   const { data: programs = [], isLoading } = useListPrograms();
@@ -647,7 +681,9 @@ function ProgramsTab({ instructors }: { instructors: { id: number; name: string;
       {isLoading ? (
         <div className="h-32 bg-card border border-border rounded-xl animate-pulse" />
       ) : (
-        programs.map(p => <ProgramCard key={p.id} program={p} instructors={instructors} />)
+        programs.map(p => (
+          <ProgramCard key={p.id} program={p} instructors={instructors} onWriteToCohort={onWriteToCohort} />
+        ))
       )}
     </div>
   );
@@ -810,7 +846,7 @@ function InvitedLearners({
 
 /** One programme's cohort: everybody on it, and how they are getting on. */
 function CohortSection({
-  programme, rows, invites, onStatus, onRemove, onResend, onResendMany, onWithdraw, pending,
+  programme, rows, invites, onStatus, onRemove, onResend, onResendMany, onWithdraw, pending, writeTo,
 }: {
   programme: { id: number; title: string; capacity: number; status: string };
   rows: { id: number; userName: string; userEmail: string; status: string }[];
@@ -821,6 +857,8 @@ function CohortSection({
   onResendMany: (invites: Invitation[]) => void;
   onWithdraw: (invite: Invitation) => void;
   pending: boolean;
+  /** True when an admin arrived here by pressing "Write to the cohort". */
+  writeTo: boolean;
 }) {
   /*
    * Shut, until an admin asks.
@@ -831,7 +869,7 @@ function CohortSection({
    * off the bottom. Closed, the page is the list of cohorts and how full each
    * one is, and the names are one click away.
    */
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(writeTo);
   const active = rows.filter(r => r.status === 'enrolled' || r.status === 'completed').length;
 
   return (
@@ -934,7 +972,7 @@ function CohortSection({
             pending={pending}
           />
 
-          <MessageCohort programId={programme.id} programmeTitle={programme.title} />
+          <MessageCohort programId={programme.id} programmeTitle={programme.title} startOpen={writeTo} />
         </div>
       )}
     </section>
@@ -1043,7 +1081,7 @@ function UnattachedSection() {
  * carries its own list, its own count against its places, and the invitation
  * tool sits underneath them all.
  */
-function EnrollmentsTab() {
+function EnrollmentsTab({ writeToProgramId }: { writeToProgramId: number | null }) {
   const qc = useQueryClient();
   const { toast } = useToast();
   const { data: enrollments = [], isLoading } = useListAllEnrollments();
@@ -1193,6 +1231,7 @@ function EnrollmentsTab() {
             onResend={(i) => resend.mutate({ id: i.id })}
             onResendMany={sendAgainToMany}
             onWithdraw={withdrawInvite}
+            writeTo={writeToProgramId === p.id}
             pending={update.isPending || remove.isPending || invitesPending}
           />
         ))
@@ -1536,6 +1575,15 @@ function PeopleTab({ selfId, everybody }: {
 export default function AdminConsole() {
   const { role, user, isLoading } = useCurrentUser();
   const [tab, setTab] = useState<Tab>('Programmes');
+  /**
+   * The programme an admin pressed "Write to the cohort" on.
+   *
+   * The composer lives under Enrolments, which is the right home for it and the
+   * wrong place to go looking. Pressing the button on the programme takes them
+   * there with that cohort already open and the message box already showing, so
+   * the tab they land on is an explanation rather than a puzzle.
+   */
+  const [writeToProgramId, setWriteToProgramId] = useState<number | null>(null);
   const isStaffAdmin = satisfiesRole(role, ['admin']);
   const { data: users = [] } = useListUsers({ query: { queryKey: getListUsersQueryKey(), enabled: isStaffAdmin } });
   const instructors = users.filter(u => isStaffRole(u.role));
@@ -1560,7 +1608,7 @@ export default function AdminConsole() {
         {TABS.map(t => (
           <button
             key={t}
-            onClick={() => setTab(t)}
+            onClick={() => { setTab(t); if (t !== 'Enrolments') setWriteToProgramId(null); }}
             className={`px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${
               tab === t ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'
             }`}
@@ -1570,9 +1618,14 @@ export default function AdminConsole() {
         ))}
       </div>
 
-      {tab === 'Programmes' && <ProgramsTab instructors={instructors} />}
+      {tab === 'Programmes' && (
+        <ProgramsTab
+          instructors={instructors}
+          onWriteToCohort={(programId) => { setWriteToProgramId(programId); setTab('Enrolments'); }}
+        />
+      )}
       {tab === 'Live Sessions' && <LiveSessionsAdmin />}
-      {tab === 'Enrolments' && <EnrollmentsTab />}
+      {tab === 'Enrolments' && <EnrollmentsTab writeToProgramId={writeToProgramId} />}
       {tab === 'People' && <PeopleTab selfId={user?.id} everybody={users} />}
       {tab === 'Recordings' && <RecordingsAdmin />}
     </div>

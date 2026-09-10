@@ -27,3 +27,4 @@ export * from "./labLetter";
 export * from "./cohortMessage";
 export * from "./apiFailure";
 export * from "./findPeople";
+export * from "./theme";

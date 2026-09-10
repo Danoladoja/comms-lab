@@ -1,11 +1,13 @@
 import { Link, useLocation } from 'wouter';
 import { Button } from '@/components/ui/button';
-import { Menu, X, User } from 'lucide-react';
+import { Menu, X, User, Moon, Sun } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 import { useClerk } from '@clerk/react';
 import { satisfiesRole } from '@workspace/domain';
 import { useCurrentUser } from '@/lib/useCurrentUser';
+import { useTheme } from '@/lib/useTheme';
+import { themeToggleLabel } from '@workspace/domain';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -23,6 +25,7 @@ export function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { signOut } = useClerk();
   const { isSignedIn, user, role } = useCurrentUser();
+  const { theme, toggle: toggleTheme } = useTheme();
 
   useEffect(() => {
     const handleScroll = () => {
@@ -94,6 +97,15 @@ export function Navbar() {
             </div>
 
             <div className="flex items-center gap-4 border-l border-border pl-6">
+              {/* Signed out or in: the Lab is readable at night either way. */}
+              <Button
+                variant="ghost" size="icon" className="rounded-full"
+                onClick={toggleTheme}
+                title={themeToggleLabel(theme)}
+                aria-label={themeToggleLabel(theme)}
+              >
+                {theme === 'dark' ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+              </Button>
               {isSignedIn ? (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
@@ -127,6 +139,18 @@ export function Navbar() {
               )}
             </div>
           </nav>
+
+          {/* On a phone the switch sits beside the menu button rather than
+              inside it: reaching for it is the whole point, and burying it
+              behind a menu is how a setting goes unused. */}
+          <button
+            className="md:hidden p-2 text-foreground"
+            onClick={toggleTheme}
+            title={themeToggleLabel(theme)}
+            aria-label={themeToggleLabel(theme)}
+          >
+            {theme === 'dark' ? <Sun size={22} /> : <Moon size={22} />}
+          </button>
 
           {/* Mobile Menu Toggle */}
           <button

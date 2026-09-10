@@ -39,13 +39,15 @@ import { Mail, Send, Loader2, CircleAlert, History, CheckCircle2 } from 'lucide-
 
 const EMPTY = { subject: '', body: '', actionLabel: '', actionUrl: '' };
 
-export default function MessageCohort({ programId, programmeTitle }: {
+export default function MessageCohort({ programId, programmeTitle, startOpen = false }: {
   programId: number;
   programmeTitle: string;
+  /** Open on arrival, when an admin came here by pressing "Write to the cohort". */
+  startOpen?: boolean;
 }) {
   const qc = useQueryClient();
   const { toast } = useToast();
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(startOpen);
   const [form, setForm] = useState(EMPTY);
   const [audience, setAudience] = useState<'active' | 'everyone'>('active');
   const [result, setResult] = useState<CohortMessageResult | null>(null);

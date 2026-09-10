@@ -45,6 +45,26 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!--
+      Paint the right theme before the first frame.
+
+      Without this the page renders light, React mounts, and a dark-mode user
+      gets a white flash on every single navigation. It duplicates the rule in
+      lib/domain/src/theme.ts on purpose: this has to run before any module
+      loads, and a white flash is worse than a repeated line.
+    -->
+    <script>
+      (function () {
+        try {
+          var stored = localStorage.getItem('ananse-theme');
+          var choice = (stored === 'light' || stored === 'dark' || stored === 'system') ? stored : 'system';
+          var dark = choice === 'dark' || (choice === 'system'
+            && window.matchMedia('(prefers-color-scheme: dark)').matches);
+          if (dark) document.documentElement.classList.add('dark');
+          document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
+        } catch (e) { /* site data off: the app sorts it out on mount */ }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
