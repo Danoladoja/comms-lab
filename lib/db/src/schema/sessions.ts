@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, timestamp, boolean } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { programsTable } from "./programs";
@@ -46,6 +46,18 @@ export const sessionsTable = pgTable("sessions", {
    * be thrown away each time somebody reworded a question.
    */
   quizDueAt: timestamp("quiz_due_at", { withTimezone: true }),
+  /**
+   * A quiz that has been saved but not yet posted to the cohort.
+   *
+   * The default is deliberately "not a draft". Adding this column marks every
+   * quiz that already exists as live, which is exactly what they are — the
+   * alternative would take a term's worth of published coursework off every
+   * learner's dashboard the moment this shipped. A genuinely new quiz is marked
+   * as a draft by the code that first saves it, not by this default.
+   */
+  quizDraft: boolean("quiz_draft").notNull().default(false),
+  /** When the cohort was told. Empty on quizzes that predate posting. */
+  quizPostedAt: timestamp("quiz_posted_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

@@ -4,7 +4,7 @@ import {
   useDraftCourseworkFromSlides, useGetSessionSlides, useGetSessionNotes,
   useGetCourseworkDraftHistory, useGetSessionQuiz, useGetSessionAssignment,
   getGetSessionSlidesQueryKey, getGetSessionNotesQueryKey, getGetCourseworkDraftHistoryQueryKey,
-  getGetSessionQuizQueryKey, getGetSessionAssignmentQueryKey,
+  getGetSessionQuizQueryKey, getGetSessionAssignmentQueryKey, getGetCourseworkPostStateQueryKey,
   type DraftQuestion,
 } from '@workspace/api-client-react';
 import { draftDisclaimer, MIN_USABLE_SLIDE_CHARS, apiReason } from '@workspace/domain';
@@ -14,6 +14,7 @@ import { useToast } from '@/hooks/use-toast';
 import SlideDeckPanel from '@/components/SlideDeckPanel';
 import ClassMaterialPanel from '@/components/ClassMaterialPanel';
 import { QuizEditor, AssignmentEditor } from '@/components/AdminCourseworkEditor';
+import PostCoursework from '@/components/PostCoursework';
 import ReadingListEditor from '@/components/ReadingListEditor';
 import { Sparkles, Loader, CircleAlert, Lightbulb, History, Scissors, ChevronDown, ChevronUp } from 'lucide-react';
 
@@ -96,12 +97,23 @@ export default function CourseworkStudio({ sessionId }: { sessionId: number }) {
   });
 
   const count = savedQuiz?.questions.length ?? 0;
+  // "Draft" comes first because it is the fact that changes what the facilitator
+  // should do next: a saved draft is not a published quiz, and until posting
+  // existed there was no way to tell the two apart at a glance.
+  const state = (draft?: boolean) => (draft ? 'Draft, not posted' : 'Live');
   const quizHint = count === 0
     ? 'Nothing saved yet'
-    : `${count} question${count === 1 ? '' : 's'} · ${deadlineSummary(savedQuiz?.dueAt)}`;
+    : `${count} question${count === 1 ? '' : 's'} · ${state(savedQuiz?.draft)} · ${deadlineSummary(savedQuiz?.dueAt)}`;
   const taskHint = savedTask
-    ? `${savedTask.title} · ${deadlineSummary(savedTask.dueAt)}`
+    ? `${savedTask.title} · ${state(savedTask.draft)} · ${deadlineSummary(savedTask.dueAt)}`
     : 'Nothing saved yet';
+
+  // Saving changes what is waiting to be posted, so the notice below the two
+  // editors has to hear about it.
+  const savedSomething = () => {
+    setOpenEditor(null);
+    qc.invalidateQueries({ queryKey: getGetCourseworkPostStateQueryKey(sessionId) });
+  };
 
   // Either source can carry a draft on its own, so the button is live as soon as
   // there is enough of anything to read.
@@ -231,7 +243,7 @@ export default function CourseworkStudio({ sessionId }: { sessionId: number }) {
               sessionId={sessionId}
               seed={questions}
               seedVersion={version}
-              onSaved={() => setOpenEditor(null)}
+              onSaved={savedSomething}
             />
           </Drawer>
           <Drawer
@@ -244,9 +256,12 @@ export default function CourseworkStudio({ sessionId }: { sessionId: number }) {
               sessionId={sessionId}
               seed={assignment}
               seedVersion={version}
-              onSaved={() => setOpenEditor(null)}
+              onSaved={savedSomething}
             />
           </Drawer>
+
+          {/* Beneath both, because it is the thing you do once they are right. */}
+          <PostCoursework sessionId={sessionId} />
         </div>
       </section>
 

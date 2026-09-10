@@ -454,6 +454,57 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiMessage"
+  /sessions/{id}/coursework/post:
+    get:
+      operationId: getCourseworkPostState
+      tags: [admin]
+      summary: What posting this module's coursework would publish, and to how many learners
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: What is waiting to be posted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CourseworkPostState"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+    post:
+      operationId: postCoursework
+      tags: [admin]
+      summary: Publish this module's drafted coursework and email the cohort once
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "201":
+          description: Posted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CourseworkPostResult"
+        "400":
+          description: Nothing to post
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
   /sessions/{id}/assignment/submission:
     post:
       operationId: submitAssignment
@@ -2884,6 +2935,46 @@ components:
                 type: string
                 enum: [sent, failed]
               detail: { type: string }
+    CourseworkPostState:
+      type: object
+      required: [sessionId, learners, summary, quizDraft, assignmentDraft, canPost]
+      properties:
+        sessionId: { type: integer }
+        # How many people would actually be emailed.
+        learners: { type: integer }
+        # The sentence the admin reads before pressing Post.
+        summary: { type: string }
+        quizDraft: { type: boolean }
+        assignmentDraft: { type: boolean }
+        quizPostedAt: { type: ["string", "null"] }
+        canPost: { type: boolean }
+    CourseworkPostResult:
+      type: object
+      required: [sessionId, posted, emailed, failed, mailConfigured, outcomes]
+      properties:
+        sessionId: { type: integer }
+        # Which pieces went live: "quiz", "assignment", or both.
+        posted:
+          type: array
+          items: { type: string }
+        emailed: { type: integer }
+        failed: { type: integer }
+        # Going live and being emailed are separate facts. If no mail provider
+        # is set up the coursework is still posted, and the console says so
+        # rather than implying a cohort was told.
+        mailConfigured: { type: boolean }
+        outcomes:
+          type: array
+          items:
+            type: object
+            required: [email, name, status, detail]
+            properties:
+              email: { type: string }
+              name: { type: string }
+              status:
+                type: string
+                enum: [sent, failed]
+              detail: { type: string }
     CohortMessage:
       type: object
       required: [id, subject, body, audience, sentCount, failedCount, createdAt, sentByName]
@@ -3063,6 +3154,10 @@ components:
         # clock. The browser shows this rather than working it out, so a learner
         # with a slow clock gets no extra day.
         closed: { type: boolean }
+        # Saved but not yet posted to the cohort. Learners never see a draft at
+        # all — this reaches staff only.
+        draft: { type: boolean }
+        postedAt: { type: ["string", "null"] }
     QuizInput:
       type: object
       required: [questions]
@@ -3380,6 +3475,9 @@ components:
         dueAt: { type: ["string", "null"] }
         # Whether the deadline has already passed, decided by the server's clock.
         closed: { type: boolean }
+        # Saved but not yet posted. Staff only; learners never see a draft.
+        draft: { type: boolean }
+        postedAt: { type: ["string", "null"] }
         mySubmission:
           oneOf:
             - $ref: "#/components/schemas/AssignmentSubmission"

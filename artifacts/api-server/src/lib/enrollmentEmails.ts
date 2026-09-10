@@ -10,7 +10,7 @@ import { logger } from "./logger";
  * below are Replit's, and on Railway neither exists — which left every link in
  * every enrolment email as a bare path that opens nothing from an inbox.
  */
-function appUrl(path: string): string {
+export function appUrl(path: string): string {
   const configured = process.env.APP_BASE_URL?.replace(/\/$/, "");
   if (configured) return `${configured}${path}`;
 

@@ -217,6 +217,41 @@ export interface CohortMessageResult {
   outcomes: CohortMessageResultOutcomesItem[];
 }
 
+export interface CourseworkPostState {
+  sessionId: number;
+  learners: number;
+  summary: string;
+  quizDraft: boolean;
+  assignmentDraft: boolean;
+  /** @nullable */
+  quizPostedAt?: string | null;
+  canPost: boolean;
+}
+
+export type CourseworkPostResultOutcomesItemStatus = typeof CourseworkPostResultOutcomesItemStatus[keyof typeof CourseworkPostResultOutcomesItemStatus];
+
+
+export const CourseworkPostResultOutcomesItemStatus = {
+  sent: 'sent',
+  failed: 'failed',
+} as const;
+
+export type CourseworkPostResultOutcomesItem = {
+  email: string;
+  name: string;
+  status: CourseworkPostResultOutcomesItemStatus;
+  detail: string;
+};
+
+export interface CourseworkPostResult {
+  sessionId: number;
+  posted: string[];
+  emailed: number;
+  failed: number;
+  mailConfigured: boolean;
+  outcomes: CourseworkPostResultOutcomesItem[];
+}
+
 export interface CohortMessage {
   id: number;
   subject: string;
@@ -402,6 +437,9 @@ export interface Quiz {
   /** @nullable */
   dueAt?: string | null;
   closed?: boolean;
+  draft?: boolean;
+  /** @nullable */
+  postedAt?: string | null;
 }
 
 export type QuizInputQuestionsItemOrigin = typeof QuizInputQuestionsItemOrigin[keyof typeof QuizInputQuestionsItemOrigin];
@@ -636,6 +674,9 @@ export interface AssignmentDetail {
   /** @nullable */
   dueAt?: string | null;
   closed?: boolean;
+  draft?: boolean;
+  /** @nullable */
+  postedAt?: string | null;
   mySubmission?: AssignmentSubmission | null;
 }
 

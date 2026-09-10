@@ -37,6 +37,8 @@ import type {
   ConflictResponse,
   CourseworkDraftResult,
   CourseworkDraftRun,
+  CourseworkPostResult,
+  CourseworkPostState,
   Enrollment,
   EnrollmentDetail,
   EnrollmentUpdate,
@@ -1333,6 +1335,154 @@ export const useUpsertSessionAssignment = <TError = ErrorType<ApiMessage>,
         TContext
       > => {
       return useMutation(getUpsertSessionAssignmentMutationOptions(options));
+    }
+
+export const getGetCourseworkPostStateUrl = (id: number,) => {
+
+
+
+
+  return `/api/sessions/${id}/coursework/post`
+}
+
+/**
+ * @summary What posting this module's coursework would publish, and to how many learners
+ */
+export const getCourseworkPostState = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<CourseworkPostState> => {
+
+  return customFetch<CourseworkPostState>(getGetCourseworkPostStateUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetCourseworkPostStateQueryKey = (id: number,) => {
+    return [
+    `/api/sessions/${id}/coursework/post`
+    ] as const;
+    }
+
+
+export const getGetCourseworkPostStateQueryOptions = <TData = Awaited<ReturnType<typeof getCourseworkPostState>>, TError = ErrorType<ApiMessage>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCourseworkPostState>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetCourseworkPostStateQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getCourseworkPostState>>> = ({ signal }) => getCourseworkPostState(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getCourseworkPostState>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetCourseworkPostStateQueryResult = NonNullable<Awaited<ReturnType<typeof getCourseworkPostState>>>
+export type GetCourseworkPostStateQueryError = ErrorType<ApiMessage>
+
+
+/**
+ * @summary What posting this module's coursework would publish, and to how many learners
+ */
+
+export function useGetCourseworkPostState<TData = Awaited<ReturnType<typeof getCourseworkPostState>>, TError = ErrorType<ApiMessage>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCourseworkPostState>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetCourseworkPostStateQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getPostCourseworkUrl = (id: number,) => {
+
+
+
+
+  return `/api/sessions/${id}/coursework/post`
+}
+
+/**
+ * @summary Publish this module's drafted coursework and email the cohort once
+ */
+export const postCoursework = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<CourseworkPostResult> => {
+
+  return customFetch<CourseworkPostResult>(getPostCourseworkUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getPostCourseworkMutationOptions = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postCoursework>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof postCoursework>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['postCoursework'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof postCoursework>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  postCoursework(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PostCourseworkMutationResult = NonNullable<Awaited<ReturnType<typeof postCoursework>>>
+
+    export type PostCourseworkMutationError = ErrorType<ApiMessage>
+
+    /**
+ * @summary Publish this module's drafted coursework and email the cohort once
+ */
+export const usePostCoursework = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postCoursework>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof postCoursework>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getPostCourseworkMutationOptions(options));
     }
 
 export const getSubmitAssignmentUrl = (id: number,) => {

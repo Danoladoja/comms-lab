@@ -302,7 +302,9 @@ export const GetSessionQuizResponse = zod.object({
   "bestScore": zod.int().nullable(),
   "passed": zod.boolean(),
   "dueAt": zod.string().nullish(),
-  "closed": zod.boolean().optional()
+  "closed": zod.boolean().optional(),
+  "draft": zod.boolean().optional(),
+  "postedAt": zod.string().nullish()
 })
 
 
@@ -345,7 +347,9 @@ export const UpsertSessionQuizResponse = zod.object({
   "bestScore": zod.int().nullable(),
   "passed": zod.boolean(),
   "dueAt": zod.string().nullish(),
-  "closed": zod.boolean().optional()
+  "closed": zod.boolean().optional(),
+  "draft": zod.boolean().optional(),
+  "postedAt": zod.string().nullish()
 })
 
 
@@ -401,6 +405,8 @@ export const GetSessionAssignmentResponse = zod.object({
   "origin": zod.string().nullish(),
   "dueAt": zod.string().nullish(),
   "closed": zod.boolean().optional(),
+  "draft": zod.boolean().optional(),
+  "postedAt": zod.string().nullish(),
   "mySubmission": zod.union([zod.object({
   "sessionId": zod.int(),
   "body": zod.string(),
@@ -462,11 +468,53 @@ export const UpsertSessionAssignmentResponse = zod.object({
   "origin": zod.string().nullish(),
   "dueAt": zod.string().nullish(),
   "closed": zod.boolean().optional(),
+  "draft": zod.boolean().optional(),
+  "postedAt": zod.string().nullish(),
   "mySubmission": zod.union([zod.object({
   "sessionId": zod.int(),
   "body": zod.string(),
   "submittedAt": zod.string()
 }),zod.null()]).optional()
+})
+
+
+/**
+ * @summary What posting this module's coursework would publish, and to how many learners
+ */
+export const GetCourseworkPostStateParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const GetCourseworkPostStateResponse = zod.object({
+  "sessionId": zod.int(),
+  "learners": zod.int(),
+  "summary": zod.string(),
+  "quizDraft": zod.boolean(),
+  "assignmentDraft": zod.boolean(),
+  "quizPostedAt": zod.string().nullish(),
+  "canPost": zod.boolean()
+})
+
+
+/**
+ * @summary Publish this module's drafted coursework and email the cohort once
+ */
+export const PostCourseworkParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const PostCourseworkResponse = zod.object({
+  "sessionId": zod.int(),
+  "posted": zod.array(zod.string()),
+  "emailed": zod.int(),
+  "failed": zod.int(),
+  "mailConfigured": zod.boolean(),
+  "outcomes": zod.array(zod.object({
+  "email": zod.string(),
+  "name": zod.string(),
+  "status": zod.enum(['sent', 'failed']),
+  "detail": zod.string()
+}))
 })
 
 

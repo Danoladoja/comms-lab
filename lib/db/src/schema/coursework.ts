@@ -55,6 +55,13 @@ export const assignmentsTable = pgTable(
      * how every assignment behaved before deadlines existed.
      */
     dueAt: timestamp("due_at", { withTimezone: true }),
+    /**
+     * Saved but not yet posted to the cohort. Default false for the same reason
+     * as the quiz: every task that already exists is already live.
+     */
+    draft: boolean("draft").notNull().default(false),
+    /** When the cohort was told. Empty on tasks that predate posting. */
+    postedAt: timestamp("posted_at", { withTimezone: true }),
     /** As on quiz questions: "manual", "drafted" or "edited". */
     origin: text("origin").notNull().default("manual"),
   },

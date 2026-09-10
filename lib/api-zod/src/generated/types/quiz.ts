@@ -17,4 +17,7 @@ export interface Quiz {
   /** @nullable */
   dueAt?: string | null;
   closed?: boolean;
+  draft?: boolean;
+  /** @nullable */
+  postedAt?: string | null;
 }

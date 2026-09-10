@@ -54,10 +54,19 @@ export async function progressForUser(userId: number, programIds: number[]): Pro
         .select({ programId: enrollmentsTable.programId, createdAt: enrollmentsTable.createdAt })
         .from(enrollmentsTable)
         .where(and(eq(enrollmentsTable.userId, userId), inArray(enrollmentsTable.programId, programIds))),
+      // Drafts are excluded on purpose, and this is the most important word in
+      // this file. Completing a module needs its quiz and its task, and the
+      // next module waits on this one — so a quiz somebody saved but never
+      // posted would quietly wall the whole cohort in, with nothing on screen
+      // to explain it.
       db
         .selectDistinct({ sessionId: quizQuestionsTable.sessionId })
         .from(quizQuestionsTable)
-        .where(inArray(quizQuestionsTable.sessionId, sessionIds)),
+        .innerJoin(sessionsTable, eq(sessionsTable.id, quizQuestionsTable.sessionId))
+        .where(and(
+          inArray(quizQuestionsTable.sessionId, sessionIds),
+          eq(sessionsTable.quizDraft, false),
+        )),
       db
         .select({ sessionId: quizAttemptsTable.sessionId, best: sql<number>`max(${quizAttemptsTable.scorePct})::int` })
         .from(quizAttemptsTable)
@@ -70,7 +79,11 @@ export async function progressForUser(userId: number, programIds: number[]): Pro
           dueAt: assignmentsTable.dueAt,
         })
         .from(assignmentsTable)
-        .where(inArray(assignmentsTable.sessionId, sessionIds)),
+        // As above: an unposted task must not be able to lock a programme.
+        .where(and(
+          inArray(assignmentsTable.sessionId, sessionIds),
+          eq(assignmentsTable.draft, false),
+        )),
       db
         .select({ sessionId: assignmentSubmissionsTable.sessionId, id: assignmentSubmissionsTable.id })
         .from(assignmentSubmissionsTable)

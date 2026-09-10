@@ -1,16 +1,20 @@
 import { Router, type IRouter } from "express";
 import {
-  db, sessionsTable, enrollmentsTable,
+  db, sessionsTable, enrollmentsTable, programsTable, usersTable,
   quizQuestionsTable, quizAttemptsTable, assignmentsTable, assignmentSubmissionsTable,
 } from "@workspace/db";
 import { and, asc, eq, sql } from "drizzle-orm";
 import { UpsertSessionQuizBody, SubmitQuizAttemptBody, UpsertSessionAssignmentBody, SubmitAssignmentBody } from "@workspace/api-zod";
 import {
   QUIZ_PASS_MARK, DEFAULT_RUBRIC, DEFAULT_REVIEWS_REQUIRED, isModuleStaff, isValidRubric,
-  isPastDue, pastDueMessage,
+  isPastDue, pastDueMessage, readyToPost, describePost, postAnnouncement, labLetter,
+  type CourseworkPiece, type SendOutcome,
 } from "@workspace/domain";
 import { currentRole, getCurrentUser } from "../lib/auth";
 import { progressForUser } from "../lib/progress";
+import { emailConfigured, sendEmail } from "../lib/email";
+import { appUrl, labLogoUrl } from "../lib/enrollmentEmails";
+import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
 
@@ -92,8 +96,15 @@ router.get("/sessions/:id/quiz", async (req, res) => {
     .orderBy(asc(quizQuestionsTable.sortOrder), asc(quizQuestionsTable.id));
   if (questions.length === 0) { res.status(404).json({ error: "No quiz for this module" }); return; }
 
-  const best = await bestScore(user.id, sessionId);
   const staff = isStaffFor(await currentRole(req), user, session);
+  // A draft belongs to whoever is writing it. To everybody else the module
+  // simply has no quiz yet, which is the truth.
+  if (session.quizDraft && !staff) {
+    res.status(404).json({ error: "No quiz for this module" });
+    return;
+  }
+
+  const best = await bestScore(user.id, sessionId);
   res.json({
     sessionId,
     passMark: QUIZ_PASS_MARK,
@@ -108,6 +119,8 @@ router.get("/sessions/:id/quiz", async (req, res) => {
     bestScore: best,
     passed: (best ?? 0) >= QUIZ_PASS_MARK,
     ...deadline(session.quizDueAt),
+    draft: session.quizDraft,
+    postedAt: session.quizPostedAt?.toISOString() ?? null,
   });
 });
 
@@ -138,8 +151,28 @@ router.put("/sessions/:id/quiz", async (req, res) => {
       res.status(400).json({ error: "That due date could not be read" });
       return;
     }
-    await db.update(sessionsTable).set({ quizDueAt }).where(eq(sessionsTable.id, sessionId));
   }
+
+  /**
+   * A quiz nobody has ever seen starts life as a draft.
+   *
+   * "Nobody has ever seen it" means no questions saved and never posted. The
+   * column itself defaults to live so that every quiz written before posting
+   * existed stays exactly where it is; this is the line that makes a *new* one
+   * private instead. Once a cohort has been told about a module's quiz, editing
+   * it never takes it back off their dashboard.
+   */
+  const [anyAlready] = await db
+    .select({ id: quizQuestionsTable.id })
+    .from(quizQuestionsTable)
+    .where(eq(quizQuestionsTable.sessionId, sessionId))
+    .limit(1);
+  const quizDraft = !anyAlready && !session.quizPostedAt ? true : session.quizDraft;
+
+  await db
+    .update(sessionsTable)
+    .set({ quizDueAt, quizDraft })
+    .where(eq(sessionsTable.id, sessionId));
 
   const saved = await db.transaction(async (tx) => {
     // Replacing the quiz invalidates all previous attempts: a pass on the old
@@ -173,6 +206,8 @@ router.put("/sessions/:id/quiz", async (req, res) => {
     bestScore: null,
     passed: false,
     ...deadline(quizDueAt),
+    draft: quizDraft,
+    postedAt: session.quizPostedAt?.toISOString() ?? null,
   });
 });
 
@@ -191,6 +226,9 @@ router.post("/sessions/:id/quiz/attempts", async (req, res) => {
     res.status(403).json({ error: pastDueMessage("quiz") });
     return;
   }
+
+  // Nobody sits a quiz that has not been posted.
+  if (session.quizDraft) { res.status(404).json({ error: "No quiz for this module" }); return; }
 
   const parsed = SubmitQuizAttemptBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
@@ -224,6 +262,15 @@ router.get("/sessions/:id/assignment", async (req, res) => {
 
   const [assignment] = await db.select().from(assignmentsTable).where(eq(assignmentsTable.sessionId, sessionId));
   if (!assignment) { res.status(404).json({ error: "No assignment for this module" }); return; }
+
+  const staff = isStaffFor(await currentRole(req), user, session);
+  // As with the quiz: a draft task does not exist as far as a learner is
+  // concerned, so they are told the same thing as if it had never been written.
+  if (assignment.draft && !staff) {
+    res.status(404).json({ error: "No assignment for this module" });
+    return;
+  }
+
   const [submission] = await db
     .select()
     .from(assignmentSubmissionsTable)
@@ -240,8 +287,10 @@ router.get("/sessions/:id/assignment", async (req, res) => {
     // Staff only, as on quiz questions. Without it the editor cannot tell a task
     // it drafted last week from one a person wrote, and would record every later
     // save as hand-written.
-    ...(isStaffFor(await currentRole(req), user, session) ? { origin: assignment.origin } : {}),
+    ...(staff ? { origin: assignment.origin } : {}),
     ...deadline(assignment.dueAt),
+    draft: assignment.draft,
+    postedAt: assignment.postedAt?.toISOString() ?? null,
     mySubmission: submission
       ? { sessionId, body: submission.body, submittedAt: submission.submittedAt.toISOString() }
       : null,
@@ -291,7 +340,10 @@ router.put("/sessions/:id/assignment", async (req, res) => {
   };
   const [saved] = await db
     .insert(assignmentsTable)
-    .values({ sessionId, ...values })
+    // A task written for the first time is private until it is posted. `draft`
+    // appears only here, in the insert — never in the update below — so that
+    // editing a task the cohort already has does not take it back off them.
+    .values({ sessionId, ...values, draft: true })
     .onConflictDoUpdate({ target: assignmentsTable.sessionId, set: values })
     .returning();
   res.json({
@@ -302,6 +354,8 @@ router.put("/sessions/:id/assignment", async (req, res) => {
     reviewsRequired: saved.reviewsRequired,
     origin: saved.origin,
     ...deadline(saved.dueAt),
+    draft: saved.draft,
+    postedAt: saved.postedAt?.toISOString() ?? null,
     mySubmission: null,
   });
 });
@@ -319,10 +373,12 @@ router.post("/sessions/:id/assignment/submission", async (req, res) => {
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
   const [assignment] = await db
-    .select({ id: assignmentsTable.id, dueAt: assignmentsTable.dueAt })
+    .select({ id: assignmentsTable.id, dueAt: assignmentsTable.dueAt, draft: assignmentsTable.draft })
     .from(assignmentsTable)
     .where(eq(assignmentsTable.sessionId, sessionId));
   if (!assignment) { res.status(404).json({ error: "No assignment for this module" }); return; }
+  // Nobody hands in work that has not been set.
+  if (assignment.draft) { res.status(404).json({ error: "No assignment for this module" }); return; }
 
   // The door, again. Checked against the server's clock and after the work has
   // been found, so a late submission is refused for the right reason.
@@ -340,6 +396,179 @@ router.post("/sessions/:id/assignment/submission", async (req, res) => {
     })
     .returning();
   res.json({ sessionId, body: saved.body, submittedAt: saved.submittedAt.toISOString() });
+});
+
+/* ---------- Posting the coursework to the cohort ---------- */
+
+/**
+ * What a press of Post would publish, and who would hear about it.
+ *
+ * Asked for before the button is pressed, so the sentence the admin reads is
+ * about the actual cohort rather than a guess.
+ */
+async function courseworkState(sessionId: number, session: { quizDraft: boolean; quizDueAt: Date | null; quizPostedAt: Date | null }) {
+  const [[anyQuestion], [task]] = await Promise.all([
+    db.select({ id: quizQuestionsTable.id }).from(quizQuestionsTable)
+      .where(eq(quizQuestionsTable.sessionId, sessionId)).limit(1),
+    db.select().from(assignmentsTable).where(eq(assignmentsTable.sessionId, sessionId)),
+  ]);
+
+  const pieces: CourseworkPiece[] = [
+    {
+      kind: "quiz",
+      exists: !!anyQuestion,
+      draft: session.quizDraft,
+      dueAt: session.quizDueAt?.toISOString() ?? null,
+    },
+    {
+      kind: "assignment",
+      exists: !!task,
+      draft: task?.draft ?? true,
+      title: task?.title ?? null,
+      dueAt: task?.dueAt?.toISOString() ?? null,
+    },
+  ];
+  return { pieces, task };
+}
+
+/** Everyone on the programme who is still taking it, one address each. */
+async function activeCohort(programId: number) {
+  const rows = await db
+    .select({ email: usersTable.email, name: usersTable.name })
+    .from(enrollmentsTable)
+    .innerJoin(usersTable, eq(enrollmentsTable.userId, usersTable.id))
+    .where(and(
+      eq(enrollmentsTable.programId, programId),
+      eq(enrollmentsTable.status, "enrolled"),
+      sql`${usersTable.email} <> ''`,
+    ))
+    .orderBy(usersTable.id);
+
+  const seen = new Set<string>();
+  return rows.filter((row) => {
+    const key = row.email.trim().toLowerCase();
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+router.get("/sessions/:id/coursework/post", async (req, res) => {
+  const user = await getCurrentUser(req);
+  if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
+  const sessionId = Number(req.params.id);
+  const session = await loadSession(sessionId);
+  if (!session) { res.status(404).json({ error: "Session not found" }); return; }
+  if (!isStaffFor(await currentRole(req), user, session)) { res.status(403).json({ error: "Forbidden" }); return; }
+
+  const { pieces } = await courseworkState(sessionId, session);
+  const learners = (await activeCohort(session.programId)).length;
+
+  res.json({
+    sessionId,
+    learners,
+    summary: describePost(pieces, learners),
+    quizDraft: pieces[0].draft && pieces[0].exists,
+    assignmentDraft: pieces[1].draft && pieces[1].exists,
+    quizPostedAt: session.quizPostedAt?.toISOString() ?? null,
+    canPost: readyToPost(pieces).length > 0,
+  });
+});
+
+/**
+ * Post this module's coursework and tell the cohort.
+ *
+ * Publishing happens first and the emails follow. If it were the other way
+ * round, a mail provider having a bad afternoon would leave a cohort holding a
+ * letter about a quiz they cannot open — and the fix for a failed send is to
+ * write to them again, which is a button that already exists.
+ */
+router.post("/sessions/:id/coursework/post", async (req, res) => {
+  const user = await getCurrentUser(req);
+  if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
+  const sessionId = Number(req.params.id);
+  const session = await loadSession(sessionId);
+  if (!session) { res.status(404).json({ error: "Session not found" }); return; }
+  if (!isStaffFor(await currentRole(req), user, session)) { res.status(403).json({ error: "Forbidden" }); return; }
+
+  const { pieces } = await courseworkState(sessionId, session);
+  const going = readyToPost(pieces);
+  if (going.length === 0) {
+    res.status(400).json({ error: describePost(pieces, 0) });
+    return;
+  }
+
+  const [programme] = await db
+    .select({ title: programsTable.title })
+    .from(programsTable)
+    .where(eq(programsTable.id, session.programId));
+
+  const postedAt = new Date();
+  const posting = going.map((p) => p.kind);
+  if (posting.includes("quiz")) {
+    await db.update(sessionsTable)
+      .set({ quizDraft: false, quizPostedAt: postedAt })
+      .where(eq(sessionsTable.id, sessionId));
+  }
+  if (posting.includes("assignment")) {
+    await db.update(assignmentsTable)
+      .set({ draft: false, postedAt })
+      .where(eq(assignmentsTable.sessionId, sessionId));
+  }
+
+  const announcement = postAnnouncement({
+    moduleTitle: session.title,
+    programmeTitle: programme?.title ?? "",
+    pieces,
+  });
+
+  const people = await activeCohort(session.programId);
+  const outcomes: SendOutcome[] = [];
+
+  if (people.length > 0 && emailConfigured()) {
+    // One at a time, as everywhere else the Lab writes to a cohort: a burst of
+    // fifty is the quickest way to be cut off halfway through with nobody able
+    // to say who heard.
+    for (const person of people) {
+      const { html, text } = labLetter({
+        greetingName: person.name,
+        paragraphs: announcement.paragraphs,
+        action: { label: "Open the classroom", url: appUrl(`/classroom/${sessionId}`) },
+        logoUrl: labLogoUrl(),
+      });
+      try {
+        await sendEmail({
+          to: { email: person.email, name: person.name || person.email },
+          subject: announcement.subject,
+          html,
+          text,
+        });
+        outcomes.push({ email: person.email, name: person.name, status: "sent", detail: "Delivered to their inbox." });
+      } catch (err) {
+        logger.error({ err, to: person.email, sessionId }, "Coursework notice failed for one person");
+        outcomes.push({
+          email: person.email,
+          name: person.name,
+          status: "failed",
+          detail: "Their address was refused. Check it in the enrolment list.",
+        });
+      }
+    }
+  }
+
+  const sent = outcomes.filter((o) => o.status === "sent").length;
+  logger.info({ sessionId, posting, sent, failed: outcomes.length - sent, by: user.id }, "Coursework posted");
+
+  res.status(201).json({
+    sessionId,
+    posted: posting,
+    // Live either way. Whether anybody was emailed is a separate fact, and the
+    // console says both rather than letting one stand for the other.
+    emailed: sent,
+    failed: outcomes.length - sent,
+    mailConfigured: emailConfigured(),
+    outcomes,
+  });
 });
 
 export default router;

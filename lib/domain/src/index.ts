@@ -29,3 +29,4 @@ export * from "./apiFailure";
 export * from "./findPeople";
 export * from "./theme";
 export * from "./dueDate";
+export * from "./courseworkPost";
