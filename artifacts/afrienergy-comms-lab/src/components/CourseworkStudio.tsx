@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import {
   useDraftCourseworkFromSlides, useGetSessionSlides, useGetSessionNotes,
   useGetCourseworkDraftHistory, useGetSessionQuiz, useGetSessionAssignment, useGetCourseworkPostState,
+  useGetSessionReadings, getGetSessionReadingsQueryKey,
   getGetSessionSlidesQueryKey, getGetSessionNotesQueryKey, getGetCourseworkDraftHistoryQueryKey,
   getGetSessionQuizQueryKey, getGetSessionAssignmentQueryKey, getGetCourseworkPostStateQueryKey,
   type DraftQuestion,
@@ -16,45 +17,8 @@ import ClassMaterialPanel from '@/components/ClassMaterialPanel';
 import { QuizEditor, AssignmentEditor } from '@/components/AdminCourseworkEditor';
 import PostCoursework from '@/components/PostCoursework';
 import ReadingListEditor from '@/components/ReadingListEditor';
-import { Sparkles, Loader, CircleAlert, Lightbulb, History, Scissors, ChevronDown, ChevronUp } from 'lucide-react';
-
-/**
- * One of the two editors, shut until asked for.
- *
- * Both used to sit open all the time, which made a module's page long enough
- * that the reading list beneath them was rarely found. More to the point, there
- * was no sign that a save had done anything: the form stayed exactly as it was,
- * so people pressed Save twice, or wandered off unsure.
- *
- * Shutting on a *successful* save is the answer to both. It is the receipt.
- */
-function Drawer({ title, hint, open, onToggle, children }: {
-  title: string;
-  hint: string;
-  open: boolean;
-  onToggle: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="rounded-lg border border-border bg-card">
-      <button
-        type="button"
-        onClick={onToggle}
-        aria-expanded={open}
-        className="flex w-full items-center gap-3 px-3 py-2.5 text-left"
-      >
-        <span className="flex-1 min-w-0">
-          <span className="block text-xs font-semibold">{title}</span>
-          <span className="block text-xs text-muted-foreground">{hint}</span>
-        </span>
-        {open
-          ? <ChevronUp className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
-          : <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />}
-      </button>
-      {open && <div className="border-t border-border p-3">{children}</div>}
-    </div>
-  );
-}
+import { EditorSection } from '@/components/EditorSection';
+import { Sparkles, Loader, CircleAlert, Lightbulb, History, Scissors } from 'lucide-react';
 
 
 /**
@@ -76,7 +40,7 @@ export default function CourseworkStudio({ sessionId }: { sessionId: number }) {
   const [notes, setNotes] = useState<string[]>([]);
   const [source, setSource] = useState<{ description: string; chars: number; truncated: boolean } | null>(null);
   const [version, setVersion] = useState(0);
-  const [openEditor, setOpenEditor] = useState<'quiz' | 'task' | null>(null);
+  const [openEditor, setOpenEditor] = useState<'quiz' | 'task' | 'reading' | null>(null);
 
   const { data: deck } = useGetSessionSlides(sessionId, {
     query: { queryKey: getGetSessionSlidesQueryKey(sessionId), retry: false },
@@ -99,6 +63,9 @@ export default function CourseworkStudio({ sessionId }: { sessionId: number }) {
   const { data: postState } = useGetCourseworkPostState(sessionId, {
     query: { queryKey: getGetCourseworkPostStateQueryKey(sessionId), retry: false },
   });
+  const { data: savedReadings } = useGetSessionReadings(sessionId, {
+    query: { queryKey: getGetSessionReadingsQueryKey(sessionId), retry: false },
+  });
 
   const count = savedQuiz?.questions.length ?? 0;
   // "Draft" comes first because it is the fact that changes what the facilitator
@@ -111,6 +78,10 @@ export default function CourseworkStudio({ sessionId }: { sessionId: number }) {
   const taskHint = savedTask
     ? `${savedTask.title} · ${state(savedTask.draft)} · ${deadlineSummary(savedTask.dueAt)}`
     : 'Nothing saved yet';
+  const readingCount = savedReadings?.length ?? 0;
+  const readingHint = readingCount === 0
+    ? 'Nothing saved yet — ungraded, and optional'
+    : `${readingCount} link${readingCount === 1 ? '' : 's'} · ${postState?.readingsDraft ? 'Draft, not posted' : 'Live'} · ungraded`;
 
   // Saving changes what is waiting to be posted, so the notice below the two
   // editors has to hear about it.
@@ -237,7 +208,7 @@ export default function CourseworkStudio({ sessionId }: { sessionId: number }) {
         )}
 
         <div className="space-y-2">
-          <Drawer
+          <EditorSection
             title="Quiz"
             hint={quizHint}
             open={openEditor === 'quiz'}
@@ -250,8 +221,8 @@ export default function CourseworkStudio({ sessionId }: { sessionId: number }) {
               onSaved={savedSomething}
               suggestedDueAt={postState?.suggestedDueAt}
             />
-          </Drawer>
-          <Drawer
+          </EditorSection>
+          <EditorSection
             title="Task"
             hint={taskHint}
             open={openEditor === 'task'}
@@ -264,20 +235,21 @@ export default function CourseworkStudio({ sessionId }: { sessionId: number }) {
               onSaved={savedSomething}
               suggestedDueAt={postState?.suggestedDueAt}
             />
-          </Drawer>
+          </EditorSection>
+          <EditorSection
+            title="Reading list"
+            hint={readingHint}
+            open={openEditor === 'reading'}
+            onToggle={() => setOpenEditor(openEditor === 'reading' ? null : 'reading')}
+          >
+            <ReadingListEditor sessionId={sessionId} onSaved={savedSomething} />
+          </EditorSection>
 
-          {/* Beneath both, because it is the thing you do once they are right. */}
+          {/* Beneath all of them, because it is the thing you do once they are
+              right. One press, everything ready, one letter. */}
           <PostCoursework sessionId={sessionId} />
         </div>
       </section>
-
-      <section>
-        <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
-          Reading list <span className="font-normal normal-case tracking-normal">— ungraded</span>
-        </h4>
-        <ReadingListEditor sessionId={sessionId} />
-      </section>
-
     </div>
   );
 }

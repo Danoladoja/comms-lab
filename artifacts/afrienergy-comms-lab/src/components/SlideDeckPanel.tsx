@@ -153,6 +153,12 @@ export default function SlideDeckPanel({ sessionId }: { sessionId: number }) {
             </p>
           )}
 
+          {!deck.visibleToLearners && (
+            <p className="text-xs text-muted-foreground">
+              Uploading a deck saves it; it reaches learners when you post the module below. This button is
+              here for the times you want it up on its own, or want to take it back down later.
+            </p>
+          )}
           <div className="flex flex-wrap items-center gap-2">
             <Button size="sm" variant="outline" asChild>
               <a href={`${import.meta.env.BASE_URL.replace(/\/$/, '')}${deck.downloadPath}`} target="_blank" rel="noreferrer">
@@ -169,8 +175,8 @@ export default function SlideDeckPanel({ sessionId }: { sessionId: number }) {
               })}
             >
               {deck.visibleToLearners
-                ? <><Eye className="w-4 h-4 mr-1.5" aria-hidden />Learners can see this</>
-                : <><EyeOff className="w-4 h-4 mr-1.5" aria-hidden />Hidden from learners</>}
+                ? <><Eye className="w-4 h-4 mr-1.5" aria-hidden />Live — learners can see this</>
+                : <><EyeOff className="w-4 h-4 mr-1.5" aria-hidden />Draft — not posted yet</>}
             </Button>
             <Button size="sm" variant="ghost" disabled={uploading} onClick={() => fileRef.current?.click()}>
               {uploading ? 'Uploading…' : 'Replace'}

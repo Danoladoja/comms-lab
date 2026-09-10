@@ -15,6 +15,47 @@ const task = (over: Partial<CourseworkPiece> = {}): CourseworkPiece =>
 
 const FRIDAY = "2026-09-11T16:00:00Z"; // 5pm in Lagos
 
+const slides = (over: Partial<CourseworkPiece> = {}): CourseworkPiece =>
+  ({ kind: "slides", draft: true, exists: true, ...over });
+const readings = (over: Partial<CourseworkPiece> = {}): CourseworkPiece =>
+  ({ kind: "readings", draft: true, exists: true, ...over });
+
+describe("the unmarked pieces", () => {
+  it("posts the slides and the reading list alongside the marked work", () => {
+    // One press, one letter. From a learner's side this is one event — "this
+    // week's module is up" — not four.
+    const going = readyToPost([quiz(), task(), slides(), readings()]);
+    expect(going).toHaveLength(4);
+    expect(describePost([quiz(), task(), slides(), readings()], 12))
+      .toContain("quiz, task, slides and reading list");
+  });
+
+  it("says nothing about deadlines for things that are not handed in", () => {
+    // A closing date on a reading list would be a sentence about nothing.
+    const letter = postAnnouncement({
+      moduleTitle: "Who Owns the Grid",
+      programmeTitle: "Energy Narratives",
+      pieces: [slides(), readings()],
+    });
+    const body = letter.paragraphs.join(" ");
+    expect(body).toContain("slides and reading list");
+    expect(body).not.toMatch(/closing date|until/i);
+  });
+
+  it("still announces the deadline when marked work goes out with them", () => {
+    const letter = postAnnouncement({
+      moduleTitle: "Who Owns the Grid",
+      programmeTitle: "Energy Narratives",
+      pieces: [quiz({ dueAt: FRIDAY }), readings()],
+    });
+    const body = letter.paragraphs.join(" ");
+    expect(body).toContain("quiz and reading list");
+    expect(body).toContain("11 September");
+    // One deadline sentence, for the quiz, and none for the reading list.
+    expect(letter.paragraphs.filter((p) => p.includes("11 September"))).toHaveLength(1);
+  });
+});
+
 describe("readyToPost", () => {
   it("posts only what is written and still private", () => {
     const pieces = [quiz(), task({ draft: false }), { kind: "quiz", draft: true, exists: false } as CourseworkPiece];

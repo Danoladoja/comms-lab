@@ -11,4 +11,5 @@ import type { ReadingListProblem } from './readingListProblem';
 export interface ReadingListResult {
   items: ReadingItem[];
   problems: ReadingListProblem[];
+  draft?: boolean;
 }

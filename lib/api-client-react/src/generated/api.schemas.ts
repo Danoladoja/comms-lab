@@ -223,6 +223,8 @@ export interface CourseworkPostState {
   summary: string;
   quizDraft: boolean;
   assignmentDraft: boolean;
+  slidesDraft?: boolean;
+  readingsDraft?: boolean;
   /** @nullable */
   quizPostedAt?: string | null;
   canPost: boolean;
@@ -521,6 +523,7 @@ export interface ReadingListProblem {
 export interface ReadingListResult {
   items: ReadingItem[];
   problems: ReadingListProblem[];
+  draft?: boolean;
 }
 
 export interface SlideDeck {

@@ -7,6 +7,7 @@ import { NOTES_LABELS, MAX_NOTES_CHARS, DEFAULT_NOTES_LABEL } from '@workspace/d
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
+import { SaveAndClose } from '@/components/EditorSection';
 import { ChevronDown, ChevronRight, Lock } from 'lucide-react';
 
 /**
@@ -45,6 +46,9 @@ export default function ClassMaterialPanel({ sessionId }: { sessionId: number })
       onSuccess: () => {
         qc.invalidateQueries({ queryKey: getGetSessionNotesQueryKey(sessionId) });
         toast({ title: 'Class material saved' });
+        // Shutting is the receipt. On success only — a panel that closed on the
+        // click would hide a failed save and lose a pasted transcript.
+        setOpen(false);
       },
       onError: () => toast({ title: 'Could not save the class material', variant: 'destructive' }),
     },
@@ -116,14 +120,14 @@ export default function ClassMaterialPanel({ sessionId }: { sessionId: number })
             Only you and the admin can see this. Learners never do.
           </p>
 
-          <div className="flex items-center gap-2">
-            <Button
-              size="sm"
-              disabled={save.isPending || !dirty}
-              onClick={() => save.mutate({ id: sessionId, data: { label: chosenLabel, body: value } })}
-            >
-              {save.isPending ? 'Saving…' : 'Save class material'}
-            </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <SaveAndClose
+              onSave={() => save.mutate({ id: sessionId, data: { label: chosenLabel, body: value } })}
+              onClose={() => setOpen(false)}
+              saving={save.isPending}
+              disabled={!dirty}
+              dirty={dirty}
+            />
             {value.length > 0 && (
               <span className="text-xs text-muted-foreground">{value.length.toLocaleString()} characters</span>
             )}

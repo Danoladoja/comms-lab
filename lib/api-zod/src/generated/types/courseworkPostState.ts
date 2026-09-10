@@ -12,6 +12,8 @@ export interface CourseworkPostState {
   summary: string;
   quizDraft: boolean;
   assignmentDraft: boolean;
+  slidesDraft?: boolean;
+  readingsDraft?: boolean;
   /** @nullable */
   quizPostedAt?: string | null;
   canPost: boolean;

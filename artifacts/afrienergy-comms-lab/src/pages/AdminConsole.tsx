@@ -71,6 +71,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
+import { SaveAndClose } from '@/components/EditorSection';
 import { ChevronDown, ChevronUp, Plus, Trash2, CircleAlert, Pencil, Clock, Send, X, Mail } from 'lucide-react';
 
 const TABS = ['Programmes', 'Live Sessions', 'Enrolments', 'People', 'Recordings'] as const;
@@ -209,26 +210,20 @@ function SessionRow({ session, instructors, onChanged }: {
             />
             <p className="mt-1 text-xs text-muted-foreground">Learners read this on the programme page.</p>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
-              size="sm"
-              disabled={!details.title.trim() || update.isPending}
-              onClick={() => update.mutate({
-                id: session.id,
-                data: {
-                  title: details.title.trim(),
-                  description: details.description.trim(),
-                  startsAt: sessionDateTimeFromInput(details.startsAt),
-                  durationMins: sessionMinutes(details.durationMins),
-                },
-              })}
-            >
-              {update.isPending ? 'Saving...' : 'Save details'}
-            </Button>
-            <Button size="sm" variant="ghost" onClick={() => { setDetails(detailsFromSession()); setEditing(false); }}>
-              Cancel
-            </Button>
-          </div>
+          <SaveAndClose
+            onSave={() => update.mutate({
+              id: session.id,
+              data: {
+                title: details.title.trim(),
+                description: details.description.trim(),
+                startsAt: sessionDateTimeFromInput(details.startsAt),
+                durationMins: sessionMinutes(details.durationMins),
+              },
+            })}
+            onClose={() => { setDetails(detailsFromSession()); setEditing(false); }}
+            saving={update.isPending}
+            disabled={!details.title.trim()}
+          />
         </div>
       )}
       {/* Past class with nowhere to watch it: the one state that actually
@@ -451,16 +446,12 @@ function ProgramEditor({ program, onDone }: { program: Program; onDone: () => vo
         }}
       />
 
-      <div className="flex items-center gap-2">
-        <Button
-          size="sm"
-          disabled={!complete || save.isPending}
-          onClick={() => save.mutate({ id: program.id, data: { ...form } })}
-        >
-          {save.isPending ? 'Saving...' : 'Save changes'}
-        </Button>
-        <Button variant="ghost" size="sm" onClick={onDone}>Cancel</Button>
-      </div>
+      <SaveAndClose
+        onSave={() => save.mutate({ id: program.id, data: { ...form } })}
+        onClose={onDone}
+        saving={save.isPending}
+        disabled={!complete}
+      />
     </div>
   );
 }

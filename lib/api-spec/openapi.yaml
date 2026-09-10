@@ -2946,6 +2946,8 @@ components:
         summary: { type: string }
         quizDraft: { type: boolean }
         assignmentDraft: { type: boolean }
+        slidesDraft: { type: boolean }
+        readingsDraft: { type: boolean }
         quizPostedAt: { type: ["string", "null"] }
         canPost: { type: boolean }
         # The Monday-night deadline the Lab would pick for this class, on a
@@ -2956,7 +2958,8 @@ components:
       required: [sessionId, posted, emailed, failed, mailConfigured, outcomes]
       properties:
         sessionId: { type: integer }
-        # Which pieces went live: "quiz", "assignment", or both.
+        # Which pieces went live: any of "quiz", "assignment", "slides",
+        # "readings".
         posted:
           type: array
           items: { type: string }
@@ -3252,6 +3255,8 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/ReadingListProblem"
+        # Saved but not yet posted, so learners cannot see it yet.
+        draft: { type: boolean }
     SlideDeck:
       type: object
       required: [sessionId, filename, mimeType, sizeBytes, visibleToLearners, hasReadableText, textChars, canDraft, uploadedAt, downloadPath]

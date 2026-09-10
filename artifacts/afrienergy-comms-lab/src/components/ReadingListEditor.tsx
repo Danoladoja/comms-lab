@@ -8,6 +8,7 @@ import { MAX_READINGS_PER_MODULE, displayHost } from '@workspace/domain';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
+import { SaveAndClose } from '@/components/EditorSection';
 import { Plus, Trash2, CircleAlert, ExternalLink } from 'lucide-react';
 
 type Row = { title: string; url: string; note: string };
@@ -22,7 +23,11 @@ const emptyRow = (): Row => ({ title: '', url: '', note: '' });
  * individually — "row 3 is not a web address" beats a single refusal that leaves
  * the facilitator hunting.
  */
-export default function ReadingListEditor({ sessionId }: { sessionId: number }) {
+export default function ReadingListEditor({ sessionId, onSaved }: {
+  sessionId: number;
+  /** Called once the save has landed, so the section can shut itself. */
+  onSaved?: () => void;
+}) {
   const qc = useQueryClient();
   const { toast } = useToast();
   const [rows, setRows] = useState<Row[]>([]);
@@ -50,9 +55,12 @@ export default function ReadingListEditor({ sessionId }: { sessionId: number }) 
             title: 'Saved, with some rows skipped',
             description: 'The problems are listed under each row.',
           });
-        } else {
-          toast({ title: 'Reading list saved' });
+          return;
         }
+        toast({ title: 'Reading list saved' });
+        // Only when every row went in. A list with rows still to fix stays open
+        // where the problems are written.
+        onSaved?.();
       },
       onError: () => toast({ title: 'Could not save the reading list', variant: 'destructive' }),
     },
@@ -131,13 +139,11 @@ export default function ReadingListEditor({ sessionId }: { sessionId: number }) 
         >
           <Plus className="w-4 h-4 mr-1" aria-hidden />Add link
         </Button>
-        <Button
-          size="sm"
-          disabled={save.isPending}
-          onClick={() => { setProblems([]); save.mutate({ id: sessionId, data: { items: rows } }); }}
-        >
-          {save.isPending ? 'Saving...' : 'Save reading list'}
-        </Button>
+        <SaveAndClose
+          onSave={() => { setProblems([]); save.mutate({ id: sessionId, data: { items: rows } }); }}
+          onClose={() => onSaved?.()}
+          saving={save.isPending}
+        />
       </div>
     </div>
   );

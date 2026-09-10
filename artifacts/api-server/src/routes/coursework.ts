@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import {
   db, sessionsTable, enrollmentsTable, programsTable, usersTable,
   quizQuestionsTable, quizAttemptsTable, assignmentsTable, assignmentSubmissionsTable,
+  sessionReadingsTable, sessionSlidesTable,
 } from "@workspace/db";
 import { and, asc, eq, sql } from "drizzle-orm";
 import { UpsertSessionQuizBody, SubmitQuizAttemptBody, UpsertSessionAssignmentBody, SubmitAssignmentBody } from "@workspace/api-zod";
@@ -430,11 +431,18 @@ router.post("/sessions/:id/assignment/submission", async (req, res) => {
  * Asked for before the button is pressed, so the sentence the admin reads is
  * about the actual cohort rather than a guess.
  */
-async function courseworkState(sessionId: number, session: { quizDraft: boolean; quizDueAt: Date | null; quizPostedAt: Date | null }) {
-  const [[anyQuestion], [task]] = await Promise.all([
+async function courseworkState(
+  sessionId: number,
+  session: { quizDraft: boolean; quizDueAt: Date | null; quizPostedAt: Date | null; readingsDraft: boolean },
+) {
+  const [[anyQuestion], [task], [anyReading], [deck]] = await Promise.all([
     db.select({ id: quizQuestionsTable.id }).from(quizQuestionsTable)
       .where(eq(quizQuestionsTable.sessionId, sessionId)).limit(1),
     db.select().from(assignmentsTable).where(eq(assignmentsTable.sessionId, sessionId)),
+    db.select({ id: sessionReadingsTable.id }).from(sessionReadingsTable)
+      .where(eq(sessionReadingsTable.sessionId, sessionId)).limit(1),
+    db.select({ id: sessionSlidesTable.id, visibleToLearners: sessionSlidesTable.visibleToLearners })
+      .from(sessionSlidesTable).where(eq(sessionSlidesTable.sessionId, sessionId)),
   ]);
 
   const pieces: CourseworkPiece[] = [
@@ -450,6 +458,18 @@ async function courseworkState(sessionId: number, session: { quizDraft: boolean;
       draft: task?.draft ?? true,
       title: task?.title ?? null,
       dueAt: task?.dueAt?.toISOString() ?? null,
+    },
+    {
+      kind: "slides",
+      exists: !!deck,
+      // The deck already had its own idea of this, under another name. It is
+      // read rather than replaced, so a deck deliberately hidden stays hidden.
+      draft: deck ? !deck.visibleToLearners : true,
+    },
+    {
+      kind: "readings",
+      exists: !!anyReading,
+      draft: session.readingsDraft,
     },
   ];
   return { pieces, task };
@@ -494,6 +514,8 @@ router.get("/sessions/:id/coursework/post", async (req, res) => {
     summary: describePost(pieces, learners),
     quizDraft: pieces[0].draft && pieces[0].exists,
     assignmentDraft: pieces[1].draft && pieces[1].exists,
+    slidesDraft: pieces[2].draft && pieces[2].exists,
+    readingsDraft: pieces[3].draft && pieces[3].exists,
     quizPostedAt: session.quizPostedAt?.toISOString() ?? null,
     canPost: readyToPost(pieces).length > 0,
     // Offered to the two editors above, which fill an empty date box with it
@@ -533,15 +555,23 @@ router.post("/sessions/:id/coursework/post", async (req, res) => {
 
   const postedAt = new Date();
   const posting = going.map((p) => p.kind);
-  if (posting.includes("quiz")) {
-    await db.update(sessionsTable)
-      .set({ quizDraft: false, quizPostedAt: postedAt })
-      .where(eq(sessionsTable.id, sessionId));
+  // The quiz and the reading list both live on the module row, so one write
+  // does both when both are going out.
+  const onTheModule: Record<string, unknown> = {};
+  if (posting.includes("quiz")) Object.assign(onTheModule, { quizDraft: false, quizPostedAt: postedAt });
+  if (posting.includes("readings")) Object.assign(onTheModule, { readingsDraft: false, readingsPostedAt: postedAt });
+  if (Object.keys(onTheModule).length > 0) {
+    await db.update(sessionsTable).set(onTheModule).where(eq(sessionsTable.id, sessionId));
   }
   if (posting.includes("assignment")) {
     await db.update(assignmentsTable)
       .set({ draft: false, postedAt })
       .where(eq(assignmentsTable.sessionId, sessionId));
+  }
+  if (posting.includes("slides")) {
+    await db.update(sessionSlidesTable)
+      .set({ visibleToLearners: true })
+      .where(eq(sessionSlidesTable.sessionId, sessionId));
   }
 
   const announcement = postAnnouncement({

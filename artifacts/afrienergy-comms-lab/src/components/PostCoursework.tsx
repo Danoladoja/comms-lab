@@ -2,6 +2,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import {
   useGetCourseworkPostState, usePostCoursework,
   getGetCourseworkPostStateQueryKey, getGetSessionQuizQueryKey, getGetSessionAssignmentQueryKey,
+  getGetSessionReadingsQueryKey, getGetSessionSlidesQueryKey,
 } from '@workspace/api-client-react';
 import { apiReason } from '@workspace/domain';
 import { Button } from '@/components/ui/button';
@@ -16,8 +17,10 @@ import { Send, Loader, Eye, EyeOff, CheckCircle2 } from 'lucide-react';
  * until this button is pressed, and this button is the only thing in the Lab
  * that emails a cohort about coursework.
  *
- * Both pieces go in one press and one letter. A learner who receives two emails
- * a minute apart about the same class learns to ignore both.
+ * All four pieces — quiz, task, slides, reading list — go in one press and one
+ * letter. From a learner's side this is one event, "this week's module is up",
+ * and somebody who receives four emails a minute apart about one class learns
+ * to ignore all four.
  *
  * There is no unpost. An email cannot be recalled, so a button claiming to take
  * it back would be lying to the person pressing it — coursework that went out
@@ -35,7 +38,7 @@ export default function PostCoursework({ sessionId }: { sessionId: number }) {
     mutation: {
       onSuccess: (result) => {
         toast({
-          title: result.posted.length > 1 ? 'Quiz and task are live' : 'Posted to the cohort',
+          title: result.posted.length > 1 ? 'Posted — it is all live' : 'Posted to the cohort',
           description: !result.mailConfigured
             ? 'It is live on their dashboards. No mail provider is set up, so nobody was emailed.'
             : result.emailed === 0
@@ -47,6 +50,8 @@ export default function PostCoursework({ sessionId }: { sessionId: number }) {
         qc.invalidateQueries({ queryKey: getGetCourseworkPostStateQueryKey(sessionId) });
         qc.invalidateQueries({ queryKey: getGetSessionQuizQueryKey(sessionId) });
         qc.invalidateQueries({ queryKey: getGetSessionAssignmentQueryKey(sessionId) });
+        qc.invalidateQueries({ queryKey: getGetSessionReadingsQueryKey(sessionId) });
+        qc.invalidateQueries({ queryKey: getGetSessionSlidesQueryKey(sessionId) });
       },
       onError: (err) => toast({
         title: 'Nothing was posted',

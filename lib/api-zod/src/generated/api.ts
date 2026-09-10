@@ -501,6 +501,8 @@ export const GetCourseworkPostStateResponse = zod.object({
   "summary": zod.string(),
   "quizDraft": zod.boolean(),
   "assignmentDraft": zod.boolean(),
+  "slidesDraft": zod.boolean().optional(),
+  "readingsDraft": zod.boolean().optional(),
   "quizPostedAt": zod.string().nullish(),
   "canPost": zod.boolean(),
   "suggestedDueAt": zod.string().nullish()
@@ -597,7 +599,8 @@ export const SetSessionReadingsResponse = zod.object({
   "problems": zod.array(zod.object({
   "index": zod.int(),
   "message": zod.string()
-}))
+})),
+  "draft": zod.boolean().optional()
 })
 
 

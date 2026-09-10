@@ -31,6 +31,8 @@ const mocks = vi.hoisted(() => {
     quizAttemptsTable: { userId: "userId", sessionId: "sessionId", scorePct: "scorePct" },
     assignmentsTable: { id: "id", sessionId: "sessionId", dueAt: "dueAt", draft: "draft" },
     assignmentSubmissionsTable: { userId: "userId", sessionId: "sessionId", body: "body", submittedAt: "submittedAt" },
+    sessionReadingsTable: { id: "id", sessionId: "sessionId" },
+    sessionSlidesTable: { id: "id", sessionId: "sessionId", visibleToLearners: "visibleToLearners" },
   };
 
   let selectResults: unknown[][] = [];
@@ -93,7 +95,10 @@ vi.mock("../lib/logger", () => ({
 
 import courseworkRouter from "./coursework";
 
-const MODULE = { id: 10, programId: 3, title: "Who Owns the Grid", instructorId: 99, quizDueAt: null };
+const MODULE = {
+  id: 10, programId: 3, title: "Who Owns the Grid", instructorId: 99,
+  quizDueAt: null, readingsDraft: false, readingsPostedAt: null,
+};
 const LIVE = { ...MODULE, quizDraft: false, quizPostedAt: new Date() };
 const UNPOSTED = { ...MODULE, quizDraft: true, quizPostedAt: null };
 const ENROLLED = [{ id: 1 }];
@@ -202,6 +207,8 @@ describe("posting", () => {
       [UNPOSTED],                                   // the module
       [{ id: 1 }],                                  // a quiz exists
       [{ id: 4, title: "Brief", draft: true, dueAt: null }], // and a task
+      [],                                           // no reading list
+      [],                                           // no deck
       [{ title: "Energy Narratives" }],             // the programme
       COHORT,                                       // who is on it
     ]);
@@ -227,6 +234,8 @@ describe("posting", () => {
       [LIVE],
       [{ id: 1 }],
       [{ id: 4, title: "Brief", draft: false, dueAt: null }],
+      [],
+      [],
     ]);
 
     const res = await postCoursework();
@@ -238,7 +247,7 @@ describe("posting", () => {
 
   it("posts to an empty cohort without pretending anybody was told", async () => {
     asAdmin();
-    mocks.setSelects([[UNPOSTED], [{ id: 1 }], [], [{ title: "Energy Narratives" }], []]);
+    mocks.setSelects([[UNPOSTED], [{ id: 1 }], [], [], [], [{ title: "Energy Narratives" }], []]);
 
     const body = (await (await postCoursework()).json()) as { posted: string[]; emailed: number };
 
@@ -252,7 +261,7 @@ describe("posting", () => {
     // must not hold a cohort's coursework hostage.
     asAdmin();
     mocks.emailConfigured.mockReturnValue(false);
-    mocks.setSelects([[UNPOSTED], [{ id: 1 }], [], [{ title: "Energy Narratives" }], COHORT]);
+    mocks.setSelects([[UNPOSTED], [{ id: 1 }], [], [], [], [{ title: "Energy Narratives" }], COHORT]);
 
     const body = (await (await postCoursework()).json()) as {
       posted: string[]; emailed: number; mailConfigured: boolean;
@@ -266,7 +275,7 @@ describe("posting", () => {
   it("carries on down the cohort when one address is refused", async () => {
     asAdmin();
     mocks.sendEmail.mockRejectedValueOnce(new Error("bad address"));
-    mocks.setSelects([[UNPOSTED], [{ id: 1 }], [], [{ title: "Energy Narratives" }], COHORT]);
+    mocks.setSelects([[UNPOSTED], [{ id: 1 }], [], [], [], [{ title: "Energy Narratives" }], COHORT]);
 
     const body = (await (await postCoursework()).json()) as { emailed: number; failed: number };
 
@@ -275,8 +284,50 @@ describe("posting", () => {
     expect(mocks.sendEmail).toHaveBeenCalledTimes(2);
   });
 
+  it("takes the reading list and the deck out with the rest", async () => {
+    // Both used to reach learners the moment they were saved. They now wait for
+    // the same press, and go out in the same letter as everything else.
+    asAdmin();
+    mocks.setSelects([
+      [{ ...UNPOSTED, quizDraft: false, readingsDraft: true }],
+      [],                                        // no quiz
+      [],                                        // no task
+      [{ id: 7 }],                               // a reading list exists
+      [{ id: 8, visibleToLearners: false }],     // and a deck, not yet shown
+      [{ title: "Energy Narratives" }],
+      COHORT,
+    ]);
+
+    const body = (await (await postCoursework()).json()) as { posted: string[] };
+
+    expect(body.posted.sort()).toEqual(["readings", "slides"]);
+    expect(mocks.updates).toEqual([
+      expect.objectContaining({ readingsDraft: false }),
+      expect.objectContaining({ visibleToLearners: true }),
+    ]);
+    // Still one letter, not one per piece.
+    expect(mocks.sendEmail).toHaveBeenCalledTimes(2);
+  });
+
+  it("leaves a deck that was deliberately hidden alone", async () => {
+    // The deck's own hide control is not overruled by posting the rest: a deck
+    // taken down on purpose stays down.
+    asAdmin();
+    mocks.setSelects([
+      [LIVE],
+      [{ id: 1 }],
+      [{ id: 4, title: "Brief", draft: false, dueAt: null }],
+      [{ id: 7 }],
+      [{ id: 8, visibleToLearners: true }],
+    ]);
+
+    const res = await postCoursework();
+    expect(res.status).toBe(400);
+    expect(mocks.updates).toHaveLength(0);
+  });
+
   it("refuses anybody who does not run this module", async () => {
-    mocks.setSelects([[UNPOSTED]]);
+    mocks.setSelects([[UNPOSTED], [], [], [], []]);
     expect((await postCoursework()).status).toBe(403);
     expect(mocks.sendEmail).not.toHaveBeenCalled();
   });

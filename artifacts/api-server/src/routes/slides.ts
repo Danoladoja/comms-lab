@@ -51,6 +51,8 @@ async function loadSession(sessionId: number) {
       title: sessionsTable.title,
       description: sessionsTable.description,
       instructorId: sessionsTable.instructorId,
+      readingsDraft: sessionsTable.readingsDraft,
+      readingsPostedAt: sessionsTable.readingsPostedAt,
       programTitle: programsTable.title,
     })
     .from(sessionsTable)
@@ -581,10 +583,14 @@ router.get("/sessions/:id/readings", async (req, res) => {
   const session = await loadSession(sessionId);
   if (!session) { res.status(404).json({ error: "Session not found" }); return; }
 
-  if (!isStaffFor(user, session) && !(await learnerMayRead(user, session))) {
+  const staff = isStaffFor(user, session);
+  if (!staff && !(await learnerMayRead(user, session))) {
     res.status(403).json({ error: "Forbidden" });
     return;
   }
+  // A reading list that has not been posted belongs to whoever is building it.
+  // To a learner the module simply has no further reading yet.
+  if (session.readingsDraft && !staff) { res.json([]); return; }
 
   const rows = await db
     .select({ title: sessionReadingsTable.title, url: sessionReadingsTable.url, note: sessionReadingsTable.note })
@@ -608,6 +614,20 @@ router.put("/sessions/:id/readings", async (req, res) => {
 
   const { items, problems } = validateReadings(parsed.data.items);
 
+  /**
+   * A reading list nobody has ever seen starts life as a draft.
+   *
+   * Same shape as the quiz: the column defaults to live so that every list
+   * already on a learner's screen stays there, and this is the line that makes
+   * a *new* one private instead. Once posted, editing it never takes it back.
+   */
+  const [anyAlready] = await db
+    .select({ id: sessionReadingsTable.id })
+    .from(sessionReadingsTable)
+    .where(eq(sessionReadingsTable.sessionId, sessionId))
+    .limit(1);
+  const readingsDraft = !anyAlready && !session.readingsPostedAt ? true : session.readingsDraft;
+
   // Replace wholesale: the editor sends the list as the facilitator wants it,
   // and a partial save would leave a half-edited shelf behind.
   await db.transaction(async (tx) => {
@@ -617,9 +637,10 @@ router.put("/sessions/:id/readings", async (req, res) => {
         items.map((item, i) => ({ sessionId, ...item, sortOrder: i })),
       );
     }
+    await tx.update(sessionsTable).set({ readingsDraft }).where(eq(sessionsTable.id, sessionId));
   });
 
-  res.json({ items, problems });
+  res.json({ items, problems, draft: readingsDraft });
 });
 
 export default router;

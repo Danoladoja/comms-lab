@@ -18,10 +18,21 @@ import { dueAtMs } from "./dueDate";
 export const LAB_TIME_ZONE = "Africa/Lagos";
 export const LAB_TIME_ZONE_LABEL = "WAT";
 
+/**
+ * The four things a module can hand to a cohort.
+ *
+ * The quiz and the task are marked; the deck and the reading list are not. They
+ * are posted together anyway, because from a learner's side they arrive as one
+ * event — "this week's module is up" — and because splitting them would mean
+ * four buttons and up to four emails about one class.
+ */
+export type PieceKind = "quiz" | "assignment" | "slides" | "readings";
+
 export type CourseworkPiece = {
-  kind: "quiz" | "assignment";
-  /** Present for a task; a quiz has no title of its own. */
+  kind: PieceKind;
+  /** Present for a task; the others have no title of their own. */
   title?: string | null;
+  /** Only the marked pieces have a deadline. */
   dueAt?: string | null;
   /** Saved but not yet seen by anybody. */
   draft: boolean;
@@ -29,7 +40,19 @@ export type CourseworkPiece = {
   exists: boolean;
 };
 
-const theName = (piece: CourseworkPiece) => (piece.kind === "quiz" ? "quiz" : "task");
+const NAMES: Record<PieceKind, string> = {
+  quiz: "quiz",
+  assignment: "task",
+  slides: "slides",
+  readings: "reading list",
+};
+
+const theName = (piece: CourseworkPiece) => NAMES[piece.kind];
+
+/** Only the marked work carries a deadline; slides and readings are not handed in. */
+export function isMarked(kind: PieceKind): boolean {
+  return kind === "quiz" || kind === "assignment";
+}
 
 /** What a press of Post would actually publish. */
 export function readyToPost(pieces: CourseworkPiece[]): CourseworkPiece[] {
@@ -105,6 +128,9 @@ export function postAnnouncement(args: {
   ];
 
   for (const piece of going) {
+    // Slides and a reading list are not handed in, so a deadline sentence about
+    // them would be a sentence about nothing.
+    if (!isMarked(piece.kind)) continue;
     const when = formatDeadlineInZone(piece.dueAt);
     const what = piece.kind === "assignment" && piece.title?.trim()
       ? `the task, ${piece.title.trim()},`

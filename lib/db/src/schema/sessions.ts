@@ -58,6 +58,16 @@ export const sessionsTable = pgTable("sessions", {
   quizDraft: boolean("quiz_draft").notNull().default(false),
   /** When the cohort was told. Empty on quizzes that predate posting. */
   quizPostedAt: timestamp("quiz_posted_at", { withTimezone: true }),
+  /**
+   * A reading list saved but not yet posted.
+   *
+   * Default false for the same reason as the quiz: every reading list that
+   * already exists is already on learners' screens, and adding this column must
+   * not take a term's worth of links away from them. The first save of a *new*
+   * list is what marks it private.
+   */
+  readingsDraft: boolean("readings_draft").notNull().default(false),
+  readingsPostedAt: timestamp("readings_posted_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

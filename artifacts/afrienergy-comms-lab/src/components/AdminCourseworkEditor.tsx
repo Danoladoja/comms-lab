@@ -16,6 +16,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
+import { SaveAndClose } from '@/components/EditorSection';
 import { Plus, Trash2, RefreshCw, Loader, Sparkles, X, CalendarClock } from 'lucide-react';
 
 /**
@@ -445,10 +446,8 @@ export function QuizEditor({ sessionId, seed, seedVersion = 0, onSaved, suggeste
         >
           <Sparkles className="w-4 h-4 mr-1" aria-hidden />Draft more
         </Button>
-        <Button
-          size="sm"
-          disabled={!valid || save.isPending}
-          onClick={() => save.mutate({
+        <SaveAndClose
+          onSave={() => save.mutate({
             id: sessionId,
             data: {
               dueAt: dueDateFromInput(dueValue),
@@ -458,9 +457,10 @@ export function QuizEditor({ sessionId, seed, seedVersion = 0, onSaved, suggeste
               }),
             },
           })}
-        >
-          {save.isPending ? 'Saving...' : 'Save quiz'}
-        </Button>
+          onClose={() => onSaved?.()}
+          saving={save.isPending}
+          disabled={!valid}
+        />
         {room === 0 && (
           <span className="text-xs text-muted-foreground">
             {MAX_QUIZ_QUESTIONS} is as long as a quiz should be.
@@ -571,10 +571,11 @@ export function AssignmentEditor({ sessionId, seed, seedVersion = 0, onSaved, su
         value={dueValue}
         onChange={setDue}
       />
-      <Button
-        size="sm"
-        disabled={!titleValue.trim() || save.isPending}
-        onClick={() => save.mutate({
+      <SaveAndClose
+        saving={save.isPending}
+        disabled={!titleValue.trim()}
+        onClose={() => onSaved?.()}
+        onSave={() => save.mutate({
           id: sessionId,
           data: {
             title: titleValue.trim(),
@@ -588,9 +589,7 @@ export function AssignmentEditor({ sessionId, seed, seedVersion = 0, onSaved, su
             ),
           },
         })}
-      >
-        {save.isPending ? 'Saving...' : 'Save assignment'}
-      </Button>
+      />
     </div>
   );
 }
