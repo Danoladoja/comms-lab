@@ -70,12 +70,29 @@ export function Navbar() {
               Width and height are declared so the header does not jolt while
               the image loads. */}
           <Link href="/" className="flex items-center group" aria-label="Ananse Comms Lab — home">
+            {/*
+              Two files, one shown at a time by CSS rather than by JavaScript.
+
+              The dark class is on the page before React runs — that is what
+              stops the app flashing white on load — so a logo chosen in React
+              would arrive a beat late and show the dark-on-dark version first.
+              Only the second image carries the alt text, so a screen reader
+              hears the name once rather than twice.
+            */}
             <img
               src={`${basePath}/logo.png`}
+              alt=""
+              aria-hidden
+              width={456}
+              height={160}
+              className="h-10 w-auto md:h-12 dark:hidden"
+            />
+            <img
+              src={`${basePath}/logo-white.png`}
               alt="Ananse Comms Lab"
               width={456}
               height={160}
-              className="h-10 w-auto md:h-12"
+              className="hidden h-10 w-auto md:h-12 dark:block"
             />
           </Link>
 
