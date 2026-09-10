@@ -25,5 +25,9 @@ export interface SessionProgress {
   reviewsRequired: number;
   reviewsGiven: number;
   reviewsReceived: number;
+  /** @nullable */
+  quizDueAt?: string | null;
+  /** @nullable */
+  assignmentDueAt?: string | null;
   feedbackUnlocked: boolean;
 }

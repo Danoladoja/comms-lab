@@ -3026,6 +3026,10 @@ components:
         reviewsRequired: { type: integer }
         reviewsGiven: { type: integer }
         reviewsReceived: { type: integer }
+        # Deadlines, so the dashboard can show what is due without opening each
+        # quiz and task. Null means no deadline. They affect no rule above.
+        quizDueAt: { type: ["string", "null"] }
+        assignmentDueAt: { type: ["string", "null"] }
         feedbackUnlocked: { type: boolean }
     QuizQuestionPublic:
       type: object
@@ -3053,10 +3057,18 @@ components:
             $ref: "#/components/schemas/QuizQuestionPublic"
         bestScore: { type: ["integer", "null"] }
         passed: { type: boolean }
+        # When answers stop being accepted. Null means never.
+        dueAt: { type: ["string", "null"] }
+        # Whether the deadline has already passed, decided by the server's
+        # clock. The browser shows this rather than working it out, so a learner
+        # with a slow clock gets no extra day.
+        closed: { type: boolean }
     QuizInput:
       type: object
       required: [questions]
       properties:
+        # Null clears the deadline; omitting it leaves it as it was.
+        dueAt: { type: ["string", "null"] }
         questions:
           type: array
           items:
@@ -3364,6 +3376,10 @@ components:
         reviewsRequired: { type: integer }
         # Sent to staff only. How the task came to exist: manual, drafted, edited.
         origin: { type: ["string", "null"] }
+        # When submissions stop being accepted. Null means never.
+        dueAt: { type: ["string", "null"] }
+        # Whether the deadline has already passed, decided by the server's clock.
+        closed: { type: boolean }
         mySubmission:
           oneOf:
             - $ref: "#/components/schemas/AssignmentSubmission"
@@ -3373,6 +3389,8 @@ components:
       required: [title]
       properties:
         title: { type: string, minLength: 1 }
+        # Null clears the deadline; omitting it leaves it as it was.
+        dueAt: { type: ["string", "null"] }
         instructions: { type: string }
         rubric:
           type: array

@@ -50,6 +50,11 @@ export const assignmentsTable = pgTable(
       .notNull()
       .default([]),
     reviewsRequired: integer("reviews_required").notNull().default(2),
+    /**
+     * When this task stops accepting submissions. Empty means never, which is
+     * how every assignment behaved before deadlines existed.
+     */
+    dueAt: timestamp("due_at", { withTimezone: true }),
     /** As on quiz questions: "manual", "drafted" or "edited". */
     origin: text("origin").notNull().default("manual"),
   },

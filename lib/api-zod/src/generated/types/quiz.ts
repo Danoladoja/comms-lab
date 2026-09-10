@@ -14,4 +14,7 @@ export interface Quiz {
   /** @nullable */
   bestScore: number | null;
   passed: boolean;
+  /** @nullable */
+  dueAt?: string | null;
+  closed?: boolean;
 }

@@ -8,5 +8,7 @@
 import type { QuizInputQuestionsItem } from './quizInputQuestionsItem';
 
 export interface QuizInput {
+  /** @nullable */
+  dueAt?: string | null;
   questions: QuizInputQuestionsItem[];
 }

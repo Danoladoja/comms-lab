@@ -374,6 +374,10 @@ export interface SessionProgress {
   reviewsRequired: number;
   reviewsGiven: number;
   reviewsReceived: number;
+  /** @nullable */
+  quizDueAt?: string | null;
+  /** @nullable */
+  assignmentDueAt?: string | null;
   feedbackUnlocked: boolean;
 }
 
@@ -395,6 +399,9 @@ export interface Quiz {
   /** @nullable */
   bestScore: number | null;
   passed: boolean;
+  /** @nullable */
+  dueAt?: string | null;
+  closed?: boolean;
 }
 
 export type QuizInputQuestionsItemOrigin = typeof QuizInputQuestionsItemOrigin[keyof typeof QuizInputQuestionsItemOrigin];
@@ -420,6 +427,8 @@ export type QuizInputQuestionsItem = {
 };
 
 export interface QuizInput {
+  /** @nullable */
+  dueAt?: string | null;
   questions: QuizInputQuestionsItem[];
 }
 
@@ -624,6 +633,9 @@ export interface AssignmentDetail {
   reviewsRequired: number;
   /** @nullable */
   origin?: string | null;
+  /** @nullable */
+  dueAt?: string | null;
+  closed?: boolean;
   mySubmission?: AssignmentSubmission | null;
 }
 
@@ -639,6 +651,8 @@ export const AssignmentInputOrigin = {
 export interface AssignmentInput {
   /** @minLength 1 */
   title: string;
+  /** @nullable */
+  dueAt?: string | null;
   instructions?: string;
   rubric?: RubricCriterion[];
   /**

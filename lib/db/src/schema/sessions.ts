@@ -36,6 +36,16 @@ export const sessionsTable = pgTable("sessions", {
    * empty, so a class never carries two answers to who is running it.
    */
   guestFacilitator: text("guest_facilitator"),
+  /**
+   * When the module's quiz stops accepting answers. Empty means it never does,
+   * which is how every module behaved before deadlines existed and how most
+   * will go on behaving.
+   *
+   * It sits on the module rather than with the questions because the questions
+   * are replaced wholesale on every save — a deadline kept alongside them would
+   * be thrown away each time somebody reworded a question.
+   */
+  quizDueAt: timestamp("quiz_due_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

@@ -322,6 +322,68 @@ describe("attendanceStreak", () => {
   });
 });
 
+describe("deadlines do not touch progress", () => {
+  const attendedBoth = new Map([[1, attendedInFull()], [2, attendedInFull()]]);
+  const finished = coursework({
+    hasAssignment: true,
+    assignmentSubmitted: true,
+    reviewsRequired: 0,
+    // Long past, and it must make no difference to any of this.
+    assignmentDueAt: new Date(NOW - 30 * 24 * HOUR).toISOString(),
+    hasQuiz: true,
+    quizBestScore: 100,
+    quizDueAt: new Date(NOW - 30 * 24 * HOUR).toISOString(),
+  });
+
+  it("cannot un-complete work that was handed in on time", () => {
+    // A deadline shuts a door. If it could also reach back and undo a finished
+    // module, setting one on a module a cohort had already passed would strip
+    // the whole class of their progress.
+    const [entry] = computeProgress(
+      [session(1)],
+      new Map(),
+      enrolledLongAgo,
+      new Map([[1, finished]]),
+      present,
+      NOW,
+    );
+    expect(entry.completed).toBe(true);
+  });
+
+  it("does not lock the module that follows one whose deadline has passed", () => {
+    const [, second] = computeProgress(
+      [session(1), session(2)],
+      new Map(),
+      enrolledLongAgo,
+      new Map([[1, finished], [2, coursework()]]),
+      attendedBoth,
+      NOW,
+    );
+    expect(second.locked).toBe(false);
+  });
+
+  it("carries both dates through to the learner untouched", () => {
+    const [entry] = computeProgress(
+      [session(1)],
+      new Map(),
+      enrolledLongAgo,
+      new Map([[1, finished]]),
+      present,
+      NOW,
+    );
+    expect(entry.quizDueAt).toBe(finished.quizDueAt);
+    expect(entry.assignmentDueAt).toBe(finished.assignmentDueAt);
+  });
+
+  it("reports no deadline as no deadline rather than leaving it undefined", () => {
+    const [entry] = computeProgress(
+      [session(1)], new Map(), enrolledLongAgo, new Map(), present, NOW,
+    );
+    expect(entry.quizDueAt).toBeNull();
+    expect(entry.assignmentDueAt).toBeNull();
+  });
+});
+
 describe("whyModuleLocked", () => {
   it("names the module that opens this one", () => {
     // The point of the whole thing: a signpost rather than a closed door.

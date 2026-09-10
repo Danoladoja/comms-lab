@@ -300,7 +300,9 @@ export const GetSessionQuizResponse = zod.object({
   "origin": zod.string().nullish()
 })),
   "bestScore": zod.int().nullable(),
-  "passed": zod.boolean()
+  "passed": zod.boolean(),
+  "dueAt": zod.string().nullish(),
+  "closed": zod.boolean().optional()
 })
 
 
@@ -320,6 +322,7 @@ export const upsertSessionQuizBodyQuestionsItemCorrectIndexMin = 0;
 
 
 export const UpsertSessionQuizBody = zod.object({
+  "dueAt": zod.string().nullish(),
   "questions": zod.array(zod.object({
   "prompt": zod.string().min(1),
   "options": zod.array(zod.string().min(1)).min(upsertSessionQuizBodyQuestionsItemOptionsMin),
@@ -340,7 +343,9 @@ export const UpsertSessionQuizResponse = zod.object({
   "origin": zod.string().nullish()
 })),
   "bestScore": zod.int().nullable(),
-  "passed": zod.boolean()
+  "passed": zod.boolean(),
+  "dueAt": zod.string().nullish(),
+  "closed": zod.boolean().optional()
 })
 
 
@@ -394,6 +399,8 @@ export const GetSessionAssignmentResponse = zod.object({
 })),
   "reviewsRequired": zod.int(),
   "origin": zod.string().nullish(),
+  "dueAt": zod.string().nullish(),
+  "closed": zod.boolean().optional(),
   "mySubmission": zod.union([zod.object({
   "sessionId": zod.int(),
   "body": zod.string(),
@@ -422,6 +429,7 @@ export const upsertSessionAssignmentBodyReviewsRequiredMax = 5;
 
 export const UpsertSessionAssignmentBody = zod.object({
   "title": zod.string().min(1),
+  "dueAt": zod.string().nullish(),
   "instructions": zod.string().optional(),
   "rubric": zod.array(zod.object({
   "id": zod.string().min(1),
@@ -452,6 +460,8 @@ export const UpsertSessionAssignmentResponse = zod.object({
 })),
   "reviewsRequired": zod.int(),
   "origin": zod.string().nullish(),
+  "dueAt": zod.string().nullish(),
+  "closed": zod.boolean().optional(),
   "mySubmission": zod.union([zod.object({
   "sessionId": zod.int(),
   "body": zod.string(),
@@ -958,6 +968,8 @@ export const ListMyProgressResponseItem = zod.object({
   "reviewsRequired": zod.int(),
   "reviewsGiven": zod.int(),
   "reviewsReceived": zod.int(),
+  "quizDueAt": zod.string().nullish(),
+  "assignmentDueAt": zod.string().nullish(),
   "feedbackUnlocked": zod.boolean()
 })
 export const ListMyProgressResponse = zod.array(ListMyProgressResponseItem)

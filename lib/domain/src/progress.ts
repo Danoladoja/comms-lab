@@ -49,6 +49,15 @@ export type CourseworkStatus = {
   reviewsGiven: number;
   /** How many critiques the learner's own submission has received. */
   reviewsReceived: number;
+  /**
+   * When each stops accepting work, or nothing at all for no deadline.
+   *
+   * Carried through untouched, and deliberately absent from every rule below. A
+   * deadline shuts a door; it does not mark anybody down, and it must never be
+   * able to un-complete work already handed in.
+   */
+  quizDueAt?: string | null;
+  assignmentDueAt?: string | null;
 };
 
 export const EMPTY_COURSEWORK: CourseworkStatus = {
@@ -59,6 +68,8 @@ export const EMPTY_COURSEWORK: CourseworkStatus = {
   reviewsRequired: 0,
   reviewsGiven: 0,
   reviewsReceived: 0,
+  quizDueAt: null,
+  assignmentDueAt: null,
 };
 
 export type ProgressEntry = {
@@ -81,6 +92,9 @@ export type ProgressEntry = {
   reviewsRequired: number;
   reviewsGiven: number;
   reviewsReceived: number;
+  /** Deadlines, so a learner sees them without opening each piece of work. */
+  quizDueAt: string | null;
+  assignmentDueAt: string | null;
   /** Peer feedback is unlocked by giving your own — this mirrors that rule. */
   feedbackUnlocked: boolean;
 };
@@ -192,6 +206,8 @@ export function computeProgress(
         reviewsRequired,
         reviewsGiven: cw.reviewsGiven,
         reviewsReceived: cw.reviewsReceived,
+        quizDueAt: cw.quizDueAt ?? null,
+        assignmentDueAt: cw.assignmentDueAt ?? null,
         feedbackUnlocked: reviewsRequired === 0 || reviewsDone,
       });
 

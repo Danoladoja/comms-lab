@@ -11,6 +11,8 @@ import type { RubricCriterion } from './rubricCriterion';
 export interface AssignmentInput {
   /** @minLength 1 */
   title: string;
+  /** @nullable */
+  dueAt?: string | null;
   instructions?: string;
   rubric?: RubricCriterion[];
   /**

@@ -9,13 +9,56 @@ import {
 } from '@workspace/api-client-react';
 import {
   originFor, resolveOrigin, MAX_QUIZ_QUESTIONS, roomForMoreQuestions, type CourseworkOrigin,
-  apiReason,
+  apiReason, dueDateFromInput, dueDateInputValue,
 } from '@workspace/domain';
+import { deadlineSummary } from '@/lib/dueDateText';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Trash2, RefreshCw, Loader, Sparkles, X } from 'lucide-react';
+import { Plus, Trash2, RefreshCw, Loader, Sparkles, X, CalendarClock } from 'lucide-react';
+
+/**
+ * The deadline box.
+ *
+ * Empty means no deadline, which is what everything has by default and what
+ * most modules should keep. Clearing it is also the way to let somebody back in
+ * after they have missed one, so "Clear" sits right beside the date rather than
+ * being hidden behind a menu.
+ */
+function DueDateField({ id, label, value, onChange }: {
+  id: string;
+  label: string;
+  /** The date-and-time box's own format, or '' for none. */
+  value: string;
+  onChange: (next: string) => void;
+}) {
+  return (
+    <div className="rounded-lg border border-border bg-background px-3 py-2.5">
+      <div className="flex flex-wrap items-center gap-2">
+        <label htmlFor={id} className="flex items-center gap-1.5 text-xs font-medium">
+          <CalendarClock className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
+          {label}
+        </label>
+        <Input
+          id={id}
+          type="datetime-local"
+          value={value}
+          onChange={e => onChange(e.target.value)}
+          className="h-8 w-auto text-sm"
+        />
+        {value && (
+          <Button variant="ghost" size="sm" className="h-8 text-muted-foreground" onClick={() => onChange('')}>
+            Clear
+          </Button>
+        )}
+      </div>
+      <p className="mt-1.5 text-xs text-muted-foreground">
+        {deadlineSummary(dueDateFromInput(value))}
+      </p>
+    </div>
+  );
+}
 
 type Seed = { prompt: string; options: string[]; correctIndex: number };
 
@@ -99,11 +142,13 @@ function asExisting(questions: EditableQuestion[]) {
   return questions.map(q => ({ prompt: q.prompt.trim(), options: q.options.map(o => o.trim()).filter(Boolean) }));
 }
 
-export function QuizEditor({ sessionId, seed, seedVersion = 0 }: {
+export function QuizEditor({ sessionId, seed, seedVersion = 0, onSaved }: {
   sessionId: number;
   /** A drafted quiz to load in for editing. Never saved until the facilitator saves it. */
   seed?: SeedQuestion[];
   seedVersion?: number;
+  /** Called once the save has actually landed, so the panel can shut itself. */
+  onSaved?: () => void;
 }) {
   const qc = useQueryClient();
   const { toast } = useToast();
@@ -112,6 +157,7 @@ export function QuizEditor({ sessionId, seed, seedVersion = 0 }: {
   });
   const [questions, setQuestions] = useState<EditableQuestion[]>([]);
   const [loaded, setLoaded] = useState(false);
+  const [due, setDue] = useState<string | null>(null);
   const seenSeed = useRef(0);
 
   // Which question is being redone, or 'more' when asking for additions.
@@ -129,6 +175,7 @@ export function QuizEditor({ sessionId, seed, seedVersion = 0 }: {
         savedOrigin: (q.origin ?? 'manual') as CourseworkOrigin,
         savedSnapshot: { prompt: q.prompt, options: [...q.options], correctIndex: q.correctIndex ?? 0 },
       })));
+      setDue(dueDateInputValue(quiz.dueAt));
       setLoaded(true);
     }
   }, [quiz, loaded]);
@@ -147,6 +194,9 @@ export function QuizEditor({ sessionId, seed, seedVersion = 0 }: {
       onSuccess: () => {
         toast({ title: 'Quiz saved' });
         qc.invalidateQueries({ queryKey: getGetSessionQuizQueryKey(sessionId) });
+        // Only now — a panel that shut on the click would hide a save that
+        // then failed, and the facilitator would walk away from lost work.
+        onSaved?.();
       },
       onError: () => toast({ title: 'Could not save the quiz', variant: 'destructive' }),
     },
@@ -302,6 +352,13 @@ export function QuizEditor({ sessionId, seed, seedVersion = 0 }: {
       <p className="text-xs text-muted-foreground">
         Multiple choice, learners need 70% to pass and can retake freely. Tick the correct answer for each question.
       </p>
+
+      <DueDateField
+        id={`quiz-due-${sessionId}`}
+        label="Answers close"
+        value={due ?? ''}
+        onChange={setDue}
+      />
       {questions.map((q, i) => (
         <div key={q.id} className="space-y-2">
           <div className="border border-border rounded-lg p-3 space-y-2 bg-background">
@@ -383,6 +440,7 @@ export function QuizEditor({ sessionId, seed, seedVersion = 0 }: {
           onClick={() => save.mutate({
             id: sessionId,
             data: {
+              dueAt: dueDateFromInput(due),
               questions: questions.map(q => {
                 const clean = tidy(q);
                 return { ...clean, origin: originAtSave(clean, q) };
@@ -429,10 +487,12 @@ function assignmentOrigin(
   });
 }
 
-export function AssignmentEditor({ sessionId, seed, seedVersion = 0 }: {
+export function AssignmentEditor({ sessionId, seed, seedVersion = 0, onSaved }: {
   sessionId: number;
   seed?: { title: string; instructions: string };
   seedVersion?: number;
+  /** Called once the save has actually landed, so the panel can shut itself. */
+  onSaved?: () => void;
 }) {
   const qc = useQueryClient();
   const { toast } = useToast();
@@ -444,6 +504,7 @@ export function AssignmentEditor({ sessionId, seed, seedVersion = 0 }: {
   // The drafted task this started as, so an untouched draft can be told apart
   // from one a facilitator rewrote.
   const [draftedFrom, setDraftedFrom] = useState<{ title: string; instructions: string } | null>(null);
+  const [due, setDue] = useState<string | null>(null);
   const seenSeed = useRef(0);
 
   useEffect(() => {
@@ -457,12 +518,16 @@ export function AssignmentEditor({ sessionId, seed, seedVersion = 0 }: {
 
   const titleValue = title ?? assignment?.title ?? '';
   const instructionsValue = instructions ?? assignment?.instructions ?? '';
+  // Same fall-back shape as the two above: what has been typed this sitting,
+  // otherwise whatever is saved.
+  const dueValue = due ?? dueDateInputValue(assignment?.dueAt);
 
   const save = useUpsertSessionAssignment({
     mutation: {
       onSuccess: () => {
         toast({ title: 'Assignment saved' });
         qc.invalidateQueries({ queryKey: getGetSessionAssignmentQueryKey(sessionId) });
+        onSaved?.();
       },
       onError: () => toast({ title: 'Could not save the assignment', variant: 'destructive' }),
     },
@@ -487,6 +552,12 @@ export function AssignmentEditor({ sessionId, seed, seedVersion = 0 }: {
         placeholder="Instructions for the learner"
         rows={4}
       />
+      <DueDateField
+        id={`assignment-due-${sessionId}`}
+        label="Submissions close"
+        value={dueValue}
+        onChange={setDue}
+      />
       <Button
         size="sm"
         disabled={!titleValue.trim() || save.isPending}
@@ -495,6 +566,7 @@ export function AssignmentEditor({ sessionId, seed, seedVersion = 0 }: {
           data: {
             title: titleValue.trim(),
             instructions: instructionsValue,
+            dueAt: dueDateFromInput(dueValue),
             origin: assignmentOrigin(
               { title: titleValue.trim(), instructions: instructionsValue.trim() },
               draftedFrom,

@@ -5,7 +5,10 @@ import {
 } from "@workspace/db";
 import { and, asc, eq, sql } from "drizzle-orm";
 import { UpsertSessionQuizBody, SubmitQuizAttemptBody, UpsertSessionAssignmentBody, SubmitAssignmentBody } from "@workspace/api-zod";
-import { QUIZ_PASS_MARK, DEFAULT_RUBRIC, DEFAULT_REVIEWS_REQUIRED, isModuleStaff, isValidRubric } from "@workspace/domain";
+import {
+  QUIZ_PASS_MARK, DEFAULT_RUBRIC, DEFAULT_REVIEWS_REQUIRED, isModuleStaff, isValidRubric,
+  isPastDue, pastDueMessage,
+} from "@workspace/domain";
 import { currentRole, getCurrentUser } from "../lib/auth";
 import { progressForUser } from "../lib/progress";
 
@@ -50,6 +53,19 @@ export async function learnerAccessError(role: string | null, user: User, sessio
   return null;
 }
 
+/**
+ * A deadline as it travels to the browser, and whether it has passed.
+ *
+ * The verdict is worked out here and sent as an answer rather than left for the
+ * browser to compute from the date. A learner whose laptop clock is a day slow
+ * would otherwise be handed an extra day, and one whose clock runs fast would
+ * lose one — and neither would have any idea why.
+ */
+function deadline(dueAt: Date | null | undefined) {
+  const iso = dueAt ? dueAt.toISOString() : null;
+  return { dueAt: iso, closed: isPastDue(iso, Date.now()) };
+}
+
 async function bestScore(userId: number, sessionId: number): Promise<number | null> {
   const [row] = await db
     .select({ best: sql<number | null>`max(${quizAttemptsTable.scorePct})::int` })
@@ -91,6 +107,7 @@ router.get("/sessions/:id/quiz", async (req, res) => {
     })),
     bestScore: best,
     passed: (best ?? 0) >= QUIZ_PASS_MARK,
+    ...deadline(session.quizDueAt),
   });
 });
 
@@ -109,6 +126,19 @@ router.put("/sessions/:id/quiz", async (req, res) => {
       res.status(400).json({ error: "correctIndex out of range" });
       return;
     }
+  }
+
+  // A deadline outlives any one save of the questions, so it is only touched
+  // when the client actually sends one. Sending null is how it is lifted —
+  // which is also how a learner who missed it is let back in.
+  let quizDueAt = session.quizDueAt ?? null;
+  if (parsed.data.dueAt !== undefined) {
+    quizDueAt = parsed.data.dueAt ? new Date(parsed.data.dueAt) : null;
+    if (quizDueAt && !Number.isFinite(quizDueAt.getTime())) {
+      res.status(400).json({ error: "That due date could not be read" });
+      return;
+    }
+    await db.update(sessionsTable).set({ quizDueAt }).where(eq(sessionsTable.id, sessionId));
   }
 
   const saved = await db.transaction(async (tx) => {
@@ -142,6 +172,7 @@ router.put("/sessions/:id/quiz", async (req, res) => {
     })),
     bestScore: null,
     passed: false,
+    ...deadline(quizDueAt),
   });
 });
 
@@ -153,6 +184,13 @@ router.post("/sessions/:id/quiz/attempts", async (req, res) => {
   if (!session) { res.status(404).json({ error: "Session not found" }); return; }
   const accessError = await learnerAccessError(await currentRole(req), user, session);
   if (accessError) { res.status(403).json({ error: accessError }); return; }
+
+  // The deadline is enforced here, not merely displayed. The button in the
+  // browser is a courtesy; this is the door.
+  if (isPastDue(session.quizDueAt?.toISOString(), Date.now())) {
+    res.status(403).json({ error: pastDueMessage("quiz") });
+    return;
+  }
 
   const parsed = SubmitQuizAttemptBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
@@ -203,6 +241,7 @@ router.get("/sessions/:id/assignment", async (req, res) => {
     // it drafted last week from one a person wrote, and would record every later
     // save as hand-written.
     ...(isStaffFor(await currentRole(req), user, session) ? { origin: assignment.origin } : {}),
+    ...deadline(assignment.dueAt),
     mySubmission: submission
       ? { sessionId, body: submission.body, submittedAt: submission.submittedAt.toISOString() }
       : null,
@@ -227,11 +266,27 @@ router.put("/sessions/:id/assignment", async (req, res) => {
   }
   const reviewsRequired = parsed.data.reviewsRequired ?? DEFAULT_REVIEWS_REQUIRED;
 
+  const [existing] = await db
+    .select({ dueAt: assignmentsTable.dueAt })
+    .from(assignmentsTable)
+    .where(eq(assignmentsTable.sessionId, sessionId));
+
+  // As on the quiz: only touched when the client sends one, and null lifts it.
+  let dueAt = existing?.dueAt ?? null;
+  if (parsed.data.dueAt !== undefined) {
+    dueAt = parsed.data.dueAt ? new Date(parsed.data.dueAt) : null;
+    if (dueAt && !Number.isFinite(dueAt.getTime())) {
+      res.status(400).json({ error: "That due date could not be read" });
+      return;
+    }
+  }
+
   const values = {
     title: parsed.data.title,
     instructions: parsed.data.instructions ?? "",
     rubric,
     reviewsRequired,
+    dueAt,
     origin: parsed.data.origin ?? "manual",
   };
   const [saved] = await db
@@ -246,6 +301,7 @@ router.put("/sessions/:id/assignment", async (req, res) => {
     rubric: saved.rubric,
     reviewsRequired: saved.reviewsRequired,
     origin: saved.origin,
+    ...deadline(saved.dueAt),
     mySubmission: null,
   });
 });
@@ -262,8 +318,18 @@ router.post("/sessions/:id/assignment/submission", async (req, res) => {
   const parsed = SubmitAssignmentBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
-  const [assignment] = await db.select({ id: assignmentsTable.id }).from(assignmentsTable).where(eq(assignmentsTable.sessionId, sessionId));
+  const [assignment] = await db
+    .select({ id: assignmentsTable.id, dueAt: assignmentsTable.dueAt })
+    .from(assignmentsTable)
+    .where(eq(assignmentsTable.sessionId, sessionId));
   if (!assignment) { res.status(404).json({ error: "No assignment for this module" }); return; }
+
+  // The door, again. Checked against the server's clock and after the work has
+  // been found, so a late submission is refused for the right reason.
+  if (isPastDue(assignment.dueAt?.toISOString(), Date.now())) {
+    res.status(403).json({ error: pastDueMessage("assignment") });
+    return;
+  }
 
   const [saved] = await db
     .insert(assignmentSubmissionsTable)

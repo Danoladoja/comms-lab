@@ -2,18 +2,58 @@ import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   useDraftCourseworkFromSlides, useGetSessionSlides, useGetSessionNotes,
-  useGetCourseworkDraftHistory,
+  useGetCourseworkDraftHistory, useGetSessionQuiz, useGetSessionAssignment,
   getGetSessionSlidesQueryKey, getGetSessionNotesQueryKey, getGetCourseworkDraftHistoryQueryKey,
+  getGetSessionQuizQueryKey, getGetSessionAssignmentQueryKey,
   type DraftQuestion,
 } from '@workspace/api-client-react';
 import { draftDisclaimer, MIN_USABLE_SLIDE_CHARS, apiReason } from '@workspace/domain';
+import { deadlineSummary } from '@/lib/dueDateText';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import SlideDeckPanel from '@/components/SlideDeckPanel';
 import ClassMaterialPanel from '@/components/ClassMaterialPanel';
 import { QuizEditor, AssignmentEditor } from '@/components/AdminCourseworkEditor';
 import ReadingListEditor from '@/components/ReadingListEditor';
-import { Sparkles, Loader, CircleAlert, Lightbulb, History, Scissors } from 'lucide-react';
+import { Sparkles, Loader, CircleAlert, Lightbulb, History, Scissors, ChevronDown, ChevronUp } from 'lucide-react';
+
+/**
+ * One of the two editors, shut until asked for.
+ *
+ * Both used to sit open all the time, which made a module's page long enough
+ * that the reading list beneath them was rarely found. More to the point, there
+ * was no sign that a save had done anything: the form stayed exactly as it was,
+ * so people pressed Save twice, or wandered off unsure.
+ *
+ * Shutting on a *successful* save is the answer to both. It is the receipt.
+ */
+function Drawer({ title, hint, open, onToggle, children }: {
+  title: string;
+  hint: string;
+  open: boolean;
+  onToggle: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="rounded-lg border border-border bg-card">
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={open}
+        className="flex w-full items-center gap-3 px-3 py-2.5 text-left"
+      >
+        <span className="flex-1 min-w-0">
+          <span className="block text-xs font-semibold">{title}</span>
+          <span className="block text-xs text-muted-foreground">{hint}</span>
+        </span>
+        {open
+          ? <ChevronUp className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+          : <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />}
+      </button>
+      {open && <div className="border-t border-border p-3">{children}</div>}
+    </div>
+  );
+}
 
 
 /**
@@ -35,6 +75,7 @@ export default function CourseworkStudio({ sessionId }: { sessionId: number }) {
   const [notes, setNotes] = useState<string[]>([]);
   const [source, setSource] = useState<{ description: string; chars: number; truncated: boolean } | null>(null);
   const [version, setVersion] = useState(0);
+  const [openEditor, setOpenEditor] = useState<'quiz' | 'task' | null>(null);
 
   const { data: deck } = useGetSessionSlides(sessionId, {
     query: { queryKey: getGetSessionSlidesQueryKey(sessionId), retry: false },
@@ -45,6 +86,22 @@ export default function CourseworkStudio({ sessionId }: { sessionId: number }) {
   const { data: history } = useGetCourseworkDraftHistory(sessionId, {
     query: { queryKey: getGetCourseworkDraftHistoryQueryKey(sessionId), retry: false },
   });
+  // The same query keys the two editors use, so this shares their cache rather
+  // than asking twice. It is what lets a shut drawer still say what is inside.
+  const { data: savedQuiz } = useGetSessionQuiz(sessionId, {
+    query: { queryKey: getGetSessionQuizQueryKey(sessionId), retry: false },
+  });
+  const { data: savedTask } = useGetSessionAssignment(sessionId, {
+    query: { queryKey: getGetSessionAssignmentQueryKey(sessionId), retry: false },
+  });
+
+  const count = savedQuiz?.questions.length ?? 0;
+  const quizHint = count === 0
+    ? 'Nothing saved yet'
+    : `${count} question${count === 1 ? '' : 's'} · ${deadlineSummary(savedQuiz?.dueAt)}`;
+  const taskHint = savedTask
+    ? `${savedTask.title} · ${deadlineSummary(savedTask.dueAt)}`
+    : 'Nothing saved yet';
 
   // Either source can carry a draft on its own, so the button is live as soon as
   // there is enough of anything to read.
@@ -62,6 +119,9 @@ export default function CourseworkStudio({ sessionId }: { sessionId: number }) {
         setNotes(result.notes ?? []);
         setSource(result.source ?? null);
         setVersion(v => v + 1);
+        // A draft that nobody can see is a draft nobody checks, and an
+        // unchecked answer key fails a cohort silently at 70%.
+        setOpenEditor(result.questions?.length ? 'quiz' : 'task');
         qc.invalidateQueries({ queryKey: getGetCourseworkDraftHistoryQueryKey(sessionId) });
         toast({
           title: 'Draft ready',
@@ -160,15 +220,33 @@ export default function CourseworkStudio({ sessionId }: { sessionId: number }) {
           </div>
         )}
 
-        <div className="space-y-4">
-          <div>
-            <p className="text-xs font-medium mb-1.5">Quiz</p>
-            <QuizEditor sessionId={sessionId} seed={questions} seedVersion={version} />
-          </div>
-          <div>
-            <p className="text-xs font-medium mb-1.5">Task</p>
-            <AssignmentEditor sessionId={sessionId} seed={assignment} seedVersion={version} />
-          </div>
+        <div className="space-y-2">
+          <Drawer
+            title="Quiz"
+            hint={quizHint}
+            open={openEditor === 'quiz'}
+            onToggle={() => setOpenEditor(openEditor === 'quiz' ? null : 'quiz')}
+          >
+            <QuizEditor
+              sessionId={sessionId}
+              seed={questions}
+              seedVersion={version}
+              onSaved={() => setOpenEditor(null)}
+            />
+          </Drawer>
+          <Drawer
+            title="Task"
+            hint={taskHint}
+            open={openEditor === 'task'}
+            onToggle={() => setOpenEditor(openEditor === 'task' ? null : 'task')}
+          >
+            <AssignmentEditor
+              sessionId={sessionId}
+              seed={assignment}
+              seedVersion={version}
+              onSaved={() => setOpenEditor(null)}
+            />
+          </Drawer>
         </div>
       </section>
 

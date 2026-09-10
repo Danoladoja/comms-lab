@@ -16,5 +16,8 @@ export interface AssignmentDetail {
   reviewsRequired: number;
   /** @nullable */
   origin?: string | null;
+  /** @nullable */
+  dueAt?: string | null;
+  closed?: boolean;
   mySubmission?: AssignmentSubmission | null;
 }

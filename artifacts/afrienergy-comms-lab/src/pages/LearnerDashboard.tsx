@@ -4,7 +4,8 @@ import {
   useListMyEnrollments, useListMySessions, useListMyProgress, useJoinSession,
   getListMyProgressQueryKey, getListMySessionsQueryKey,
 } from '@workspace/api-client-react';
-import { liveWindow, whyModuleLocked } from '@workspace/domain';
+import { liveWindow, whyModuleLocked, isPastDue } from '@workspace/domain';
+import { deadlineNotice } from '@/lib/dueDateText';
 import { useCurrentUser } from '@/lib/useCurrentUser';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
@@ -12,7 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import {
   Calendar, Video, PlayCircle, GraduationCap, CheckCircle2, Circle, Lock,
-  Radio, MessageSquare, ClipboardList, FileQuestion, ArrowRight, Clock,
+  Radio, MessageSquare, ClipboardList, FileQuestion, ArrowRight, Clock, CalendarClock,
 } from 'lucide-react';
 import { useState } from 'react';
 import { QuizDialog, AssignmentDialog } from '@/components/CourseworkDialogs';
@@ -365,6 +366,12 @@ function CourseworkList({ kind, sessions, progressBySession, onOpen }: {
       {items.map(s => {
         const e = progressBySession.get(s.id)!;
         const done = kind === 'quiz' ? e.quizPassed : e.assignmentSubmitted;
+        const dueAt = kind === 'quiz' ? e.quizDueAt : e.assignmentDueAt;
+        // A deadline nobody can see until they open the thing is barely a
+        // deadline. Whether it has passed is the server's answer everywhere it
+        // matters; here it is only a line of text, so the browser's clock is
+        // close enough to word it with.
+        const shut = isPastDue(dueAt, Date.now());
         return (
           <div key={s.id} className="bg-card border border-border rounded-xl p-5 flex flex-col sm:flex-row sm:items-center gap-3">
             <div className="flex-1 min-w-0">
@@ -379,6 +386,12 @@ function CourseworkList({ kind, sessions, progressBySession, onOpen }: {
                       ? `Best score so far ${e.quizBestScore}% — 70% needed`
                       : 'Not started'}
               </p>
+              {dueAt && !done && (
+                <p className={`mt-1 flex items-center gap-1.5 text-xs font-medium ${shut ? 'text-[#B45309]' : 'text-muted-foreground'}`}>
+                  <CalendarClock className="w-3 h-3 flex-shrink-0" aria-hidden />
+                  {deadlineNotice(dueAt, shut)}
+                </p>
+              )}
             </div>
             {done ? (
               <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 flex items-center gap-1">
@@ -389,10 +402,12 @@ function CourseworkList({ kind, sessions, progressBySession, onOpen }: {
                 <Lock className="w-3 h-3" />Locked
               </span>
             ) : (
-              <Button size="sm" onClick={() => onOpen(s)}>
-                {kind === 'quiz'
-                  ? e.quizBestScore != null ? 'Retake Quiz' : 'Start Quiz'
-                  : 'Open Assignment'}
+              <Button size="sm" variant={shut ? 'outline' : 'default'} onClick={() => onOpen(s)}>
+                {shut
+                  ? 'View'
+                  : kind === 'quiz'
+                    ? e.quizBestScore != null ? 'Retake Quiz' : 'Start Quiz'
+                    : 'Open Assignment'}
               </Button>
             )}
           </div>

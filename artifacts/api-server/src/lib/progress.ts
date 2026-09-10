@@ -32,6 +32,7 @@ export async function progressForUser(userId: number, programIds: number[]): Pro
       startsAt: sessionsTable.startsAt,
       durationMins: sessionsTable.durationMins,
       sortOrder: sessionsTable.sortOrder,
+      quizDueAt: sessionsTable.quizDueAt,
     })
     .from(sessionsTable)
     .where(inArray(sessionsTable.programId, programIds));
@@ -63,7 +64,11 @@ export async function progressForUser(userId: number, programIds: number[]): Pro
         .where(and(eq(quizAttemptsTable.userId, userId), inArray(quizAttemptsTable.sessionId, sessionIds)))
         .groupBy(quizAttemptsTable.sessionId),
       db
-        .select({ sessionId: assignmentsTable.sessionId, reviewsRequired: assignmentsTable.reviewsRequired })
+        .select({
+          sessionId: assignmentsTable.sessionId,
+          reviewsRequired: assignmentsTable.reviewsRequired,
+          dueAt: assignmentsTable.dueAt,
+        })
         .from(assignmentsTable)
         .where(inArray(assignmentsTable.sessionId, sessionIds)),
       db
@@ -118,6 +123,8 @@ export async function progressForUser(userId: number, programIds: number[]): Pro
   const quizSet = new Set(quizSessions.map((q) => q.sessionId));
   const bestBySession = new Map(bestAttempts.map((a) => [a.sessionId, a.best]));
   const reviewsRequiredBySession = new Map(assignments.map((a) => [a.sessionId, a.reviewsRequired]));
+  const assignmentDueBySession = new Map(assignments.map((a) => [a.sessionId, a.dueAt]));
+  const quizDueBySession = new Map(sessions.map((s) => [s.id, s.quizDueAt]));
   const submittedSet = new Set(submissions.map((s) => s.sessionId));
   const givenBySession = new Map(reviewsGiven.map((r) => [r.sessionId, r.count]));
   const receivedBySession = new Map(reviewsReceived.map((r) => [r.sessionId, r.count]));
@@ -134,6 +141,10 @@ export async function progressForUser(userId: number, programIds: number[]): Pro
         reviewsRequired: reviewsRequiredBySession.get(s.id) ?? 0,
         reviewsGiven: givenBySession.get(s.id) ?? 0,
         reviewsReceived: receivedBySession.get(s.id) ?? 0,
+        // Deadlines ride along so the dashboard can show what is due without
+        // opening every quiz and task in turn. They change no rule below.
+        quizDueAt: quizDueBySession.get(s.id)?.toISOString() ?? null,
+        assignmentDueAt: assignmentDueBySession.get(s.id)?.toISOString() ?? null,
       },
     ]),
   );

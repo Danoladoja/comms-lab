@@ -5,11 +5,33 @@ import {
   useGetSessionAssignment, useSubmitAssignment,
   getGetSessionQuizQueryKey, getGetSessionAssignmentQueryKey, getListMyProgressQueryKey,
 } from '@workspace/api-client-react';
+import { apiReason } from '@workspace/domain';
+import { deadlineNotice } from '@/lib/dueDateText';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { CheckCircle2, XCircle, RotateCcw } from 'lucide-react';
+import { CheckCircle2, XCircle, RotateCcw, CalendarClock, LockKeyhole } from 'lucide-react';
+
+/**
+ * The deadline, as a learner sees it.
+ *
+ * Whether the door is shut is the server's answer, carried in `closed` — never
+ * a sum done here. A laptop clock an hour out would otherwise hand one learner
+ * an extra hour and rob another of one, and neither would know why.
+ */
+function Deadline({ dueAt, closed }: { dueAt?: string | null; closed?: boolean }) {
+  const line = deadlineNotice(dueAt, !!closed);
+  if (!line) return null;
+  return (
+    <p className={`flex items-start gap-1.5 text-xs font-medium ${closed ? 'text-[#B45309]' : 'text-muted-foreground'}`}>
+      {closed
+        ? <LockKeyhole className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+        : <CalendarClock className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />}
+      <span>{line}</span>
+    </p>
+  );
+}
 
 /* ---------- Quiz ---------- */
 
@@ -31,11 +53,18 @@ export function QuizPanel({ sessionId, enabled = true }: { sessionId: number; en
         qc.invalidateQueries({ queryKey: getListMyProgressQueryKey() });
         qc.invalidateQueries({ queryKey: getGetSessionQuizQueryKey(sessionId) });
       },
-      onError: () => toast({ title: 'Could not submit the quiz', variant: 'destructive' }),
+      onError: (err) => toast({
+        title: 'Could not submit the quiz',
+        // When the refusal is the deadline, the learner should read the reason
+        // rather than a shrug — the server says it plainly, so pass it on.
+        description: apiReason(err, 'Try again in a moment.'),
+        variant: 'destructive',
+      }),
     },
   });
 
   const questions = quiz?.questions ?? [];
+  const closed = !!quiz?.closed;
   const allAnswered = questions.length > 0 && questions.every(q => answers[q.id] !== undefined);
   const reset = () => { setAnswers({}); setResult(null); };
 
@@ -70,6 +99,7 @@ export function QuizPanel({ sessionId, enabled = true }: { sessionId: number; en
         Pass mark {quiz?.passMark ?? 70}%, unlimited retakes
         {quiz?.bestScore != null && ` · best score so far ${quiz.bestScore}%`}
       </p>
+      <Deadline dueAt={quiz?.dueAt} closed={closed} />
       {questions.map((q, qi) => (
         <fieldset key={q.id}>
           <legend className="font-medium text-sm mb-2">{qi + 1}. {q.prompt}</legend>
@@ -96,13 +126,13 @@ export function QuizPanel({ sessionId, enabled = true }: { sessionId: number; en
       ))}
       <Button
         className="w-full font-bold"
-        disabled={!allAnswered || submit.isPending}
+        disabled={closed || !allAnswered || submit.isPending}
         onClick={() => submit.mutate({
           id: sessionId,
           data: { answers: questions.map(q => ({ questionId: q.id, answerIndex: answers[q.id] })) },
         })}
       >
-        {submit.isPending ? 'Grading...' : 'Submit answers'}
+        {closed ? 'Closed' : submit.isPending ? 'Grading...' : 'Submit answers'}
       </Button>
     </div>
   );
@@ -147,9 +177,15 @@ export function AssignmentPanel({ sessionId, enabled = true, onSubmitted }: {
         qc.invalidateQueries({ queryKey: getGetSessionAssignmentQueryKey(sessionId) });
         onSubmitted?.();
       },
-      onError: () => toast({ title: 'Could not submit the assignment', variant: 'destructive' }),
+      onError: (err) => toast({
+        title: 'Could not submit the assignment',
+        description: apiReason(err, 'Try again in a moment.'),
+        variant: 'destructive',
+      }),
     },
   });
+
+  const closed = !!assignment?.closed;
 
   if (isLoading) return <div className="h-32 bg-muted/40 rounded-xl animate-pulse" />;
   if (error) return <p className="text-sm text-muted-foreground py-4">This assignment is not available yet.</p>;
@@ -161,24 +197,31 @@ export function AssignmentPanel({ sessionId, enabled = true, onSubmitted }: {
           {assignment.instructions}
         </p>
       )}
+      <Deadline dueAt={assignment?.dueAt} closed={closed} />
       {assignment?.mySubmission && (
         <p className="text-xs font-semibold text-emerald-700 flex items-center gap-1.5">
           <CheckCircle2 className="w-3.5 h-3.5" />
-          Submitted {new Date(assignment.mySubmission.submittedAt).toLocaleString()} — you can revise and resubmit.
+          Submitted {new Date(assignment.mySubmission.submittedAt).toLocaleString()}
+          {closed ? '.' : ' — you can revise and resubmit.'}
         </p>
       )}
       <Textarea
         value={text}
         onChange={e => setBody(e.target.value)}
-        placeholder="Type your response here..."
+        placeholder={closed ? 'Submissions are closed for this assignment.' : 'Type your response here...'}
         rows={8}
+        readOnly={closed}
       />
       <Button
         className="w-full font-bold"
-        disabled={!text.trim() || submit.isPending}
+        disabled={closed || !text.trim() || submit.isPending}
         onClick={() => submit.mutate({ id: sessionId, data: { body: text.trim() } })}
       >
-        {submit.isPending ? 'Submitting...' : assignment?.mySubmission ? 'Resubmit assignment' : 'Submit assignment'}
+        {closed
+          ? 'Closed'
+          : submit.isPending
+            ? 'Submitting...'
+            : assignment?.mySubmission ? 'Resubmit assignment' : 'Submit assignment'}
       </Button>
     </div>
   );
