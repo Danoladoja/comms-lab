@@ -15,6 +15,7 @@ import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { Video, PlayCircle, CircleAlert, CircleCheck } from 'lucide-react';
 import CourseworkStudio from '@/components/CourseworkStudio';
+import TaughtCohort from '@/components/TaughtCohort';
 
 function formatSessionDate(iso: string | null | undefined) {
   if (!iso) return 'Date to be announced';
@@ -158,6 +159,17 @@ export default function Teach() {
   }
 
   const onSaved = () => qc.invalidateQueries({ queryKey: getListMySessionsQueryKey() });
+
+  /** Their modules, gathered under the programme each one belongs to. */
+  const byProgramme = (() => {
+    const groups = new Map<number, SessionDetail[]>();
+    for (const session of sessions) {
+      const list = groups.get(session.programId) ?? [];
+      list.push(session);
+      groups.set(session.programId, list);
+    }
+    return [...groups.entries()];
+  })();
   const missingRecordings = sessions.filter(s => {
     const win = liveWindow({
       startsAt: s.startsAt as unknown as string | null,
@@ -197,8 +209,29 @@ export default function Teach() {
           No modules assigned to you yet. The team will assign you once your programme is scheduled.
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5 max-w-4xl">
-          {sessions.map(s => <SessionCard key={s.id} session={s} onSaved={onSaved} />)}
+        /*
+          Grouped by programme.
+          
+          They were one flat list, so somebody teaching on two programmes read
+          their week three module next to another cohort's week one with nothing
+          to tell them apart but the title. A module only means anything inside
+          the programme it belongs to.
+        */
+        <div className="space-y-10 max-w-4xl">
+          {byProgramme.map(([programId, group]) => (
+            <section key={programId}>
+              <div className="mb-4">
+                <h2 className="font-display text-xl font-bold">{group[0].programTitle}</h2>
+                <p className="text-sm text-muted-foreground">
+                  {group.length} module{group.length === 1 ? '' : 's'} you are teaching
+                </p>
+              </div>
+              <div className="mb-5"><TaughtCohort programId={programId} /></div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                {group.map(s => <SessionCard key={s.id} session={s} onSaved={onSaved} />)}
+              </div>
+            </section>
+          ))}
         </div>
       )}
     </div>

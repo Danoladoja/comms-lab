@@ -1190,6 +1190,41 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiMessage"
+  /my/programmes/{id}/learners:
+    get:
+      operationId: listTaughtCohort
+      tags: [enrollments]
+      summary: Who is in a class you teach
+      description: >
+        The register, and only the register. A facilitator could see their
+        modules and not the people sitting in them. Scoped to programmes they
+        actually teach on, checked by query rather than by a claim in the
+        request. No addresses in bulk and no way to change anybody's place:
+        reading who is in the room is a different thing from running the cohort.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: The class
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TaughtCohort"
+        "401":
+          description: Not signed in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "403":
+          description: Not one of your programmes
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
   /my/sessions:
     get:
       operationId: listMySessions
@@ -3516,6 +3551,21 @@ components:
         # A facilitator with no account. instructorName carries whichever of the
         # two is set, so a page that only wants a name reads one field.
         guestFacilitator: { type: ["string", "null"] }
+    TaughtCohort:
+      type: object
+      required: [active, finished, learners]
+      properties:
+        active: { type: integer }
+        finished: { type: integer }
+        learners:
+          type: array
+          items:
+            type: object
+            required: [name, email, finished]
+            properties:
+              name: { type: string }
+              email: { type: string }
+              finished: { type: boolean }
     SessionDetail:
       type: object
       required: [id, programId, programTitle, title, description, sortOrder, durationMins, hasMeetUrl]

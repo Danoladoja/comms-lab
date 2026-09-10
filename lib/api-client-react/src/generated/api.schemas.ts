@@ -849,6 +849,18 @@ export interface Session {
   guestFacilitator?: string | null;
 }
 
+export type TaughtCohortLearnersItem = {
+  name: string;
+  email: string;
+  finished: boolean;
+};
+
+export interface TaughtCohort {
+  active: number;
+  finished: number;
+  learners: TaughtCohortLearnersItem[];
+}
+
 export interface SessionDetail {
   id: number;
   programId: number;

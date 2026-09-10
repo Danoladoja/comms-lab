@@ -5,6 +5,8 @@ import {
   facilitatorInputValue,
   matchFacilitator,
   type FacilitatorPerson,
+  maySeeTaughtCohort,
+  describeTaughtCohort,
 } from "./facilitator";
 
 const PEOPLE: FacilitatorPerson[] = [
@@ -115,5 +117,46 @@ describe("facilitatorInputValue", () => {
   it("round-trips: what the box shows is what it matched", () => {
     const shown = facilitatorInputValue({ instructorName: "Amina Bello" });
     expect(matchFacilitator(shown, PEOPLE)).toMatchObject({ kind: "account", instructorId: 1 });
+  });
+});
+
+describe("maySeeTaughtCohort", () => {
+  it("lets a facilitator see the class they teach", () => {
+    expect(maySeeTaughtCohort("instructor", true)).toBe(true);
+  });
+
+  it("does not let a facilitator see a class they do not teach", () => {
+    // "Instructor" is a role, not a key to the building. Somebody teaching one
+    // programme has no business reading another cohort's register.
+    expect(maySeeTaughtCohort("instructor", false)).toBe(false);
+  });
+
+  it("lets admins see any of them", () => {
+    expect(maySeeTaughtCohort("admin", false)).toBe(true);
+    expect(maySeeTaughtCohort("superadmin", false)).toBe(true);
+  });
+
+  it("refuses a learner, and anything unrecognised", () => {
+    expect(maySeeTaughtCohort("learner", true)).toBe(false);
+    expect(maySeeTaughtCohort(null, true)).toBe(false);
+    expect(maySeeTaughtCohort(undefined, true)).toBe(false);
+    expect(maySeeTaughtCohort("Instructor", true)).toBe(false);
+  });
+});
+
+describe("describeTaughtCohort", () => {
+  it("counts the people, not the rows", () => {
+    expect(describeTaughtCohort({ active: 18, finished: 0 })).toBe("18 learners on the programme.");
+    expect(describeTaughtCohort({ active: 1, finished: 0 })).toBe("1 learner on the programme.");
+  });
+
+  it("mentions those who have finished, when there are any", () => {
+    expect(describeTaughtCohort({ active: 9, finished: 3 }))
+      .toBe("9 learners on the programme, and 3 who have finished.");
+    expect(describeTaughtCohort({ active: 9, finished: 1 })).toMatch(/1 who has finished/);
+  });
+
+  it("says so plainly when there is nobody", () => {
+    expect(describeTaughtCohort({ active: 0, finished: 0 })).toMatch(/Nobody is on this programme yet/);
   });
 });

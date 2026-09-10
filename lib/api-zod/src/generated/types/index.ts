@@ -156,6 +156,8 @@ export * from './studioSimulationRun';
 export * from './studioSimulationRunMode';
 export * from './studioSimulationRunStatus';
 export * from './studioStakeholderGroup';
+export * from './taughtCohort';
+export * from './taughtCohortLearnersItem';
 export * from './threadDetail';
 export * from './threadInput';
 export * from './threadList';

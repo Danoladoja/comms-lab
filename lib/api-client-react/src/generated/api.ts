@@ -108,6 +108,7 @@ import type {
   StudioPracticeRecord,
   StudioSimulation,
   StudioSimulationRun,
+  TaughtCohort,
   ThreadDetail,
   ThreadInput,
   ThreadList,
@@ -3042,6 +3043,84 @@ export const useSetPortfolioVisibility = <TError = ErrorType<ApiMessage>,
       > => {
       return useMutation(getSetPortfolioVisibilityMutationOptions(options));
     }
+
+export const getListTaughtCohortUrl = (id: number,) => {
+
+
+
+
+  return `/api/my/programmes/${id}/learners`
+}
+
+/**
+ * The register, and only the register. A facilitator could see their modules and not the people sitting in them. Scoped to programmes they actually teach on, checked by query rather than by a claim in the request. No addresses in bulk and no way to change anybody's place: reading who is in the room is a different thing from running the cohort.
+ * @summary Who is in a class you teach
+ */
+export const listTaughtCohort = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<TaughtCohort> => {
+
+  return customFetch<TaughtCohort>(getListTaughtCohortUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListTaughtCohortQueryKey = (id: number,) => {
+    return [
+    `/api/my/programmes/${id}/learners`
+    ] as const;
+    }
+
+
+export const getListTaughtCohortQueryOptions = <TData = Awaited<ReturnType<typeof listTaughtCohort>>, TError = ErrorType<ApiMessage>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listTaughtCohort>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListTaughtCohortQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listTaughtCohort>>> = ({ signal }) => listTaughtCohort(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listTaughtCohort>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListTaughtCohortQueryResult = NonNullable<Awaited<ReturnType<typeof listTaughtCohort>>>
+export type ListTaughtCohortQueryError = ErrorType<ApiMessage>
+
+
+/**
+ * @summary Who is in a class you teach
+ */
+
+export function useListTaughtCohort<TData = Awaited<ReturnType<typeof listTaughtCohort>>, TError = ErrorType<ApiMessage>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listTaughtCohort>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListTaughtCohortQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getListMySessionsUrl = () => {
 

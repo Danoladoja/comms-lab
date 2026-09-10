@@ -1057,6 +1057,25 @@ export const SetPortfolioVisibilityResponse = zod.object({
 
 
 /**
+ * The register, and only the register. A facilitator could see their modules and not the people sitting in them. Scoped to programmes they actually teach on, checked by query rather than by a claim in the request. No addresses in bulk and no way to change anybody's place: reading who is in the room is a different thing from running the cohort.
+ * @summary Who is in a class you teach
+ */
+export const ListTaughtCohortParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const ListTaughtCohortResponse = zod.object({
+  "active": zod.int(),
+  "finished": zod.int(),
+  "learners": zod.array(zod.object({
+  "name": zod.string(),
+  "email": zod.string(),
+  "finished": zod.boolean()
+}))
+})
+
+
+/**
  * @summary Upcoming and past sessions across the user's enrolled programs (or taught programs for instructors)
  */
 export const ListMySessionsResponseItem = zod.object({

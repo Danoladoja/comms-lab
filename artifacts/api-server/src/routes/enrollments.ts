@@ -13,6 +13,7 @@ import {
   normaliseCertificateCode,
   type ProgressEntry,
   isModuleStaff, satisfiesRole,
+  maySeeTaughtCohort,
 } from "@workspace/domain";
 import { SetPortfolioVisibilityBody } from "@workspace/api-zod";
 import { getCurrentUser } from "../lib/auth";
@@ -404,6 +405,61 @@ router.get("/certificates/:certificateId/verify", async (req, res) => {
     modulesCompleted: entries.length,
     reviewsWritten: entries.reduce((sum, e) => sum + e.reviewsGiven, 0),
     works,
+  });
+});
+
+/**
+ * Who is in the class I am teaching.
+ *
+ * A facilitator could see their modules and not the people sitting in them,
+ * which is an odd thing to withhold from the person standing at the front. This
+ * is the register and nothing else: no status control, no addresses to write to
+ * in bulk, no way to change anybody's place. Reading who is in the room is a
+ * different thing from running the cohort, and only the first belongs here.
+ *
+ * Scoped to programmes they actually teach on. An instructor who teaches one
+ * programme has no business reading another cohort's list, and the check is a
+ * query rather than a claim in the request.
+ */
+router.get("/my/programmes/:id/learners", async (req, res) => {
+  const user = await getCurrentUser(req);
+  if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const programId = Number(req.params.id);
+  if (!Number.isInteger(programId)) { res.status(400).json({ error: "That is not a programme." }); return; }
+
+  const [teaches] = await db
+    .selectDistinct({ programId: sessionsTable.programId })
+    .from(sessionsTable)
+    .where(and(eq(sessionsTable.programId, programId), eq(sessionsTable.instructorId, user.id)));
+
+  if (!maySeeTaughtCohort(user.role, !!teaches)) {
+    res.status(403).json({ error: "This is not one of your programmes." });
+    return;
+  }
+
+  const rows = await db
+    .select({
+      name: usersTable.name,
+      email: usersTable.email,
+      status: enrollmentsTable.status,
+    })
+    .from(enrollmentsTable)
+    .innerJoin(usersTable, eq(enrollmentsTable.userId, usersTable.id))
+    .where(and(
+      eq(enrollmentsTable.programId, programId),
+      sql`${enrollmentsTable.status} in ('enrolled', 'completed')`,
+    ))
+    .orderBy(asc(usersTable.name), asc(usersTable.id));
+
+  res.json({
+    active: rows.filter((r) => r.status === "enrolled").length,
+    finished: rows.filter((r) => r.status === "completed").length,
+    learners: rows.map((r) => ({
+      name: r.name ?? "",
+      email: r.email ?? "",
+      finished: r.status === "completed",
+    })),
   });
 });
 

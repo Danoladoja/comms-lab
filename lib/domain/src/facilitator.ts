@@ -109,3 +109,34 @@ export function describeFacilitatorChoice(choice: FacilitatorChoice): string {
       return "No facilitator yet.";
   }
 }
+
+/**
+ * May this person see who is in the class?
+ *
+ * A facilitator could see their modules and not the people sitting in them,
+ * which is an odd thing to withhold from the person standing at the front. They
+ * cannot change an enrolment or write to anybody from here: this is the register,
+ * not the controls.
+ *
+ * Scoped to the programmes they actually teach on, not to every programme.
+ * "Instructor" is a role, not a key to the building.
+ */
+export function maySeeTaughtCohort(role: string | null | undefined, teachesOnProgramme: boolean): boolean {
+  if (role === "admin" || role === "superadmin") return true;
+  return role === "instructor" && teachesOnProgramme;
+}
+
+/**
+ * How a cohort reads to the person teaching it.
+ *
+ * Deliberately not "18 enrolled". A facilitator is about to stand in front of
+ * these people, and the useful facts are how many are still active and whether
+ * anybody has finished, not the size of the database table.
+ */
+export function describeTaughtCohort(counts: { active: number; finished: number }): string {
+  const { active, finished } = counts;
+  if (active === 0 && finished === 0) return "Nobody is on this programme yet.";
+  const people = `${active} ${active === 1 ? "learner" : "learners"}`;
+  if (finished === 0) return `${people} on the programme.`;
+  return `${people} on the programme, and ${finished} who ${finished === 1 ? "has" : "have"} finished.`;
+}
