@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   useGetGoogleConnection, useDisconnectGoogle,
@@ -6,8 +7,9 @@ import {
 } from '@workspace/api-client-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
+import ReplayPlayer from '@/components/ReplayPlayer';
 import {
-  CircleCheck, CircleAlert, Loader, RefreshCw, Link2, Unlink, Clock, PlayCircle,
+  CircleCheck, CircleAlert, Loader, RefreshCw, Link2, Unlink, Clock, PlayCircle, ChevronUp,
 } from 'lucide-react';
 
 /**
@@ -58,6 +60,9 @@ function formatWhen(iso: string | null) {
 export default function RecordingsAdmin() {
   const qc = useQueryClient();
   const { toast } = useToast();
+  // One replay open at a time. Checking recordings is a job you work down a
+  // list doing, and half a dozen videos loaded at once is a lot of nothing.
+  const [playing, setPlaying] = useState<number | null>(null);
 
   const { data: connection, isLoading: loadingConnection } = useGetGoogleConnection({
     query: { queryKey: getGetGoogleConnectionQueryKey() },
@@ -173,15 +178,31 @@ export default function RecordingsAdmin() {
                     </p>
                   )}
 
+                  {/*
+                    This used to open YouTube in a new tab, which took the admin
+                    out of the console and lost the list they were working
+                    through. It plays here now, and shuts again where it opened.
+                  */}
                   {row.recordingUrl && (
-                    <a
-                      href={row.recordingUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-xs font-semibold text-primary inline-flex items-center gap-1.5 mt-2 hover:underline focus-visible:ring-2 focus-visible:ring-ring rounded"
-                    >
-                      <PlayCircle className="w-3.5 h-3.5" aria-hidden />Watch the replay
-                    </a>
+                    <div className="mt-2 space-y-2">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 px-2 text-xs font-semibold text-primary"
+                        aria-expanded={playing === row.sessionId}
+                        onClick={() => setPlaying(playing === row.sessionId ? null : row.sessionId)}
+                      >
+                        {playing === row.sessionId
+                          ? <><ChevronUp className="mr-1.5 h-3.5 w-3.5" aria-hidden />Hide the replay</>
+                          : <><PlayCircle className="mr-1.5 h-3.5 w-3.5" aria-hidden />Watch the replay</>}
+                      </Button>
+                      {playing === row.sessionId && (
+                        <ReplayPlayer
+                          recordingUrl={row.recordingUrl}
+                          title={`${row.sessionTitle} recording`}
+                        />
+                      )}
+                    </div>
                   )}
                 </li>
               );
