@@ -18,7 +18,7 @@ import { QuizEditor, AssignmentEditor } from '@/components/AdminCourseworkEditor
 import PostCoursework from '@/components/PostCoursework';
 import ReadingListEditor from '@/components/ReadingListEditor';
 import { EditorSection } from '@/components/EditorSection';
-import { Sparkles, Loader, CircleAlert, Lightbulb, History, Scissors } from 'lucide-react';
+import { Sparkles, Loader, CircleAlert, Lightbulb, History, Scissors, X } from 'lucide-react';
 
 
 /**
@@ -31,7 +31,18 @@ import { Sparkles, Loader, CircleAlert, Lightbulb, History, Scissors } from 'luc
  * Anything the drafter had to repair, or wants a second look at, is shown rather
  * than swallowed.
  */
-export default function CourseworkStudio({ sessionId }: { sessionId: number }) {
+export default function CourseworkStudio({ sessionId, onClose }: {
+  sessionId: number;
+  /**
+   * Shut the whole panel.
+   *
+   * The only way out used to be the button that opened it, which by the time
+   * you had scrolled through the slides, the transcript, four editors and the
+   * reading list was a long way back up the page — so the panel simply stayed
+   * open, on every module, all day.
+   */
+  onClose?: () => void;
+}) {
   const qc = useQueryClient();
   const { toast } = useToast();
   const [questions, setQuestions] = useState<DraftQuestion[] | undefined>();
@@ -125,6 +136,17 @@ export default function CourseworkStudio({ sessionId }: { sessionId: number }) {
 
   return (
     <div className="space-y-5 border-t border-border pt-4">
+      {onClose && (
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-xs text-muted-foreground">
+            Everything for this module. Nothing here reaches learners until you post it.
+          </p>
+          <Button size="sm" variant="ghost" className="shrink-0 text-muted-foreground" onClick={onClose}>
+            <X className="mr-1.5 h-4 w-4" aria-hidden />Close
+          </Button>
+        </div>
+      )}
+
       <section className="space-y-2">
         <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Class material</h4>
         <SlideDeckPanel sessionId={sessionId} />
@@ -250,6 +272,16 @@ export default function CourseworkStudio({ sessionId }: { sessionId: number }) {
           <PostCoursework sessionId={sessionId} />
         </div>
       </section>
+
+      {/* Again at the bottom, because that is where you are standing when you
+          have finished with this module. */}
+      {onClose && (
+        <div className="border-t border-border pt-3">
+          <Button size="sm" variant="outline" onClick={onClose}>
+            <X className="mr-1.5 h-4 w-4" aria-hidden />Close slides &amp; coursework
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

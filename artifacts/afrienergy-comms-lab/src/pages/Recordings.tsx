@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { Link } from 'wouter';
 import TrackedReplay from '@/components/TrackedReplay';
 import { useListMySessions, useListMyProgress } from '@workspace/api-client-react';
-import { PlayCircle, Video, ExternalLink, Clock } from 'lucide-react';
+import { PlayCircle, Video, Clock } from 'lucide-react';
 
 function formatDate(iso: string | null | undefined) {
   if (!iso) return 'Unscheduled';
@@ -88,16 +88,14 @@ export default function Recordings() {
                               : <span className="text-muted-foreground">{entry.presence.bestPct}% of {entry.presence.thresholdPct}% needed</span>}
                           </p>
                         )}
-                        {s.recordingUrl && (
-                          <a
-                            href={s.recordingUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold text-primary hover:underline"
-                          >
-                            <ExternalLink className="w-3.5 h-3.5" />Watch on YouTube
-                          </a>
-                        )}
+                        {/*
+                          There used to be a "Watch on YouTube" link here, under
+                          a player that already worked. Anyone who took it left
+                          the Lab, and the twenty minutes they then watched
+                          counted for nothing towards finishing the module —
+                          nothing outside these walls can be measured. The player
+                          above is the recording; there is nowhere else to go.
+                        */}
                       </div>
                     </article>
                   );

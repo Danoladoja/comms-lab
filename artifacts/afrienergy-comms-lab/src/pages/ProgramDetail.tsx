@@ -121,9 +121,19 @@ export default function ProgramDetail() {
                         <a href={s.meetUrl} target="_blank" rel="noreferrer"><Video className="w-4 h-4 mr-1.5" />Join</a>
                       </Button>
                     )}
+                    {/*
+                      This used to open YouTube in a new tab. A learner who
+                      watched the whole class there got no credit for it: watch
+                      time is only counted by the Lab's own player, and missing
+                      it is what keeps somebody from completing a module they
+                      have genuinely sat through. The classroom is where the
+                      recording plays.
+                    */}
                     {s.recordingUrl && (
                       <Button asChild size="sm" variant="outline">
-                        <a href={s.recordingUrl} target="_blank" rel="noreferrer"><PlayCircle className="w-4 h-4 mr-1.5" />Recording</a>
+                        <Link href={`/classroom/${s.id}`}>
+                          <PlayCircle className="w-4 h-4 mr-1.5" />Watch the class
+                        </Link>
                       </Button>
                     )}
                   </div>

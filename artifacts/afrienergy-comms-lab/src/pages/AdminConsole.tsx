@@ -57,6 +57,7 @@ import {
   sessionDateTimeInput,
   sessionMinutes,
   apiReason,
+  isMeasurableRecording,
 } from '@workspace/domain';
 import CourseworkStudio from '@/components/CourseworkStudio';
 import InviteFacilitator from '@/components/InviteFacilitator';
@@ -65,7 +66,7 @@ import MessageCohort from '@/components/MessageCohort';
 import LiveSessionsAdmin from '@/components/LiveSessionsAdmin';
 import RecordingsAdmin from '@/components/RecordingsAdmin';
 import ProgramThumbnail from '@/components/ProgramThumbnail';
-import { isMeasurableRecording } from '@/lib/embed';
+
 import { useCurrentUser } from '@/lib/useCurrentUser';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -318,14 +319,22 @@ function SessionRow({ session, instructors, onChanged }: {
         >
           {update.isPending ? 'Saving...' : 'Save'}
         </Button>
+        {/* The label says what pressing it will do, and the arrow says which way
+            it goes. "Slides & coursework" on its own read as a place rather than
+            a switch, so nobody thought to press it again to shut it. */}
         <Button
-          size="sm" variant={coursework === 'open' ? 'secondary' : 'ghost'}
+          size="sm" variant={coursework === 'open' ? 'secondary' : 'outline'}
           onClick={() => setCoursework(coursework === 'open' ? 'none' : 'open')}
+          aria-expanded={coursework === 'open'}
         >
-          Slides & coursework
+          {coursework === 'open'
+            ? <><ChevronUp className="mr-1.5 h-4 w-4" aria-hidden />Hide slides &amp; coursework</>
+            : <><ChevronDown className="mr-1.5 h-4 w-4" aria-hidden />Slides &amp; coursework</>}
         </Button>
       </div>
-      {coursework === 'open' && <CourseworkStudio sessionId={session.id} />}
+      {coursework === 'open' && (
+        <CourseworkStudio sessionId={session.id} onClose={() => setCoursework('none')} />
+      )}
     </div>
   );
 }

@@ -13,7 +13,7 @@ import { useCurrentUser } from '@/lib/useCurrentUser';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { Video, PlayCircle, CircleAlert, CircleCheck } from 'lucide-react';
+import { Video, PlayCircle, CircleAlert, CircleCheck, ChevronDown, ChevronUp } from 'lucide-react';
 import CourseworkStudio from '@/components/CourseworkStudio';
 import TaughtCohort from '@/components/TaughtCohort';
 
@@ -117,11 +117,14 @@ function SessionCard({ session, onSaved }: { session: SessionDetail; onSaved: ()
 
         <Button
           size="sm"
-          variant={showCoursework ? 'secondary' : 'ghost'}
+          variant={showCoursework ? 'secondary' : 'outline'}
           className="w-full"
+          aria-expanded={showCoursework}
           onClick={() => setShowCoursework(v => !v)}
         >
-          {showCoursework ? 'Hide slides & coursework' : 'Slides & coursework'}
+          {showCoursework
+            ? <><ChevronUp className="mr-1.5 h-4 w-4" aria-hidden />Hide slides &amp; coursework</>
+            : <><ChevronDown className="mr-1.5 h-4 w-4" aria-hidden />Slides &amp; coursework</>}
         </Button>
 
         <Button
@@ -138,7 +141,9 @@ function SessionCard({ session, onSaved }: { session: SessionDetail; onSaved: ()
           Simulation Studio
         </Button>
 
-        {showCoursework && <CourseworkStudio sessionId={session.id} />}
+        {showCoursework && (
+          <CourseworkStudio sessionId={session.id} onClose={() => setShowCoursework(false)} />
+        )}
       </div>
     </div>
   );

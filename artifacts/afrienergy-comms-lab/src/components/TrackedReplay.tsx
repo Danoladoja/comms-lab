@@ -7,8 +7,10 @@ import { useQueryClient } from '@tanstack/react-query';
 import {
   replayBucketFor,
   REPLAY_REPORT_INTERVAL_MS,
+  toEmbedUrl,
+  isMeasurableRecording,
 } from '@workspace/domain';
-import { toEmbedUrl, isMeasurableRecording } from '@/lib/embed';
+
 import { AlertTriangle } from 'lucide-react';
 
 /**
