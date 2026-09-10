@@ -220,3 +220,22 @@ export function attendanceStreak(entries: ProgressEntry[], sessionsInOrder: Sess
   }
   return streak;
 }
+
+/**
+ * Why a module is locked, and what to do about it.
+ *
+ * A locked module used to show a padlock and the word "Locked", and that was
+ * the whole of it. The explanation existed — "complete the previous module to
+ * unlock this one" — in a message that fired when the row was clicked, on a
+ * button that was disabled precisely because the row was locked. So it never
+ * fired. Not once. A learner saw a padlock and was told nothing, ever.
+ *
+ * Naming the module they have to finish is the difference between a closed door
+ * and a signpost, and the Lab already knows which one it is.
+ */
+export function whyModuleLocked(previousTitle?: string | null): string {
+  const previous = (previousTitle ?? "").trim();
+  return previous
+    ? `Finish ${previous} to open this`
+    : "Finish the module before this one to open it";
+}

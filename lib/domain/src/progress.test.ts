@@ -5,6 +5,7 @@ import {
   EMPTY_COURSEWORK,
   type CourseworkStatus,
   type SessionLite,
+  whyModuleLocked,
 } from "./progress";
 import { EMPTY_PRESENCE, type PresenceInput } from "./presence";
 
@@ -318,5 +319,20 @@ describe("attendanceStreak", () => {
     ]);
     const entries = computeProgress(sessions, attendance, enrolledLongAgo, new Map(), new Map(), NOW);
     expect(attendanceStreak(entries, sessions)).toBe(3);
+  });
+});
+
+describe("whyModuleLocked", () => {
+  it("names the module that opens this one", () => {
+    // The point of the whole thing: a signpost rather than a closed door.
+    expect(whyModuleLocked("Who Owns the Grid")).toBe("Finish Who Owns the Grid to open this");
+  });
+
+  it("still says something useful when the previous module has no title", () => {
+    for (const value of [undefined, null, "", "   "]) {
+      const line = whyModuleLocked(value);
+      expect(line).toMatch(/finish the module before this one/i);
+      expect(line).not.toMatch(/undefined|null/);
+    }
   });
 });

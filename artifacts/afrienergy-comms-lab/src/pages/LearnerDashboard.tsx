@@ -4,7 +4,7 @@ import {
   useListMyEnrollments, useListMySessions, useListMyProgress, useJoinSession,
   getListMyProgressQueryKey, getListMySessionsQueryKey,
 } from '@workspace/api-client-react';
-import { liveWindow } from '@workspace/domain';
+import { liveWindow, whyModuleLocked } from '@workspace/domain';
 import { useCurrentUser } from '@/lib/useCurrentUser';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
@@ -178,10 +178,13 @@ export default function LearnerDashboard() {
                         <p className="text-sm text-muted-foreground">The module schedule will be published soon.</p>
                       ) : (
                         <ol className="space-y-2">
-                          {mods.map((m) => {
+                          {mods.map((m, i) => {
                             const state = moduleState(m, now);
                             const entry = progressBySession.get(m.id);
                             const locked = entry?.locked ?? false;
+                            // A padlock on its own says nothing. The module that
+                            // opens this one is the one directly above it.
+                            const lockedReason = locked ? whyModuleLocked(mods[i - 1]?.title) : '';
                             const pct = entry?.completed ? 100 : entry?.progressPct ?? 0;
                             const owed = Math.max(0, (entry?.reviewsRequired ?? 0) - (entry?.reviewsGiven ?? 0));
                             // The class itself is outstanding once it has ended and
@@ -209,10 +212,18 @@ export default function LearnerDashboard() {
                                       <Clock className="w-3 h-3" />
                                       {formatSessionDate(m.startsAt as unknown as string)} · {m.durationMins} min
                                     </p>
-                                    <div className="flex items-center gap-2">
-                                      <Progress value={pct} className="h-1.5 flex-1 max-w-[220px]" />
-                                      <span className="text-[11px] font-semibold text-muted-foreground">{pct}%</span>
-                                    </div>
+                                    {locked ? (
+                                      // A locked module has no progress to show, so
+                                      // the bar's place is better spent saying why.
+                                      <p className="text-xs font-medium text-muted-foreground">
+                                        {lockedReason}
+                                      </p>
+                                    ) : (
+                                      <div className="flex items-center gap-2">
+                                        <Progress value={pct} className="h-1.5 flex-1 max-w-[220px]" />
+                                        <span className="text-[11px] font-semibold text-muted-foreground">{pct}%</span>
+                                      </div>
+                                    )}
                                   </div>
                                   <span className="text-xs font-semibold flex items-center gap-1.5 flex-shrink-0 text-primary">
                                     {locked
