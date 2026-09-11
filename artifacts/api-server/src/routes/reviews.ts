@@ -19,6 +19,7 @@ import {
   thinCritique,
   whyDiscussionLocked,
   commentProblem,
+  isStaffRole,
 } from "@workspace/domain";
 import { SubmitReviewBody } from "@workspace/api-zod";
 import { getCurrentUser } from "../lib/auth";
@@ -340,7 +341,7 @@ router.get("/admin/sessions/:id/work", async (req, res) => {
 
   const rubric = effectiveRubric(mod.rubric);
 
-  const [pieces, critiques, cohort] = await Promise.all([
+  const [pieces, critiques, cohort, comments] = await Promise.all([
     db
       .select({
         submissionId: assignmentSubmissionsTable.id,
@@ -384,6 +385,22 @@ router.get("/admin/sessions/:id/work", async (req, res) => {
         eq(enrollmentsTable.status, "enrolled"),
       ))
       .orderBy(asc(usersTable.name)),
+    // The cohort room's conversation, on this screen too. Splitting "what they
+    // wrote" from "what they said about it" across two screens would rebuild
+    // the blind spot this endpoint exists to close.
+    db
+      .select({
+        id: submissionCommentsTable.id,
+        submissionId: submissionCommentsTable.submissionId,
+        authorName: usersTable.name,
+        authorRole: usersTable.role,
+        body: submissionCommentsTable.body,
+        createdAt: submissionCommentsTable.createdAt,
+      })
+      .from(submissionCommentsTable)
+      .innerJoin(usersTable, eq(usersTable.id, submissionCommentsTable.userId))
+      .where(eq(submissionCommentsTable.sessionId, sessionId))
+      .orderBy(asc(submissionCommentsTable.createdAt)),
   ]);
 
   // Everything one reviewer wrote for this module, so a critique can be compared
@@ -443,6 +460,15 @@ router.get("/admin/sessions/:id/work", async (req, res) => {
               c.comment,
               (byReviewer.get(c.reviewerId) ?? []).filter((other) => other !== c.comment),
             ),
+          })),
+        comments: comments
+          .filter((c) => c.submissionId === p.submissionId)
+          .map((c) => ({
+            id: c.id,
+            authorName: c.authorName,
+            staff: isStaffRole(c.authorRole),
+            body: c.body,
+            createdAt: c.createdAt.toISOString(),
           })),
       };
     }),
@@ -575,6 +601,10 @@ router.get("/sessions/:id/discussion", async (req, res) => {
         submissionId: submissionCommentsTable.submissionId,
         authorId: submissionCommentsTable.userId,
         authorName: usersTable.name,
+        // So a facilitator's reply is marked as one. People defer to the
+        // teacher whether or not they are told it is the teacher; being told
+        // at least means they are deferring knowingly.
+        authorRole: usersTable.role,
         body: submissionCommentsTable.body,
         createdAt: submissionCommentsTable.createdAt,
       })
@@ -605,6 +635,7 @@ router.get("/sessions/:id/discussion", async (req, res) => {
         .map((c) => ({
           id: c.id,
           authorName: c.authorName,
+          staff: isStaffRole(c.authorRole),
           mine: c.authorId === user.id,
           body: c.body,
           createdAt: c.createdAt.toISOString(),
@@ -675,6 +706,7 @@ router.post("/submissions/:id/comments", async (req, res) => {
     id: saved.id,
     submissionId,
     authorName: user.name,
+    staff: isStaffRole(user.role),
     mine: true,
     body: saved.body,
     createdAt: saved.createdAt.toISOString(),

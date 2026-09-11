@@ -3785,15 +3785,27 @@ components:
         createdAt: { type: string }
     SubmissionComment:
       type: object
-      required: [id, authorName, mine, body, createdAt]
+      required: [id, authorName, staff, mine, body, createdAt]
       properties:
         id: { type: integer }
         # Signed: a discussion is a conversation, not a judgement.
         authorName: { type: string }
+        # Written by a facilitator or admin, and marked so nobody mistakes a
+        # facilitator's view for a peer's.
+        staff: { type: boolean }
         mine: { type: boolean }
         body: { type: string }
         createdAt: { type: string }
         submissionId: { type: integer }
+    StaffComment:
+      type: object
+      required: [id, authorName, staff, body, createdAt]
+      properties:
+        id: { type: integer }
+        authorName: { type: string }
+        staff: { type: boolean }
+        body: { type: string }
+        createdAt: { type: string }
     SubmissionCommentInput:
       type: object
       required: [body]
@@ -3851,7 +3863,7 @@ components:
         thin: { type: boolean }
     StaffPiece:
       type: object
-      required: [submissionId, authorName, body, submittedAt, withdrawn, aiUse, aiUseLabel, aiNote, provenance, worthALook, critiques]
+      required: [submissionId, authorName, body, submittedAt, withdrawn, aiUse, aiUseLabel, aiNote, provenance, worthALook, critiques, comments]
       properties:
         submissionId: { type: integer }
         authorName: { type: string }
@@ -3868,6 +3880,12 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/StaffCritique"
+        # The cohort room's conversation about this piece, on the staff screen
+        # too — splitting it off would rebuild the blind spot this closes.
+        comments:
+          type: array
+          items:
+            $ref: "#/components/schemas/StaffComment"
     OwingLearner:
       type: object
       required: [name, given]

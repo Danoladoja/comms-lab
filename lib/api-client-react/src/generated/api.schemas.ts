@@ -798,10 +798,19 @@ export interface DiscussionCritique {
 export interface SubmissionComment {
   id: number;
   authorName: string;
+  staff: boolean;
   mine: boolean;
   body: string;
   createdAt: string;
   submissionId?: number;
+}
+
+export interface StaffComment {
+  id: number;
+  authorName: string;
+  staff: boolean;
+  body: string;
+  createdAt: string;
 }
 
 export interface SubmissionCommentInput {
@@ -856,6 +865,7 @@ export interface StaffPiece {
   provenance: string;
   worthALook: boolean;
   critiques: StaffCritique[];
+  comments: StaffComment[];
 }
 
 export interface OwingLearner {

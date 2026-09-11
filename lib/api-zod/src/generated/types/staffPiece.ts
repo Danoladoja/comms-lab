@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { StaffComment } from './staffComment';
 import type { StaffCritique } from './staffCritique';
 
 export interface StaffPiece {
@@ -19,4 +20,5 @@ export interface StaffPiece {
   provenance: string;
   worthALook: boolean;
   critiques: StaffCritique[];
+  comments: StaffComment[];
 }

@@ -143,6 +143,7 @@ export * from './simulationResponseSubmission';
 export * from './simulationRunInput';
 export * from './slideDeck';
 export * from './slidesVisibilityInput';
+export * from './staffComment';
 export * from './staffCritique';
 export * from './staffList';
 export * from './staffListYou';

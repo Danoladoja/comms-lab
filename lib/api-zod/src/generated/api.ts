@@ -1052,6 +1052,7 @@ export const GetCohortDiscussionResponse = zod.object({
   "comments": zod.array(zod.object({
   "id": zod.int(),
   "authorName": zod.string(),
+  "staff": zod.boolean(),
   "mine": zod.boolean(),
   "body": zod.string(),
   "createdAt": zod.string(),
@@ -1080,6 +1081,7 @@ export const AddSubmissionCommentBody = zod.object({
 export const AddSubmissionCommentResponse = zod.object({
   "id": zod.int(),
   "authorName": zod.string(),
+  "staff": zod.boolean(),
   "mine": zod.boolean(),
   "body": zod.string(),
   "createdAt": zod.string(),
@@ -1135,6 +1137,13 @@ export const GetModuleWorkResponse = zod.object({
   "scorePct": zod.int(),
   "createdAt": zod.string(),
   "thin": zod.boolean()
+})),
+  "comments": zod.array(zod.object({
+  "id": zod.int(),
+  "authorName": zod.string(),
+  "staff": zod.boolean(),
+  "body": zod.string(),
+  "createdAt": zod.string()
 }))
 }))
 })

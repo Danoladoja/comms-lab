@@ -9,7 +9,7 @@ import { apiReason, commentProblem } from '@workspace/domain';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { ChevronDown, Lock, MessageCircle, Sparkles, Users } from 'lucide-react';
+import { ChevronDown, GraduationCap, Lock, MessageCircle, Sparkles, Users } from 'lucide-react';
 
 /**
  * The cohort reading each other, once the blind work is done.
@@ -25,8 +25,34 @@ function when(iso: string): string {
   return new Date(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
 }
 
-function CommentBox({ piece, sessionId }: { piece: DiscussionPiece; sessionId: number }) {
-  const qc = useQueryClient();
+/**
+ * A facilitator's name in the room, marked as one.
+ *
+ * The room is a learner conversation and staff are guests in it. A tag does not
+ * stop people deferring to the teacher — nothing does — but it at least means
+ * they are deferring to a teacher rather than to a peer who sounded certain.
+ */
+export function StaffTag() {
+  return (
+    <span className="ml-1.5 inline-flex items-center gap-1 rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">
+      <GraduationCap className="h-3 w-3" aria-hidden />Facilitator
+    </span>
+  );
+}
+
+/**
+ * Saying something in the room.
+ *
+ * Shared with the staff console, because a facilitator reading the room and a
+ * learner reading the room should be typing into the same box — two boxes drift
+ * apart, and one of them ends up being the one nobody fixed.
+ */
+export function CommentComposer({ submissionId, placeholder, onPosted }: {
+  submissionId: number;
+  placeholder: string;
+  /** Which view to refresh; the two screens cache the room under different keys. */
+  onPosted: () => void;
+}) {
   const { toast } = useToast();
   const [text, setText] = useState('');
 
@@ -34,7 +60,7 @@ function CommentBox({ piece, sessionId }: { piece: DiscussionPiece; sessionId: n
     mutation: {
       onSuccess: () => {
         setText('');
-        qc.invalidateQueries({ queryKey: getGetCohortDiscussionQueryKey(sessionId) });
+        onPosted();
       },
       onError: (err) => toast({
         title: 'Could not post that',
@@ -48,23 +74,19 @@ function CommentBox({ piece, sessionId }: { piece: DiscussionPiece; sessionId: n
 
   return (
     <div className="mt-4 border-t border-border pt-4">
-      <label htmlFor={`say-${piece.submissionId}`} className="sr-only">
-        Say something about {piece.authorName}'s piece
-      </label>
+      <label htmlFor={`say-${submissionId}`} className="sr-only">{placeholder}</label>
       <Textarea
-        id={`say-${piece.submissionId}`}
+        id={`say-${submissionId}`}
         value={text}
         onChange={(e) => setText(e.target.value)}
         rows={2}
-        placeholder={piece.mine
-          ? 'Answer your cohort, or say what you would do differently next time.'
-          : `What did ${piece.authorName.split(' ')[0]} do that you would steal?`}
+        placeholder={placeholder}
       />
       <div className="mt-2 flex justify-end">
         <Button
           size="sm"
           disabled={!!problem || add.isPending}
-          onClick={() => add.mutate({ id: piece.submissionId, data: { body: text.trim() } })}
+          onClick={() => add.mutate({ id: submissionId, data: { body: text.trim() } })}
         >
           {add.isPending ? 'Posting…' : 'Post'}
         </Button>
@@ -74,6 +96,7 @@ function CommentBox({ piece, sessionId }: { piece: DiscussionPiece; sessionId: n
 }
 
 function Piece({ piece, sessionId }: { piece: DiscussionPiece; sessionId: number }) {
+  const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const panelId = `piece-${piece.submissionId}`;
 
@@ -140,6 +163,7 @@ function Piece({ piece, sessionId }: { piece: DiscussionPiece; sessionId: number
                   <div key={c.id}>
                     <p className="text-xs font-semibold">
                       {c.authorName}
+                      {c.staff && <StaffTag />}
                       <span className="ml-2 font-normal text-muted-foreground">{when(c.createdAt)}</span>
                     </p>
                     <p className="mt-0.5 whitespace-pre-wrap text-sm leading-relaxed">{c.body}</p>
@@ -149,7 +173,13 @@ function Piece({ piece, sessionId }: { piece: DiscussionPiece; sessionId: number
             </section>
           )}
 
-          <CommentBox piece={piece} sessionId={sessionId} />
+          <CommentComposer
+            submissionId={piece.submissionId}
+            placeholder={piece.mine
+              ? 'Answer your cohort, or say what you would do differently next time.'
+              : `What did ${piece.authorName.split(' ')[0]} do that you would steal?`}
+            onPosted={() => qc.invalidateQueries({ queryKey: getGetCohortDiscussionQueryKey(sessionId) })}
+          />
         </div>
       )}
     </article>

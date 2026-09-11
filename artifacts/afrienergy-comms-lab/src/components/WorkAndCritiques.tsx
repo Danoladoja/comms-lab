@@ -5,9 +5,10 @@ import {
   type StaffPiece,
 } from '@workspace/api-client-react';
 import { apiReason } from '@workspace/domain';
+import { CommentComposer, StaffTag } from '@/components/CohortDiscussion';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { ChevronDown, Eye, EyeOff, Flag, PenLine, UserX } from 'lucide-react';
+import { ChevronDown, Eye, EyeOff, Flag, MessageCircle, PenLine, UserX } from 'lucide-react';
 
 /**
  * What the Lab's staff can see of a module's written work.
@@ -84,7 +85,8 @@ function PieceCard({ piece, sessionId }: { piece: StaffPiece; sessionId: number 
           </span>
           <span className="mt-0.5 block text-xs text-muted-foreground">
             {piece.critiques.length} critique{piece.critiques.length === 1 ? '' : 's'}
-            {piece.critiques.some((c) => c.thin) && ' · some thin'} · AI: {piece.aiUseLabel}
+            {piece.critiques.some((c) => c.thin) && ' · some thin'} · {piece.comments.length} comment
+            {piece.comments.length === 1 ? '' : 's'} · AI: {piece.aiUseLabel}
           </span>
         </span>
         <ChevronDown
@@ -128,6 +130,44 @@ function PieceCard({ piece, sessionId }: { piece: StaffPiece; sessionId: number 
               </div>
             </section>
           )}
+
+          {/* The cohort room's conversation about this piece. Here rather than on
+              a screen of its own, because "what they wrote" and "what the room
+              said about it" are one thing to read, not two. */}
+          <section>
+            <h4 className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              <MessageCircle className="h-3.5 w-3.5" aria-hidden />Cohort room
+            </h4>
+            {piece.withdrawn ? (
+              <p className="text-xs text-muted-foreground">
+                This piece is out of the room, so the cohort cannot see it or add to it.
+              </p>
+            ) : piece.comments.length === 0 ? (
+              <p className="text-xs text-muted-foreground">Nobody has said anything about this one yet.</p>
+            ) : (
+              <div className="space-y-2">
+                {piece.comments.map((c) => (
+                  <div key={c.id}>
+                    <p className="text-xs font-semibold">
+                      {c.authorName}
+                      {c.staff && <StaffTag />}
+                      <span className="ml-2 font-normal text-muted-foreground">
+                        {new Date(c.createdAt).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}
+                      </span>
+                    </p>
+                    <p className="mt-0.5 whitespace-pre-wrap text-sm leading-relaxed">{c.body}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+            {!piece.withdrawn && (
+              <CommentComposer
+                submissionId={piece.submissionId}
+                placeholder="Your reply appears in the room with a facilitator tag on it."
+                onPosted={() => qc.invalidateQueries({ queryKey: getGetModuleWorkQueryKey(sessionId) })}
+              />
+            )}
+          </section>
 
           {/* The remedy for a piece that turned out to be more personal than its
               author meant it to be. It leaves the discussion and nothing else. */}

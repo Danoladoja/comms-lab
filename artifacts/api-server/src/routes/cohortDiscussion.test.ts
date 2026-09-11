@@ -18,7 +18,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => {
   const tables = {
-    usersTable: { id: "id", name: "name", email: "email" },
+    usersTable: { id: "id", name: "name", email: "email", role: "role" },
     programsTable: { id: "id" },
     enrollmentsTable: { id: "id", userId: "userId", programId: "programId", status: "status" },
     sessionsTable: { id: "id", programId: "programId", instructorId: "instructorId" },
@@ -110,10 +110,17 @@ const CRITIQUES = [{
   id: 31, submissionId: 21, reviewerId: 6, reviewerName: "Kwame Mensah",
   scores: {}, comment: "The lede buries the number.", createdAt: FILED,
 }];
-const COMMENTS = [{
-  id: 41, submissionId: 21, authorId: 6, authorName: "Kwame Mensah",
-  body: "I would have led on the 240% too.", createdAt: FILED,
-}];
+const COMMENTS = [
+  {
+    id: 41, submissionId: 21, authorId: 6, authorName: "Kwame Mensah", authorRole: "learner",
+    body: "I would have led on the 240% too.", createdAt: FILED,
+  },
+  {
+    id: 42, submissionId: 21, authorId: 9, authorName: "Dan", authorRole: "instructor",
+    body: "Band A is the tariff band, not the customer class — worth a line of explanation.",
+    createdAt: FILED,
+  },
+];
 
 let baseUrl = "";
 let server: ReturnType<ReturnType<typeof express>["listen"]>;
@@ -133,7 +140,7 @@ type Discussion = {
     aiUseLabel: string;
     aiNote: string;
     critiques: { comment: string }[];
-    comments: { authorName: string }[];
+    comments: { authorName: string; staff: boolean }[];
   }[];
 };
 
@@ -145,6 +152,7 @@ type StaffWork = {
     provenance: string;
     worthALook: boolean;
     critiques: { reviewerName: string; thin: boolean }[];
+    comments: { authorName: string; staff: boolean }[];
   }[];
 };
 
@@ -227,6 +235,11 @@ describe("GET /sessions/:id/discussion", () => {
 
     // A comment is a conversation, so it is signed.
     expect(amina.comments[0].authorName).toBe("Kwame Mensah");
+    expect(amina.comments[0].staff).toBe(false);
+    // And a facilitator in the room is marked as one, so nobody mistakes the
+    // teacher's view for a peer's.
+    expect(amina.comments[1].authorName).toBe("Dan");
+    expect(amina.comments[1].staff).toBe(true);
   });
 
   it("never sends a score of any kind, only what people wrote", async () => {
@@ -237,10 +250,10 @@ describe("GET /sessions/:id/discussion", () => {
 });
 
 describe("GET /admin/sessions/:id/work", () => {
-  /** module · pieces · critiques · cohort */
+  /** module · pieces · critiques · cohort · the room */
   const staffReads = () => mocks.setSelects([MODULE, PIECES, CRITIQUES, [
     { id: 5, name: "Amina Bello" }, { id: 6, name: "Kwame Mensah" }, { id: 7, name: "Ngozi Eze" },
-  ]]);
+  ], COMMENTS]);
 
   it("refuses a learner, including one enrolled on the programme", async () => {
     staffReads();
@@ -265,6 +278,11 @@ describe("GET /admin/sessions/:id/work", () => {
     expect(amina.critiques[0].reviewerName).toBe("Kwame Mensah");
     expect(amina.provenance).toMatch(/3 sittings/);
     expect(amina.worthALook).toBe(false);
+
+    // The room's conversation is on this screen too — splitting it off would
+    // rebuild the blind spot this endpoint exists to close.
+    expect(amina.comments.map((c) => c.authorName)).toEqual(["Kwame Mensah", "Dan"]);
+    expect(amina.comments[1].staff).toBe(true);
 
     // And the two lists a facilitator actually chases.
     expect(body.missing).toEqual(["Ngozi Eze"]);

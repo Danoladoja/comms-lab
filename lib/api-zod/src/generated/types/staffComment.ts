@@ -6,12 +6,10 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface SubmissionComment {
+export interface StaffComment {
   id: number;
   authorName: string;
   staff: boolean;
-  mine: boolean;
   body: string;
   createdAt: string;
-  submissionId?: number;
 }
