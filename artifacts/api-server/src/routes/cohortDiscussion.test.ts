@@ -118,8 +118,52 @@ const COMMENTS = [{
 let baseUrl = "";
 let server: ReturnType<ReturnType<typeof express>["listen"]>;
 
-const discussion = () => fetch(`${baseUrl}/api/sessions/4/discussion`);
-const staffWork = () => fetch(`${baseUrl}/api/admin/sessions/4/work`);
+/**
+ * Only the parts these tests assert on. Written out rather than borrowed from
+ * the generated client, because a test that describes the shape it expects
+ * catches the day the route stops sending it.
+ */
+type Discussion = {
+  open: boolean;
+  lockedReason: string;
+  pieces: {
+    submissionId: number;
+    authorName: string;
+    mine: boolean;
+    aiUseLabel: string;
+    aiNote: string;
+    critiques: { comment: string }[];
+    comments: { authorName: string }[];
+  }[];
+};
+
+type StaffWork = {
+  missing: string[];
+  owing: { name: string; given: number }[];
+  pieces: {
+    submissionId: number;
+    provenance: string;
+    worthALook: boolean;
+    critiques: { reviewerName: string; thin: boolean }[];
+  }[];
+};
+
+const discussion = async (): Promise<{ status: number; body: Discussion }> => {
+  const res = await fetch(`${baseUrl}/api/sessions/4/discussion`);
+  return { status: res.status, body: (await res.json()) as Discussion };
+};
+
+const staffWork = async (): Promise<{ status: number; body: StaffWork; text: string }> => {
+  const res = await fetch(`${baseUrl}/api/admin/sessions/4/work`);
+  const text = await res.text();
+  return { status: res.status, body: text ? (JSON.parse(text) as StaffWork) : ({} as StaffWork), text };
+};
+
+const pieceIn = <T extends { submissionId: number }>(pieces: T[], id: number): T => {
+  const found = pieces.find((p) => p.submissionId === id);
+  if (!found) throw new Error(`No piece ${id} in the response`);
+  return found;
+};
 
 beforeEach(async () => {
   vi.clearAllMocks();
@@ -145,8 +189,7 @@ const learnerReads = (given: number, mine: unknown[]) =>
 describe("GET /sessions/:id/discussion", () => {
   it("stays shut until the learner has filed their own piece", async () => {
     learnerReads(0, []);
-    const res = await discussion();
-    const body = await res.json();
+    const { body } = await discussion();
 
     expect(body.open).toBe(false);
     expect(body.lockedReason).toMatch(/submit your own piece/i);
@@ -157,7 +200,7 @@ describe("GET /sessions/:id/discussion", () => {
 
   it("stays shut while critiques are owed, and says how many", async () => {
     learnerReads(1, [{ id: 21 }]);
-    const body = await (await discussion()).json();
+    const { body } = await discussion();
 
     expect(body.open).toBe(false);
     expect(body.lockedReason).toMatch(/one more critique/i);
@@ -166,12 +209,12 @@ describe("GET /sessions/:id/discussion", () => {
 
   it("opens once the work is done, with pieces named and critiques not", async () => {
     learnerReads(2, [{ id: 21 }]);
-    const body = await (await discussion()).json();
+    const { body } = await discussion();
 
     expect(body.open).toBe(true);
     expect(body.pieces).toHaveLength(2);
 
-    const amina = body.pieces.find((p: { submissionId: number }) => p.submissionId === 21);
+    const amina = pieceIn(body.pieces, 21);
     expect(amina.authorName).toBe("Amina Bello");
     expect(amina.mine).toBe(true);
     // The disclosure travels with the piece — that was the point of asking.
@@ -188,8 +231,8 @@ describe("GET /sessions/:id/discussion", () => {
 
   it("never sends a score of any kind, only what people wrote", async () => {
     learnerReads(2, [{ id: 21 }]);
-    const text = JSON.stringify(await (await discussion()).json());
-    expect(text).not.toMatch(/worthALook|provenance|activeSeconds|scorePct/);
+    const { body } = await discussion();
+    expect(JSON.stringify(body)).not.toMatch(/worthALook|provenance|activeSeconds|scorePct/);
   });
 });
 
@@ -201,9 +244,9 @@ describe("GET /admin/sessions/:id/work", () => {
 
   it("refuses a learner, including one enrolled on the programme", async () => {
     staffReads();
-    const res = await staffWork();
-    expect(res.status).toBe(403);
-    expect(JSON.stringify(await res.json())).not.toContain("band-A tariff");
+    const { status, text } = await staffWork();
+    expect(status).toBe(403);
+    expect(text).not.toContain("band-A tariff");
   });
 
   it("refuses a facilitator who does not teach this module", async () => {
@@ -215,9 +258,9 @@ describe("GET /admin/sessions/:id/work", () => {
   it("gives the facilitator who teaches it the names on every critique", async () => {
     mocks.getCurrentUser.mockResolvedValue({ id: 9, name: "Dan", role: "instructor" });
     staffReads();
-    const body = await (await staffWork()).json();
+    const { body } = await staffWork();
 
-    const amina = body.pieces.find((p: { submissionId: number }) => p.submissionId === 21);
+    const amina = pieceIn(body.pieces, 21);
     // The one screen where a critique is signed.
     expect(amina.critiques[0].reviewerName).toBe("Kwame Mensah");
     expect(amina.provenance).toMatch(/3 sittings/);
@@ -225,15 +268,15 @@ describe("GET /admin/sessions/:id/work", () => {
 
     // And the two lists a facilitator actually chases.
     expect(body.missing).toEqual(["Ngozi Eze"]);
-    expect(body.owing.map((o: { name: string }) => o.name)).toContain("Amina Bello");
+    expect(body.owing.map((o) => o.name)).toContain("Amina Bello");
   });
 
   it("raises an eyebrow at a piece that arrived whole in ninety seconds", async () => {
     mocks.getCurrentUser.mockResolvedValue({ id: 1, name: "Admin", role: "admin" });
     staffReads();
-    const body = await (await staffWork()).json();
+    const { body } = await staffWork();
 
-    const kwame = body.pieces.find((p: { submissionId: number }) => p.submissionId === 22);
+    const kwame = pieceIn(body.pieces, 22);
     expect(kwame.worthALook).toBe(true);
     // A sentence about what happened, never a verdict about who wrote it.
     expect(kwame.provenance).not.toMatch(/\bAI\b|likely|generated/i);
