@@ -18,6 +18,7 @@ import { QuizEditor, AssignmentEditor } from '@/components/AdminCourseworkEditor
 import PostCoursework from '@/components/PostCoursework';
 import ReadingListEditor from '@/components/ReadingListEditor';
 import { EditorSection } from '@/components/EditorSection';
+import WorkAndCritiques from '@/components/WorkAndCritiques';
 import { Sparkles, Loader, CircleAlert, Lightbulb, History, Scissors, X } from 'lucide-react';
 
 
@@ -51,7 +52,7 @@ export default function CourseworkStudio({ sessionId, onClose }: {
   const [notes, setNotes] = useState<string[]>([]);
   const [source, setSource] = useState<{ description: string; chars: number; truncated: boolean } | null>(null);
   const [version, setVersion] = useState(0);
-  const [openEditor, setOpenEditor] = useState<'quiz' | 'task' | 'reading' | null>(null);
+  const [openEditor, setOpenEditor] = useState<'quiz' | 'task' | 'reading' | 'work' | null>(null);
 
   const { data: deck } = useGetSessionSlides(sessionId, {
     query: { queryKey: getGetSessionSlidesQueryKey(sessionId), retry: false },
@@ -265,6 +266,17 @@ export default function CourseworkStudio({ sessionId, onClose }: {
             onToggle={() => setOpenEditor(openEditor === 'reading' ? null : 'reading')}
           >
             <ReadingListEditor sessionId={sessionId} onSaved={savedSomething} />
+          </EditorSection>
+
+          {/* Below the editors, because this is the part you read after the
+              cohort has been working rather than while you set the work. */}
+          <EditorSection
+            title="Work &amp; critiques"
+            hint="What the cohort filed, and what they said about each other"
+            open={openEditor === 'work'}
+            onToggle={() => setOpenEditor(openEditor === 'work' ? null : 'work')}
+          >
+            <WorkAndCritiques sessionId={sessionId} />
           </EditorSection>
 
           {/* Beneath all of them, because it is the thing you do once they are

@@ -9,6 +9,7 @@ import { UpsertSessionQuizBody, SubmitQuizAttemptBody, UpsertSessionAssignmentBo
 import {
   QUIZ_PASS_MARK, DEFAULT_RUBRIC, DEFAULT_REVIEWS_REQUIRED, isModuleStaff, isValidRubric,
   isPastDue, pastDueMessage, readyToPost, describePost, postAnnouncement, labLetter, weekDeadline,
+  disclosureProblem,
   type CourseworkPiece, type SendOutcome,
 } from "@workspace/domain";
 import { currentRole, getCurrentUser } from "../lib/auth";
@@ -412,12 +413,39 @@ router.post("/sessions/:id/assignment/submission", async (req, res) => {
     return;
   }
 
+  // The disclosure is required, and it is refused here rather than only in the
+  // browser: a learner is being asked to say something true about their own
+  // work, and a rule enforced only on screen is a rule anybody can walk past.
+  //
+  // Asked last of the three, so that somebody handing in after the deadline is
+  // told the door is shut rather than being sent to fill in a form that was
+  // never going to be accepted.
+  const disclosure = disclosureProblem(parsed.data.aiUse, parsed.data.aiNote);
+  if (disclosure) { res.status(400).json({ error: disclosure }); return; }
+
+  // Counts and timings, clamped to sane numbers. These arrive from the browser
+  // and a browser can say anything, so nothing here is treated as proof — it is
+  // a description of what happened, offered to a person who will use judgement.
+  const count = (value: number | undefined) =>
+    Math.max(0, Math.min(60 * 60 * 24, Math.round(value ?? 0)));
+  const provenance = {
+    aiUse: parsed.data.aiUse,
+    aiNote: (parsed.data.aiNote ?? "").trim(),
+    activeSeconds: count(parsed.data.activeSeconds),
+    sittings: count(parsed.data.sittings),
+    pasteCount: count(parsed.data.pasteCount),
+    pastedChars: count(parsed.data.pastedChars),
+    largestPaste: count(parsed.data.largestPaste),
+  };
+
   const [saved] = await db
     .insert(assignmentSubmissionsTable)
-    .values({ userId: user.id, sessionId, body: parsed.data.body })
+    .values({ userId: user.id, sessionId, body: parsed.data.body, ...provenance })
     .onConflictDoUpdate({
       target: [assignmentSubmissionsTable.userId, assignmentSubmissionsTable.sessionId],
-      set: { body: parsed.data.body, submittedAt: sql`now()` },
+      // A resubmission replaces the record of how it was written, because the
+      // record describes the piece that is now filed, not the one before it.
+      set: { body: parsed.data.body, submittedAt: sql`now()`, ...provenance },
     })
     .returning();
   res.json({ sessionId, body: saved.body, submittedAt: saved.submittedAt.toISOString() });

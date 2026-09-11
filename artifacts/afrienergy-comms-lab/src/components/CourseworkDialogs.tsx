@@ -5,8 +5,11 @@ import {
   useGetSessionAssignment, useSubmitAssignment,
   getGetSessionQuizQueryKey, getGetSessionAssignmentQueryKey, getListMyProgressQueryKey,
 } from '@workspace/api-client-react';
-import { apiReason } from '@workspace/domain';
+import {
+  apiReason, AI_USE_CHOICES, MAX_AI_NOTE_CHARS, disclosureProblem, type AiUse,
+} from '@workspace/domain';
 import { deadlineNotice } from '@/lib/dueDateText';
+import { useWritingProvenance } from '@/hooks/useWritingProvenance';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -156,6 +159,68 @@ export function QuizDialog({ sessionId, moduleTitle, open, onOpenChange }: {
 
 /* ---------- Assignment ---------- */
 
+/**
+ * How did you use AI on this?
+ *
+ * Asked of everyone, every time, and answered in four seconds. The Lab does not
+ * run a detector: detectors disagree with each other, produce a percentage
+ * people read as a fact, and flag writers working in a second language more
+ * often than fluent natives — which, for this cohort, would mean accusing the
+ * people writing most carefully. Declaring your tools is a newsroom habit now,
+ * and teaching it is worth more than catching anybody.
+ */
+function AiDisclosure({ sessionId, use, note, onUse, onNote, disabled }: {
+  sessionId: number;
+  use: AiUse | '';
+  note: string;
+  onUse: (v: AiUse) => void;
+  onNote: (v: string) => void;
+  disabled?: boolean;
+}) {
+  const name = `ai-use-${sessionId}`;
+  return (
+    <fieldset className="rounded-xl border border-border bg-muted/30 p-4" disabled={disabled}>
+      <legend className="px-1 text-sm font-semibold">Did you use AI on this piece?</legend>
+      <p className="mb-3 text-xs text-muted-foreground">
+        Every answer here is fine, including “it wrote a draft”. Nothing is marked down for it — saying so is the
+        professional habit we are after.
+      </p>
+      <div className="space-y-1.5">
+        {AI_USE_CHOICES.map((choice) => (
+          <label
+            key={choice.value}
+            className={`flex cursor-pointer items-center gap-2.5 rounded-lg border px-3 py-2 text-sm transition-colors ${
+              use === choice.value ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/40'
+            }`}
+          >
+            <input
+              type="radio"
+              name={name}
+              checked={use === choice.value}
+              onChange={() => onUse(choice.value)}
+              className="accent-[#F97316]"
+            />
+            {choice.label}
+          </label>
+        ))}
+      </div>
+      <label htmlFor={`${name}-note`} className="mt-3 mb-1.5 block text-xs font-medium">
+        {use === 'other' ? 'Say in a line what that was' : 'Anything to add? (optional)'}
+      </label>
+      <Textarea
+        id={`${name}-note`}
+        value={note}
+        onChange={(e) => onNote(e.target.value.slice(0, MAX_AI_NOTE_CHARS))}
+        rows={2}
+        placeholder="e.g. I asked it to check two tariff figures, then verified both against the regulator's site."
+      />
+      <p className="mt-1 text-xs text-muted-foreground">
+        Your cohort sees this alongside your piece in the discussion.
+      </p>
+    </fieldset>
+  );
+}
+
 /** Assignment brief plus the submission box. Used in the dashboard dialog and
  *  inline in the classroom. */
 export function AssignmentPanel({ sessionId, enabled = true, onSubmitted }: {
@@ -168,11 +233,15 @@ export function AssignmentPanel({ sessionId, enabled = true, onSubmitted }: {
   });
   const [body, setBody] = useState<string | null>(null);
   const text = body ?? assignment?.mySubmission?.body ?? '';
+  const [aiUse, setAiUse] = useState<AiUse | ''>('');
+  const [aiNote, setAiNote] = useState('');
+  const provenance = useWritingProvenance(sessionId);
 
   const submit = useSubmitAssignment({
     mutation: {
       onSuccess: () => {
         toast({ title: 'Assignment submitted', description: 'Your response has been saved.' });
+        provenance.clear();
         qc.invalidateQueries({ queryKey: getListMyProgressQueryKey() });
         qc.invalidateQueries({ queryKey: getGetSessionAssignmentQueryKey(sessionId) });
         onSubmitted?.();
@@ -186,6 +255,9 @@ export function AssignmentPanel({ sessionId, enabled = true, onSubmitted }: {
   });
 
   const closed = !!assignment?.closed;
+  // The same check the server runs, so the button explains itself before the
+  // learner presses it rather than after.
+  const disclosureIssue = disclosureProblem(aiUse, aiNote);
 
   if (isLoading) return <div className="h-32 bg-muted/40 rounded-xl animate-pulse" />;
   if (error) return <p className="text-sm text-muted-foreground py-4">This assignment is not available yet.</p>;
@@ -207,15 +279,35 @@ export function AssignmentPanel({ sessionId, enabled = true, onSubmitted }: {
       )}
       <Textarea
         value={text}
-        onChange={e => setBody(e.target.value)}
+        onChange={e => { setBody(e.target.value); provenance.onType(); }}
+        onPaste={e => provenance.onPaste(e.clipboardData.getData('text'))}
         placeholder={closed ? 'Submissions are closed for this assignment.' : 'Type your response here...'}
         rows={8}
         readOnly={closed}
       />
+
+      {!closed && (
+        <AiDisclosure
+          sessionId={sessionId}
+          use={aiUse}
+          note={aiNote}
+          onUse={setAiUse}
+          onNote={setAiNote}
+        />
+      )}
+
       <Button
         className="w-full font-bold"
-        disabled={closed || !text.trim() || submit.isPending}
-        onClick={() => submit.mutate({ id: sessionId, data: { body: text.trim() } })}
+        disabled={closed || !text.trim() || !!disclosureIssue || submit.isPending}
+        onClick={() => submit.mutate({
+          id: sessionId,
+          data: {
+            body: text.trim(),
+            aiUse: aiUse as AiUse,
+            aiNote: aiNote.trim(),
+            ...provenance.read(),
+          },
+        })}
       >
         {closed
           ? 'Closed'
@@ -223,6 +315,9 @@ export function AssignmentPanel({ sessionId, enabled = true, onSubmitted }: {
             ? 'Submitting...'
             : assignment?.mySubmission ? 'Resubmit assignment' : 'Submit assignment'}
       </Button>
+      {!closed && !!text.trim() && !!disclosureIssue && (
+        <p className="text-xs text-muted-foreground">{disclosureIssue}</p>
+      )}
     </div>
   );
 }

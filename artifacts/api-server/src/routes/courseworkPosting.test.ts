@@ -187,7 +187,7 @@ describe("a draft is invisible to learners", () => {
     const res = await fetch(`${baseUrl}/api/sessions/10/assignment/submission`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ body: "Handed in early, on something never set." }),
+      body: JSON.stringify({ body: "Handed in early, on something never set.", aiUse: "none" }),
     });
     expect(res.status).toBe(404);
   });

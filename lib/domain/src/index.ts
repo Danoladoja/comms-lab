@@ -32,3 +32,5 @@ export * from "./dueDate";
 export * from "./courseworkPost";
 export * from "./teachingWeek";
 export * from "./recordingEmbed";
+export * from "./writingProvenance";
+export * from "./cohortDiscussion";

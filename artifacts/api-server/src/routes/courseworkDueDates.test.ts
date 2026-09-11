@@ -97,7 +97,11 @@ const handIn = () =>
   fetch(`${baseUrl}/api/sessions/10/assignment/submission`, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ body: "My piece, written on the night of the deadline." }),
+    body: JSON.stringify({
+      body: "My piece, written on the night of the deadline.",
+      // Required on every submission now; the deadline is what these tests are about.
+      aiUse: "none",
+    }),
   });
 
 beforeEach(async () => {

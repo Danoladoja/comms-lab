@@ -715,9 +715,32 @@ export interface AssignmentInput {
   origin?: AssignmentInputOrigin;
 }
 
+export type AssignmentSubmissionInputAiUse = typeof AssignmentSubmissionInputAiUse[keyof typeof AssignmentSubmissionInputAiUse];
+
+
+export const AssignmentSubmissionInputAiUse = {
+  none: 'none',
+  research: 'research',
+  edit: 'edit',
+  'draft-then-rewrote': 'draft-then-rewrote',
+  other: 'other',
+} as const;
+
 export interface AssignmentSubmissionInput {
   /** @minLength 1 */
   body: string;
+  aiUse: AssignmentSubmissionInputAiUse;
+  aiNote?: string;
+  /** @minimum 0 */
+  activeSeconds?: number;
+  /** @minimum 0 */
+  sittings?: number;
+  /** @minimum 0 */
+  pasteCount?: number;
+  /** @minimum 0 */
+  pastedChars?: number;
+  /** @minimum 0 */
+  largestPaste?: number;
 }
 
 export interface ReviewTarget {
@@ -764,6 +787,99 @@ export interface MyFeedback {
   reviewsGiven: number;
   rubric: RubricCriterion[];
   reviews: ReceivedReview[];
+}
+
+export interface DiscussionCritique {
+  id: number;
+  comment: string;
+  createdAt: string;
+}
+
+export interface SubmissionComment {
+  id: number;
+  authorName: string;
+  mine: boolean;
+  body: string;
+  createdAt: string;
+  submissionId?: number;
+}
+
+export interface SubmissionCommentInput {
+  /**
+     * @minLength 1
+     * @maxLength 4000
+     */
+  body: string;
+}
+
+export interface DiscussionPiece {
+  submissionId: number;
+  authorName: string;
+  mine: boolean;
+  body: string;
+  submittedAt: string;
+  aiUseLabel: string;
+  aiNote: string;
+  critiques: DiscussionCritique[];
+  comments: SubmissionComment[];
+}
+
+export interface CohortDiscussion {
+  sessionId: number;
+  title: string;
+  instructions: string;
+  open: boolean;
+  lockedReason: string;
+  reviewsRequired: number;
+  reviewsGiven: number;
+  pieces: DiscussionPiece[];
+}
+
+export interface StaffCritique {
+  id: number;
+  reviewerName: string;
+  comment: string;
+  scorePct: number;
+  createdAt: string;
+  thin: boolean;
+}
+
+export interface StaffPiece {
+  submissionId: number;
+  authorName: string;
+  body: string;
+  submittedAt: string;
+  withdrawn: boolean;
+  aiUse: string;
+  aiUseLabel: string;
+  aiNote: string;
+  provenance: string;
+  worthALook: boolean;
+  critiques: StaffCritique[];
+}
+
+export interface OwingLearner {
+  name: string;
+  given: number;
+}
+
+export interface ModuleWork {
+  sessionId: number;
+  title: string;
+  rubric: RubricCriterion[];
+  reviewsRequired: number;
+  missing: string[];
+  owing: OwingLearner[];
+  pieces: StaffPiece[];
+}
+
+export interface WithdrawInput {
+  withdrawn: boolean;
+}
+
+export interface WithdrawResult {
+  submissionId: number;
+  withdrawn: boolean;
 }
 
 export interface GoogleConnectionStatus {

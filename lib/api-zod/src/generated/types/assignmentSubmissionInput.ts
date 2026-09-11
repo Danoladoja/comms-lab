@@ -5,8 +5,21 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { AssignmentSubmissionInputAiUse } from './assignmentSubmissionInputAiUse';
 
 export interface AssignmentSubmissionInput {
   /** @minLength 1 */
   body: string;
+  aiUse: AssignmentSubmissionInputAiUse;
+  aiNote?: string;
+  /** @minimum 0 */
+  activeSeconds?: number;
+  /** @minimum 0 */
+  sittings?: number;
+  /** @minimum 0 */
+  pasteCount?: number;
+  /** @minimum 0 */
+  pastedChars?: number;
+  /** @minimum 0 */
+  largestPaste?: number;
 }

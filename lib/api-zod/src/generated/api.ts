@@ -539,10 +539,27 @@ export const SubmitAssignmentParams = zod.object({
 })
 
 
+export const submitAssignmentBodyActiveSecondsMin = 0;
+
+export const submitAssignmentBodySittingsMin = 0;
+
+export const submitAssignmentBodyPasteCountMin = 0;
+
+export const submitAssignmentBodyPastedCharsMin = 0;
+
+export const submitAssignmentBodyLargestPasteMin = 0;
+
 
 
 export const SubmitAssignmentBody = zod.object({
-  "body": zod.string().min(1)
+  "body": zod.string().min(1),
+  "aiUse": zod.enum(['none', 'research', 'edit', 'draft-then-rewrote', 'other']),
+  "aiNote": zod.string().optional(),
+  "activeSeconds": zod.int().min(submitAssignmentBodyActiveSecondsMin).optional(),
+  "sittings": zod.int().min(submitAssignmentBodySittingsMin).optional(),
+  "pasteCount": zod.int().min(submitAssignmentBodyPasteCountMin).optional(),
+  "pastedChars": zod.int().min(submitAssignmentBodyPastedCharsMin).optional(),
+  "largestPaste": zod.int().min(submitAssignmentBodyLargestPasteMin).optional()
 })
 
 export const SubmitAssignmentResponse = zod.object({
@@ -1000,6 +1017,144 @@ export const GetMyFeedbackResponse = zod.object({
   "createdAt": zod.string(),
   "scorePct": zod.int()
 }))
+})
+
+
+/**
+ * Opens on the same rule that unseals a learner's own feedback — file your piece, write the critiques you owe. Pieces are named; the critiques on them stay unsigned, because those were written under a promise of anonymity that does not expire when the exercise ends.
+ * @summary The whole cohort's work for a module, once the learner has earned it
+ */
+export const GetCohortDiscussionParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const GetCohortDiscussionResponse = zod.object({
+  "sessionId": zod.int(),
+  "title": zod.string(),
+  "instructions": zod.string(),
+  "open": zod.boolean(),
+  "lockedReason": zod.string(),
+  "reviewsRequired": zod.int(),
+  "reviewsGiven": zod.int(),
+  "pieces": zod.array(zod.object({
+  "submissionId": zod.int(),
+  "authorName": zod.string(),
+  "mine": zod.boolean(),
+  "body": zod.string(),
+  "submittedAt": zod.string(),
+  "aiUseLabel": zod.string(),
+  "aiNote": zod.string(),
+  "critiques": zod.array(zod.object({
+  "id": zod.int(),
+  "comment": zod.string(),
+  "createdAt": zod.string()
+})),
+  "comments": zod.array(zod.object({
+  "id": zod.int(),
+  "authorName": zod.string(),
+  "mine": zod.boolean(),
+  "body": zod.string(),
+  "createdAt": zod.string(),
+  "submissionId": zod.int().optional()
+}))
+}))
+})
+
+
+/**
+ * Comments are signed. A critique is anonymous because it is a judgement; a discussion is a conversation, and conversations have names on them.
+ * @summary Say something in the cohort discussion about one piece of work
+ */
+export const AddSubmissionCommentParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const addSubmissionCommentBodyBodyMax = 4000;
+
+
+
+export const AddSubmissionCommentBody = zod.object({
+  "body": zod.string().min(1).max(addSubmissionCommentBodyBodyMax)
+})
+
+export const AddSubmissionCommentResponse = zod.object({
+  "id": zod.int(),
+  "authorName": zod.string(),
+  "mine": zod.boolean(),
+  "body": zod.string(),
+  "createdAt": zod.string(),
+  "submissionId": zod.int().optional()
+})
+
+
+/**
+ * The one screen in the Lab that shows a learner's work to somebody who did not write it. Critiques carry their author's name here and only here — the learner who received one still sees it unsigned.
+ * @summary Every piece filed for a module and every critique of it, with names
+ */
+export const GetModuleWorkParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+
+
+export const getModuleWorkResponseRubricItemMaxScoreMin = 2;
+export const getModuleWorkResponseRubricItemMaxScoreMax = 10;
+
+
+
+export const GetModuleWorkResponse = zod.object({
+  "sessionId": zod.int(),
+  "title": zod.string(),
+  "rubric": zod.array(zod.object({
+  "id": zod.string().min(1),
+  "label": zod.string().min(1),
+  "description": zod.string(),
+  "maxScore": zod.int().min(getModuleWorkResponseRubricItemMaxScoreMin).max(getModuleWorkResponseRubricItemMaxScoreMax)
+})),
+  "reviewsRequired": zod.int(),
+  "missing": zod.array(zod.string()),
+  "owing": zod.array(zod.object({
+  "name": zod.string(),
+  "given": zod.int()
+})),
+  "pieces": zod.array(zod.object({
+  "submissionId": zod.int(),
+  "authorName": zod.string(),
+  "body": zod.string(),
+  "submittedAt": zod.string(),
+  "withdrawn": zod.boolean(),
+  "aiUse": zod.string(),
+  "aiUseLabel": zod.string(),
+  "aiNote": zod.string(),
+  "provenance": zod.string(),
+  "worthALook": zod.boolean(),
+  "critiques": zod.array(zod.object({
+  "id": zod.int(),
+  "reviewerName": zod.string(),
+  "comment": zod.string(),
+  "scorePct": zod.int(),
+  "createdAt": zod.string(),
+  "thin": zod.boolean()
+}))
+}))
+})
+
+
+/**
+ * Hides the piece from the discussion only. The work still counts towards the module and staff still see it.
+ * @summary Take one piece out of the cohort discussion, or put it back
+ */
+export const WithdrawSubmissionParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const WithdrawSubmissionBody = zod.object({
+  "withdrawn": zod.boolean()
+})
+
+export const WithdrawSubmissionResponse = zod.object({
+  "submissionId": zod.int(),
+  "withdrawn": zod.boolean()
 })
 
 

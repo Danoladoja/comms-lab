@@ -1094,6 +1094,179 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiMessage"
+  /sessions/{id}/discussion:
+    get:
+      operationId: getCohortDiscussion
+      tags: [enrollments]
+      summary: The whole cohort's work for a module, once the learner has earned it
+      description: >
+        Opens on the same rule that unseals a learner's own feedback — file your
+        piece, write the critiques you owe. Pieces are named; the critiques on
+        them stay unsigned, because those were written under a promise of
+        anonymity that does not expire when the exercise ends.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: The discussion, or the reason it is still shut
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CohortDiscussion"
+        "401":
+          description: Not signed in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "403":
+          description: Locked or not enrolled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "404":
+          description: No assignment for this module
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+  /submissions/{id}/comments:
+    post:
+      operationId: addSubmissionComment
+      tags: [enrollments]
+      summary: Say something in the cohort discussion about one piece of work
+      description: >
+        Comments are signed. A critique is anonymous because it is a judgement;
+        a discussion is a conversation, and conversations have names on them.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SubmissionCommentInput"
+      responses:
+        "201":
+          description: Comment posted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SubmissionComment"
+        "400":
+          description: Nothing much said
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "401":
+          description: Not signed in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "403":
+          description: Discussion not open to this learner yet
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "404":
+          description: No such piece of work
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+  /admin/sessions/{id}/work:
+    get:
+      operationId: getModuleWork
+      tags: [admin]
+      summary: Every piece filed for a module and every critique of it, with names
+      description: >
+        The one screen in the Lab that shows a learner's work to somebody who did
+        not write it. Critiques carry their author's name here and only here —
+        the learner who received one still sees it unsigned.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: The module's work
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ModuleWork"
+        "401":
+          description: Not signed in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "403":
+          description: Staff only
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "404":
+          description: Session not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+  /admin/submissions/{id}/withdraw:
+    post:
+      operationId: withdrawSubmission
+      tags: [admin]
+      summary: Take one piece out of the cohort discussion, or put it back
+      description: >
+        Hides the piece from the discussion only. The work still counts towards
+        the module and staff still see it.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WithdrawInput"
+      responses:
+        "200":
+          description: Done
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WithdrawResult"
+        "401":
+          description: Not signed in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "403":
+          description: Staff only
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "404":
+          description: No such piece of work
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
   /my/progress:
     get:
       operationId: listMyProgress
@@ -3517,9 +3690,20 @@ components:
           enum: [manual, drafted, edited]
     AssignmentSubmissionInput:
       type: object
-      required: [body]
+      required: [body, aiUse]
       properties:
         body: { type: string, minLength: 1 }
+        # How the writer says they used AI. Required; the server refuses without it.
+        aiUse:
+          type: string
+          enum: [none, research, edit, draft-then-rewrote, other]
+        aiNote: { type: string }
+        # How the draft came to exist. Counts and timings only, never content.
+        activeSeconds: { type: integer, minimum: 0 }
+        sittings: { type: integer, minimum: 0 }
+        pasteCount: { type: integer, minimum: 0 }
+        pastedChars: { type: integer, minimum: 0 }
+        largestPaste: { type: integer, minimum: 0 }
     AssignmentSubmission:
       type: object
       required: [sessionId, body, submittedAt]
@@ -3591,6 +3775,139 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/ReceivedReview"
+    DiscussionCritique:
+      type: object
+      required: [id, comment, createdAt]
+      properties:
+        id: { type: integer }
+        # Unsigned, here and everywhere except the staff screen.
+        comment: { type: string }
+        createdAt: { type: string }
+    SubmissionComment:
+      type: object
+      required: [id, authorName, mine, body, createdAt]
+      properties:
+        id: { type: integer }
+        # Signed: a discussion is a conversation, not a judgement.
+        authorName: { type: string }
+        mine: { type: boolean }
+        body: { type: string }
+        createdAt: { type: string }
+        submissionId: { type: integer }
+    SubmissionCommentInput:
+      type: object
+      required: [body]
+      properties:
+        body: { type: string, minLength: 1, maxLength: 4000 }
+    DiscussionPiece:
+      type: object
+      required: [submissionId, authorName, mine, body, submittedAt, aiUseLabel, aiNote, critiques, comments]
+      properties:
+        submissionId: { type: integer }
+        authorName: { type: string }
+        mine: { type: boolean }
+        body: { type: string }
+        submittedAt: { type: string }
+        # What the writer said about their use of AI, shown to the cohort
+        # because that is how the habit spreads.
+        aiUseLabel: { type: string }
+        aiNote: { type: string }
+        critiques:
+          type: array
+          items:
+            $ref: "#/components/schemas/DiscussionCritique"
+        comments:
+          type: array
+          items:
+            $ref: "#/components/schemas/SubmissionComment"
+    CohortDiscussion:
+      type: object
+      required: [sessionId, title, instructions, open, lockedReason, reviewsRequired, reviewsGiven, pieces]
+      properties:
+        sessionId: { type: integer }
+        title: { type: string }
+        instructions: { type: string }
+        open: { type: boolean }
+        # What to go and do, when it is shut. Empty when it is open.
+        lockedReason: { type: string }
+        reviewsRequired: { type: integer }
+        reviewsGiven: { type: integer }
+        pieces:
+          type: array
+          items:
+            $ref: "#/components/schemas/DiscussionPiece"
+    StaffCritique:
+      type: object
+      required: [id, reviewerName, comment, scorePct, createdAt, thin]
+      properties:
+        id: { type: integer }
+        # The only place a critique carries its author's name.
+        reviewerName: { type: string }
+        comment: { type: string }
+        scorePct: { type: integer }
+        createdAt: { type: string }
+        # Barely over the minimum, or nearly identical to another this person
+        # wrote. A sorting hint, not an accusation.
+        thin: { type: boolean }
+    StaffPiece:
+      type: object
+      required: [submissionId, authorName, body, submittedAt, withdrawn, aiUse, aiUseLabel, aiNote, provenance, worthALook, critiques]
+      properties:
+        submissionId: { type: integer }
+        authorName: { type: string }
+        body: { type: string }
+        submittedAt: { type: string }
+        withdrawn: { type: boolean }
+        aiUse: { type: string }
+        aiUseLabel: { type: string }
+        aiNote: { type: string }
+        # A sentence about how the draft came to exist. Never a score.
+        provenance: { type: string }
+        worthALook: { type: boolean }
+        critiques:
+          type: array
+          items:
+            $ref: "#/components/schemas/StaffCritique"
+    OwingLearner:
+      type: object
+      required: [name, given]
+      properties:
+        name: { type: string }
+        given: { type: integer }
+    ModuleWork:
+      type: object
+      required: [sessionId, title, rubric, reviewsRequired, missing, owing, pieces]
+      properties:
+        sessionId: { type: integer }
+        title: { type: string }
+        rubric:
+          type: array
+          items:
+            $ref: "#/components/schemas/RubricCriterion"
+        reviewsRequired: { type: integer }
+        # The two lists a facilitator actually chases.
+        missing:
+          type: array
+          items: { type: string }
+        owing:
+          type: array
+          items:
+            $ref: "#/components/schemas/OwingLearner"
+        pieces:
+          type: array
+          items:
+            $ref: "#/components/schemas/StaffPiece"
+    WithdrawInput:
+      type: object
+      required: [withdrawn]
+      properties:
+        withdrawn: { type: boolean }
+    WithdrawResult:
+      type: object
+      required: [submissionId, withdrawn]
+      properties:
+        submissionId: { type: integer }
+        withdrawn: { type: boolean }
     GoogleConnectionStatus:
       type: object
       required: [connected, configured, secretConfigured]

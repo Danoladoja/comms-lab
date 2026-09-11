@@ -30,6 +30,7 @@ import type {
   BulkInviteBody,
   BulkInviteResult,
   Certificate,
+  CohortDiscussion,
   CohortMessage,
   CohortMessageInput,
   CohortMessageResult,
@@ -58,6 +59,7 @@ import type {
   LiveSessionInput,
   LiveSessionJoin,
   LiveSessionRegistered,
+  ModuleWork,
   MoreQuestionsInput,
   MyFeedback,
   NotFoundResponse,
@@ -110,6 +112,8 @@ import type {
   StudioPracticeRecord,
   StudioSimulation,
   StudioSimulationRun,
+  SubmissionComment,
+  SubmissionCommentInput,
   TaughtCohort,
   ThreadDetail,
   ThreadInput,
@@ -122,7 +126,9 @@ import type {
   WaitlistEntry,
   WaitlistEntryState,
   WaitlistEntryUpdate,
-  WaitlistSignupBody
+  WaitlistSignupBody,
+  WithdrawInput,
+  WithdrawResult
 } from './api.schemas';
 
 import { customFetch } from '../custom-fetch';
@@ -2742,6 +2748,308 @@ export function useGetMyFeedback<TData = Awaited<ReturnType<typeof getMyFeedback
 
 
 
+
+export const getGetCohortDiscussionUrl = (id: number,) => {
+
+
+
+
+  return `/api/sessions/${id}/discussion`
+}
+
+/**
+ * Opens on the same rule that unseals a learner's own feedback — file your piece, write the critiques you owe. Pieces are named; the critiques on them stay unsigned, because those were written under a promise of anonymity that does not expire when the exercise ends.
+ * @summary The whole cohort's work for a module, once the learner has earned it
+ */
+export const getCohortDiscussion = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<CohortDiscussion> => {
+
+  return customFetch<CohortDiscussion>(getGetCohortDiscussionUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetCohortDiscussionQueryKey = (id: number,) => {
+    return [
+    `/api/sessions/${id}/discussion`
+    ] as const;
+    }
+
+
+export const getGetCohortDiscussionQueryOptions = <TData = Awaited<ReturnType<typeof getCohortDiscussion>>, TError = ErrorType<ApiMessage>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCohortDiscussion>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetCohortDiscussionQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getCohortDiscussion>>> = ({ signal }) => getCohortDiscussion(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getCohortDiscussion>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetCohortDiscussionQueryResult = NonNullable<Awaited<ReturnType<typeof getCohortDiscussion>>>
+export type GetCohortDiscussionQueryError = ErrorType<ApiMessage>
+
+
+/**
+ * @summary The whole cohort's work for a module, once the learner has earned it
+ */
+
+export function useGetCohortDiscussion<TData = Awaited<ReturnType<typeof getCohortDiscussion>>, TError = ErrorType<ApiMessage>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCohortDiscussion>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetCohortDiscussionQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getAddSubmissionCommentUrl = (id: number,) => {
+
+
+
+
+  return `/api/submissions/${id}/comments`
+}
+
+/**
+ * Comments are signed. A critique is anonymous because it is a judgement; a discussion is a conversation, and conversations have names on them.
+ * @summary Say something in the cohort discussion about one piece of work
+ */
+export const addSubmissionComment = async (id: number,
+    submissionCommentInput: SubmissionCommentInput, options?: Parameters<typeof customFetch>[1]): Promise<SubmissionComment> => {
+
+  return customFetch<SubmissionComment>(getAddSubmissionCommentUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(submissionCommentInput)
+  }
+);}
+
+
+
+
+
+export const getAddSubmissionCommentMutationOptions = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addSubmissionComment>>, TError,{id: number;data: BodyType<SubmissionCommentInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof addSubmissionComment>>, TError,{id: number;data: BodyType<SubmissionCommentInput>}, TContext> => {
+
+const mutationKey = ['addSubmissionComment'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof addSubmissionComment>>, {id: number;data: BodyType<SubmissionCommentInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  addSubmissionComment(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AddSubmissionCommentMutationResult = NonNullable<Awaited<ReturnType<typeof addSubmissionComment>>>
+    export type AddSubmissionCommentMutationBody = BodyType<SubmissionCommentInput>
+    export type AddSubmissionCommentMutationError = ErrorType<ApiMessage>
+
+    /**
+ * @summary Say something in the cohort discussion about one piece of work
+ */
+export const useAddSubmissionComment = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addSubmissionComment>>, TError,{id: number;data: BodyType<SubmissionCommentInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof addSubmissionComment>>,
+        TError,
+        {id: number;data: BodyType<SubmissionCommentInput>},
+        TContext
+      > => {
+      return useMutation(getAddSubmissionCommentMutationOptions(options));
+    }
+
+export const getGetModuleWorkUrl = (id: number,) => {
+
+
+
+
+  return `/api/admin/sessions/${id}/work`
+}
+
+/**
+ * The one screen in the Lab that shows a learner's work to somebody who did not write it. Critiques carry their author's name here and only here — the learner who received one still sees it unsigned.
+ * @summary Every piece filed for a module and every critique of it, with names
+ */
+export const getModuleWork = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<ModuleWork> => {
+
+  return customFetch<ModuleWork>(getGetModuleWorkUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetModuleWorkQueryKey = (id: number,) => {
+    return [
+    `/api/admin/sessions/${id}/work`
+    ] as const;
+    }
+
+
+export const getGetModuleWorkQueryOptions = <TData = Awaited<ReturnType<typeof getModuleWork>>, TError = ErrorType<ApiMessage>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getModuleWork>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetModuleWorkQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getModuleWork>>> = ({ signal }) => getModuleWork(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getModuleWork>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetModuleWorkQueryResult = NonNullable<Awaited<ReturnType<typeof getModuleWork>>>
+export type GetModuleWorkQueryError = ErrorType<ApiMessage>
+
+
+/**
+ * @summary Every piece filed for a module and every critique of it, with names
+ */
+
+export function useGetModuleWork<TData = Awaited<ReturnType<typeof getModuleWork>>, TError = ErrorType<ApiMessage>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getModuleWork>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetModuleWorkQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getWithdrawSubmissionUrl = (id: number,) => {
+
+
+
+
+  return `/api/admin/submissions/${id}/withdraw`
+}
+
+/**
+ * Hides the piece from the discussion only. The work still counts towards the module and staff still see it.
+ * @summary Take one piece out of the cohort discussion, or put it back
+ */
+export const withdrawSubmission = async (id: number,
+    withdrawInput: WithdrawInput, options?: Parameters<typeof customFetch>[1]): Promise<WithdrawResult> => {
+
+  return customFetch<WithdrawResult>(getWithdrawSubmissionUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(withdrawInput)
+  }
+);}
+
+
+
+
+
+export const getWithdrawSubmissionMutationOptions = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof withdrawSubmission>>, TError,{id: number;data: BodyType<WithdrawInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof withdrawSubmission>>, TError,{id: number;data: BodyType<WithdrawInput>}, TContext> => {
+
+const mutationKey = ['withdrawSubmission'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof withdrawSubmission>>, {id: number;data: BodyType<WithdrawInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  withdrawSubmission(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type WithdrawSubmissionMutationResult = NonNullable<Awaited<ReturnType<typeof withdrawSubmission>>>
+    export type WithdrawSubmissionMutationBody = BodyType<WithdrawInput>
+    export type WithdrawSubmissionMutationError = ErrorType<ApiMessage>
+
+    /**
+ * @summary Take one piece out of the cohort discussion, or put it back
+ */
+export const useWithdrawSubmission = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof withdrawSubmission>>, TError,{id: number;data: BodyType<WithdrawInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof withdrawSubmission>>,
+        TError,
+        {id: number;data: BodyType<WithdrawInput>},
+        TContext
+      > => {
+      return useMutation(getWithdrawSubmissionMutationOptions(options));
+    }
 
 export const getListMyProgressUrl = () => {
 

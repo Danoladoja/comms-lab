@@ -76,8 +76,64 @@ export const assignmentSubmissionsTable = pgTable(
     sessionId: integer("session_id").notNull().references(() => sessionsTable.id, { onDelete: "cascade" }),
     body: text("body").notNull(),
     submittedAt: timestamp("submitted_at", { withTimezone: true }).notNull().defaultNow(),
+
+    /**
+     * How the writer says they used AI on this piece, and a line about it.
+     *
+     * Required at submission from now on. Empty on everything filed before the
+     * question existed, which is why the app words that as "not declared"
+     * rather than implying anybody refused to answer.
+     */
+    aiUse: text("ai_use").notNull().default(""),
+    aiNote: text("ai_note").notNull().default(""),
+
+    /**
+     * How the draft came to exist. Counts and timings only — never keystrokes,
+     * never content. The Lab has to be able to say that out loud to a cohort.
+     *
+     * This is deliberately not a detector: no score is stored here and none is
+     * computed anywhere, because detectors flag second-language writers more
+     * often than fluent ones and this cohort writes in its second language.
+     */
+    activeSeconds: integer("active_seconds").notNull().default(0),
+    sittings: integer("sittings").notNull().default(0),
+    pasteCount: integer("paste_count").notNull().default(0),
+    pastedChars: integer("pasted_chars").notNull().default(0),
+    largestPaste: integer("largest_paste").notNull().default(0),
+
+    /**
+     * Taken out of the cohort discussion by a member of staff.
+     *
+     * Everyone is in by default and there is no learner opt-out, so this is the
+     * remedy when a piece turns out to be too personal to sit in front of
+     * twenty-four people. It hides the piece from the discussion only: the work
+     * still counts, and staff still see it.
+     */
+    withdrawnAt: timestamp("withdrawn_at", { withTimezone: true }),
+    withdrawnBy: integer("withdrawn_by").references(() => usersTable.id, { onDelete: "set null" }),
   },
   (t) => [uniqueIndex("assignment_submissions_user_session_unique").on(t.userId, t.sessionId)],
+);
+
+/**
+ * The cohort's conversation about one piece of work.
+ *
+ * Opens to a learner only once they have filed their own piece and written
+ * their required critiques — the same "give to receive" gate that already
+ * unseals their own feedback, so there is one rule to explain rather than two.
+ */
+export const submissionCommentsTable = pgTable(
+  "submission_comments",
+  {
+    id: serial("id").primaryKey(),
+    submissionId: integer("submission_id").notNull().references(() => assignmentSubmissionsTable.id, { onDelete: "cascade" }),
+    /** Denormalised from the submission so a module's whole discussion is one indexed read. */
+    sessionId: integer("session_id").notNull().references(() => sessionsTable.id, { onDelete: "cascade" }),
+    userId: integer("user_id").notNull().references(() => usersTable.id, { onDelete: "cascade" }),
+    body: text("body").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("submission_comments_session_idx").on(t.sessionId, t.createdAt)],
 );
 
 /**
@@ -112,3 +168,4 @@ export type QuizAttempt = typeof quizAttemptsTable.$inferSelect;
 export type Assignment = typeof assignmentsTable.$inferSelect;
 export type AssignmentSubmission = typeof assignmentSubmissionsTable.$inferSelect;
 export type SubmissionReview = typeof submissionReviewsTable.$inferSelect;
+export type SubmissionComment = typeof submissionCommentsTable.$inferSelect;

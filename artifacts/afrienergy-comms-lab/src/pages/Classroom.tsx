@@ -13,15 +13,16 @@ import { useToast } from '@/hooks/use-toast';
 import { useLiveHeartbeat } from '@/hooks/useLiveHeartbeat';
 import { QuizPanel, AssignmentPanel } from '@/components/CourseworkDialogs';
 import { CritiqueQueue, MyFeedbackPanel } from '@/components/CritiquePanel';
+import { CohortDiscussion } from '@/components/CohortDiscussion';
 import TrackedReplay from '@/components/TrackedReplay';
 import { ReadingListView } from '@/components/ReadingListEditor';
 import {
   ArrowLeft, Video, PlayCircle, CheckCircle2, Lock, Radio, Clock,
   FileQuestion, ClipboardList, CalendarClock, MessagesSquare, FileText, BookOpen,
-  MonitorPlay,
+  MonitorPlay, Users,
 } from 'lucide-react';
 
-type Tab = '' | 'assignment' | 'critique' | 'feedback' | 'quiz' | 'reading';
+type Tab = '' | 'assignment' | 'critique' | 'feedback' | 'discussion' | 'quiz' | 'reading';
 
 function formatSessionDate(iso: string | null | undefined) {
   if (!iso) return 'Date to be announced';
@@ -308,6 +309,13 @@ export default function Classroom() {
                 )}
               </Button>
               <Button
+                variant={tab === 'discussion' ? 'default' : 'outline'}
+                onClick={() => setTab(t => (t === 'discussion' ? '' : 'discussion'))}
+                aria-pressed={tab === 'discussion'}
+              >
+                <Users className="w-4 h-4 mr-1.5" aria-hidden />Cohort room
+              </Button>
+              <Button
                 variant={tab === 'quiz' ? 'default' : 'outline'}
                 onClick={() => setTab(t => (t === 'quiz' ? '' : 'quiz'))}
                 aria-pressed={tab === 'quiz'}
@@ -361,6 +369,21 @@ export default function Classroom() {
               {entry?.hasAssignment === false
                 ? <p className="text-sm text-muted-foreground">No assignment has been published for this module.</p>
                 : <MyFeedbackPanel sessionId={session.id} />}
+            </section>
+          )}
+
+          {tab === 'discussion' && (
+            <section className="lg:col-span-3 bg-card border border-border rounded-2xl p-6">
+              <div className="mb-4">
+                <h2 className="font-display font-bold">The cohort room</h2>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Once you have filed your piece and written the critiques you owe, everyone's work opens up. The
+                  most useful hour in any workshop is the one where everybody reads everybody.
+                </p>
+              </div>
+              {entry?.hasAssignment === false
+                ? <p className="text-sm text-muted-foreground">No assignment has been published for this module.</p>
+                : <CohortDiscussion sessionId={session.id} />}
             </section>
           )}
 
