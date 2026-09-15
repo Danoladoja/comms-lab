@@ -25,8 +25,32 @@
  * rules below changing.
  */
 
-/** Fraction of the class that must be attended live or watched on replay. */
-export const PRESENCE_THRESHOLD_PCT = 90;
+/**
+ * Two routes, two bars — because they are not the same act.
+ *
+ * Live attendance is measured by a heartbeat from a browser tab while the class
+ * runs in Google Meet somewhere else entirely. It is interrupted by a dropped
+ * line, a power cut, a phone locking, a browser throttling a background tab. It
+ * is a proxy, and a noisy one, so the bar is set where somebody who genuinely
+ * sat through the class will clear it without a perfect connection.
+ *
+ * The replay is the opposite: deliberate, repeatable, and measured directly
+ * from the player. Somebody choosing to catch up can watch the whole thing, so
+ * they are asked to.
+ *
+ * Not 100 for the replay, though it means "all of it". Coverage is counted in
+ * fifteen-second buckets and players stop reporting a second or two before the
+ * end, so the last bucket is often unreachable and a literal 100 would fail
+ * people who watched every frame. Ninety-five cannot be reached by skipping.
+ */
+export const PRESENCE_LIVE_THRESHOLD_PCT = 60;
+export const PRESENCE_REPLAY_THRESHOLD_PCT = 95;
+
+/**
+ * Kept so existing callers and stored values still mean something. It is the
+ * live bar, which is the one the app quotes when it talks about attending.
+ */
+export const PRESENCE_THRESHOLD_PCT = PRESENCE_LIVE_THRESHOLD_PCT;
 
 /** How often the classroom page reports in while a live class is running. */
 export const HEARTBEAT_INTERVAL_MS = 30_000;
@@ -35,7 +59,21 @@ export const HEARTBEAT_INTERVAL_MS = 30_000;
  * The server credits at most this much time per heartbeat. Without a cap, a
  * tab left open through a lunch break would bank the whole gap on the next ping.
  */
-export const HEARTBEAT_MAX_CREDIT_MS = 45_000;
+/**
+ * The server credits at most this much time per heartbeat.
+ *
+ * It exists so a tab left open through a lunch break cannot bank the whole gap
+ * on the next ping. It used to be 45 seconds against a 30-second interval,
+ * which quietly made full attendance impossible: browsers throttle timers in a
+ * background tab to about once a minute, and a learner who clicked Join and
+ * moved to the Meet tab — which is everybody — therefore beat once a minute and
+ * was credited 45 seconds of each. A ceiling of 75%, against a bar of 90.
+ *
+ * Three minutes leaves room for throttling and a brief drop without letting an
+ * abandoned tab claim an afternoon: the gap is still clamped to the scheduled
+ * window at both ends, so the most an idle tab can gain is one cap per beat.
+ */
+export const HEARTBEAT_MAX_CREDIT_MS = 180_000;
 
 /**
  * Replay watching is recorded as fixed buckets of the video's timeline rather
@@ -50,6 +88,15 @@ export const REPLAY_REPORT_INTERVAL_MS = 20_000;
 export type PresenceInput = {
   /** Seconds accumulated from live heartbeats. */
   liveSeconds: number;
+  /**
+   * Credited without measurement, and why.
+   *
+   * For the weeks when the app failed to record attendance it was being shown,
+   * and for any case a facilitator judges on evidence the app cannot see. It is
+   * a separate field rather than a pile of invented seconds because the record
+   * should say "we could not measure this", not claim a number nobody observed.
+   */
+  waived?: boolean;
   /** Scheduled length of the class, in seconds. */
   sessionSeconds: number;
   /** Distinct seconds of the recording watched. */
@@ -61,12 +108,15 @@ export type PresenceInput = {
 export type PresenceStatus = {
   livePct: number;
   replayPct: number;
-  /** The better of the two routes — this is what is measured against the bar. */
+  /** The better of the two routes, as a share of that route's own bar. */
   bestPct: number;
   met: boolean;
   /** Which route is currently carrying the learner, for the UI to explain. */
-  via: "live" | "replay" | "none";
+  via: "live" | "replay" | "waived" | "none";
+  /** The bar the learner is closest to clearing, so the UI can name a number. */
   thresholdPct: number;
+  liveThresholdPct: number;
+  replayThresholdPct: number;
 };
 
 function pct(part: number, whole: number | null): number {
@@ -77,18 +127,39 @@ function pct(part: number, whole: number | null): number {
 export function presenceStatus(input: PresenceInput): PresenceStatus {
   const livePct = pct(input.liveSeconds, input.sessionSeconds);
   const replayPct = pct(input.replayWatchedSeconds, input.replayDurationSeconds);
-  const bestPct = Math.max(livePct, replayPct);
+
+  const liveMet = livePct >= PRESENCE_LIVE_THRESHOLD_PCT;
+  const replayMet = replayPct >= PRESENCE_REPLAY_THRESHOLD_PCT;
+  const waived = !!input.waived;
+
+  // The two routes have different bars, so "which is further along" is a
+  // question about progress towards each bar, not about the raw percentages.
+  // Forty per cent of a replay is further from its bar than forty per cent of a
+  // class is from its own, and the learner should be pointed at the nearer one.
+  const liveShare = livePct / PRESENCE_LIVE_THRESHOLD_PCT;
+  const replayShare = replayPct / PRESENCE_REPLAY_THRESHOLD_PCT;
+  const onLive = liveShare >= replayShare;
+
+  const via: PresenceStatus["via"] = waived
+    ? "waived"
+    : livePct === 0 && replayPct === 0
+      ? "none"
+      : onLive ? "live" : "replay";
+
   return {
     livePct,
     replayPct,
-    bestPct,
-    met: bestPct >= PRESENCE_THRESHOLD_PCT,
-    via: bestPct === 0 ? "none" : livePct >= replayPct ? "live" : "replay",
-    thresholdPct: PRESENCE_THRESHOLD_PCT,
+    bestPct: waived ? 100 : Math.max(livePct, replayPct),
+    met: waived || liveMet || replayMet,
+    via,
+    thresholdPct: onLive ? PRESENCE_LIVE_THRESHOLD_PCT : PRESENCE_REPLAY_THRESHOLD_PCT,
+    liveThresholdPct: PRESENCE_LIVE_THRESHOLD_PCT,
+    replayThresholdPct: PRESENCE_REPLAY_THRESHOLD_PCT,
   };
 }
 
 export const EMPTY_PRESENCE: PresenceInput = {
+  waived: false,
   liveSeconds: 0,
   sessionSeconds: 0,
   replayWatchedSeconds: 0,

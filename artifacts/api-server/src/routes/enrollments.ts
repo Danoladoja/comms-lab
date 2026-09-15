@@ -14,6 +14,7 @@ import {
   type ProgressEntry,
   isModuleStaff, satisfiesRole,
   maySeeTaughtCohort,
+  normaliseMeetUrl,
 } from "@workspace/domain";
 import { SetPortfolioVisibilityBody } from "@workspace/api-zod";
 import { getCurrentUser } from "../lib/auth";
@@ -167,7 +168,9 @@ router.post("/sessions/:id/join", async (req, res) => {
   res.json({
     sessionId,
     joinedAt: joinedAt.toISOString(),
-    joinUrl: session.meetUrl ?? null,
+    // Repaired on the way out: an old row may hold a link with no scheme,
+    // which a browser reads as a path on this site and turns into a 404.
+    joinUrl: normaliseMeetUrl(session.meetUrl),
     countedAsOnTime,
   });
 });

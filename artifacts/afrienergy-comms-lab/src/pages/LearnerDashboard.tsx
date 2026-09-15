@@ -38,6 +38,7 @@ const statusClass: Record<string, string> = {
 
 import type { SessionDetail } from '@workspace/api-client-react';
 import { ProgramForum } from '@/components/CohortForum';
+import { openJoinLink } from '@/lib/openJoinLink';
 type SessionRow = SessionDetail;
 
 /**
@@ -68,7 +69,7 @@ export default function LearnerDashboard() {
         qc.invalidateQueries({ queryKey: getListMyProgressQueryKey() });
         qc.invalidateQueries({ queryKey: getListMySessionsQueryKey() });
         if (result.joinUrl) {
-          window.open(result.joinUrl, '_blank', 'noreferrer');
+          openJoinLink(result.joinUrl);
           toast({
             title: 'Keep the classroom open',
             description: 'Your time in class is counted from the classroom tab while the session runs.',

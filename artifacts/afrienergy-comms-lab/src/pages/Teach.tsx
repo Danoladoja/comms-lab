@@ -16,6 +16,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Video, PlayCircle, CircleAlert, CircleCheck, ChevronDown, ChevronUp } from 'lucide-react';
 import CourseworkStudio from '@/components/CourseworkStudio';
 import TaughtCohort from '@/components/TaughtCohort';
+import { openJoinLink } from '@/lib/openJoinLink';
 
 function formatSessionDate(iso: string | null | undefined) {
   if (!iso) return 'Date to be announced';
@@ -42,7 +43,7 @@ function SessionCard({ session, onSaved }: { session: SessionDetail; onSaved: ()
   const join = useJoinSession({
     mutation: {
       onSuccess: (result) => {
-        if (result.joinUrl) window.open(result.joinUrl, '_blank', 'noreferrer');
+        if (result.joinUrl) openJoinLink(result.joinUrl);
         else toast({ title: 'No room yet', description: 'The team has not set up the meeting room for this session.' });
       },
       onError: () => toast({ title: 'Could not open the room', variant: 'destructive' }),

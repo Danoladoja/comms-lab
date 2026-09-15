@@ -132,6 +132,10 @@ export async function progressForUser(userId: number, programIds: number[]): Pro
   // Presence has two possible sources per module; computeProgress fills in the
   // scheduled length and decides which route carries the learner.
   const liveBySession = new Map(att.map((a) => [a.sessionId, a.liveSeconds]));
+  // Attendance credited without measurement — see the column's note. It says
+  // "we could not measure this", which is why it travels separately from the
+  // seconds rather than being faked as a number of them.
+  const waivedBySession = new Set(att.filter((a) => a.presenceWaivedAt).map((a) => a.sessionId));
   const replayBySession = new Map(replay.map((r) => [r.sessionId, r]));
   const presenceBySession = new Map<number, PresenceInput>(
     sessions.map((s) => {
@@ -140,6 +144,7 @@ export async function progressForUser(userId: number, programIds: number[]): Pro
         s.id,
         {
           ...EMPTY_PRESENCE,
+          waived: waivedBySession.has(s.id),
           liveSeconds: liveBySession.get(s.id) ?? 0,
           replayWatchedSeconds: r ? replayWatchedSeconds(r.buckets, r.durationSeconds) : 0,
           replayDurationSeconds: r?.durationSeconds ?? null,

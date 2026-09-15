@@ -209,7 +209,10 @@ export function computeProgress(
       const parts: number[] = [];
       const presenceRequired = start !== null;
       if (presenceRequired) {
-        parts.push(Math.min(100, Math.round((presence.bestPct / PRESENCE_THRESHOLD_PCT) * 100)));
+        // Against the bar for the route the learner is actually on: the live
+        // and replay bars differ, and measuring replay coverage against the
+        // live bar would credit half a recording as nearly done.
+        parts.push(Math.min(100, Math.round((presence.bestPct / presence.thresholdPct) * 100)));
       }
       if (cw.hasAssignment) {
         parts.push(cw.assignmentSubmitted ? 100 : 0);

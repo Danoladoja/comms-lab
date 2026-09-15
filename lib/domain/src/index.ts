@@ -35,3 +35,4 @@ export * from "./recordingEmbed";
 export * from "./writingProvenance";
 export * from "./cohortDiscussion";
 export * from "./latePass";
+export * from "./meetLink";

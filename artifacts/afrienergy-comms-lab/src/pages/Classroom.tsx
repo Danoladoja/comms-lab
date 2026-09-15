@@ -16,6 +16,7 @@ import { CritiqueQueue, MyFeedbackPanel } from '@/components/CritiquePanel';
 import { CohortDiscussion } from '@/components/CohortDiscussion';
 import TrackedReplay from '@/components/TrackedReplay';
 import { ReadingListView } from '@/components/ReadingListEditor';
+import { openJoinLink } from '@/lib/openJoinLink';
 import {
   ArrowLeft, Video, PlayCircle, CheckCircle2, Lock, Radio, Clock,
   FileQuestion, ClipboardList, CalendarClock, MessagesSquare, FileText, BookOpen,
@@ -67,7 +68,7 @@ export default function Classroom() {
         qc.invalidateQueries({ queryKey: getListMyProgressQueryKey() });
         qc.invalidateQueries({ queryKey: getListMySessionsQueryKey() });
         if (result.joinUrl) {
-          window.open(result.joinUrl, '_blank', 'noreferrer');
+          openJoinLink(result.joinUrl);
           toast({
             title: 'Keep this tab open',
             description: 'Your time in class is counted from here while the session runs.',

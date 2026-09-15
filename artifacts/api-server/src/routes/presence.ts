@@ -57,6 +57,7 @@ async function currentPresence(userId: number, session: { id: number; durationMi
       .where(and(eq(replayProgressTable.userId, userId), eq(replayProgressTable.sessionId, session.id))),
   ]);
   return presenceStatus({
+    waived: !!att?.presenceWaivedAt,
     liveSeconds: att?.liveSeconds ?? 0,
     sessionSeconds: session.durationMins * 60,
     replayWatchedSeconds: replay ? replayWatchedSeconds(replay.buckets, replay.durationSeconds) : 0,

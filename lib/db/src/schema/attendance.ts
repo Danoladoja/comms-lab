@@ -1,4 +1,4 @@
-import { pgTable, serial, integer, timestamp, jsonb, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, serial, integer, text, timestamp, jsonb, uniqueIndex } from "drizzle-orm/pg-core";
 import { usersTable } from "./users";
 import { sessionsTable } from "./sessions";
 
@@ -24,6 +24,19 @@ export const attendanceTable = pgTable(
     joinedAt: timestamp("joined_at", { withTimezone: true }).notNull().defaultNow(),
     liveSeconds: integer("live_seconds").notNull().default(0),
     lastHeartbeatAt: timestamp("last_heartbeat_at", { withTimezone: true }),
+
+    /**
+     * Attendance credited without being measured, and the reason why.
+     *
+     * A separate field rather than a pile of invented seconds, because the
+     * record should say "this could not be measured" instead of claiming a
+     * number nobody observed. Two things need it. The weeks when the heartbeat
+     * never started, where learners sat through whole classes the app then told
+     * them to repeat — their failure was ours. And any later case where a
+     * facilitator knows something the app cannot see.
+     */
+    presenceWaivedAt: timestamp("presence_waived_at", { withTimezone: true }),
+    presenceWaivedReason: text("presence_waived_reason").notNull().default(""),
   },
   (t) => [uniqueIndex("attendance_user_session_unique").on(t.userId, t.sessionId)],
 );

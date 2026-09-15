@@ -7,6 +7,8 @@ import {
   replayBucketCount,
   replayWatchedSeconds,
   PRESENCE_THRESHOLD_PCT,
+  PRESENCE_LIVE_THRESHOLD_PCT,
+  PRESENCE_REPLAY_THRESHOLD_PCT,
   HEARTBEAT_MAX_CREDIT_MS,
   REPLAY_BUCKET_SECONDS,
 } from "./presence";
@@ -14,21 +16,29 @@ import {
 const HOUR_SECONDS = 3600;
 
 describe("presenceStatus", () => {
-  it("passes on live attendance alone at the threshold", () => {
+  it("passes on live attendance alone at the live bar", () => {
     const s = presenceStatus({
-      liveSeconds: HOUR_SECONDS * 0.9,
+      liveSeconds: HOUR_SECONDS * 0.6,
       sessionSeconds: HOUR_SECONDS,
       replayWatchedSeconds: 0,
       replayDurationSeconds: null,
     });
-    expect(s.livePct).toBe(PRESENCE_THRESHOLD_PCT);
+    expect(s.livePct).toBe(PRESENCE_LIVE_THRESHOLD_PCT);
     expect(s.met).toBe(true);
     expect(s.via).toBe("live");
   });
 
-  it("fails just below the threshold", () => {
+  it("holds the live and replay bars apart", () => {
+    // Attending is measured by a heartbeat from a tab while the class runs
+    // somewhere else, and is interrupted by everything. Watching the recording
+    // is deliberate and repeatable, so it asks for the whole thing.
+    expect(PRESENCE_LIVE_THRESHOLD_PCT).toBe(60);
+    expect(PRESENCE_REPLAY_THRESHOLD_PCT).toBe(95);
+  });
+
+  it("fails just below the live bar", () => {
     const s = presenceStatus({
-      liveSeconds: HOUR_SECONDS * 0.89,
+      liveSeconds: HOUR_SECONDS * 0.59,
       sessionSeconds: HOUR_SECONDS,
       replayWatchedSeconds: 0,
       replayDurationSeconds: null,
@@ -36,11 +46,25 @@ describe("presenceStatus", () => {
     expect(s.met).toBe(false);
   });
 
+  it("will not pass a half-watched replay on the live bar", () => {
+    // The two routes must not borrow each other's bar: 60% of a recording is
+    // not watching the recording.
+    const s = presenceStatus({
+      liveSeconds: 0,
+      sessionSeconds: HOUR_SECONDS,
+      replayWatchedSeconds: 2400,
+      replayDurationSeconds: 3600,
+    });
+    expect(s.replayPct).toBe(67);
+    expect(s.met).toBe(false);
+    expect(s.via).toBe("replay");
+  });
+
   it("passes on the replay alone", () => {
     const s = presenceStatus({
       liveSeconds: 0,
       sessionSeconds: HOUR_SECONDS,
-      replayWatchedSeconds: 3400,
+      replayWatchedSeconds: 3500,
       replayDurationSeconds: 3600,
     });
     expect(s.met).toBe(true);
@@ -60,15 +84,30 @@ describe("presenceStatus", () => {
     expect(s.met).toBe(false);
   });
 
-  it("lets a partial live attendance be topped up by replay coverage", () => {
+  it("lets a thin live attendance be rescued by watching the recording", () => {
     const s = presenceStatus({
-      liveSeconds: HOUR_SECONDS * 0.6,
+      liveSeconds: HOUR_SECONDS * 0.3,
       sessionSeconds: HOUR_SECONDS,
-      replayWatchedSeconds: 3300,
+      replayWatchedSeconds: 3500,
       replayDurationSeconds: 3600,
     });
     expect(s.met).toBe(true);
     expect(s.via).toBe("replay");
+  });
+
+  it("credits attendance that was waived, and says so", () => {
+    // For the weeks the app failed to measure people it was showing a class to.
+    // It reports the waiver rather than inventing seconds nobody observed.
+    const s = presenceStatus({
+      waived: true,
+      liveSeconds: 0,
+      sessionSeconds: HOUR_SECONDS,
+      replayWatchedSeconds: 0,
+      replayDurationSeconds: null,
+    });
+    expect(s.met).toBe(true);
+    expect(s.via).toBe("waived");
+    expect(s.livePct).toBe(0);
   });
 
   it("reports nothing rather than dividing by zero when unmeasured", () => {

@@ -108,11 +108,11 @@ describe("computeProgress — attending the class is required", () => {
   });
 
   it("counts partial attendance towards the progress bar", () => {
-    // Half the class watched: 50% against a 90% bar is 56% of the way there.
+    // Half the class attended: 50% against the 60% live bar is 83% of the way.
     const half = new Map([[1, { ...EMPTY_PRESENCE, liveSeconds: 30 * 60 }]]);
     const [entry] = computeProgress([session(1)], new Map(), enrolledLongAgo, new Map(), half, NOW);
     expect(entry.presence.bestPct).toBe(50);
-    expect(entry.progressPct).toBe(56);
+    expect(entry.progressPct).toBe(83);
   });
 });
 

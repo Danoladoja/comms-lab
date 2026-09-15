@@ -9,6 +9,7 @@ import {
   maySeeLiveSessionRecording,
   satisfiesRole,
   showsInLiveSessionList,
+  normaliseMeetUrl,
 } from "@workspace/domain";
 import { getCurrentUser } from "../lib/auth";
 
@@ -110,7 +111,7 @@ router.get("/live-sessions/:id", async (req, res): Promise<void> => {
   res.json({
     ...publicView(session, { registered, registeredCount: counts.get(session.id) ?? 0 }),
     // Handed out here and nowhere else, to this person, having checked.
-    joinUrl: mayJoinLiveSession(session, registered) ? session.meetUrl : null,
+    joinUrl: mayJoinLiveSession(session, registered) ? normaliseMeetUrl(session.meetUrl) : null,
     recordingUrl: maySeeLiveSessionRecording(session, registered) ? session.recordingUrl : null,
   });
 });
@@ -186,14 +187,18 @@ router.post("/live-sessions/:id/join", async (req, res): Promise<void> => {
     res.status(409).json(message("The room is not open yet. It opens ten minutes before the start."));
     return;
   }
-  if (!session.meetUrl) { res.status(409).json(message("No joining link has been added to this session yet.")); return; }
+  // Normalised again on the way out, because rows written before this existed
+  // still hold whatever was pasted, and a scheme-less link would send the
+  // learner to a 404 on our own site rather than to the class.
+  const joinUrl = normaliseMeetUrl(session.meetUrl);
+  if (!joinUrl) { res.status(409).json(message("No joining link has been added to this session yet.")); return; }
 
   if (!registration.attendedAt) {
     await db.update(liveSessionRegistrationsTable)
       .set({ attendedAt: new Date() })
       .where(eq(liveSessionRegistrationsTable.id, registration.id));
   }
-  res.json({ joinUrl: session.meetUrl });
+  res.json({ joinUrl });
 });
 
 /* ---------- Running them ---------- */
@@ -221,7 +226,7 @@ router.post("/admin/live-sessions", async (req, res): Promise<void> => {
     startsAt: body.startsAt ? new Date(String(body.startsAt)) : null,
     durationMins: Number(body.durationMins) > 0 ? Math.round(Number(body.durationMins)) : 60,
     capacity: Number(body.capacity) > 0 ? Math.round(Number(body.capacity)) : 0,
-    meetUrl: body.meetUrl ? String(body.meetUrl).trim() : null,
+    meetUrl: normaliseMeetUrl(body.meetUrl as string | null),
     status: isLiveSessionStatus(body.status) ? body.status : "draft",
     createdByUserId: user.id,
   }).returning();
@@ -242,7 +247,7 @@ router.patch("/admin/live-sessions/:id", async (req, res): Promise<void> => {
     if (typeof body[field] === "string") values[field] = (body[field] as string).trim();
   }
   if ("startsAt" in body) values.startsAt = body.startsAt ? new Date(String(body.startsAt)) : null;
-  if ("meetUrl" in body) values.meetUrl = body.meetUrl ? String(body.meetUrl).trim() : null;
+  if ("meetUrl" in body) values.meetUrl = normaliseMeetUrl(body.meetUrl as string | null);
   if ("recordingUrl" in body) values.recordingUrl = body.recordingUrl ? String(body.recordingUrl).trim() : null;
   if (Number(body.durationMins) > 0) values.durationMins = Math.round(Number(body.durationMins));
   if (body.capacity !== undefined) values.capacity = Number(body.capacity) > 0 ? Math.round(Number(body.capacity)) : 0;

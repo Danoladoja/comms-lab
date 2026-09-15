@@ -12,10 +12,18 @@ import { HEARTBEAT_INTERVAL_MS, liveWindow } from '@workspace/domain';
  * beat credits at most the gap since the last one, and only time inside the
  * scheduled window counts at all.
  *
- * Beats pause when the tab is hidden. Someone who backgrounds the tab to watch
- * in Meet keeps their credit — the browser still fires timers in a hidden tab,
- * throttled — but a laptop that sleeps or a tab left open overnight banks
- * nothing beyond the per-beat cap.
+ * Someone who backgrounds the tab to watch in Meet keeps their credit: the
+ * browser still fires timers in a hidden tab, throttled to roughly once a
+ * minute, and the server's per-beat cap is set well above that gap so a
+ * throttled beat is credited in full. A laptop that sleeps or a tab left open
+ * overnight still banks nothing beyond one cap per beat, and nothing at all
+ * outside the scheduled window.
+ *
+ * The class is also watched for rather than checked once. People open the
+ * classroom before the class starts — that is the whole point of a start time —
+ * and the previous version returned on the spot when it found the class was not
+ * live yet, so the beat never began and a learner who sat through the entire
+ * class banked nothing. It now waits for the start.
  */
 export function useLiveHeartbeat(session: {
   id: number;
@@ -36,8 +44,6 @@ export function useLiveHeartbeat(session: {
         Date.now(),
       ).state === 'live';
 
-    if (!isLiveNow()) return;
-
     let cancelled = false;
 
     const beat = async () => {
@@ -56,6 +62,8 @@ export function useLiveHeartbeat(session: {
       }
     };
 
+    // Poll rather than return: the class becomes live because the clock moved,
+    // and no prop changes when that happens.
     beat();
     const timer = window.setInterval(beat, HEARTBEAT_INTERVAL_MS);
 
