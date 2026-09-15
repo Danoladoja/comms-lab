@@ -349,6 +349,7 @@ router.get("/admin/sessions/:id/work", async (req, res) => {
         authorName: usersTable.name,
         body: assignmentSubmissionsTable.body,
         submittedAt: assignmentSubmissionsTable.submittedAt,
+        late: assignmentSubmissionsTable.late,
         aiUse: assignmentSubmissionsTable.aiUse,
         aiNote: assignmentSubmissionsTable.aiNote,
         activeSeconds: assignmentSubmissionsTable.activeSeconds,
@@ -441,6 +442,9 @@ router.get("/admin/sessions/:id/work", async (req, res) => {
         authorName: p.authorName,
         body: p.body,
         submittedAt: p.submittedAt.toISOString(),
+        // Filed on a late pass. No penalty attaches — it is here so a
+        // facilitator can see who is falling behind, week on week.
+        late: p.late,
         withdrawn: !!p.withdrawnAt,
         aiUse: p.aiUse,
         aiUseLabel: aiUseLabel(p.aiUse),

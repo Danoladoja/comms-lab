@@ -24,7 +24,8 @@ const mocks = vi.hoisted(() => {
     quizQuestionsTable: { sessionId: "sessionId", sortOrder: "sortOrder", id: "id" },
     quizAttemptsTable: { userId: "userId", sessionId: "sessionId", scorePct: "scorePct" },
     assignmentsTable: { id: "id", sessionId: "sessionId", dueAt: "dueAt" },
-    assignmentSubmissionsTable: { userId: "userId", sessionId: "sessionId", body: "body", submittedAt: "submittedAt" },
+    assignmentSubmissionsTable: { userId: "userId", sessionId: "sessionId", body: "body", submittedAt: "submittedAt", late: "late" },
+    latePassesTable: { userId: "userId", programId: "programId", sessionId: "sessionId" },
   };
 
   let selectResults: unknown[][] = [];
@@ -174,7 +175,9 @@ describe("the quiz deadline", () => {
 
 describe("the assignment deadline", () => {
   it("refuses a submission once the date has passed", async () => {
-    mocks.setSelects([[MODULE], ENROLLED, [{ id: 4, dueAt: yesterday() }]]);
+    // The fourth read is the learner's late passes: none spent, so the door
+    // stays shut until they choose to spend one.
+    mocks.setSelects([[MODULE], ENROLLED, [{ id: 4, dueAt: yesterday() }], []]);
 
     const res = await handIn();
 
@@ -185,7 +188,7 @@ describe("the assignment deadline", () => {
 
   it("takes a submission before the date", async () => {
     mocks.setSelects([
-      [MODULE], ENROLLED, [{ id: 4, dueAt: nextWeek() }],
+      [MODULE], ENROLLED, [{ id: 4, dueAt: nextWeek() }], [],
       [{ body: "My piece, written on the night of the deadline.", submittedAt: new Date() }],
     ]);
 
@@ -197,7 +200,7 @@ describe("the assignment deadline", () => {
     // safe to set at all. If clearing it did not reopen the door, one wrong
     // date would end somebody's programme.
     mocks.setSelects([
-      [MODULE], ENROLLED, [{ id: 4, dueAt: null }],
+      [MODULE], ENROLLED, [{ id: 4, dueAt: null }], [],
       [{ body: "My piece, written on the night of the deadline.", submittedAt: new Date() }],
     ]);
 

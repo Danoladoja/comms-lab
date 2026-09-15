@@ -13,6 +13,7 @@ export interface StaffPiece {
   authorName: string;
   body: string;
   submittedAt: string;
+  late: boolean;
   withdrawn: boolean;
   aiUse: string;
   aiUseLabel: string;

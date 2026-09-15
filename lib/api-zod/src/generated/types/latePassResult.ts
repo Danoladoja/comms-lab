@@ -6,9 +6,10 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface AssignmentSubmission {
+export interface LatePassResult {
   sessionId: number;
-  body: string;
-  submittedAt: string;
-  late?: boolean;
+  spent: boolean;
+  left: number;
+  /** @nullable */
+  windowEnd: string | null;
 }

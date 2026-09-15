@@ -8,7 +8,7 @@ import { apiReason } from '@workspace/domain';
 import { CommentComposer, StaffTag } from '@/components/CohortDiscussion';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { ChevronDown, Eye, EyeOff, Flag, MessageCircle, PenLine, UserX } from 'lucide-react';
+import { ChevronDown, Clock3, Eye, EyeOff, Flag, MessageCircle, PenLine, UserX } from 'lucide-react';
 
 /**
  * What the Lab's staff can see of a module's written work.
@@ -76,6 +76,13 @@ function PieceCard({ piece, sessionId }: { piece: StaffPiece; sessionId: number 
         <span className="min-w-0 flex-1">
           <span className="flex flex-wrap items-center gap-2">
             <span className="text-xs font-semibold">{piece.authorName}</span>
+            {/* Filed on a late pass. Not a penalty — written work is not marked
+                — but week on week it is the clearest sign of somebody slipping. */}
+            {piece.late && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs font-semibold text-muted-foreground">
+                <Clock3 className="h-3 w-3" aria-hidden />Late pass
+              </span>
+            )}
             {piece.worthALook && <Flagged>Worth a look</Flagged>}
             {piece.withdrawn && (
               <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs font-semibold text-muted-foreground">

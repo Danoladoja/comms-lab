@@ -505,6 +505,58 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiMessage"
+  /sessions/{id}/assignment/late-pass:
+    post:
+      operationId: claimLatePass
+      tags: [enrollments]
+      summary: Spend one of this learner's late passes on a module's written task
+      description: >
+        Two per learner per programme, each buying 48 more hours. Deliberate
+        rather than automatic: a learner who submitted late and found a pass
+        silently gone would have spent something scarce without being asked.
+        Spending one twice on the same task is not an error and costs nothing.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "201":
+          description: Pass spent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LatePassResult"
+        "200":
+          description: A pass was already spent on this task
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LatePassResult"
+        "400":
+          description: Not something a late pass can open
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "401":
+          description: Not signed in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "403":
+          description: Locked or not enrolled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "404":
+          description: No assignment for this module
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
   /sessions/{id}/assignment/submission:
     post:
       operationId: submitAssignment
@@ -3668,10 +3720,43 @@ components:
         # For a programme taught week by week: the Monday-night deadline the
         # Lab would pick for this class. Staff only, and only a suggestion.
         suggestedDueAt: { type: ["string", "null"] }
+        # `closed` says the ordinary deadline has gone; this says whether there
+        # is still a way in, which is the question the learner needs answered.
+        latePass:
+          $ref: "#/components/schemas/LatePassStatus"
         mySubmission:
           oneOf:
             - $ref: "#/components/schemas/AssignmentSubmission"
             - type: "null"
+    LatePassStatus:
+      type: object
+      required: [state, left, canClaim, windowEnd]
+      properties:
+        # no-deadline: nothing to be late for.
+        # not-needed: still open the ordinary way.
+        # available: late, and they have a pass to spend.
+        # in-use: a pass is already spent here; they are inside the extra time.
+        # none-left: late, and both passes are gone.
+        # too-late: even the extra time a pass buys has run out.
+        state:
+          type: string
+          enum: [no-deadline, not-needed, available, in-use, none-left, too-late]
+        # Passes remaining on this programme, out of two.
+        left: { type: integer }
+        canClaim: { type: boolean }
+        # Where the door shuts if a pass is spent — or where it has already
+        # moved to, for somebody who has spent one. Null with no deadline.
+        windowEnd: { type: ["string", "null"] }
+    LatePassResult:
+      type: object
+      required: [sessionId, spent, left, windowEnd]
+      properties:
+        sessionId: { type: integer }
+        # False when a pass was already spent here — saying so beats an error
+        # for something that has, from the learner's side, already worked.
+        spent: { type: boolean }
+        left: { type: integer }
+        windowEnd: { type: ["string", "null"] }
     AssignmentInput:
       type: object
       required: [title]
@@ -3711,6 +3796,9 @@ components:
         sessionId: { type: integer }
         body: { type: string }
         submittedAt: { type: string }
+        # Filed after the deadline on a late pass. Carries no penalty — written
+        # work at the Lab is not marked, so there is nothing to reduce.
+        late: { type: boolean }
     ReviewTarget:
       type: object
       required: [submissionId, body, submittedAt]
@@ -3863,12 +3951,15 @@ components:
         thin: { type: boolean }
     StaffPiece:
       type: object
-      required: [submissionId, authorName, body, submittedAt, withdrawn, aiUse, aiUseLabel, aiNote, provenance, worthALook, critiques, comments]
+      required: [submissionId, authorName, body, submittedAt, late, withdrawn, aiUse, aiUseLabel, aiNote, provenance, worthALook, critiques, comments]
       properties:
         submissionId: { type: integer }
         authorName: { type: string }
         body: { type: string }
         submittedAt: { type: string }
+        # Filed on a late pass. No penalty — it is here so a facilitator can see
+        # who is falling behind week on week.
+        late: { type: boolean }
         withdrawn: { type: boolean }
         aiUse: { type: string }
         aiUseLabel: { type: string }

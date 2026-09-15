@@ -52,6 +52,7 @@ import type {
   Invitation,
   InvitationInput,
   JoinResult,
+  LatePassResult,
   ListAllEnrollmentsParams,
   LiveSession,
   LiveSessionAttendee,
@@ -1489,6 +1490,78 @@ export const usePostCoursework = <TError = ErrorType<ApiMessage>,
         TContext
       > => {
       return useMutation(getPostCourseworkMutationOptions(options));
+    }
+
+export const getClaimLatePassUrl = (id: number,) => {
+
+
+
+
+  return `/api/sessions/${id}/assignment/late-pass`
+}
+
+/**
+ * Two per learner per programme, each buying 48 more hours. Deliberate rather than automatic: a learner who submitted late and found a pass silently gone would have spent something scarce without being asked. Spending one twice on the same task is not an error and costs nothing.
+ * @summary Spend one of this learner's late passes on a module's written task
+ */
+export const claimLatePass = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<LatePassResult> => {
+
+  return customFetch<LatePassResult>(getClaimLatePassUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getClaimLatePassMutationOptions = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof claimLatePass>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof claimLatePass>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['claimLatePass'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof claimLatePass>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  claimLatePass(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ClaimLatePassMutationResult = NonNullable<Awaited<ReturnType<typeof claimLatePass>>>
+
+    export type ClaimLatePassMutationError = ErrorType<ApiMessage>
+
+    /**
+ * @summary Spend one of this learner's late passes on a module's written task
+ */
+export const useClaimLatePass = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof claimLatePass>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof claimLatePass>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getClaimLatePassMutationOptions(options));
     }
 
 export const getSubmitAssignmentUrl = (id: number,) => {

@@ -2,7 +2,7 @@ import { Router, type IRouter } from "express";
 import {
   db, sessionsTable, enrollmentsTable, programsTable, usersTable,
   quizQuestionsTable, quizAttemptsTable, assignmentsTable, assignmentSubmissionsTable,
-  sessionReadingsTable, sessionSlidesTable,
+  sessionReadingsTable, sessionSlidesTable, latePassesTable,
 } from "@workspace/db";
 import { and, asc, eq, sql } from "drizzle-orm";
 import { UpsertSessionQuizBody, SubmitQuizAttemptBody, UpsertSessionAssignmentBody, SubmitAssignmentBody } from "@workspace/api-zod";
@@ -10,6 +10,7 @@ import {
   QUIZ_PASS_MARK, DEFAULT_RUBRIC, DEFAULT_REVIEWS_REQUIRED, isModuleStaff, isValidRubric,
   isPastDue, pastDueMessage, readyToPost, describePost, postAnnouncement, labLetter, weekDeadline,
   disclosureProblem,
+  latePassState, canClaimLatePass, lateSubmissionProblem, latePassWindowEnd, passesLeft,
   type CourseworkPiece, type SendOutcome,
 } from "@workspace/domain";
 import { currentRole, getCurrentUser } from "../lib/auth";
@@ -69,6 +70,24 @@ export async function learnerAccessError(role: string | null, user: User, sessio
  * would otherwise be handed an extra day, and one whose clock runs fast would
  * lose one — and neither would have any idea why.
  */
+/**
+ * A learner's late passes on one programme: how many are gone, and whether one
+ * has been spent on this particular task.
+ *
+ * Counted from the rows rather than kept as a running total, so there is no
+ * balance that can drift away from what actually happened.
+ */
+async function latePasses(userId: number, programId: number, sessionId: number) {
+  const rows = await db
+    .select({ sessionId: latePassesTable.sessionId })
+    .from(latePassesTable)
+    .where(and(eq(latePassesTable.userId, userId), eq(latePassesTable.programId, programId)));
+  return {
+    used: rows.length,
+    claimedHere: rows.some((r) => r.sessionId === sessionId),
+  };
+}
+
 function deadline(dueAt: Date | null | undefined) {
   const iso = dueAt ? dueAt.toISOString() : null;
   return { dueAt: iso, closed: isPastDue(iso, Date.now()) };
@@ -301,6 +320,13 @@ router.get("/sessions/:id/assignment", async (req, res) => {
     .from(assignmentSubmissionsTable)
     .where(and(eq(assignmentSubmissionsTable.userId, user.id), eq(assignmentSubmissionsTable.sessionId, sessionId)));
 
+  // What this learner's late passes mean for this task right now. Worked out
+  // here against the server's clock, because a laptop an hour out would
+  // otherwise hand one learner extra time and rob another of it.
+  const dueIso = assignment.dueAt?.toISOString() ?? null;
+  const passes = await latePasses(user.id, session.programId, sessionId);
+  const passFacts = { dueAt: dueIso, now: Date.now(), ...passes };
+
   res.json({
     sessionId,
     title: assignment.title,
@@ -314,12 +340,97 @@ router.get("/sessions/:id/assignment", async (req, res) => {
     // save as hand-written.
     ...(staff ? { origin: assignment.origin } : {}),
     ...deadline(assignment.dueAt),
+    // `closed` above says the ordinary deadline has gone. This says whether
+    // there is still a way in, which is a different question and the one the
+    // learner actually needs answering.
+    latePass: {
+      state: latePassState(passFacts),
+      left: passesLeft(passes.used),
+      canClaim: canClaimLatePass(passFacts),
+      // Where the door shuts if they spend one — or where it has already moved
+      // to, for somebody who has.
+      windowEnd: latePassWindowEnd(dueIso),
+    },
     draft: assignment.draft,
     postedAt: assignment.postedAt?.toISOString() ?? null,
     ...(staff ? { suggestedDueAt: await suggestedDueAt(session) } : {}),
     mySubmission: submission
-      ? { sessionId, body: submission.body, submittedAt: submission.submittedAt.toISOString() }
+      ? {
+        sessionId,
+        body: submission.body,
+        submittedAt: submission.submittedAt.toISOString(),
+        late: submission.late,
+      }
       : null,
+  });
+});
+
+/**
+ * Spend a late pass on this task.
+ *
+ * Deliberate rather than automatic. A learner who simply submitted late and
+ * found a pass silently gone would have spent something scarce without being
+ * asked, and would rightly feel tricked; so the extra time only exists once
+ * they have chosen it, having been told what it costs.
+ *
+ * The unique index on (user, session) is what makes this safe. Two taps on a
+ * slow connection reach here twice, and the second finds the row already there
+ * and reports success rather than spending a second pass.
+ */
+router.post("/sessions/:id/assignment/late-pass", async (req, res) => {
+  const user = await getCurrentUser(req);
+  if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
+  const sessionId = Number(req.params.id);
+  if (!Number.isInteger(sessionId)) { res.status(400).json({ error: "That is not a module." }); return; }
+  const session = await loadSession(sessionId);
+  if (!session) { res.status(404).json({ error: "Session not found" }); return; }
+  const accessError = await learnerAccessError(await currentRole(req), user, session);
+  if (accessError) { res.status(403).json({ error: accessError }); return; }
+
+  const [assignment] = await db
+    .select({ id: assignmentsTable.id, dueAt: assignmentsTable.dueAt, draft: assignmentsTable.draft })
+    .from(assignmentsTable)
+    .where(eq(assignmentsTable.sessionId, sessionId));
+  if (!assignment || assignment.draft) {
+    res.status(404).json({ error: "No assignment for this module" });
+    return;
+  }
+
+  const dueIso = assignment.dueAt?.toISOString() ?? null;
+  const passes = await latePasses(user.id, session.programId, sessionId);
+  const passFacts = { dueAt: dueIso, now: Date.now(), ...passes };
+  const state = latePassState(passFacts);
+
+  if (state === "in-use") {
+    // Already spent here. Saying so plainly beats an error for something that
+    // has, from the learner's point of view, already worked.
+    res.json({ sessionId, spent: false, left: passesLeft(passes.used), windowEnd: latePassWindowEnd(dueIso) });
+    return;
+  }
+  if (!canClaimLatePass(passFacts)) {
+    const why = state === "not-needed" || state === "no-deadline"
+      ? "This task is still open — you do not need a late pass."
+      : lateSubmissionProblem(passFacts) ?? "A late pass cannot be used here.";
+    res.status(400).json({ error: why });
+    return;
+  }
+
+  await db
+    .insert(latePassesTable)
+    .values({
+      userId: user.id,
+      programId: session.programId,
+      sessionId,
+      extendedFrom: assignment.dueAt ?? null,
+    })
+    .onConflictDoNothing();
+
+  const after = await latePasses(user.id, session.programId, sessionId);
+  res.status(201).json({
+    sessionId,
+    spent: true,
+    left: passesLeft(after.used),
+    windowEnd: latePassWindowEnd(dueIso),
   });
 });
 
@@ -408,10 +519,20 @@ router.post("/sessions/:id/assignment/submission", async (req, res) => {
 
   // The door, again. Checked against the server's clock and after the work has
   // been found, so a late submission is refused for the right reason.
-  if (isPastDue(assignment.dueAt?.toISOString(), Date.now())) {
-    res.status(403).json({ error: pastDueMessage("assignment") });
+  //
+  // A spent late pass moves the door rather than removing it: the learner gets
+  // 48 more hours, and when those are gone it is shut for good.
+  const dueIso = assignment.dueAt?.toISOString() ?? null;
+  const passes = await latePasses(user.id, session.programId, sessionId);
+  const passFacts = { dueAt: dueIso, now: Date.now(), ...passes };
+  const lateProblem = lateSubmissionProblem(passFacts);
+  if (lateProblem) {
+    res.status(403).json({ error: lateProblem });
     return;
   }
+  // Whether this piece went in late is settled now and written down, not
+  // recomputed later from a deadline an admin may since have moved.
+  const filedLate = passFacts.claimedHere && isPastDue(dueIso, passFacts.now);
 
   // The disclosure is required, and it is refused here rather than only in the
   // browser: a learner is being asked to say something true about their own
@@ -440,15 +561,20 @@ router.post("/sessions/:id/assignment/submission", async (req, res) => {
 
   const [saved] = await db
     .insert(assignmentSubmissionsTable)
-    .values({ userId: user.id, sessionId, body: parsed.data.body, ...provenance })
+    .values({ userId: user.id, sessionId, body: parsed.data.body, late: filedLate, ...provenance })
     .onConflictDoUpdate({
       target: [assignmentSubmissionsTable.userId, assignmentSubmissionsTable.sessionId],
       // A resubmission replaces the record of how it was written, because the
       // record describes the piece that is now filed, not the one before it.
-      set: { body: parsed.data.body, submittedAt: sql`now()`, ...provenance },
+      set: { body: parsed.data.body, submittedAt: sql`now()`, late: filedLate, ...provenance },
     })
     .returning();
-  res.json({ sessionId, body: saved.body, submittedAt: saved.submittedAt.toISOString() });
+  res.json({
+    sessionId,
+    body: saved.body,
+    submittedAt: saved.submittedAt.toISOString(),
+    late: saved.late,
+  });
 });
 
 /* ---------- Posting the coursework to the cohort ---------- */

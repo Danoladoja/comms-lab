@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { AssignmentSubmission } from './assignmentSubmission';
+import type { LatePassStatus } from './latePassStatus';
 import type { RubricCriterion } from './rubricCriterion';
 
 export interface AssignmentDetail {
@@ -24,5 +25,6 @@ export interface AssignmentDetail {
   postedAt?: string | null;
   /** @nullable */
   suggestedDueAt?: string | null;
+  latePass?: LatePassStatus;
   mySubmission?: AssignmentSubmission | null;
 }

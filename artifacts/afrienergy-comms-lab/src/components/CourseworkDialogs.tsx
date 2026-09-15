@@ -2,11 +2,12 @@ import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   useGetSessionQuiz, useSubmitQuizAttempt,
-  useGetSessionAssignment, useSubmitAssignment,
+  useGetSessionAssignment, useSubmitAssignment, useClaimLatePass,
   getGetSessionQuizQueryKey, getGetSessionAssignmentQueryKey, getListMyProgressQueryKey,
 } from '@workspace/api-client-react';
 import {
   apiReason, AI_USE_CHOICES, MAX_AI_NOTE_CHARS, disclosureProblem, type AiUse,
+  latePassOffer, latePassBalance, LATE_PASS_HOURS,
 } from '@workspace/domain';
 import { deadlineNotice } from '@/lib/dueDateText';
 import { useWritingProvenance } from '@/hooks/useWritingProvenance';
@@ -14,7 +15,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { CheckCircle2, XCircle, RotateCcw, CalendarClock, LockKeyhole } from 'lucide-react';
+import { CheckCircle2, XCircle, RotateCcw, CalendarClock, LockKeyhole, LifeBuoy, Clock3 } from 'lucide-react';
 
 /**
  * The deadline, as a learner sees it.
@@ -221,6 +222,104 @@ function AiDisclosure({ sessionId, use, note, onUse, onNote, disabled }: {
   );
 }
 
+/**
+ * The way back in, once the deadline has gone.
+ *
+ * Deliberate, and priced out loud. A learner who submitted late and found a
+ * pass silently spent would have lost something scarce without being asked —
+ * so this says what it costs, including the cost nobody thinks of: a piece that
+ * lands after the cohort has finished critiquing tends to get no critiques.
+ */
+function LatePassCard({ sessionId, state, left, canClaim, windowEnd }: {
+  sessionId: number;
+  state: string;
+  left: number;
+  canClaim: boolean;
+  windowEnd?: string | null;
+}) {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+
+  const claim = useClaimLatePass({
+    mutation: {
+      onSuccess: (r) => {
+        toast({
+          title: 'Late pass used',
+          description: `You have until ${new Date(r.windowEnd ?? '').toLocaleString()} to file this one.`,
+        });
+        qc.invalidateQueries({ queryKey: getGetSessionAssignmentQueryKey(sessionId) });
+      },
+      onError: (err) => toast({
+        title: 'Could not use a late pass',
+        description: apiReason(err, 'Try again in a moment.'),
+        variant: 'destructive',
+      }),
+    },
+  });
+
+  const until = windowEnd
+    ? new Date(windowEnd).toLocaleString(undefined, {
+      weekday: 'long', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit',
+    })
+    : '';
+
+  if (state === 'in-use') {
+    return (
+      <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+        <p className="flex items-start gap-1.5 text-sm font-semibold text-emerald-900">
+          <Clock3 className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+          Late pass in use — you have until {until}.
+        </p>
+        <p className="mt-1 text-xs text-emerald-900/80">
+          {latePassBalance(2 - left)} File as soon as you can: your cohort may already have finished critiquing.
+        </p>
+      </div>
+    );
+  }
+
+  if (state === 'available' && canClaim) {
+    return (
+      <div className="rounded-xl border border-[#FDBA74] bg-[#FFF7ED] p-4">
+        <p className="flex items-start gap-1.5 text-sm font-semibold text-[#9A3412]">
+          <LifeBuoy className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+          The deadline has passed — but you have a late pass.
+        </p>
+        <p className="mt-1.5 text-xs text-[#9A3412]/90">{latePassOffer(2 - left)}</p>
+        <Button
+          size="sm"
+          className="mt-3 font-bold"
+          disabled={claim.isPending}
+          onClick={() => claim.mutate({ id: sessionId })}
+        >
+          {claim.isPending ? 'Using…' : `Use a late pass · ${LATE_PASS_HOURS} more hours`}
+        </Button>
+      </div>
+    );
+  }
+
+  if (state === 'none-left' || state === 'too-late') {
+    return (
+      <div className="rounded-xl border border-border bg-muted/40 p-4">
+        <p className="flex items-start gap-1.5 text-sm font-semibold">
+          <LockKeyhole className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+          {state === 'none-left'
+            ? 'The deadline has passed and both your late passes are gone.'
+            : 'The deadline has passed, and the extra time a late pass buys has run out.'}
+        </p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Talk to your facilitator — this is exactly the sort of thing they would rather hear about early.
+        </p>
+      </div>
+    );
+  }
+
+  // Still open. A quiet count, so nobody discovers the allowance only in a panic.
+  if (state === 'not-needed' && left > 0) {
+    return <p className="text-xs text-muted-foreground">{latePassBalance(2 - left)}</p>;
+  }
+  return null;
+}
+
 /** Assignment brief plus the submission box. Used in the dashboard dialog and
  *  inline in the classroom. */
 export function AssignmentPanel({ sessionId, enabled = true, onSubmitted }: {
@@ -254,7 +353,12 @@ export function AssignmentPanel({ sessionId, enabled = true, onSubmitted }: {
     },
   });
 
-  const closed = !!assignment?.closed;
+  // `closed` means the ordinary deadline has gone. Whether the learner can
+  // still file is a different question: a spent late pass reopens the door for
+  // 48 hours, and the server is the one that decides.
+  const pass = assignment?.latePass;
+  const canFile = !assignment?.closed || pass?.state === 'in-use';
+  const shut = !canFile;
   // The same check the server runs, so the button explains itself before the
   // learner presses it rather than after.
   const disclosureIssue = disclosureProblem(aiUse, aiNote);
@@ -269,24 +373,36 @@ export function AssignmentPanel({ sessionId, enabled = true, onSubmitted }: {
           {assignment.instructions}
         </p>
       )}
-      <Deadline dueAt={assignment?.dueAt} closed={closed} />
+      <Deadline dueAt={assignment?.dueAt} closed={!!assignment?.closed} />
+
+      {pass && (
+        <LatePassCard
+          sessionId={sessionId}
+          state={pass.state}
+          left={pass.left}
+          canClaim={pass.canClaim}
+          windowEnd={pass.windowEnd}
+        />
+      )}
+
       {assignment?.mySubmission && (
         <p className="text-xs font-semibold text-emerald-700 flex items-center gap-1.5">
           <CheckCircle2 className="w-3.5 h-3.5" />
           Submitted {new Date(assignment.mySubmission.submittedAt).toLocaleString()}
-          {closed ? '.' : ' — you can revise and resubmit.'}
+          {assignment.mySubmission.late && ' · on a late pass'}
+          {shut ? '.' : ' — you can revise and resubmit.'}
         </p>
       )}
       <Textarea
         value={text}
         onChange={e => { setBody(e.target.value); provenance.onType(); }}
         onPaste={e => provenance.onPaste(e.clipboardData.getData('text'))}
-        placeholder={closed ? 'Submissions are closed for this assignment.' : 'Type your response here...'}
+        placeholder={shut ? 'Submissions are closed for this assignment.' : 'Type your response here...'}
         rows={8}
-        readOnly={closed}
+        readOnly={shut}
       />
 
-      {!closed && (
+      {!shut && (
         <AiDisclosure
           sessionId={sessionId}
           use={aiUse}
@@ -298,7 +414,7 @@ export function AssignmentPanel({ sessionId, enabled = true, onSubmitted }: {
 
       <Button
         className="w-full font-bold"
-        disabled={closed || !text.trim() || !!disclosureIssue || submit.isPending}
+        disabled={shut || !text.trim() || !!disclosureIssue || submit.isPending}
         onClick={() => submit.mutate({
           id: sessionId,
           data: {
@@ -309,13 +425,13 @@ export function AssignmentPanel({ sessionId, enabled = true, onSubmitted }: {
           },
         })}
       >
-        {closed
+        {shut
           ? 'Closed'
           : submit.isPending
             ? 'Submitting...'
             : assignment?.mySubmission ? 'Resubmit assignment' : 'Submit assignment'}
       </Button>
-      {!closed && !!text.trim() && !!disclosureIssue && (
+      {!shut && !!text.trim() && !!disclosureIssue && (
         <p className="text-xs text-muted-foreground">{disclosureIssue}</p>
       )}
     </div>

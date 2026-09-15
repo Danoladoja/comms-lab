@@ -78,6 +78,20 @@ export const assignmentSubmissionsTable = pgTable(
     submittedAt: timestamp("submitted_at", { withTimezone: true }).notNull().defaultNow(),
 
     /**
+     * Filed after the deadline, on a late pass.
+     *
+     * Stored rather than worked out from the dates, because an admin who moves
+     * a deadline afterwards would otherwise silently rewrite history — turning
+     * a piece that was late into one that was not, or the reverse. It records
+     * what happened, and a record does not change when the rules do.
+     *
+     * It carries no penalty. Written work at the Lab is not marked, so there is
+     * nothing to reduce. It exists so a facilitator can see who is struggling to
+     * keep up, which is the genuinely useful thing about lateness.
+     */
+    late: boolean("late").notNull().default(false),
+
+    /**
      * How the writer says they used AI on this piece, and a line about it.
      *
      * Required at submission from now on. Empty on everything filed before the
@@ -113,6 +127,39 @@ export const assignmentSubmissionsTable = pgTable(
     withdrawnBy: integer("withdrawn_by").references(() => usersTable.id, { onDelete: "set null" }),
   },
   (t) => [uniqueIndex("assignment_submissions_user_session_unique").on(t.userId, t.sessionId)],
+);
+
+/**
+ * A late pass, spent.
+ *
+ * Two per learner per programme, each buying 48 more hours on one written task.
+ * A row exists only once a pass has been used, so counting what somebody has
+ * left is counting these — there is no balance to keep in step with reality and
+ * therefore no balance that can drift out of step with it.
+ *
+ * The programme is recorded alongside the module because the allowance is per
+ * programme: a learner on two programmes has two passes on each, and working
+ * that out from the module every time would mean a join on every check.
+ *
+ * The unique index is the whole safety mechanism. Two taps on a slow connection
+ * would otherwise spend two passes for one extension, and the learner would
+ * have no way of knowing why they had one left instead of two.
+ */
+export const latePassesTable = pgTable(
+  "late_passes",
+  {
+    id: serial("id").primaryKey(),
+    userId: integer("user_id").notNull().references(() => usersTable.id, { onDelete: "cascade" }),
+    programId: integer("program_id").notNull(),
+    sessionId: integer("session_id").notNull().references(() => sessionsTable.id, { onDelete: "cascade" }),
+    claimedAt: timestamp("claimed_at", { withTimezone: true }).notNull().defaultNow(),
+    /** The deadline it was spent against, kept so the record still reads true if the date later moves. */
+    extendedFrom: timestamp("extended_from", { withTimezone: true }),
+  },
+  (t) => [
+    uniqueIndex("late_passes_user_session_unique").on(t.userId, t.sessionId),
+    index("late_passes_user_program_idx").on(t.userId, t.programId),
+  ],
 );
 
 /**
@@ -169,3 +216,4 @@ export type Assignment = typeof assignmentsTable.$inferSelect;
 export type AssignmentSubmission = typeof assignmentSubmissionsTable.$inferSelect;
 export type SubmissionReview = typeof submissionReviewsTable.$inferSelect;
 export type SubmissionComment = typeof submissionCommentsTable.$inferSelect;
+export type LatePass = typeof latePassesTable.$inferSelect;

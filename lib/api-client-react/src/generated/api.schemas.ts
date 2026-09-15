@@ -666,10 +666,31 @@ export interface ReplayProgressResult {
   presence: Presence;
 }
 
+export type LatePassStatusState = typeof LatePassStatusState[keyof typeof LatePassStatusState];
+
+
+export const LatePassStatusState = {
+  'no-deadline': 'no-deadline',
+  'not-needed': 'not-needed',
+  available: 'available',
+  'in-use': 'in-use',
+  'none-left': 'none-left',
+  'too-late': 'too-late',
+} as const;
+
+export interface LatePassStatus {
+  state: LatePassStatusState;
+  left: number;
+  canClaim: boolean;
+  /** @nullable */
+  windowEnd: string | null;
+}
+
 export interface AssignmentSubmission {
   sessionId: number;
   body: string;
   submittedAt: string;
+  late?: boolean;
 }
 
 export interface AssignmentDetail {
@@ -688,7 +709,16 @@ export interface AssignmentDetail {
   postedAt?: string | null;
   /** @nullable */
   suggestedDueAt?: string | null;
+  latePass?: LatePassStatus;
   mySubmission?: AssignmentSubmission | null;
+}
+
+export interface LatePassResult {
+  sessionId: number;
+  spent: boolean;
+  left: number;
+  /** @nullable */
+  windowEnd: string | null;
 }
 
 export type AssignmentInputOrigin = typeof AssignmentInputOrigin[keyof typeof AssignmentInputOrigin];
@@ -858,6 +888,7 @@ export interface StaffPiece {
   authorName: string;
   body: string;
   submittedAt: string;
+  late: boolean;
   withdrawn: boolean;
   aiUse: string;
   aiUseLabel: string;

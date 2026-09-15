@@ -416,10 +416,17 @@ export const GetSessionAssignmentResponse = zod.object({
   "draft": zod.boolean().optional(),
   "postedAt": zod.string().nullish(),
   "suggestedDueAt": zod.string().nullish(),
+  "latePass": zod.object({
+  "state": zod.enum(['no-deadline', 'not-needed', 'available', 'in-use', 'none-left', 'too-late']),
+  "left": zod.int(),
+  "canClaim": zod.boolean(),
+  "windowEnd": zod.string().nullable()
+}).optional(),
   "mySubmission": zod.union([zod.object({
   "sessionId": zod.int(),
   "body": zod.string(),
-  "submittedAt": zod.string()
+  "submittedAt": zod.string(),
+  "late": zod.boolean().optional()
 }),zod.null()]).optional()
 })
 
@@ -480,10 +487,17 @@ export const UpsertSessionAssignmentResponse = zod.object({
   "draft": zod.boolean().optional(),
   "postedAt": zod.string().nullish(),
   "suggestedDueAt": zod.string().nullish(),
+  "latePass": zod.object({
+  "state": zod.enum(['no-deadline', 'not-needed', 'available', 'in-use', 'none-left', 'too-late']),
+  "left": zod.int(),
+  "canClaim": zod.boolean(),
+  "windowEnd": zod.string().nullable()
+}).optional(),
   "mySubmission": zod.union([zod.object({
   "sessionId": zod.int(),
   "body": zod.string(),
-  "submittedAt": zod.string()
+  "submittedAt": zod.string(),
+  "late": zod.boolean().optional()
 }),zod.null()]).optional()
 })
 
@@ -532,6 +546,22 @@ export const PostCourseworkResponse = zod.object({
 
 
 /**
+ * Two per learner per programme, each buying 48 more hours. Deliberate rather than automatic: a learner who submitted late and found a pass silently gone would have spent something scarce without being asked. Spending one twice on the same task is not an error and costs nothing.
+ * @summary Spend one of this learner's late passes on a module's written task
+ */
+export const ClaimLatePassParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const ClaimLatePassResponse = zod.object({
+  "sessionId": zod.int(),
+  "spent": zod.boolean(),
+  "left": zod.int(),
+  "windowEnd": zod.string().nullable()
+})
+
+
+/**
  * @summary Submit (or update) the written assignment for a module
  */
 export const SubmitAssignmentParams = zod.object({
@@ -565,7 +595,8 @@ export const SubmitAssignmentBody = zod.object({
 export const SubmitAssignmentResponse = zod.object({
   "sessionId": zod.int(),
   "body": zod.string(),
-  "submittedAt": zod.string()
+  "submittedAt": zod.string(),
+  "late": zod.boolean().optional()
 })
 
 
@@ -1124,6 +1155,7 @@ export const GetModuleWorkResponse = zod.object({
   "authorName": zod.string(),
   "body": zod.string(),
   "submittedAt": zod.string(),
+  "late": zod.boolean(),
   "withdrawn": zod.boolean(),
   "aiUse": zod.string(),
   "aiUseLabel": zod.string(),
