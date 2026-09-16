@@ -130,6 +130,38 @@ router.post("/admin/programmes/:id/messages", async (req, res) => {
 
   const outcomes: SendOutcome[] = [];
 
+  // The record is written before the first email, not after the last.
+  //
+  // A send to a large cohort runs for minutes; a browser that gives up first
+  // used to leave nothing behind at all, so the admin could not tell who had
+  // received it and would reasonably press Send again. Now an interrupted send
+  // still says what was attempted, and progress is written as it goes.
+  const [saved] = await db
+    .insert(cohortMessagesTable)
+    .values({
+      programId,
+      programTitle: programme.title,
+      subject: message.subject,
+      body: message.body,
+      audience: message.audience,
+      actionLabel: message.actionLabel ?? "",
+      actionUrl: message.actionUrl ?? "",
+      sentByUserId: me?.id ?? null,
+      intendedCount: people.length,
+    })
+    .returning();
+
+  const recordProgress = async (finished: boolean) => {
+    await db
+      .update(cohortMessagesTable)
+      .set({
+        sentCount: outcomes.filter((o) => o.status === "sent").length,
+        failedCount: outcomes.filter((o) => o.status !== "sent").length,
+        ...(finished ? { finishedAt: new Date() } : {}),
+      })
+      .where(eq(cohortMessagesTable.id, saved.id));
+  };
+
   // One after another, not all at once. Fifty simultaneous sends is the
   // quickest way to be rate-limited halfway through with nobody able to say who
   // received it — the same reasoning as inviting a cohort.
@@ -159,28 +191,14 @@ router.post("/admin/programmes/:id/messages", async (req, res) => {
         detail: "Their address was refused. Check it in the enrolment list.",
       });
     }
+    // Every tenth, so a send that is cut off still shows roughly how far it got
+    // without writing a row per email.
+    if (outcomes.length % 10 === 0) await recordProgress(false);
   }
 
   const sent = outcomes.filter((o) => o.status === "sent").length;
   const failed = outcomes.length - sent;
-
-  // Recorded even when every send failed. "I sent that on Tuesday and nobody
-  // got it" is exactly the thing worth being able to look up.
-  const [saved] = await db
-    .insert(cohortMessagesTable)
-    .values({
-      programId,
-      programTitle: programme.title,
-      subject: message.subject,
-      body: message.body,
-      audience: message.audience,
-      actionLabel: message.actionLabel ?? "",
-      actionUrl: message.actionUrl ?? "",
-      sentByUserId: me?.id ?? null,
-      sentCount: sent,
-      failedCount: failed,
-    })
-    .returning();
+  await recordProgress(true);
 
   logger.info({ programId, sent, failed, by: me?.id }, "Cohort message sent");
   res.status(201).json({ id: saved?.id ?? 0, sent, failed, outcomes });

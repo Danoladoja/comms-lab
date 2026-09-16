@@ -1,5 +1,6 @@
 import { pgTable, text, serial, integer, boolean, timestamp, jsonb, uniqueIndex, index } from "drizzle-orm/pg-core";
 import { sessionsTable } from "./sessions";
+import { programsTable } from "./programs";
 import { usersTable } from "./users";
 
 // Multiple-choice quiz questions attached to a module (session).
@@ -21,14 +22,22 @@ export const quizQuestionsTable = pgTable("quiz_questions", {
 });
 
 // Every quiz attempt is kept; the best score counts. Pass mark is 70%.
-export const quizAttemptsTable = pgTable("quiz_attempts", {
-  id: serial("id").primaryKey(),
-  userId: integer("user_id").notNull().references(() => usersTable.id, { onDelete: "cascade" }),
-  sessionId: integer("session_id").notNull().references(() => sessionsTable.id, { onDelete: "cascade" }),
-  scorePct: integer("score_pct").notNull(),
-  passed: boolean("passed").notNull(),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+export const quizAttemptsTable = pgTable(
+  "quiz_attempts",
+  {
+    id: serial("id").primaryKey(),
+    userId: integer("user_id").notNull().references(() => usersTable.id, { onDelete: "cascade" }),
+    sessionId: integer("session_id").notNull().references(() => sessionsTable.id, { onDelete: "cascade" }),
+    scorePct: integer("score_pct").notNull(),
+    passed: boolean("passed").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  // Every attempt is kept forever and nothing prunes them, so this table only
+  // grows. It is read on every quiz view, after every attempt, and once per
+  // module on every dashboard — all by (learner, module), which had no index
+  // at all.
+  (t) => [index("quiz_attempts_user_session_idx").on(t.userId, t.sessionId)],
+);
 
 /**
  * One "make" per module — the artifact the learner produces. This, not
@@ -92,6 +101,21 @@ export const assignmentSubmissionsTable = pgTable(
     late: boolean("late").notNull().default(false),
 
     /**
+     * How many critiques this learner was asked for when they filed.
+     *
+     * Frozen here for the same reason `late` is: the published rules must not
+     * be rewritten under somebody who has already met them. Raising an
+     * assignment from two critiques to three used to flip everyone who had
+     * written two back to incomplete, re-lock the following week and revoke
+     * certificates already issued — from an edit that asked nothing new of the
+     * people it punished.
+     *
+     * Null on everything filed before this existed, which then falls back to
+     * whatever the assignment currently says, exactly as before.
+     */
+    reviewsRequiredAtSubmission: integer("reviews_required_at_submission"),
+
+    /**
      * How the writer says they used AI on this piece, and a line about it.
      *
      * Required at submission from now on. Empty on everything filed before the
@@ -126,7 +150,14 @@ export const assignmentSubmissionsTable = pgTable(
     withdrawnAt: timestamp("withdrawn_at", { withTimezone: true }),
     withdrawnBy: integer("withdrawn_by").references(() => usersTable.id, { onDelete: "set null" }),
   },
-  (t) => [uniqueIndex("assignment_submissions_user_session_unique").on(t.userId, t.sessionId)],
+  (t) => [
+    uniqueIndex("assignment_submissions_user_session_unique").on(t.userId, t.sessionId),
+    // Everything that reads a module's work filters by session alone: the
+    // review queue, the staff screen, the cohort room, the certificate
+    // portfolio. Without this the database reads every row of the table —
+    // including the full text of every essay in it — on each of them.
+    index("assignment_submissions_session_idx").on(t.sessionId),
+  ],
 );
 
 /**
@@ -150,7 +181,9 @@ export const latePassesTable = pgTable(
   {
     id: serial("id").primaryKey(),
     userId: integer("user_id").notNull().references(() => usersTable.id, { onDelete: "cascade" }),
-    programId: integer("program_id").notNull(),
+    programId: integer("program_id")
+      .notNull()
+      .references(() => programsTable.id, { onDelete: "cascade" }),
     sessionId: integer("session_id").notNull().references(() => sessionsTable.id, { onDelete: "cascade" }),
     claimedAt: timestamp("claimed_at", { withTimezone: true }).notNull().defaultNow(),
     /** The deadline it was spent against, kept so the record still reads true if the date later moves. */

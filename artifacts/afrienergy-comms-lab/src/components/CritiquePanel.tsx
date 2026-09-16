@@ -65,17 +65,22 @@ function CriterionScorer({
 /* ---------- Writing one critique ---------- */
 
 function CritiqueForm({
-  sessionId, target, rubric, onDone,
+  sessionId, target, rubric, onDone, draft, onDraft,
 }: {
   sessionId: number;
   target: ReviewTarget;
   rubric: RubricCriterion[];
   onDone: () => void;
+  /** Held above this component, so switching submissions cannot destroy it. */
+  draft: { scores: Record<string, number>; comment: string };
+  onDraft: (next: { scores: Record<string, number>; comment: string }) => void;
 }) {
   const qc = useQueryClient();
   const { toast } = useToast();
-  const [scores, setScores] = useState<Record<string, number>>({});
-  const [comment, setComment] = useState('');
+  const scores = draft.scores;
+  const comment = draft.comment;
+  const setScores = (next: Record<string, number>) => onDraft({ scores: next, comment });
+  const setComment = (next: string) => onDraft({ scores, comment: next });
 
   const submit = useSubmitReview({
     mutation: {
@@ -84,8 +89,7 @@ function CritiqueForm({
         qc.invalidateQueries({ queryKey: getGetReviewQueueQueryKey(sessionId) });
         qc.invalidateQueries({ queryKey: getGetMyFeedbackQueryKey(sessionId) });
         qc.invalidateQueries({ queryKey: getListMyProgressQueryKey() });
-        setScores({});
-        setComment('');
+        onDraft({ scores: {}, comment: '' });
         onDone();
       },
       onError: (err) => toast({
@@ -102,7 +106,7 @@ function CritiqueForm({
 
   return (
     <div className="space-y-6">
-      <figure className="rounded-xl border border-border bg-[#F4F0E8] p-5">
+      <figure className="rounded-xl border border-border bg-muted p-5">
         <Quote className="w-4 h-4 text-[#C2410C] mb-2" aria-hidden />
         <blockquote className="text-sm leading-relaxed whitespace-pre-wrap text-foreground">
           {target.body}
@@ -119,7 +123,7 @@ function CritiqueForm({
             criterion={criterion}
             value={scores[criterion.id]}
             idPrefix={`critique-${target.submissionId}`}
-            onChange={(score) => setScores((s) => ({ ...s, [criterion.id]: score }))}
+            onChange={(score) => setScores({ ...scores, [criterion.id]: score })}
           />
         ))}
       </div>
@@ -168,6 +172,11 @@ export function CritiqueQueue({ sessionId }: { sessionId: number }) {
     query: { queryKey: getGetReviewQueueQueryKey(sessionId), retry: false },
   });
   const [index, setIndex] = useState(0);
+  // One draft per submission, kept here rather than inside the form. The form
+  // is rebuilt from scratch when the submission changes, so a learner who had
+  // written three hundred words and wanted to glance at another piece lost
+  // every word and every score, with no warning.
+  const [drafts, setDrafts] = useState<Record<number, { scores: Record<string, number>; comment: string }>>({});
 
   if (isLoading) return <div className="h-40 bg-muted/40 rounded-xl animate-pulse" />;
   if (error) return <CouldNotLoad what="the critique queue" onRetry={() => refetch()} compact />;
@@ -236,6 +245,8 @@ export function CritiqueQueue({ sessionId }: { sessionId: number }) {
             sessionId={sessionId}
             target={target}
             rubric={queue.rubric}
+            draft={drafts[target.submissionId] ?? { scores: {}, comment: '' }}
+            onDraft={(next) => setDrafts((d) => ({ ...d, [target.submissionId]: next }))}
             onDone={() => {
               setIndex(0);
               qc.invalidateQueries({ queryKey: getGetReviewQueueQueryKey(sessionId) });

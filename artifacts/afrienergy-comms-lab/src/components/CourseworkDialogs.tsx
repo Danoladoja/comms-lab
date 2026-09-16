@@ -383,7 +383,7 @@ export function AssignmentPanel({ sessionId, enabled = true, onSubmitted }: {
   return (
     <div className="space-y-4">
       {assignment?.instructions && (
-        <p className="text-sm text-muted-foreground whitespace-pre-wrap bg-[#F4F0E8] border border-border rounded-lg px-3 py-2.5">
+        <p className="text-sm text-muted-foreground whitespace-pre-wrap bg-muted border border-border rounded-lg px-3 py-2.5">
           {assignment.instructions}
         </p>
       )}

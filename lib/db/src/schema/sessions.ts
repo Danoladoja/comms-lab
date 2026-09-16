@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, timestamp, boolean } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, timestamp, boolean, index } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { programsTable } from "./programs";
@@ -6,7 +6,9 @@ import { usersTable } from "./users";
 
 // One live module of a program. meetUrl is pasted by the admin (Google Meet link);
 // recordingUrl is the unlisted YouTube link added after the session.
-export const sessionsTable = pgTable("sessions", {
+export const sessionsTable = pgTable(
+  "sessions",
+  {
   id: serial("id").primaryKey(),
   programId: integer("program_id").notNull().references(() => programsTable.id, { onDelete: "cascade" }),
   title: text("title").notNull(),
@@ -83,7 +85,17 @@ export const sessionsTable = pgTable("sessions", {
   readingsPostedAt: timestamp("readings_posted_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
-});
+  },
+  // Postgres does not index the columns a foreign key points *from*, so every
+  // one of these was a full scan of the table. Between them they carry the
+  // dashboard, every heartbeat, the facilitator's own list, and the reminder
+  // job's twice-every-five-minutes sweep for classes about to start.
+  (t) => [
+    index("sessions_program_idx").on(t.programId, t.startsAt),
+    index("sessions_instructor_idx").on(t.instructorId),
+    index("sessions_starts_at_idx").on(t.startsAt),
+  ],
+);
 
 export const insertSessionSchema = createInsertSchema(sessionsTable).omit({ id: true, createdAt: true, updatedAt: true });
 export type InsertSession = z.infer<typeof insertSessionSchema>;

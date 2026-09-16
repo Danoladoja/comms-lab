@@ -102,6 +102,12 @@ export type ProgressEntry = {
   /** How much of the class has been attended live or watched on replay. */
   presence: PresenceStatus;
   completed: boolean;
+  /**
+   * Counted as done because the class ran before this learner joined, rather
+   * than because they did it. Shown so a late joiner's dashboard reads
+   * honestly instead of claiming work they never did.
+   */
+  beforeEnrolled?: boolean;
   locked: boolean;
   hasQuiz: boolean;
   quizPassed: boolean;
@@ -292,10 +298,28 @@ export function computeProgress(
         feedbackUnlocked: reviewsRequired === 0 || reviewsDone,
       };
 
-      // Waived prerequisites: unscheduled modules, and modules that ended before
-      // this learner enrolled (late joiners are not locked out forever).
-      const waived = start === null || (end !== null && end < enrolledAt);
-      rows.push({ session: s, entry, satisfied: completed || waived });
+      // Modules that finished before this learner joined.
+      //
+      // Waiving them for *locking* was never enough. A certificate requires
+      // every module complete, so somebody who joined in week four — or was
+      // promoted off the waitlist — could do everything perfectly from the day
+      // they arrived and still never be certificated, because week one's class
+      // had happened before they were let in and the deadline for its work had
+      // passed. Nothing they could do would ever close it.
+      //
+      // So a module that ran before somebody's first day counts as done for
+      // them. They are not being let off anything they were ever asked for.
+      const beforeTheyJoined = end !== null && end < enrolledAt;
+      if (beforeTheyJoined && !entry.completed) {
+        entry.completed = true;
+        entry.progressPct = 100;
+        entry.beforeEnrolled = true;
+      }
+
+      // Waived prerequisites: unscheduled modules, and modules that ended
+      // before this learner enrolled.
+      const waived = start === null || beforeTheyJoined;
+      rows.push({ session: s, entry, satisfied: entry.completed || waived });
     }
 
     if (progression === "week") {

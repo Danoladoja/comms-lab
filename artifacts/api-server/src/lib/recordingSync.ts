@@ -1,11 +1,12 @@
 import { db, sessionsTable, programsTable, usersTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import {
   sessionsDueForRecording,
   meetCodeFrom,
   videoDetailsFor,
   youtubeUrlFor,
   RECORDING_SEARCH_WINDOW_MS,
+  statusAfterAttempt,
   type SessionRecordingState,
 } from "@workspace/domain";
 import { getAccessToken } from "./google/oauth";
@@ -84,17 +85,12 @@ async function markAttempt(sessionId: number, status: string, error: string | nu
       recordingStatus: status,
       recordingError: error,
       recordingCheckedAt: new Date(),
-      recordingAttempts: (await currentAttempts(sessionId)) + 1,
+      // Counted in the database rather than read, added to and written back.
+      // Two passes overlapping used to lose an increment, so the give-up limit
+      // never arrived and a permanently broken session was retried forever.
+      recordingAttempts: sql`${sessionsTable.recordingAttempts} + 1`,
     })
     .where(eq(sessionsTable.id, sessionId));
-}
-
-async function currentAttempts(sessionId: number): Promise<number> {
-  const [row] = await db
-    .select({ attempts: sessionsTable.recordingAttempts })
-    .from(sessionsTable)
-    .where(eq(sessionsTable.id, sessionId));
-  return row?.attempts ?? 0;
 }
 
 /** Handle one session end to end. Returns true when a video was published. */
@@ -112,13 +108,37 @@ async function syncOne(accessToken: string, row: SessionRow): Promise<boolean> {
     const recordings = await findRecordings({ accessToken, meetCode, windowStartMs, windowEndMs });
 
     if (recordings.length === 0) {
-      // Not an error yet — Meet may still be writing the file.
-      await markAttempt(row.id, "searching", "No finished recording in Drive yet");
+      // Not an error yet — Meet may still be writing the file. But when this is
+      // the attempt that exhausts the allowance, say so: the robot stops here,
+      // and leaving it reading "Waiting for Meet" for another six days hid
+      // every recording that never arrived.
+      const status = statusAfterAttempt({
+        attempts: row.recordingAttempts + 1,
+        endsAtMs: startsAtMs + row.durationMins * 60 * 1000,
+      });
+      await markAttempt(
+        row.id,
+        status,
+        status === "failed"
+          ? "No recording appeared in Drive. Add the link by hand, or check the Meet recording was saved."
+          : "No finished recording in Drive yet",
+      );
       return false;
     }
 
     const recording = recordings[0];
-    await db
+
+    // Claim this session before uploading anything.
+    //
+    // The only guard used to be a boolean in this process's memory, which is
+    // worth nothing on a platform that runs two copies of the app — and the
+    // admin's "check now" button is a third. Two of them would find the same
+    // Drive file and both upload it, putting the class on the channel twice
+    // and spending half a day's YouTube allowance on the duplicate.
+    //
+    // The claim is the status change itself, applied only if nobody else has
+    // already moved it. Whoever wins gets zero rows back and stops.
+    const claimed = await db
       .update(sessionsTable)
       .set({
         recordingStatus: "uploading",
@@ -126,7 +146,16 @@ async function syncOne(accessToken: string, row: SessionRow): Promise<boolean> {
         recordingCheckedAt: new Date(),
         recordingError: null,
       })
-      .where(eq(sessionsTable.id, row.id));
+      .where(and(
+        eq(sessionsTable.id, row.id),
+        sql`${sessionsTable.recordingStatus} <> 'uploading'`,
+      ))
+      .returning({ id: sessionsTable.id });
+
+    if (claimed.length === 0) {
+      logger.info({ sessionId: row.id }, "Recording already being transferred elsewhere");
+      return false;
+    }
 
     const { title, description } = videoDetailsFor({
       programTitle: row.programTitle,
@@ -161,12 +190,12 @@ async function syncOne(accessToken: string, row: SessionRow): Promise<boolean> {
     return true;
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    const attempts = await currentAttempts(row.id);
-    // Only declare defeat once the search window has closed; until then a
-    // failure is usually Meet not being ready.
+    // Declare defeat when the robot actually stops trying, not four days after
+    // it has: a status still reading "searching" hid every failure from the
+    // console's "needs attention" list.
+    const attempts = row.recordingAttempts + 1;
     const endsAtMs = startsAtMs + row.durationMins * 60 * 1000;
-    const giveUp = Date.now() > endsAtMs + RECORDING_SEARCH_WINDOW_MS;
-    await markAttempt(row.id, giveUp ? "failed" : "searching", message);
+    await markAttempt(row.id, statusAfterAttempt({ attempts, endsAtMs }), message);
     logger.warn({ sessionId: row.id, attempts, err }, "Could not sync class recording");
     return false;
   }

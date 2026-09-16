@@ -407,7 +407,12 @@ router.post("/sessions/:id/assignment/late-pass", async (req, res) => {
   if (accessError) { res.status(403).json({ error: accessError }); return; }
 
   const [assignment] = await db
-    .select({ id: assignmentsTable.id, dueAt: assignmentsTable.dueAt, draft: assignmentsTable.draft })
+    .select({
+      id: assignmentsTable.id,
+      dueAt: assignmentsTable.dueAt,
+      draft: assignmentsTable.draft,
+      reviewsRequired: assignmentsTable.reviewsRequired,
+    })
     .from(assignmentsTable)
     .where(eq(assignmentsTable.sessionId, sessionId));
   if (!assignment || assignment.draft) {
@@ -434,17 +439,44 @@ router.post("/sessions/:id/assignment/late-pass", async (req, res) => {
     return;
   }
 
-  await db
-    .insert(latePassesTable)
-    .values({
-      userId: user.id,
-      programId: session.programId,
-      sessionId,
-      extendedFrom: assignment.dueAt ?? null,
-    })
-    .onConflictDoNothing();
+  // Counting, deciding and writing under a lock on this learner's own rows.
+  //
+  // I wrote in the schema that the unique index was "the whole safety
+  // mechanism". It is not: it is on (user, session), so it stops two claims on
+  // the *same* task and nothing else. Two claims on two different tasks at the
+  // same moment — two tabs, or one retried request — both read one pass used,
+  // both passed the check, and a learner got three passes out of two.
+  const after = await db.transaction(async (tx) => {
+    await tx.execute(sql`
+      select id from ${latePassesTable}
+      where user_id = ${user.id} and program_id = ${session.programId}
+      for update
+    `);
 
-  const after = await latePasses(user.id, session.programId, sessionId);
+    const rows = await tx
+      .select({ sessionId: latePassesTable.sessionId })
+      .from(latePassesTable)
+      .where(and(
+        eq(latePassesTable.userId, user.id),
+        eq(latePassesTable.programId, session.programId),
+      ));
+
+    // Re-checked inside the lock, because the count that got us here was read
+    // outside it and may since have moved.
+    if (!rows.some((r) => r.sessionId === sessionId) && passesLeft(rows.length) > 0) {
+      await tx
+        .insert(latePassesTable)
+        .values({
+          userId: user.id,
+          programId: session.programId,
+          sessionId,
+          extendedFrom: assignment.dueAt ?? null,
+        })
+        .onConflictDoNothing();
+    }
+
+    return latePasses(user.id, session.programId, sessionId);
+  });
   res.status(201).json({
     sessionId,
     spent: true,
@@ -529,7 +561,12 @@ router.post("/sessions/:id/assignment/submission", async (req, res) => {
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
   const [assignment] = await db
-    .select({ id: assignmentsTable.id, dueAt: assignmentsTable.dueAt, draft: assignmentsTable.draft })
+    .select({
+      id: assignmentsTable.id,
+      dueAt: assignmentsTable.dueAt,
+      draft: assignmentsTable.draft,
+      reviewsRequired: assignmentsTable.reviewsRequired,
+    })
     .from(assignmentsTable)
     .where(eq(assignmentsTable.sessionId, sessionId));
   if (!assignment) { res.status(404).json({ error: "No assignment for this module" }); return; }
@@ -580,7 +617,16 @@ router.post("/sessions/:id/assignment/submission", async (req, res) => {
 
   const [saved] = await db
     .insert(assignmentSubmissionsTable)
-    .values({ userId: user.id, sessionId, body: parsed.data.body, late: filedLate, ...provenance })
+    .values({
+      userId: user.id,
+      sessionId,
+      body: parsed.data.body,
+      late: filedLate,
+      // The deal in force when they filed, kept so that raising it afterwards
+      // cannot un-complete work already done.
+      reviewsRequiredAtSubmission: assignment.reviewsRequired,
+      ...provenance,
+    })
     .onConflictDoUpdate({
       target: [assignmentSubmissionsTable.userId, assignmentSubmissionsTable.sessionId],
       // A resubmission replaces the record of how it was written, because the

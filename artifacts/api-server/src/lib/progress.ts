@@ -66,7 +66,13 @@ export async function progressForUser(userId: number, programIds: number[]): Pro
         .from(replayProgressTable)
         .where(and(eq(replayProgressTable.userId, userId), inArray(replayProgressTable.sessionId, sessionIds))),
       db
-        .select({ programId: enrollmentsTable.programId, createdAt: enrollmentsTable.createdAt })
+        .select({
+          programId: enrollmentsTable.programId,
+          createdAt: enrollmentsTable.createdAt,
+          // When they were actually let in, which for anybody promoted off the
+          // waitlist is not when their row was written.
+          startedAt: enrollmentsTable.startedAt,
+        })
         .from(enrollmentsTable)
         .where(and(eq(enrollmentsTable.userId, userId), inArray(enrollmentsTable.programId, programIds))),
       // Drafts are excluded on purpose, and this is the most important word in
@@ -100,7 +106,11 @@ export async function progressForUser(userId: number, programIds: number[]): Pro
           eq(assignmentsTable.draft, false),
         )),
       db
-        .select({ sessionId: assignmentSubmissionsTable.sessionId, id: assignmentSubmissionsTable.id })
+        .select({
+          sessionId: assignmentSubmissionsTable.sessionId,
+          id: assignmentSubmissionsTable.id,
+          reviewsRequiredAtSubmission: assignmentSubmissionsTable.reviewsRequiredAtSubmission,
+        })
         .from(assignmentSubmissionsTable)
         .where(and(
           eq(assignmentSubmissionsTable.userId, userId),
@@ -163,13 +173,24 @@ export async function progressForUser(userId: number, programIds: number[]): Pro
       ];
     }),
   );
-  const enrolledAtByProgram = new Map(enrollRows.map((e) => [e.programId, e.createdAt]));
+  // When they actually started. `startedAt` is empty on every row written
+  // before the distinction existed, and on those `createdAt` is the same thing.
+  const enrolledAtByProgram = new Map(
+    enrollRows.map((e) => [e.programId, e.startedAt ?? e.createdAt]),
+  );
   const quizSet = new Set(quizSessions.map((q) => q.sessionId));
   const bestBySession = new Map(bestAttempts.map((a) => [a.sessionId, a.best]));
   const reviewsRequiredBySession = new Map(assignments.map((a) => [a.sessionId, a.reviewsRequired]));
   const assignmentDueBySession = new Map(assignments.map((a) => [a.sessionId, a.dueAt]));
   const quizDueBySession = new Map(sessions.map((s) => [s.id, s.quizDueAt]));
   const submittedSet = new Set(submissions.map((s) => s.sessionId));
+  // What each learner was actually asked for when they filed. Raising the
+  // number afterwards must not reach back and un-complete their module.
+  const askedAtSubmission = new Map(
+    submissions
+      .filter((s) => s.reviewsRequiredAtSubmission !== null)
+      .map((s) => [s.sessionId, s.reviewsRequiredAtSubmission as number]),
+  );
   const givenBySession = new Map(reviewsGiven.map((r) => [r.sessionId, r.count]));
   const receivedBySession = new Map(reviewsReceived.map((r) => [r.sessionId, r.count]));
   const peersBySession = new Map(peers.map((r) => [r.sessionId, r.count]));
@@ -183,7 +204,7 @@ export async function progressForUser(userId: number, programIds: number[]): Pro
         quizBestScore: bestBySession.get(s.id) ?? null,
         hasAssignment: reviewsRequiredBySession.has(s.id),
         assignmentSubmitted: submittedSet.has(s.id),
-        reviewsRequired: reviewsRequiredBySession.get(s.id) ?? 0,
+        reviewsRequired: askedAtSubmission.get(s.id) ?? reviewsRequiredBySession.get(s.id) ?? 0,
         reviewsGiven: givenBySession.get(s.id) ?? 0,
         reviewsReceived: receivedBySession.get(s.id) ?? 0,
         peersToReview: peersBySession.get(s.id) ?? 0,

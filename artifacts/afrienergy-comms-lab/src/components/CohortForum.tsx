@@ -76,7 +76,7 @@ export function ProgramForum({ programId, programTitle }: { programId: number; p
       </div>
 
       {composing && (
-        <div className="border border-border rounded-xl p-4 mb-4 space-y-3 bg-[#F4F0E8]/50">
+        <div className="border border-border rounded-xl p-4 mb-4 space-y-3 bg-muted/50">
           <Input
             value={title}
             onChange={e => setTitle(e.target.value)}
@@ -206,7 +206,7 @@ function ThreadDialog({ threadId, programId, canModerate, open, onOpenChange }: 
             )}
 
             {thread?.body && (
-              <p className="text-sm whitespace-pre-wrap bg-[#F4F0E8] border border-border rounded-lg px-3 py-2.5">{thread.body}</p>
+              <p className="text-sm whitespace-pre-wrap bg-muted border border-border rounded-lg px-3 py-2.5">{thread.body}</p>
             )}
 
             <div className="space-y-3">

@@ -210,7 +210,11 @@ export default function TrackedReplay({
           </a>
         </div>
       )}
-      <p className="flex items-start gap-2 text-xs text-amber-300 mt-2">
+      {/* This component renders on an ink panel in the classroom and on a white
+          card in Recordings, so the warning carries its own ground rather than
+          relying on whatever is behind it — on white, amber-300 was invisible,
+          and this is the line telling a learner their watching will not count. */}
+      <p className="mt-2 flex items-start gap-2 rounded-lg bg-amber-500/15 px-3 py-2 text-xs text-amber-900 dark:text-amber-200">
         <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" aria-hidden />
         <span>
           Watch time can't be measured for this recording, so it won't count towards completing the module.

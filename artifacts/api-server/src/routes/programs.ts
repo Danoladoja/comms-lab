@@ -118,12 +118,23 @@ async function canSeeLinks(userId: number | undefined, role: string | undefined,
 
 router.get("/programs/:id/sessions", async (req, res) => {
   const programId = Number(req.params.id);
-  const program = await db.select({ id: programsTable.id }).from(programsTable).where(eq(programsTable.id, programId));
+  const program = await db
+    .select({ id: programsTable.id, status: programsTable.status })
+    .from(programsTable)
+    .where(eq(programsTable.id, programId));
   if (program.length === 0) {
     res.status(404).json({ error: "Program not found" });
     return;
   }
   const user = await getCurrentUser(req);
+  // The same guard its sibling `GET /programs/:id` has always had, and this
+  // one never did: a draft programme's whole curriculum — module titles,
+  // dates, and the names of facilitators and guest speakers who have not been
+  // announced — was readable by anybody who tried the address.
+  if (!showsInCatalogue(program[0].status) && !satisfiesRole(user?.role ?? null, ["admin"])) {
+    res.status(404).json({ error: "Program not found" });
+    return;
+  }
   const showLinks = await canSeeLinks(user?.id, user?.role, programId);
 
   const rows = await db

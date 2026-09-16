@@ -23,6 +23,19 @@ export const enrollmentsTable = pgTable(
     /** Opt-in: show the learner's actual work on the public verification page. */
     portfolioPublic: boolean("portfolio_public").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    /**
+     * When this learner actually joined the programme, as opposed to when the
+     * row was first written.
+     *
+     * The two differ for anybody promoted off the waitlist: their row was
+     * created when they signed up, sometimes weeks earlier. Progress used
+     * `createdAt`, so a learner let in during week four was measured as though
+     * they had been there since week one — and locked behind a class they were
+     * never allowed to attend, with no recording guaranteed and a closed
+     * deadline. Empty on every row written before this existed, which then
+     * falls back to `createdAt` and behaves exactly as before.
+     */
+    startedAt: timestamp("started_at", { withTimezone: true }),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
   },
   (t) => [unique("enrollments_user_program_unique").on(t.userId, t.programId)],

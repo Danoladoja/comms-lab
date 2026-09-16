@@ -158,3 +158,29 @@ export function videoDetailsFor(args: {
 export function youtubeUrlFor(videoId: string): string {
   return `https://www.youtube.com/watch?v=${videoId}`;
 }
+
+/**
+ * What to record after an attempt that did not find a video.
+ *
+ * "searching" means the robot is still looking, and that is what the console
+ * shows as the amber "Waiting for Meet". But the robot gives up after
+ * {@link RECORDING_MAX_ATTEMPTS} — about three hours — while the status only
+ * turned to "failed" after the seven-day search window closed. In between, a
+ * recording that was never coming still looked like one being fetched: it was
+ * absent from the "needs attention" list, nobody investigated, and learners who
+ * missed that class could never complete the module.
+ *
+ * So the status now says "failed" at the moment the robot actually stops,
+ * rather than four days later.
+ */
+export function statusAfterAttempt(args: {
+  /** The attempt count *after* this attempt is counted. */
+  attempts: number;
+  endsAtMs: number | null;
+  now?: number;
+}): "searching" | "failed" {
+  const now = args.now ?? Date.now();
+  if (args.attempts >= RECORDING_MAX_ATTEMPTS) return "failed";
+  if (args.endsAtMs !== null && now > args.endsAtMs + RECORDING_SEARCH_WINDOW_MS) return "failed";
+  return "searching";
+}

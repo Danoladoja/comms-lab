@@ -1637,18 +1637,31 @@ export default function AdminConsole() {
         <p className="text-muted-foreground">Manage programmes, modules, enrolments, people and class recordings.</p>
       </div>
 
-      <div className="flex gap-1 border-b border-border mb-8">
-        {TABS.map(t => (
-          <button
-            key={t}
-            onClick={() => { setTab(t); if (t !== 'Enrolments') setWriteToProgramId(null); }}
-            className={`px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${
-              tab === t ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            {t}
-          </button>
-        ))}
+      {/* Five tabs are about 550px wide; a phone is 375. Without the scroll
+          container "People" and "Recordings" sat off the edge with no way to
+          reach them. `min-w-0` on the row is what lets it scroll rather than
+          pushing the whole page sideways. */}
+      <div
+        className="mb-8 -mx-4 min-w-0 overflow-x-auto border-b border-border px-4 md:mx-0 md:px-0"
+        role="tablist"
+        aria-label="Admin console sections"
+      >
+        <div className="flex w-max gap-1">
+          {TABS.map(t => (
+            <button
+              key={t}
+              type="button"
+              role="tab"
+              aria-selected={tab === t}
+              onClick={() => { setTab(t); if (t !== 'Enrolments') setWriteToProgramId(null); }}
+              className={`whitespace-nowrap px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${
+                tab === t ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              {t}
+            </button>
+          ))}
+        </div>
       </div>
 
       {tab === 'Programmes' && (

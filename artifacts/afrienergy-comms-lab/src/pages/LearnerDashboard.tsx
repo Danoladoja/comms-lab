@@ -369,7 +369,7 @@ function CourseworkList({ kind, sessions, progressBySession, onOpen }: {
   }
   return (
     <div className="space-y-3">
-      <p className="text-xs text-muted-foreground bg-[#F4F0E8] border border-border rounded-lg px-3 py-2">
+      <p className="text-xs text-muted-foreground bg-muted border border-border rounded-lg px-3 py-2">
         {kind === 'quiz'
           ? 'Each module has a short quiz. Score 70% or more to pass — you can retake it as many times as you need.'
           : 'Each module ends in a make. File it, then critique two peers — that pair is what completes the module.'}

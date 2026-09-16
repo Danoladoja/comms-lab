@@ -24,6 +24,7 @@ const mocks = vi.hoisted(() => {
 
   let selectResults: unknown[][] = [];
   const inserted: unknown[] = [];
+  const updated: Record<string, unknown>[] = [];
 
   const thenable = (get: () => unknown[]) => {
     const builder: Record<string, unknown> = {};
@@ -32,6 +33,10 @@ const mocks = vi.hoisted(() => {
     ]) {
       builder[key] = (arg: unknown) => {
         if (key === "values") inserted.push(arg);
+        // The counts are written by an update now, not carried in the insert:
+        // the row is created before the first email so an interrupted send
+        // still leaves a record of what was attempted.
+        if (key === "set") updated.push(arg as Record<string, unknown>);
         return builder;
       };
     }
@@ -52,6 +57,7 @@ const mocks = vi.hoisted(() => {
     getCurrentUser: vi.fn(async () => ({ id: 1, role: "admin" })),
     setSelects(rows: unknown[][]) { selectResults = [...rows]; },
     inserted,
+    updated,
     tables,
   };
 });
@@ -96,6 +102,7 @@ const post = (body: unknown, id = 3) =>
 beforeEach(async () => {
   vi.clearAllMocks();
   mocks.inserted.length = 0;
+  mocks.updated.length = 0;
   mocks.emailConfigured.mockReturnValue(true);
   mocks.sendEmail.mockResolvedValue(undefined);
   mocks.setSelects([]);
@@ -188,10 +195,16 @@ describe("POST /admin/programmes/:id/messages", () => {
     await post({ subject: "Thursday has moved", body: GOOD_BODY });
 
     // "I sent that on Tuesday and nobody got it" is the thing worth looking up.
-    const record = mocks.inserted.at(-1) as { subject: string; sentCount: number; failedCount: number };
+    // The row is written before the first email, so an interrupted send still
+    // leaves a record; the counts are filled in as it goes.
+    const record = mocks.inserted.at(-1) as { subject: string; intendedCount: number };
     expect(record.subject).toBe("Thursday has moved");
-    expect(record.sentCount).toBe(0);
-    expect(record.failedCount).toBe(2);
+    expect(record.intendedCount).toBe(2);
+
+    const counts = mocks.updated.at(-1) as { sentCount: number; failedCount: number; finishedAt?: Date };
+    expect(counts.sentCount).toBe(0);
+    expect(counts.failedCount).toBe(2);
+    expect(counts.finishedAt).toBeInstanceOf(Date);
   });
 
   it("refuses a message that is not ready, before finding anybody to send it to", async () => {

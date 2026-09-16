@@ -32,6 +32,21 @@ export const cohortMessagesTable = pgTable("cohort_messages", {
   /** How many it reached, and how many it did not. */
   sentCount: integer("sent_count").notNull().default(0),
   failedCount: integer("failed_count").notNull().default(0),
+  /**
+   * How many people it was meant to reach, and when the sending stopped.
+   *
+   * The record used to be written only after the last email had gone. A send to
+   * a large cohort runs for minutes, so a browser that gave up first left no
+   * record at all — and the admin, with no way to tell who had received it,
+   * would reasonably press Send again and mail half the cohort twice. The row
+   * is now written before the first email, so a send that is interrupted still
+   * says what was attempted and how far it got.
+   *
+   * `finishedAt` empty means it did not finish: either still going, or the
+   * process stopped partway.
+   */
+  intendedCount: integer("intended_count").notNull().default(0),
+  finishedAt: timestamp("finished_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

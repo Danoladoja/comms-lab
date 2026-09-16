@@ -32,6 +32,8 @@ const mocks = vi.hoisted(() => {
   };
 
   let selectResults: unknown[][] = [];
+  // eslint-disable-next-line prefer-const
+  let dbRef: Record<string, unknown>;
   const inserted: Record<string, unknown>[] = [];
 
   const thenable = (get: () => unknown[]) => {
@@ -46,14 +48,17 @@ const mocks = vi.hoisted(() => {
     return builder;
   };
 
-  return {
+  const built = {
     db: {
       select: vi.fn(() => thenable(() => selectResults.shift() ?? [])),
       selectDistinct: vi.fn(() => thenable(() => selectResults.shift() ?? [])),
       insert: vi.fn(() => thenable(() => selectResults.shift() ?? [{ id: 1 }])),
       update: vi.fn(() => thenable(() => [])),
       delete: vi.fn(() => thenable(() => [])),
-      transaction: vi.fn(),
+      execute: vi.fn(async () => []),
+      // The claim runs under a lock now, so the fake has to actually run the
+      // callback rather than returning undefined.
+      transaction: vi.fn(async (fn: (tx: unknown) => unknown) => fn(dbRef)),
     },
     getCurrentUser: vi.fn(),
     currentRole: vi.fn(),
@@ -61,6 +66,8 @@ const mocks = vi.hoisted(() => {
     inserted,
     tables,
   };
+  dbRef = built.db;
+  return built;
 });
 
 vi.mock("@workspace/db", () => ({ db: mocks.db, ...mocks.tables }));

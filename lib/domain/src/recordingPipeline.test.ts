@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  statusAfterAttempt,
   meetCodeFrom,
   recordingCheckDue,
   sessionsDueForRecording,
@@ -197,5 +198,32 @@ describe("videoDetailsFor", () => {
 describe("youtubeUrlFor", () => {
   it("builds a watch URL the existing player understands", () => {
     expect(youtubeUrlFor("dQw4w9WgXcQ")).toBe("https://www.youtube.com/watch?v=dQw4w9WgXcQ");
+  });
+});
+
+describe("when the robot admits defeat", () => {
+  const ENDS = new Date("2026-09-15T12:00:00Z").getTime();
+
+  it("keeps searching while there are attempts left", () => {
+    expect(statusAfterAttempt({ attempts: 1, endsAtMs: ENDS, now: ENDS + 60_000 })).toBe("searching");
+    expect(statusAfterAttempt({ attempts: 11, endsAtMs: ENDS, now: ENDS + 60_000 })).toBe("searching");
+  });
+
+  it("says failed on the attempt that exhausts them", () => {
+    // It used to keep saying "searching" — which the console renders as the
+    // amber "Waiting for Meet" — for another six days after the robot had
+    // stopped. A recording that was never coming looked like one being
+    // fetched, so it never reached the "needs attention" list.
+    expect(statusAfterAttempt({ attempts: 12, endsAtMs: ENDS, now: ENDS + 60_000 })).toBe("failed");
+    expect(statusAfterAttempt({ attempts: 20, endsAtMs: ENDS, now: ENDS + 60_000 })).toBe("failed");
+  });
+
+  it("says failed once the search window has closed, however few attempts were made", () => {
+    const eightDays = ENDS + 8 * 24 * 60 * 60 * 1000;
+    expect(statusAfterAttempt({ attempts: 2, endsAtMs: ENDS, now: eightDays })).toBe("failed");
+  });
+
+  it("keeps searching on a class with no end time to measure from", () => {
+    expect(statusAfterAttempt({ attempts: 2, endsAtMs: null, now: Date.now() })).toBe("searching");
   });
 });

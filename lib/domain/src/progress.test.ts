@@ -443,6 +443,28 @@ describe("edges that stranded real learners", () => {
     expect(entry.completed).toBe(false);
   });
 
+  it("lets somebody who joined mid-programme be certificated", () => {
+    // Waiving the module for *locking* was never enough: a certificate needs
+    // every module complete, so a late joiner could do everything perfectly
+    // from their first day and still never receive one, because week one had
+    // happened before they were let in.
+    // The module ran yesterday; they were let in an hour ago.
+    const joinedAnHourAgo = new Map([[1, new Date(NOW - HOUR)]]);
+    const [entry] = computeProgress(
+      [session(1)], new Map(), joinedAnHourAgo, new Map(), new Map(), NOW,
+    );
+    expect(entry.completed).toBe(true);
+    expect(entry.beforeEnrolled).toBe(true);
+    expect(entry.locked).toBe(false);
+  });
+
+  it("does not pretend a module the learner was present for was waived", () => {
+    const present = new Map([[1, { ...EMPTY_PRESENCE, liveSeconds: 60 * 60, sessionSeconds: 60 * 60 }]]);
+    const [entry] = computeProgress([session(1)], new Map(), enrolledLongAgo, new Map(), present, NOW);
+    expect(entry.completed).toBe(true);
+    expect(entry.beforeEnrolled).toBeUndefined();
+  });
+
   it("does not claim a full bar on a module that will not complete", () => {
     // Half the class attended, then most of the recording watched: the raw
     // higher figure (70) divided by the nearer bar (60) came out over 100, so

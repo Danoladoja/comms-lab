@@ -230,7 +230,11 @@ router.patch("/admin/enrollments/:id", async (req, res) => {
           .orderBy(asc(enrollmentsTable.createdAt), asc(enrollmentsTable.id))
           .limit(1);
         if (waitlisted.length > 0) {
-          await tx.update(enrollmentsTable).set({ status: "enrolled" }).where(eq(enrollmentsTable.id, waitlisted[0].id));
+          // Their programme starts now, not when they joined the queue.
+          await tx
+            .update(enrollmentsTable)
+            .set({ status: "enrolled", startedAt: new Date() })
+            .where(eq(enrollmentsTable.id, waitlisted[0].id));
           const [learner] = await tx
             .select({ email: usersTable.email, name: usersTable.name })
             .from(usersTable)
