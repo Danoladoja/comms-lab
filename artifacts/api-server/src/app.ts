@@ -120,10 +120,55 @@ app.use(bodyErrors);
  * The detail is not lost; it goes to the log, where the people who can act on
  * it will see it and the person who tripped it will not.
  */
+/**
+ * The database is behind the code, and the app can tell.
+ *
+ * Schema changes are applied by hand after a deploy, so there is always a
+ * window where the running code writes to a column the database does not have
+ * yet. Postgres answers with 42703 (no such column) or 42P01 (no such table),
+ * which reached the browser as "Something went wrong. Please try again" —
+ * advice that is wrong in every particular. Trying again cannot help, nothing
+ * the person did caused it, and the thing that fixes it is one command in a
+ * console they were not looking at.
+ *
+ * This is the one internal failure worth naming out loud, because the person
+ * who sees it is also the person who can fix it, and it has cost an afternoon
+ * twice. Postgres's own message is passed through — it names the column, which
+ * is exactly what makes the fix obvious.
+ */
+const MISSING_SCHEMA = new Set(["42703", "42P01"]);
+
+export function schemaBehindCode(err: unknown): string | null {
+  // Drizzle reports "Failed query" and hangs the real error off `cause`, so
+  // the useful message and the code both have to come from the same place —
+  // taking the code from the cause and the message from the wrapper produced a
+  // warning that named no column at all.
+  const own = err as { code?: unknown; message?: unknown } | null;
+  const cause = (err as { cause?: { code?: unknown; message?: unknown } } | null)?.cause;
+  const source = typeof own?.code === "string" && MISSING_SCHEMA.has(own.code)
+    ? own
+    : typeof cause?.code === "string" && MISSING_SCHEMA.has(cause.code)
+      ? cause
+      : null;
+  if (!source) return null;
+
+  const said = typeof source.message === "string" ? source.message : "";
+  return "The app has been updated but the database has not caught up yet"
+    + (said ? ` — ${said}` : "")
+    + ". Nothing you did caused this and trying again will not help. Run "
+    + "`pnpm --filter @workspace/db run push --force` in the Railway console.";
+}
+
 const apiErrors: ErrorRequestHandler = (err, req, res, next) => {
   if (res.headersSent) { next(err); return; }
 
   logger.error({ err, method: req.method, url: req.url?.split("?")[0] }, "Unhandled error");
+
+  const behind = schemaBehindCode(err);
+  if (behind) {
+    res.status(503).json({ error: behind });
+    return;
+  }
 
   const status = Number((err as { status?: number; statusCode?: number })?.status
     ?? (err as { statusCode?: number })?.statusCode);
