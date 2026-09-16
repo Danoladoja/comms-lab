@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import {
   useGetSessionQuiz, useUpsertSessionQuiz,
   useGetSessionAssignment, useUpsertSessionAssignment,
-  useReplaceDraftQuestion, useDraftMoreQuestions,
+  useReplaceDraftQuestion, useDraftMoreQuestions, useDraftWrittenTask,
   getGetSessionQuizQueryKey, getGetSessionAssignmentQueryKey,
   getGetCourseworkDraftHistoryQueryKey,
 } from '@workspace/api-client-react';
@@ -143,13 +143,18 @@ function asExisting(questions: EditableQuestion[]) {
   return questions.map(q => ({ prompt: q.prompt.trim(), options: q.options.map(o => o.trim()).filter(Boolean) }));
 }
 
-export function QuizEditor({ sessionId, seed, seedVersion = 0, onSaved, suggestedDueAt }: {
+export function QuizEditor({ sessionId, seed, seedVersion = 0, onSaved, onDrafted, suggestedDueAt }: {
   sessionId: number;
   /** A drafted quiz to load in for editing. Never saved until the facilitator saves it. */
   seed?: SeedQuestion[];
   seedVersion?: number;
   /** Called once the save has actually landed, so the panel can shut itself. */
   onSaved?: () => void;
+  /**
+   * Called when drafted questions land in the editor unsaved, so whatever is
+   * holding it knows there is something here to lose.
+   */
+  onDrafted?: () => void;
   /**
    * The deadline the Lab would pick, on a programme taught week by week.
    *
@@ -213,6 +218,7 @@ export function QuizEditor({ sessionId, seed, seedVersion = 0, onSaved, suggeste
   const closeAsk = () => { setAsk(null); setGuidance(''); };
 
   const afterDraft = (problems: string[] | undefined, notes: string[] | undefined, title: string) => {
+    onDrafted?.();
     qc.invalidateQueries({ queryKey: getGetCourseworkDraftHistoryQueryKey(sessionId) });
     const aside = [...(problems ?? []), ...(notes ?? [])];
     toast({ title, description: aside.length ? aside.join(' ') : 'Nothing is saved until you save the quiz.' });
@@ -498,17 +504,34 @@ function assignmentOrigin(
   });
 }
 
-export function AssignmentEditor({ sessionId, seed, seedVersion = 0, onSaved, suggestedDueAt }: {
+export function AssignmentEditor({ sessionId, seed, seedVersion = 0, onSaved, onDrafted, suggestedDueAt, canDraft = false }: {
   sessionId: number;
   seed?: { title: string; instructions: string };
   seedVersion?: number;
   /** Called once the save has actually landed, so the panel can shut itself. */
   onSaved?: () => void;
+  /**
+   * Called when a draft lands in the boxes and has not been saved, so whatever
+   * is holding this editor knows there is something here to lose.
+   */
+  onDrafted?: () => void;
   /** As on the quiz: offered only for a task that has never been saved. */
   suggestedDueAt?: string | null;
+  /**
+   * Is there class material to draft from?
+   *
+   * The button is shown either way. A drafting button that appears only once
+   * some other condition is met is a button nobody knows exists, which is how
+   * the drafter came to look as though it did not write tasks at all.
+   */
+  canDraft?: boolean;
 }) {
   const qc = useQueryClient();
   const { toast } = useToast();
+  /** Open when the facilitator is typing what the task should be about. */
+  const [ask, setAsk] = useState(false);
+  const [guidance, setGuidance] = useState('');
+  const [drafterSaid, setDrafterSaid] = useState<{ problems: string[]; notes: string[] }>({ problems: [], notes: [] });
   const { data: assignment, isLoading } = useGetSessionAssignment(sessionId, {
     query: { queryKey: getGetSessionAssignmentQueryKey(sessionId), retry: false },
   });
@@ -546,13 +569,133 @@ export function AssignmentEditor({ sessionId, seed, seedVersion = 0, onSaved, su
     },
   });
 
+  /**
+   * Ask the drafter for the brief, and nothing else.
+   *
+   * What is in the boxes goes with the request, so this is "write something
+   * other than this" rather than a blank page — and pressing it on a task you
+   * have already written is a redo, not a duplicate.
+   */
+  const draft = useDraftWrittenTask({
+    mutation: {
+      onSuccess: (result) => {
+        setDrafterSaid({ problems: result.problems ?? [], notes: result.notes ?? [] });
+        qc.invalidateQueries({ queryKey: getGetCourseworkDraftHistoryQueryKey(sessionId) });
+        if (!result.assignment) {
+          // Nothing usable came back. The boxes are left exactly as they were:
+          // a failed draft must never eat what a facilitator had written.
+          toast({
+            title: 'Nothing came back',
+            description: result.problems?.[0] ?? 'Try again in a moment.',
+            variant: 'destructive',
+          });
+          return;
+        }
+        setTitle(result.assignment.title);
+        setInstructions(result.assignment.instructions);
+        setDraftedFrom({ title: result.assignment.title, instructions: result.assignment.instructions });
+        onDrafted?.();
+        setAsk(false);
+        setGuidance('');
+        toast({
+          title: 'Task drafted',
+          description: 'Read it before saving. Nothing has been saved yet.',
+        });
+      },
+      onError: (err) => toast({
+        title: 'Could not draft the task',
+        description: apiReason(err, 'Try again in a moment.'),
+        variant: 'destructive',
+      }),
+    },
+  });
+
   if (isLoading) return <div className="h-16 bg-muted/40 rounded-lg animate-pulse" />;
+
+  const hasTask = !!(titleValue.trim() || instructionsValue.trim());
 
   return (
     <div className="space-y-2">
-      <p className="text-xs text-muted-foreground">
-        One written assignment per module. Submitting it counts toward module completion.
-      </p>
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <p className="text-xs text-muted-foreground">
+          One written assignment per module. Submitting it counts toward module completion.
+        </p>
+        <Button
+          size="sm"
+          variant="outline"
+          className="shrink-0"
+          disabled={draft.isPending}
+          onClick={() => { setAsk(!ask); setGuidance(''); }}
+          aria-expanded={ask}
+        >
+          <Sparkles className="mr-1.5 h-4 w-4" aria-hidden />
+          {hasTask ? 'Redo this task' : 'Draft this task'}
+        </Button>
+      </div>
+
+      {ask && (
+        <div className="space-y-2 rounded-lg border border-primary/40 bg-primary/5 p-3">
+          <p className="text-xs font-medium">
+            What should the task be about?
+            <span className="font-normal text-muted-foreground"> — optional</span>
+          </p>
+          <Input
+            value={guidance}
+            onChange={e => setGuidance(e.target.value.slice(0, 500))}
+            placeholder="e.g. make it about the financing section, and ask for a script rather than a lede"
+            className="text-sm"
+            aria-label="Guidance for the drafter"
+          />
+          {hasTask && (
+            <p className="text-xs text-muted-foreground">
+              What is in the boxes below goes with the request, and the drafter is asked for
+              something other than it. Nothing is replaced until a draft actually comes back.
+            </p>
+          )}
+          {!canDraft && (
+            <p className="text-xs text-[#9A3412]">
+              There is no class material to draft from yet. Upload the deck or paste the
+              transcript above first — either on its own is enough.
+            </p>
+          )}
+          <Button
+            size="sm"
+            disabled={draft.isPending || !canDraft}
+            onClick={() => draft.mutate({
+              id: sessionId,
+              data: {
+                current: hasTask
+                  ? { title: titleValue.trim(), instructions: instructionsValue.trim() }
+                  : null,
+                guidance: guidance.trim() || undefined,
+              },
+            })}
+          >
+            {draft.isPending
+              ? <><Loader className="mr-1.5 h-3.5 w-3.5 animate-spin" aria-hidden />Drafting…</>
+              : hasTask ? 'Write a different one' : 'Draft it'}
+          </Button>
+        </div>
+      )}
+
+      {drafterSaid.problems.length > 0 && (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs">
+          <p className="mb-1 font-semibold text-red-900">The drafter could not finish</p>
+          <ul className="list-disc space-y-0.5 pl-4 text-red-900/90">
+            {drafterSaid.problems.map((p, i) => <li key={i}>{p}</li>)}
+          </ul>
+        </div>
+      )}
+
+      {drafterSaid.notes.length > 0 && (
+        <div className="rounded-lg border border-border bg-muted/60 px-3 py-2 text-xs">
+          <p className="mb-1 font-semibold">Worth a second look</p>
+          <ul className="list-disc space-y-0.5 pl-4 text-muted-foreground">
+            {drafterSaid.notes.map((n, i) => <li key={i}>{n}</li>)}
+          </ul>
+        </div>
+      )}
+
       <Input
         value={titleValue}
         onChange={e => setTitle(e.target.value)}

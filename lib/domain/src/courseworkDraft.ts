@@ -115,6 +115,22 @@ export function draftSystemPrompt(): string {
     `- Between ${MIN_DRAFT_QUESTIONS} and ${MAX_DRAFT_QUESTIONS} questions.`,
     ...quizRules(),
     "",
+    ...taskRules(),
+    "",
+    ...houseVoice(),
+  ].join("\n");
+}
+
+/**
+ * The written task's rules, shared by the full draft and by the call that
+ * redoes the task on its own.
+ *
+ * One copy, for the same reason the quiz rules have one: a rule tightened in
+ * the first draft must not be quietly missing when a facilitator asks for the
+ * task to be written again.
+ */
+function taskRules(): string[] {
+  return [
     "The task is where the real learning happens. It asks the learner to MAKE",
     "something — a lede, a script, a rebuttal, a set of interview questions, a",
     "caption for a chart. Rules:",
@@ -125,6 +141,31 @@ export function draftSystemPrompt(): string {
     "- It must be impossible to complete well without having attended or watched",
     "  the class.",
     "- Never ask for something that cannot be submitted as written text.",
+  ];
+}
+
+/**
+ * The brief for writing the written task and nothing else.
+ *
+ * It exists because the task was only ever obtainable as half of a full draft,
+ * alongside a quiz the facilitator may already have finished and be happy with.
+ * Asking for the whole thing again to get one brief rewritten meant either
+ * throwing away good questions or drafting twice.
+ */
+export function taskSystemPrompt(): string {
+  return [
+    ...WHO_YOU_ARE,
+    "",
+    "You are given the material from one class — the slides, a transcript of what",
+    "was actually said, or both. You write ONE written task for it. You do not",
+    "write quiz questions; there is a quiz already and it is not your concern.",
+    "A human facilitator edits and approves everything you write, so flag your own",
+    "uncertainty rather than smoothing over it.",
+    "",
+    "Where a transcript is provided, prefer it. Slides are headings; the transcript",
+    "is the class.",
+    "",
+    ...taskRules(),
     "",
     ...houseVoice(),
   ].join("\n");
@@ -163,6 +204,25 @@ export function draftResponseSchema(): Record<string, unknown> {
     required: ["questions", "assignment", "notes"],
     properties: {
       questions: questionsArraySchema(MIN_DRAFT_QUESTIONS, MAX_DRAFT_QUESTIONS),
+      assignment: {
+        type: "object",
+        required: ["title", "instructions"],
+        properties: {
+          title: { type: "string" },
+          instructions: { type: "string" },
+        },
+      },
+      notes: { type: "array", items: { type: "string" } },
+    },
+  };
+}
+
+/** The JSON shape for a task-only draft: one brief and nothing else. */
+export function taskResponseSchema(): Record<string, unknown> {
+  return {
+    type: "object",
+    required: ["assignment", "notes"],
+    properties: {
       assignment: {
         type: "object",
         required: ["title", "instructions"],
@@ -305,6 +365,46 @@ export function moreQuestionsUserPrompt(args: ClassContext & {
   ].filter(Boolean).join("\n");
 }
 
+/**
+ * Ask for the written task on its own.
+ *
+ * Whatever is in the editor is shown rather than hidden, because "write
+ * something other than this" is a clearer instruction than a blank page — and
+ * because a facilitator who has half-written a brief and wants it finished is
+ * asking a different question from one who wants it replaced.
+ *
+ * Guidance goes last, where it carries most weight.
+ */
+export function taskUserPrompt(args: ClassContext & {
+  current?: { title: string; instructions: string } | null;
+  guidance?: string;
+}): string {
+  const guidance = (args.guidance ?? "").trim();
+  const title = (args.current?.title ?? "").trim();
+  const instructions = (args.current?.instructions ?? "").trim();
+  const hasCurrent = !!(title || instructions);
+
+  return [
+    ...classHeader(args),
+    "",
+    hasCurrent
+      ? [
+        "The facilitator currently has this task in the editor:",
+        "",
+        title ? `Title: ${title}` : "Title: (empty)",
+        instructions ? `Instructions: ${instructions}` : "Instructions: (empty)",
+        "",
+        "Write one task to replace it. It must not simply restate the above.",
+      ].join("\n")
+      : "Write one written task for this class.",
+    guidance ? `\nThe facilitator asks specifically: ${guidance}` : "",
+    "",
+    "Class material:",
+    "",
+    args.sourceText,
+  ].filter(Boolean).join("\n");
+}
+
 /** How many more questions may actually be asked for, given what is already there. */
 export function clampWanted(wanted: number, existingCount: number): number {
   const room = Math.max(0, MAX_QUIZ_QUESTIONS - existingCount);
@@ -406,9 +506,7 @@ export function validateDraft(raw: unknown): { draft: CourseworkDraft | null; pr
   const data = raw as Record<string, unknown>;
   const { questions, problems } = validateQuestions(data.questions);
 
-  const rawAssignment = (data.assignment ?? {}) as Record<string, unknown>;
-  const title = typeof rawAssignment.title === "string" ? rawAssignment.title.trim() : "";
-  const instructions = typeof rawAssignment.instructions === "string" ? rawAssignment.instructions.trim() : "";
+  const { title, instructions } = readAssignment(data.assignment);
 
   if (!title || !instructions) {
     problems.push("The task came back incomplete, so it has been left blank for you to write.");
@@ -437,6 +535,62 @@ export function validateDraft(raw: unknown): { draft: CourseworkDraft | null; pr
       notes,
     },
     problems,
+  };
+}
+
+/** The two strings a task is made of, trimmed, whatever shape they arrived in. */
+function readAssignment(raw: unknown): { title: string; instructions: string } {
+  const a = (raw ?? {}) as Record<string, unknown>;
+  return {
+    title: typeof a.title === "string" ? a.title.trim() : "",
+    instructions: typeof a.instructions === "string" ? a.instructions.trim() : "",
+  };
+}
+
+/**
+ * Check a task drafted on its own.
+ *
+ * Unlike a full draft there is no quiz to fall back on: a task that comes back
+ * empty leaves the facilitator with nothing, so it is reported as a failure
+ * rather than as a blank to fill in. Half a brief is also a failure — a title
+ * with no instructions is worse than no title, because it looks finished.
+ */
+export function validateTask(raw: unknown): {
+  assignment: DraftAssignment | null;
+  problems: DraftProblem[];
+  notes: string[];
+} {
+  if (!raw || typeof raw !== "object") {
+    return { assignment: null, problems: ["The drafter did not return anything usable."], notes: [] };
+  }
+
+  const data = raw as Record<string, unknown>;
+  const { title, instructions } = readAssignment(data.assignment);
+  const notes = readNotes(data.notes);
+
+  if (!title || !instructions) {
+    return {
+      assignment: null,
+      problems: [
+        !title && !instructions
+          ? "Nothing usable came back. Try again, or write the task by hand."
+          : "Only half a task came back, so it has not been used. Try again.",
+      ],
+      notes,
+    };
+  }
+
+  return {
+    assignment: {
+      title,
+      instructions,
+      // The house rubric, as in a full draft: it is what every peer critique in
+      // the programme scores against, and not the model's to invent.
+      rubric: DEFAULT_RUBRIC,
+      reviewsRequired: DEFAULT_REVIEWS_REQUIRED,
+    },
+    problems: [],
+    notes,
   };
 }
 

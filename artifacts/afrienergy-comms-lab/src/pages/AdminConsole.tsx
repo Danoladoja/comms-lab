@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   useListPrograms,
@@ -59,7 +59,7 @@ import {
   apiReason,
   isMeasurableRecording,
 } from '@workspace/domain';
-import CourseworkStudio from '@/components/CourseworkStudio';
+import CourseworkStudio, { confirmLosingDraft } from '@/components/CourseworkStudio';
 import InviteFacilitator from '@/components/InviteFacilitator';
 import InviteLearners from '@/components/InviteLearners';
 import MessageCohort from '@/components/MessageCohort';
@@ -96,6 +96,9 @@ function SessionRow({ session, instructors, onChanged }: {
   const [recordingUrl, setRecordingUrl] = useState(session.recordingUrl ?? '');
   const [facilitator, setFacilitator] = useState(facilitatorInputValue(session));
   const [coursework, setCoursework] = useState<'none' | 'open'>('none');
+  // What the coursework panel is holding but has not saved, so the toggle can
+  // ask before unmounting it. A ref, because nothing here renders it.
+  const holdingDraft = useRef({ quiz: false, task: false });
   /** What the typed text means right now: an account, a guest, or nobody. */
   const choice = matchFacilitator(facilitator, instructors);
   const [editing, setEditing] = useState(false);
@@ -332,7 +335,12 @@ function SessionRow({ session, instructors, onChanged }: {
             a switch, so nobody thought to press it again to shut it. */}
         <Button
           size="sm" variant={coursework === 'open' ? 'secondary' : 'outline'}
-          onClick={() => setCoursework(coursework === 'open' ? 'none' : 'open')}
+          onClick={() => {
+            // Hiding unmounts the panel, and an unsaved draft lives nowhere
+            // else. The same question its own Close button asks.
+            if (coursework === 'open' && !confirmLosingDraft(holdingDraft.current)) return;
+            setCoursework(coursework === 'open' ? 'none' : 'open');
+          }}
           aria-expanded={coursework === 'open'}
         >
           {coursework === 'open'
@@ -341,7 +349,11 @@ function SessionRow({ session, instructors, onChanged }: {
         </Button>
       </div>
       {coursework === 'open' && (
-        <CourseworkStudio sessionId={session.id} onClose={() => setCoursework('none')} />
+        <CourseworkStudio
+          sessionId={session.id}
+          onClose={() => setCoursework('none')}
+          onHoldingChange={(h) => { holdingDraft.current = h; }}
+        />
       )}
     </div>
   );

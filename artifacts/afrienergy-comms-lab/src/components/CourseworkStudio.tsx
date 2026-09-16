@@ -32,7 +32,24 @@ import { Sparkles, Loader, CircleAlert, Lightbulb, History, Scissors, X } from '
  * Anything the drafter had to repair, or wants a second look at, is shown rather
  * than swallowed.
  */
-export default function CourseworkStudio({ sessionId, onClose }: {
+/**
+ * Ask before an unsaved draft is thrown away.
+ *
+ * Shared with whatever opened the panel, because the toggle that opened it
+ * closes it too — and a guard on only one of the two ways out is a guard that
+ * the busiest person walks straight past.
+ *
+ * Returns true when it is safe to close.
+ */
+export function confirmLosingDraft(holding: { quiz: boolean; task: boolean }): boolean {
+  const what = [holding.quiz && 'quiz', holding.task && 'task'].filter(Boolean).join(' and the ');
+  if (!what) return true;
+  return confirm(
+    `The drafted ${what} has not been saved. Closing this panel loses it. Close anyway?`,
+  );
+}
+
+export default function CourseworkStudio({ sessionId, onClose, onHoldingChange }: {
   sessionId: number;
   /**
    * Shut the whole panel.
@@ -43,6 +60,11 @@ export default function CourseworkStudio({ sessionId, onClose }: {
    * open, on every module, all day.
    */
   onClose?: () => void;
+  /**
+   * Told whenever the panel starts or stops holding a draft nobody has saved,
+   * so the button that opened it can ask before closing it.
+   */
+  onHoldingChange?: (holding: { quiz: boolean; task: boolean }) => void;
 }) {
   const qc = useQueryClient();
   const { toast } = useToast();
@@ -52,6 +74,16 @@ export default function CourseworkStudio({ sessionId, onClose }: {
   const [notes, setNotes] = useState<string[]>([]);
   const [source, setSource] = useState<{ description: string; chars: number; truncated: boolean } | null>(null);
   const [version, setVersion] = useState(0);
+  /**
+   * Which drawers are holding a draft nobody has saved.
+   *
+   * Drafting fills both editors, but only one drawer opens and the shut one
+   * went on saying "Nothing saved yet" — which is true of the database and
+   * entirely misleading about what is sitting inside it. A facilitator drafted,
+   * saw the quiz fill up, read "Nothing saved yet" on the task, and concluded
+   * the drafter does not write tasks.
+   */
+  const [unsaved, setUnsaved] = useState<{ quiz: boolean; task: boolean }>({ quiz: false, task: false });
   const [openEditor, setOpenEditor] = useState<'quiz' | 'task' | 'reading' | 'work' | null>(null);
 
   const { data: deck } = useGetSessionSlides(sessionId, {
@@ -84,12 +116,19 @@ export default function CourseworkStudio({ sessionId, onClose }: {
   // should do next: a saved draft is not a published quiz, and until posting
   // existed there was no way to tell the two apart at a glance.
   const state = (draft?: boolean) => (draft ? 'Draft, not posted' : 'Live');
-  const quizHint = count === 0
-    ? 'Nothing saved yet'
-    : `${count} question${count === 1 ? '' : 's'} · ${state(savedQuiz?.draft)} · ${deadlineSummary(savedQuiz?.dueAt)}`;
-  const taskHint = savedTask
-    ? `${savedTask.title} · ${state(savedTask.draft)} · ${deadlineSummary(savedTask.dueAt)}`
-    : 'Nothing saved yet';
+  const saved = (what: string) => (what ? what : 'Nothing saved yet');
+  // An unsaved draft is the more urgent fact about a drawer than what is in the
+  // database, so it is what the line says.
+  const quizHint = unsaved.quiz
+    ? 'Drafted, not saved yet — open it and check every answer'
+    : saved(count === 0
+      ? ''
+      : `${count} question${count === 1 ? '' : 's'} · ${state(savedQuiz?.draft)} · ${deadlineSummary(savedQuiz?.dueAt)}`);
+  const taskHint = unsaved.task
+    ? 'Drafted, not saved yet — open it and read it'
+    : saved(savedTask
+      ? `${savedTask.title} · ${state(savedTask.draft)} · ${deadlineSummary(savedTask.dueAt)}`
+      : '');
   const readingCount = savedReadings?.length ?? 0;
   const readingHint = readingCount === 0
     ? 'Nothing saved yet — ungraded, and optional'
@@ -97,8 +136,20 @@ export default function CourseworkStudio({ sessionId, onClose }: {
 
   // Saving changes what is waiting to be posted, so the notice below the two
   // editors has to hear about it.
-  const savedSomething = () => {
+  /** An editor has drafted something of its own that nobody has saved. */
+  const drafted = (piece: 'quiz' | 'task') => setUnsaved((u) => {
+    const next = { ...u, [piece]: true };
+    onHoldingChange?.(next);
+    return next;
+  });
+
+  const savedSomething = (piece?: 'quiz' | 'task') => {
     setOpenEditor(null);
+    if (piece) setUnsaved((u) => {
+      const next = { ...u, [piece]: false };
+      onHoldingChange?.(next);
+      return next;
+    });
     qc.invalidateQueries({ queryKey: getGetCourseworkPostStateQueryKey(sessionId) });
   };
 
@@ -118,13 +169,24 @@ export default function CourseworkStudio({ sessionId, onClose }: {
         setNotes(result.notes ?? []);
         setSource(result.source ?? null);
         setVersion(v => v + 1);
+        // Both drawers are now holding something, whichever one opens.
+        const holding = {
+          quiz: !!result.questions?.length,
+          task: !!result.assignment?.title,
+        };
+        setUnsaved(holding);
+        onHoldingChange?.(holding);
         // A draft that nobody can see is a draft nobody checks, and an
         // unchecked answer key fails a cohort silently at 70%.
         setOpenEditor(result.questions?.length ? 'quiz' : 'task');
         qc.invalidateQueries({ queryKey: getGetCourseworkDraftHistoryQueryKey(sessionId) });
         toast({
           title: 'Draft ready',
-          description: 'Check every answer before saving. Nothing has been saved yet.',
+          // Naming the task matters: it is drafted into a drawer that does not
+          // open, and a facilitator who is not told has no reason to look.
+          description: result.assignment?.title
+            ? 'The quiz is open below. The task is drafted too — open Task to read it. Nothing has been saved yet.'
+            : 'Check every answer before saving. Nothing has been saved yet.',
         });
       },
       onError: (err) => toast({
@@ -135,6 +197,16 @@ export default function CourseworkStudio({ sessionId, onClose }: {
     },
   });
 
+  /**
+   * Shutting the panel throws away any draft that has not been saved — it is
+   * held in this component and nowhere else. Asking first is cheap; the
+   * alternative is a facilitator losing a minute of drafting and a read-through
+   * to a click, with no way back except drafting again.
+   */
+  const closePanel = () => {
+    if (confirmLosingDraft(unsaved)) onClose?.();
+  };
+
   return (
     <div className="space-y-5 border-t border-border pt-4">
       {onClose && (
@@ -142,7 +214,7 @@ export default function CourseworkStudio({ sessionId, onClose }: {
           <p className="text-xs text-muted-foreground">
             Everything for this module. Nothing here reaches learners until you post it.
           </p>
-          <Button size="sm" variant="ghost" className="shrink-0 text-muted-foreground" onClick={onClose}>
+          <Button size="sm" variant="ghost" className="shrink-0 text-muted-foreground" onClick={closePanel}>
             <X className="mr-1.5 h-4 w-4" aria-hidden />Close
           </Button>
         </div>
@@ -241,7 +313,8 @@ export default function CourseworkStudio({ sessionId, onClose }: {
               sessionId={sessionId}
               seed={questions}
               seedVersion={version}
-              onSaved={savedSomething}
+              onSaved={() => savedSomething('quiz')}
+              onDrafted={() => drafted('quiz')}
               suggestedDueAt={postState?.suggestedDueAt}
             />
           </EditorSection>
@@ -255,8 +328,10 @@ export default function CourseworkStudio({ sessionId, onClose }: {
               sessionId={sessionId}
               seed={assignment}
               seedVersion={version}
-              onSaved={savedSomething}
+              onSaved={() => savedSomething('task')}
+              onDrafted={() => drafted('task')}
               suggestedDueAt={postState?.suggestedDueAt}
+              canDraft={canDraft}
             />
           </EditorSection>
           <EditorSection
@@ -289,7 +364,7 @@ export default function CourseworkStudio({ sessionId, onClose }: {
           have finished with this module. */}
       {onClose && (
         <div className="border-t border-border pt-3">
-          <Button size="sm" variant="outline" onClick={onClose}>
+          <Button size="sm" variant="outline" onClick={closePanel}>
             <X className="mr-1.5 h-4 w-4" aria-hidden />Close slides &amp; coursework
           </Button>
         </div>

@@ -4,6 +4,11 @@ import {
   draftResponseSchema,
   questionsSystemPrompt,
   questionsResponseSchema,
+  taskSystemPrompt,
+  taskUserPrompt,
+  taskResponseSchema,
+  validateTask,
+  type DraftAssignment,
   replaceQuestionUserPrompt,
   moreQuestionsUserPrompt,
   validateDraft,
@@ -31,7 +36,17 @@ import { logger } from "../logger";
 
 const API_URL = "https://api.anthropic.com/v1/messages";
 export const MODEL = process.env.ANTHROPIC_MODEL ?? "claude-sonnet-4-5";
-const MAX_TOKENS = 4000;
+/**
+ * Room to answer in.
+ *
+ * It was 4,000, which is enough for eight questions with their rationales and
+ * very little else — and the written task is the last thing in the schema, so
+ * the task is what a long quiz pushes off the end. A cut-off answer arrives
+ * looking like a complete one, which is how a facilitator came to press Draft
+ * and get a quiz with no brief beside it. Raised, and truncation is now
+ * noticed rather than passed on as an answer.
+ */
+const MAX_TOKENS = 12_000;
 const TIMEOUT_MS = 120_000;
 
 export function drafterConfigured(): boolean {
@@ -52,6 +67,12 @@ export type DraftResult = {
   problems: string[];
 };
 
+export type TaskResult = {
+  assignment: DraftAssignment | null;
+  problems: string[];
+  notes: string[];
+};
+
 export type QuestionsResult = {
   questions: DraftQuestion[];
   problems: string[];
@@ -70,6 +91,30 @@ export async function draftCoursework(args: ClassContext): Promise<DraftResult> 
 
   if ("error" in answer) return { draft: null, problems: [answer.error] };
   return validateDraft(answer.input);
+}
+
+/**
+ * The written task on its own, leaving the quiz alone.
+ *
+ * Asking for the whole draft again to get one brief rewritten meant either
+ * throwing away questions a facilitator had already checked or not bothering —
+ * and it is also the shorter answer, which is the answer least likely to be
+ * cut off.
+ */
+export async function draftTask(args: ClassContext & {
+  current?: { title: string; instructions: string } | null;
+  guidance?: string;
+}): Promise<TaskResult> {
+  const answer = await ask({
+    system: taskSystemPrompt(),
+    user: taskUserPrompt(args),
+    toolName: "submit_task",
+    toolDescription: "Return the drafted written task for this class.",
+    schema: taskResponseSchema(),
+  });
+
+  if ("error" in answer) return { assignment: null, problems: [answer.error], notes: [] };
+  return validateTask(answer.input);
 }
 
 /**
@@ -203,7 +248,21 @@ async function ask(args: {
       return { error: `The drafter is unavailable right now (error ${res.status}).` };
     }
 
-    const json = (await res.json()) as { content?: { type: string; name?: string; input?: unknown }[] };
+    const json = (await res.json()) as {
+      content?: { type: string; name?: string; input?: unknown }[];
+      stop_reason?: string;
+    };
+
+    // An answer that ran out of room is half an answer, and the half that is
+    // missing is whatever came last in the schema. Passing it on as though it
+    // were complete is how a draft arrives with the task silently absent.
+    if (json.stop_reason === "max_tokens") {
+      logger.error({ toolName: args.toolName }, "Coursework drafting was cut off at max_tokens");
+      return {
+        error: "The drafter ran out of room mid-answer, so what came back was incomplete and has not been used. Try again — if it keeps happening, draft the quiz and the task separately.",
+      };
+    }
+
     const toolUse = json.content?.find((b) => b.type === "tool_use" && b.name === args.toolName);
     if (!toolUse?.input) return { error: "The drafter replied in an unexpected shape. Try again." };
 

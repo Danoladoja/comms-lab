@@ -25,13 +25,13 @@ import {
 } from "@workspace/domain";
 import {
   SetSlidesVisibilityBody, SetSessionReadingsBody, SetSessionNotesBody,
-  ReplaceDraftQuestionBody, DraftMoreQuestionsBody,
+  ReplaceDraftQuestionBody, DraftMoreQuestionsBody, DraftWrittenTaskBody,
 } from "@workspace/api-zod";
 import { getCurrentUser } from "../lib/auth";
 import { progressForUser } from "../lib/progress";
 import { extractSlideText } from "../lib/slides/extract";
 import {
-  draftCoursework, replaceQuestion, moreQuestions, normaliseExisting, drafterConfigured, MODEL,
+  draftCoursework, draftTask, replaceQuestion, moreQuestions, normaliseExisting, drafterConfigured, MODEL,
 } from "../lib/slides/drafter";
 import { logger } from "../lib/logger";
 
@@ -339,7 +339,7 @@ async function materialFor(sessionId: number): Promise<
 async function recordRun(args: {
   sessionId: number;
   userId: number;
-  kind: "draft" | "replace" | "expand";
+  kind: "draft" | "replace" | "expand" | "task";
   source: CombinedSource;
   notesLabel: string;
   questionCount: number;
@@ -470,6 +470,50 @@ router.post("/sessions/:id/coursework/questions/replace", async (req, res) => {
       notesLabel: ready.notesLabel,
       questionCount: result.questions.length,
       payload: result.questions,
+    });
+  }
+
+  res.json({ ...result, source: sourcePayload(ready.source, ready.notesLabel) });
+});
+
+/**
+ * The written task on its own.
+ *
+ * The full draft writes a quiz and a task together and opens the quiz, which
+ * left the task in a drawer nobody was pointed at — and left no way at all to
+ * ask for a better brief without drafting the quiz again.
+ */
+router.post("/sessions/:id/coursework/task", async (req, res) => {
+  const sessionId = Number(req.params.id);
+
+  // Authorisation first, as on its siblings: a caller with no business here
+  // gets 401 or 403 rather than a description of the body they failed to match.
+  const ready = await readyToDraft(req, sessionId);
+  if (!ready.ok) { res.status(ready.fail.status).json({ error: ready.fail.error }); return; }
+
+  const parsed = DraftWrittenTaskBody.safeParse(req.body ?? {});
+  if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
+
+  const current = parsed.data.current
+    ? {
+      title: (parsed.data.current.title ?? "").trim(),
+      instructions: (parsed.data.current.instructions ?? "").trim(),
+    }
+    : null;
+
+  const result = await draftTask({ ...ready.context, current, guidance: parsed.data.guidance });
+
+  if (result.assignment) {
+    await recordRun({
+      sessionId,
+      userId: ready.user.id,
+      kind: "task",
+      source: ready.source,
+      notesLabel: ready.notesLabel,
+      // No questions were asked for, and saying "0 questions drafted" in the
+      // history would read as a failure rather than as a different job.
+      questionCount: 0,
+      payload: result.assignment,
     });
   }
 

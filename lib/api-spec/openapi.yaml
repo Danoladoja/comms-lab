@@ -883,6 +883,55 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiMessage"
+  /sessions/{id}/coursework/task:
+    post:
+      operationId: draftWrittenTask
+      tags: [admin]
+      summary: Ask for the module's written task, and nothing else
+      description: >
+        Writes one brief from the class material, leaving the quiz alone. It
+        exists because the task was previously only obtainable as half of a full
+        draft, so a facilitator who wanted the brief rewritten had to draft the
+        quiz again too — and either discard questions they had already checked
+        or not bother. Whatever is in the editor is sent along, so "write
+        something other than this" is what the model is actually asked. Saves
+        nothing.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TaskDraftInput"
+      responses:
+        "200":
+          description: A drafted task, or an explanation of why there is none
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TaskDraftResult"
+        "400":
+          description: There is too little class material to draft from
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "503":
+          description: No AI key configured on the server
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
   /sessions/{id}/coursework/questions/more:
     post:
       operationId: draftMoreQuestions
@@ -3628,6 +3677,41 @@ components:
             $ref: "#/components/schemas/ExistingQuestionInput"
         wanted: { type: integer, minimum: 1, maximum: 4 }
         guidance: { type: string, maxLength: 500 }
+    TaskDraftInput:
+      type: object
+      properties:
+        # What the facilitator has in the editor right now, sent so the model is
+        # asked for something other than it rather than writing into a void.
+        current:
+          oneOf:
+            - $ref: "#/components/schemas/TaskDraftCurrent"
+            - type: "null"
+        guidance: { type: string, maxLength: 500 }
+    TaskDraftCurrent:
+      type: object
+      properties:
+        title: { type: string, maxLength: 300 }
+        instructions: { type: string, maxLength: 8000 }
+    TaskDraftResult:
+      type: object
+      required: [problems, notes]
+      properties:
+        # Null when nothing usable came back — including when only half a brief
+        # did, which looks finished and is worse than nothing.
+        assignment:
+          oneOf:
+            - $ref: "#/components/schemas/DraftAssignment"
+            - type: "null"
+        problems:
+          type: array
+          items: { type: string }
+        notes:
+          type: array
+          items: { type: string }
+        source:
+          oneOf:
+            - $ref: "#/components/schemas/DraftSource"
+            - type: "null"
     QuestionsDraftResult:
       type: object
       required: [questions, problems, notes]

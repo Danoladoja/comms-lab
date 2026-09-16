@@ -660,6 +660,26 @@ export interface MoreQuestionsInput {
   guidance?: string;
 }
 
+export interface TaskDraftCurrent {
+  /** @maxLength 300 */
+  title?: string;
+  /** @maxLength 8000 */
+  instructions?: string;
+}
+
+export interface TaskDraftInput {
+  current?: TaskDraftCurrent | null;
+  /** @maxLength 500 */
+  guidance?: string;
+}
+
+export interface TaskDraftResult {
+  assignment?: DraftAssignment | null;
+  problems: string[];
+  notes: string[];
+  source?: DraftSource | null;
+}
+
 export interface QuestionsDraftResult {
   questions: DraftQuestion[];
   problems: string[];

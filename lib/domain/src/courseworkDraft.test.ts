@@ -7,6 +7,10 @@ import {
   questionsSystemPrompt,
   replaceQuestionUserPrompt,
   moreQuestionsUserPrompt,
+  taskSystemPrompt,
+  taskUserPrompt,
+  taskResponseSchema,
+  validateTask,
   clampWanted,
   roomForMoreQuestions,
   originFor,
@@ -451,5 +455,103 @@ describe("the brief for redoing and expanding", () => {
 
   it("does not ask for a written task", () => {
     expect(questionsSystemPrompt()).toMatch(/Do\s+not write a task/);
+  });
+});
+
+/**
+ * Asking for the written task on its own.
+ *
+ * It was only ever obtainable as half of a full draft, which meant a
+ * facilitator who wanted the brief rewritten had to draft the quiz again too —
+ * and either throw away questions they had already checked, or not bother.
+ */
+describe("drafting the task on its own", () => {
+  const CLASS = {
+    programTitle: "Reporting the Energy Transition",
+    sessionTitle: "Who pays for the grid",
+    sessionDescription: "Tariffs, subsidies and who carries the cost",
+    sourceText: "The class covered cost-reflective tariffs and cross-subsidy.",
+  };
+
+  it("keeps the same standards for the task as a full draft does", () => {
+    const task = taskSystemPrompt();
+    const full = draftSystemPrompt();
+    // The rules live in one place, so a rule tightened for the full draft is
+    // not quietly missing when the task is drafted on its own.
+    for (const rule of [
+      "doable in under an hour",
+      "specific to this class",
+      "a concrete scenario, an audience and a length",
+      "cannot be submitted as written text",
+    ]) {
+      expect(task).toContain(rule);
+      expect(full).toContain(rule);
+    }
+  });
+
+  it("tells the model the quiz is not its business", () => {
+    // The failure to avoid: a facilitator asks for a better brief and gets
+    // eight new questions on top of the ones they have already checked.
+    expect(taskSystemPrompt()).toMatch(/do not\s+write quiz questions/i);
+    expect(taskResponseSchema()).toMatchObject({ required: ["assignment", "notes"] });
+    expect(JSON.stringify(taskResponseSchema())).not.toMatch(/questions/);
+  });
+
+  it("shows what is already in the editor, and asks for something else", () => {
+    const prompt = taskUserPrompt({
+      ...CLASS,
+      current: { title: "Write a lede", instructions: "200 words on the tariff story." },
+    });
+    expect(prompt).toContain("Write a lede");
+    expect(prompt).toContain("200 words on the tariff story.");
+    expect(prompt).toMatch(/must not simply restate/i);
+  });
+
+  it("asks plainly when the editor is empty", () => {
+    const prompt = taskUserPrompt({ ...CLASS, current: null });
+    expect(prompt).toMatch(/Write one written task for this class/);
+    expect(prompt).not.toMatch(/currently has this task/);
+    // A half-written brief still counts as something to replace.
+    expect(taskUserPrompt({ ...CLASS, current: { title: "", instructions: "" } }))
+      .toMatch(/Write one written task for this class/);
+  });
+
+  it("carries the facilitator's own words, last", () => {
+    const prompt = taskUserPrompt({ ...CLASS, guidance: "make it about the financing section" });
+    expect(prompt).toContain("make it about the financing section");
+    // Ahead of the material, so the instruction is not buried under a transcript.
+    expect(prompt.indexOf("financing section")).toBeLessThan(prompt.indexOf("Class material:"));
+  });
+
+  it("accepts a complete task and attaches the house rubric", () => {
+    const { assignment, problems, notes } = validateTask({
+      assignment: { title: "  Write a lede  ", instructions: "  200 words.  " },
+      notes: ["Check the tariff figure."],
+    });
+
+    expect(problems).toEqual([]);
+    expect(assignment).toMatchObject({ title: "Write a lede", instructions: "200 words." });
+    // The rubric is the programme's, not the model's: every peer critique in
+    // the Lab scores against it.
+    expect(assignment?.rubric).toEqual(DEFAULT_RUBRIC);
+    expect(assignment?.reviewsRequired).toBe(DEFAULT_REVIEWS_REQUIRED);
+    expect(notes).toEqual(["Check the tariff figure."]);
+  });
+
+  it("refuses half a task rather than handing over something that looks finished", () => {
+    // A title with no instructions is worse than nothing: it fills the box,
+    // reads as done, and a cohort receives a brief with no brief in it.
+    const half = validateTask({ assignment: { title: "Write a lede", instructions: "" } });
+    expect(half.assignment).toBeNull();
+    expect(half.problems[0]).toMatch(/half a task/i);
+
+    const none = validateTask({ assignment: {} });
+    expect(none.assignment).toBeNull();
+    expect(none.problems[0]).toMatch(/nothing usable/i);
+
+    for (const junk of [null, undefined, "a string", 7]) {
+      expect(validateTask(junk).assignment).toBeNull();
+      expect(validateTask(junk).problems).toHaveLength(1);
+    }
   });
 });

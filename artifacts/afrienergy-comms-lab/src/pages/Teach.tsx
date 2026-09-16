@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   useListMySessions,
@@ -14,7 +14,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { Video, PlayCircle, CircleAlert, CircleCheck, ChevronDown, ChevronUp } from 'lucide-react';
-import CourseworkStudio from '@/components/CourseworkStudio';
+import CourseworkStudio, { confirmLosingDraft } from '@/components/CourseworkStudio';
 import TaughtCohort from '@/components/TaughtCohort';
 import { openJoinLink } from '@/lib/openJoinLink';
 import { CouldNotLoad } from '@/components/CouldNotLoad';
@@ -30,6 +30,10 @@ function formatSessionDate(iso: string | null | undefined) {
 function SessionCard({ session, onSaved }: { session: SessionDetail; onSaved: () => void }) {
   const [recordingUrl, setRecordingUrl] = useState(session.recordingUrl ?? '');
   const [showCoursework, setShowCoursework] = useState(false);
+  // What the panel is holding but has not saved. Kept in a ref rather than
+  // state because nothing on this page renders it — the toggle below only needs
+  // to ask about it on the way out.
+  const holding = useRef({ quiz: false, task: false });
   const { toast } = useToast();
 
   const update = useUpdateSession({
@@ -122,7 +126,12 @@ function SessionCard({ session, onSaved }: { session: SessionDetail; onSaved: ()
           variant={showCoursework ? 'secondary' : 'outline'}
           className="w-full"
           aria-expanded={showCoursework}
-          onClick={() => setShowCoursework(v => !v)}
+          onClick={() => setShowCoursework((v) => {
+            // Hiding the panel unmounts it, and an unsaved draft lives nowhere
+            // else. This is the same question its own Close button asks.
+            if (v && !confirmLosingDraft(holding.current)) return v;
+            return !v;
+          })}
         >
           {showCoursework
             ? <><ChevronUp className="mr-1.5 h-4 w-4" aria-hidden />Hide slides &amp; coursework</>
@@ -144,7 +153,11 @@ function SessionCard({ session, onSaved }: { session: SessionDetail; onSaved: ()
         </Button>
 
         {showCoursework && (
-          <CourseworkStudio sessionId={session.id} onClose={() => setShowCoursework(false)} />
+          <CourseworkStudio
+            sessionId={session.id}
+            onClose={() => setShowCoursework(false)}
+            onHoldingChange={(h) => { holding.current = h; }}
+          />
         )}
       </div>
     </div>

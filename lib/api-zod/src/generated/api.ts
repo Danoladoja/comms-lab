@@ -858,6 +858,60 @@ export const ReplaceDraftQuestionResponse = zod.object({
 
 
 /**
+ * Writes one brief from the class material, leaving the quiz alone. It exists because the task was previously only obtainable as half of a full draft, so a facilitator who wanted the brief rewritten had to draft the quiz again too — and either discard questions they had already checked or not bother. Whatever is in the editor is sent along, so "write something other than this" is what the model is actually asked. Saves nothing.
+ * @summary Ask for the module's written task, and nothing else
+ */
+export const DraftWrittenTaskParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const draftWrittenTaskBodyCurrentOneTitleMax = 300;
+
+export const draftWrittenTaskBodyCurrentOneInstructionsMax = 8000;
+
+export const draftWrittenTaskBodyGuidanceMax = 500;
+
+
+
+export const DraftWrittenTaskBody = zod.object({
+  "current": zod.union([zod.object({
+  "title": zod.string().max(draftWrittenTaskBodyCurrentOneTitleMax).optional(),
+  "instructions": zod.string().max(draftWrittenTaskBodyCurrentOneInstructionsMax).optional()
+}),zod.null()]).optional(),
+  "guidance": zod.string().max(draftWrittenTaskBodyGuidanceMax).optional()
+})
+
+
+
+export const draftWrittenTaskResponseAssignmentOneRubricItemMaxScoreMin = 2;
+export const draftWrittenTaskResponseAssignmentOneRubricItemMaxScoreMax = 10;
+
+
+
+export const DraftWrittenTaskResponse = zod.object({
+  "assignment": zod.union([zod.object({
+  "title": zod.string(),
+  "instructions": zod.string(),
+  "reviewsRequired": zod.int(),
+  "rubric": zod.array(zod.object({
+  "id": zod.string().min(1),
+  "label": zod.string().min(1),
+  "description": zod.string(),
+  "maxScore": zod.int().min(draftWrittenTaskResponseAssignmentOneRubricItemMaxScoreMin).max(draftWrittenTaskResponseAssignmentOneRubricItemMaxScoreMax)
+})).optional()
+}),zod.null()]).optional(),
+  "problems": zod.array(zod.string()),
+  "notes": zod.array(zod.string()),
+  "source": zod.union([zod.object({
+  "kinds": zod.array(zod.string()),
+  "chars": zod.int(),
+  "truncated": zod.boolean(),
+  "description": zod.string()
+}),zod.null()]).optional()
+})
+
+
+/**
  * Returns further questions covering ground the existing ones do not. Anything that restates a question already on the quiz is dropped before it is returned. Saves nothing.
  * @summary Ask for more quiz questions
  */

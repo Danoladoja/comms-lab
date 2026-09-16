@@ -116,6 +116,8 @@ import type {
   StudioSimulationRun,
   SubmissionComment,
   SubmissionCommentInput,
+  TaskDraftInput,
+  TaskDraftResult,
   TaughtCohort,
   ThreadDetail,
   ThreadInput,
@@ -2300,6 +2302,79 @@ export const useReplaceDraftQuestion = <TError = ErrorType<ApiMessage>,
         TContext
       > => {
       return useMutation(getReplaceDraftQuestionMutationOptions(options));
+    }
+
+export const getDraftWrittenTaskUrl = (id: number,) => {
+
+
+
+
+  return `/api/sessions/${id}/coursework/task`
+}
+
+/**
+ * Writes one brief from the class material, leaving the quiz alone. It exists because the task was previously only obtainable as half of a full draft, so a facilitator who wanted the brief rewritten had to draft the quiz again too — and either discard questions they had already checked or not bother. Whatever is in the editor is sent along, so "write something other than this" is what the model is actually asked. Saves nothing.
+ * @summary Ask for the module's written task, and nothing else
+ */
+export const draftWrittenTask = async (id: number,
+    taskDraftInput?: TaskDraftInput, options?: Parameters<typeof customFetch>[1]): Promise<TaskDraftResult> => {
+
+  return customFetch<TaskDraftResult>(getDraftWrittenTaskUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(taskDraftInput)
+  }
+);}
+
+
+
+
+
+export const getDraftWrittenTaskMutationOptions = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof draftWrittenTask>>, TError,{id: number;data?: BodyType<TaskDraftInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof draftWrittenTask>>, TError,{id: number;data?: BodyType<TaskDraftInput>}, TContext> => {
+
+const mutationKey = ['draftWrittenTask'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof draftWrittenTask>>, {id: number;data?: BodyType<TaskDraftInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  draftWrittenTask(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DraftWrittenTaskMutationResult = NonNullable<Awaited<ReturnType<typeof draftWrittenTask>>>
+    export type DraftWrittenTaskMutationBody = BodyType<TaskDraftInput> | undefined
+    export type DraftWrittenTaskMutationError = ErrorType<ApiMessage>
+
+    /**
+ * @summary Ask for the module's written task, and nothing else
+ */
+export const useDraftWrittenTask = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof draftWrittenTask>>, TError,{id: number;data?: BodyType<TaskDraftInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof draftWrittenTask>>,
+        TError,
+        {id: number;data?: BodyType<TaskDraftInput>},
+        TContext
+      > => {
+      return useMutation(getDraftWrittenTaskMutationOptions(options));
     }
 
 export const getDraftMoreQuestionsUrl = (id: number,) => {
