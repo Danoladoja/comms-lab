@@ -42,11 +42,36 @@ router.patch("/sessions/:id", async (req, res) => {
     }
   }
 
-  // Put through the same repair as a joining link: a recording address with no
-  // scheme is a path, not a place, and one with a scheme nobody should follow
-  // is refused outright rather than rendered as a link for a whole cohort.
-  if ("recordingUrl" in data) {
-    data.recordingUrl = normaliseMeetUrl(data.recordingUrl as string | null);
+  /**
+   * Repair a pasted address, or refuse the save — never quietly empty the box.
+   *
+   * Both links go through the same repair: one with no scheme is a path rather
+   * than a place, and one carrying a scheme nobody should follow is refused
+   * outright rather than rendered as a link for a whole cohort.
+   *
+   * What matters as much is the failure. Returning null on something
+   * unreadable meant the admin pressed Save, got no complaint, and had the link
+   * silently deleted — and the field is the only record of it. A value that was
+   * typed and cannot be understood now stops the save and says so. Only an
+   * empty box clears a link, because only an empty box means "clear it".
+   */
+  const repair = (key: "meetUrl" | "recordingUrl", label: string): string | null => {
+    const raw = data[key];
+    if (raw === undefined) return null;
+    const text = typeof raw === "string" ? raw.trim() : "";
+    if (!text) { data[key] = null; return null; }
+    const cleaned = normaliseMeetUrl(text);
+    if (!cleaned) {
+      return `That ${label} could not be read. Paste the full web address, starting with https://`;
+    }
+    data[key] = cleaned;
+    return null;
+  };
+
+  const linkProblem = repair("meetUrl", "meeting link") ?? repair("recordingUrl", "recording link");
+  if (linkProblem) {
+    res.status(400).json({ error: linkProblem });
+    return;
   }
 
   // A link put in by a person outranks the automatic transfer. Marking it

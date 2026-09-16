@@ -13,6 +13,29 @@ describe("normalising a joining link", () => {
       .toBe("https://meet.google.com/abc-defg-hij");
   });
 
+  it("finds the address inside what Google Calendar actually hands you", () => {
+    // The real string from an admin's screen, copied straight from Calendar.
+    // Refusing it was worse than useless: the link was thrown away and the
+    // meeting link silently emptied on the next save.
+    expect(normaliseMeetUrl("Video call link: https://meet.google.com/yzb-nfps-wwq"))
+      .toBe("https://meet.google.com/yzb-nfps-wwq");
+    expect(normaliseMeetUrl("Join here: https://meet.google.com/abc-defg-hij (or dial in)"))
+      .toBe("https://meet.google.com/abc-defg-hij");
+    expect(normaliseMeetUrl("The room is https://meet.google.com/abc-defg-hij."))
+      .toBe("https://meet.google.com/abc-defg-hij");
+  });
+
+  it("finds a scheme-less address inside words too", () => {
+    expect(normaliseMeetUrl("Video call link: meet.google.com/abc-defg-hij"))
+      .toBe("https://meet.google.com/abc-defg-hij");
+  });
+
+  it("does not let a javascript link hide behind an http one", () => {
+    // Extraction must not become a way in: only http(s) is ever matched.
+    expect(normaliseMeetUrl("javascript:alert(1)")).toBeNull();
+    expect(normaliseMeetUrl("Click javascript:alert(1) now")).toBeNull();
+  });
+
   it("accepts the bare meeting code Google prints in large type", () => {
     expect(normaliseMeetUrl("abc-defg-hij")).toBe("https://meet.google.com/abc-defg-hij");
     expect(normaliseMeetUrl("ABC-DEFG-HIJ")).toBe("https://meet.google.com/abc-defg-hij");

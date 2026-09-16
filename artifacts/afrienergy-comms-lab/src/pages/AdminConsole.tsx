@@ -116,7 +116,14 @@ function SessionRow({ session, instructors, onChanged }: {
   const update = useUpdateSession({
     mutation: {
       onSuccess: () => { toast({ title: 'Module saved' }); setEditing(false); onChanged(); },
-      onError: () => toast({ title: 'Could not save module', variant: 'destructive' }),
+      // The server says what was wrong — a link it could not read, a database
+      // that has not caught up. "Could not save module" on its own sent an
+      // admin looking in entirely the wrong place.
+      onError: (err) => toast({
+        title: 'Could not save module',
+        description: apiReason(err, 'Try again in a moment. If it keeps failing, the app may need a moment after an update.'),
+        variant: 'destructive',
+      }),
     },
   });
   const remove = useDeleteSession({
