@@ -8,7 +8,8 @@
     "migrate:certificate-codes": "tsx ./src/migrate-certificate-codes.ts",
     "seed:rubrics": "tsx ./src/seed-default-rubrics.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "credit:attendance": "tsx ./src/credit-missed-attendance.ts"
+    "credit:attendance": "tsx ./src/credit-missed-attendance.ts",
+    "check:schema": "tsx ./src/check-schema.ts"
   },
   "devDependencies": {
     "@types/node": "catalog:",
