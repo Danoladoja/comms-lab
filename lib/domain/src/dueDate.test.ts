@@ -5,7 +5,6 @@ import {
   dueDateInputValue,
   dueState,
   isPastDue,
-  pastDueMessage,
   CLOSING_SOON_HOURS,
 } from "./dueDate";
 
@@ -82,15 +81,5 @@ describe("the date box round trip", () => {
 
   it("refuses to invent a date from something unreadable", () => {
     expect(dueDateFromInput("sometime next week")).toBeNull();
-  });
-});
-
-describe("pastDueMessage", () => {
-  it("tells the learner what happened and who can undo it", () => {
-    for (const kind of ["quiz", "assignment"] as const) {
-      const message = pastDueMessage(kind);
-      expect(message).toContain(kind);
-      expect(message).toMatch(/reopen/i);
-    }
   });
 });

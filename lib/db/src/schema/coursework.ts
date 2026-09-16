@@ -163,10 +163,16 @@ export const assignmentSubmissionsTable = pgTable(
 /**
  * A late pass, spent.
  *
- * Two per learner per programme, each buying 48 more hours on one written task.
- * A row exists only once a pass has been used, so counting what somebody has
- * left is counting these — there is no balance to keep in step with reality and
- * therefore no balance that can drift out of step with it.
+ * Two per learner per programme, each buying 48 more hours on one module — both
+ * its quiz and its written task. A row exists only once a pass has been used, so
+ * counting what somebody has left is counting these — there is no balance to
+ * keep in step with reality and therefore no balance that can drift out of step
+ * with it.
+ *
+ * One row per (learner, module) is what makes the pass cover both pieces, and
+ * it is why extending passes to quizzes needed no change here at all: the row
+ * was already about the module. Each piece still shuts at its own time, 48 hours
+ * after its own deadline — the pass moves both doors, it does not merge them.
  *
  * The programme is recorded alongside the module because the allowance is per
  * programme: a learner on two programmes has two passes on each, and working
@@ -186,7 +192,11 @@ export const latePassesTable = pgTable(
       .references(() => programsTable.id, { onDelete: "cascade" }),
     sessionId: integer("session_id").notNull().references(() => sessionsTable.id, { onDelete: "cascade" }),
     claimedAt: timestamp("claimed_at", { withTimezone: true }).notNull().defaultNow(),
-    /** The deadline it was spent against, kept so the record still reads true if the date later moves. */
+    /**
+     * The deadline it was spent against, kept so the record still reads true if
+     * the date later moves. Where a module has two deadlines this is the one the
+     * learner was actually looking at when they spent it.
+     */
     extendedFrom: timestamp("extended_from", { withTimezone: true }),
   },
   (t) => [

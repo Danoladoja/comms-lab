@@ -309,6 +309,13 @@ export const GetSessionQuizResponse = zod.object({
   "passed": zod.boolean(),
   "dueAt": zod.string().nullish(),
   "closed": zod.boolean().optional(),
+  "latePass": zod.object({
+  "state": zod.enum(['no-deadline', 'not-needed', 'available', 'in-use', 'none-left', 'too-late']),
+  "left": zod.int(),
+  "canClaim": zod.boolean(),
+  "windowEnd": zod.string().nullable(),
+  "opens": zod.enum(['quiz', 'assignment', 'both']).optional()
+}).optional(),
   "draft": zod.boolean().optional(),
   "postedAt": zod.string().nullish(),
   "suggestedDueAt": zod.string().nullish()
@@ -355,6 +362,13 @@ export const UpsertSessionQuizResponse = zod.object({
   "passed": zod.boolean(),
   "dueAt": zod.string().nullish(),
   "closed": zod.boolean().optional(),
+  "latePass": zod.object({
+  "state": zod.enum(['no-deadline', 'not-needed', 'available', 'in-use', 'none-left', 'too-late']),
+  "left": zod.int(),
+  "canClaim": zod.boolean(),
+  "windowEnd": zod.string().nullable(),
+  "opens": zod.enum(['quiz', 'assignment', 'both']).optional()
+}).optional(),
   "draft": zod.boolean().optional(),
   "postedAt": zod.string().nullish(),
   "suggestedDueAt": zod.string().nullish()
@@ -420,7 +434,8 @@ export const GetSessionAssignmentResponse = zod.object({
   "state": zod.enum(['no-deadline', 'not-needed', 'available', 'in-use', 'none-left', 'too-late']),
   "left": zod.int(),
   "canClaim": zod.boolean(),
-  "windowEnd": zod.string().nullable()
+  "windowEnd": zod.string().nullable(),
+  "opens": zod.enum(['quiz', 'assignment', 'both']).optional()
 }).optional(),
   "mySubmission": zod.union([zod.object({
   "sessionId": zod.int(),
@@ -491,7 +506,8 @@ export const UpsertSessionAssignmentResponse = zod.object({
   "state": zod.enum(['no-deadline', 'not-needed', 'available', 'in-use', 'none-left', 'too-late']),
   "left": zod.int(),
   "canClaim": zod.boolean(),
-  "windowEnd": zod.string().nullable()
+  "windowEnd": zod.string().nullable(),
+  "opens": zod.enum(['quiz', 'assignment', 'both']).optional()
 }).optional(),
   "mySubmission": zod.union([zod.object({
   "sessionId": zod.int(),
@@ -546,11 +562,15 @@ export const PostCourseworkResponse = zod.object({
 
 
 /**
- * Two per learner per programme, each buying 48 more hours. Deliberate rather than automatic: a learner who submitted late and found a pass silently gone would have spent something scarce without being asked. Spending one twice on the same task is not an error and costs nothing.
- * @summary Spend one of this learner's late passes on a module's written task
+ * Two per learner per programme, each buying 48 more hours on one module — both its quiz and its written task, because everything from a week is due at the same moment and a shut quiz locks the next week just as surely as an unfiled piece. Each piece still shuts at its own time, 48 hours after its own deadline. Deliberate rather than automatic: a learner who submitted late and found a pass silently gone would have spent something scarce without being asked. Spending one twice on the same module is not an error and costs nothing.
+ * @summary Spend one of this learner's late passes on a module
  */
 export const ClaimLatePassParams = zod.object({
   "id": zod.coerce.number().int()
+})
+
+export const ClaimLatePassBody = zod.object({
+  "piece": zod.enum(['quiz', 'assignment']).optional()
 })
 
 export const ClaimLatePassResponse = zod.object({

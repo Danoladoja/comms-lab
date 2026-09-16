@@ -88,6 +88,8 @@ vi.mock("../lib/logger", () => ({
 import courseworkRouter from "./coursework";
 
 const SESSION = [{ id: 10, programId: 2, instructorId: 9 }];
+/** The same module, with a quiz deadline on it. */
+const withQuizDue = (quizDueAt: Date | null) => [{ ...SESSION[0], quizDueAt, quizDraft: false }];
 const ENROLLED = [{ id: 77, status: "enrolled" }];
 
 /** A deadline that has already gone, and one still to come. */
@@ -101,8 +103,25 @@ const task = (dueAt: Date | null) => [{ id: 11, dueAt, draft: false }];
 let baseUrl = "";
 let server: ReturnType<ReturnType<typeof express>["listen"]>;
 
-const claim = () =>
+const claim = (piece?: "quiz" | "assignment") =>
+  fetch(`${baseUrl}/api/sessions/10/late-pass`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(piece ? { piece } : {}),
+  });
+
+/** The address the browser used before a pass covered the quiz as well. */
+const claimAtOldAddress = () =>
   fetch(`${baseUrl}/api/sessions/10/assignment/late-pass`, { method: "POST" });
+
+const answerQuiz = () =>
+  fetch(`${baseUrl}/api/sessions/10/quiz/attempts`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ answers: [{ questionId: 1, answerIndex: 0 }] }),
+  });
+
+const QUESTIONS = [{ id: 1, prompt: "Who pays?", options: ["A", "B"], correctIndex: 0, sortOrder: 0 }];
 
 const handIn = () =>
   fetch(`${baseUrl}/api/sessions/10/assignment/submission`, {
@@ -130,7 +149,7 @@ afterEach(async () => {
   await new Promise((r) => server.close(r));
 });
 
-describe("POST /sessions/:id/assignment/late-pass", () => {
+describe("POST /sessions/:id/late-pass", () => {
   /** session · enrolment · task · passes already spent */
   const reads = (dueAt: Date | null, spent: unknown[]) =>
     mocks.setSelects([SESSION, ENROLLED, task(dueAt), spent, [{ id: 1 }], spent]);
@@ -235,5 +254,124 @@ describe("filing after the deadline", () => {
     reads(null, []);
     expect((await handIn()).status).toBe(200);
     expect(mocks.inserted.at(-1)).toMatchObject({ late: false });
+  });
+});
+
+/**
+ * The omission: a pass opened the written task and left the quiz shut.
+ *
+ * It was scoped to written work on the reasoning that an auto-marked quiz with
+ * unlimited retakes has nothing to rescue. What that missed is that a shut quiz
+ * leaves the module incomplete and the following week locked — the same loss
+ * the passes exist to prevent, reached by a different road.
+ */
+describe("a late pass covers the quiz too", () => {
+  it("refuses a late attempt by offering the pass, not by sending them to ask a favour", async () => {
+    // session · enrolment · passes spent (none)
+    mocks.setSelects([withQuizDue(passed()), ENROLLED, []]);
+    const res = await answerQuiz();
+
+    expect(res.status).toBe(403);
+    const said = JSON.stringify(await res.json());
+    expect(said).toMatch(/use one of your late passes/i);
+    // Named for the thing in front of them: "this task" in front of a quiz
+    // reads like the app has confused their two deadlines.
+    expect(said).toMatch(/this quiz/i);
+  });
+
+  it("takes a late attempt from somebody who spent a pass on this module", async () => {
+    // The pass was spent on the written task. The quiz opens because the pass
+    // belongs to the module, which is the whole of this change.
+    mocks.setSelects([
+      withQuizDue(passed()), ENROLLED, [{ sessionId: 10 }],
+      QUESTIONS, [{ id: 1 }], [{ best: 100 }],
+    ]);
+    const res = await answerQuiz();
+
+    expect(res.status).toBe(200);
+    expect(await res.json() as { scorePct: number }).toMatchObject({ scorePct: 100, passed: true });
+  });
+
+  it("shuts the quiz again once the pass's own window has run out", async () => {
+    // A pass buys 48 hours on each door, not an open one.
+    mocks.setSelects([withQuizDue(longGone()), ENROLLED, [{ sessionId: 10 }]]);
+    const res = await answerQuiz();
+
+    expect(res.status).toBe(403);
+    expect(JSON.stringify(await res.json())).toMatch(/run out/i);
+  });
+
+  it("leaves a quiz with no deadline exactly as it was", async () => {
+    // Most modules have no quiz deadline and must behave as they always have —
+    // and must not spend a read on late passes to find that out.
+    mocks.setSelects([withQuizDue(null), ENROLLED, QUESTIONS, [{ id: 1 }], [{ best: 100 }]]);
+    expect((await answerQuiz()).status).toBe(200);
+  });
+});
+
+describe("spending one from the quiz", () => {
+  /** session · enrolment · task · passes · rows inside the lock · passes after */
+  const reads = (quizDueAt: Date | null, workDueAt: Date | null, spent: unknown[]) =>
+    mocks.setSelects([
+      withQuizDue(quizDueAt), ENROLLED, task(workDueAt), spent, [{ id: 1 }], spent,
+    ]);
+
+  it("spends one, and it is the module that is paid for", async () => {
+    reads(passed(), passed(), []);
+    const res = await claim("quiz");
+
+    expect(res.status).toBe(201);
+    expect((await res.json() as { spent: boolean }).spent).toBe(true);
+    // One row, keyed on the module. There is no second row for the quiz,
+    // because there is no second pass to spend.
+    expect(mocks.inserted).toHaveLength(1);
+    expect(mocks.inserted.at(-1)).toMatchObject({ userId: 5, programId: 2, sessionId: 10 });
+  });
+
+  it("can be spent when only the quiz deadline has gone", async () => {
+    // The quiz shut last night; the writing is not due until Friday.
+    reads(passed(), ahead(), []);
+    expect((await claim("quiz")).status).toBe(201);
+  });
+
+  it("is judged on the module, not on the piece the browser happened to name", async () => {
+    // Same module, same moment — but the request says "assignment", which is
+    // still open. Asked about that piece alone the answer is "you do not need
+    // one", and the learner is refused the pass that would open their shut
+    // quiz. The question has to be asked of the module, because the pass is.
+    reads(passed(), ahead(), []);
+    const res = await claim("assignment");
+
+    expect(res.status).toBe(201);
+    expect(mocks.inserted.at(-1)).toMatchObject({ sessionId: 10 });
+  });
+
+  it("costs nothing to press on both pieces of the same module", async () => {
+    // A learner who uses it on the quiz and then opens the written task and
+    // presses there too must not be charged twice for one module.
+    reads(passed(), passed(), [{ sessionId: 10 }]);
+    const res = await claim("assignment");
+
+    expect(res.status).toBe(200);
+    expect((await res.json() as { spent: boolean }).spent).toBe(false);
+    expect(mocks.inserted).toHaveLength(0);
+  });
+
+  it("says so plainly when neither piece is late", async () => {
+    reads(ahead(), ahead(), []);
+    const res = await claim("quiz");
+
+    expect(res.status).toBe(400);
+    expect(JSON.stringify(await res.json())).toMatch(/this quiz is still open/i);
+  });
+
+  it("still answers at the address yesterday's browser knows", async () => {
+    // The person with a stale page open is exactly the person who needs a late
+    // pass; their browser only knows the old address.
+    reads(passed(), passed(), []);
+    const res = await claimAtOldAddress();
+
+    expect(res.status).toBe(201);
+    expect(mocks.inserted.at(-1)).toMatchObject({ sessionId: 10 });
   });
 });

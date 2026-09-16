@@ -505,21 +505,31 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiMessage"
-  /sessions/{id}/assignment/late-pass:
+  /sessions/{id}/late-pass:
     post:
       operationId: claimLatePass
       tags: [enrollments]
-      summary: Spend one of this learner's late passes on a module's written task
+      summary: Spend one of this learner's late passes on a module
       description: >
-        Two per learner per programme, each buying 48 more hours. Deliberate
-        rather than automatic: a learner who submitted late and found a pass
-        silently gone would have spent something scarce without being asked.
-        Spending one twice on the same task is not an error and costs nothing.
+        Two per learner per programme, each buying 48 more hours on one module —
+        both its quiz and its written task, because everything from a week is due
+        at the same moment and a shut quiz locks the next week just as surely as
+        an unfiled piece. Each piece still shuts at its own time, 48 hours after
+        its own deadline. Deliberate rather than automatic: a learner who
+        submitted late and found a pass silently gone would have spent something
+        scarce without being asked. Spending one twice on the same module is not
+        an error and costs nothing.
       parameters:
         - name: id
           in: path
           required: true
           schema: { type: integer }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LatePassClaim"
       responses:
         "201":
           description: Pass spent
@@ -3388,6 +3398,11 @@ components:
         # clock. The browser shows this rather than working it out, so a learner
         # with a slow clock gets no extra day.
         closed: { type: boolean }
+        # `closed` says the ordinary deadline has gone; this says whether there
+        # is still a way in. A late pass covers the whole module, so a pass spent
+        # on the written task shows here as in-use too.
+        latePass:
+          $ref: "#/components/schemas/LatePassStatus"
         # Saved but not yet posted to the cohort. Learners never see a draft at
         # all — this reaches staff only.
         draft: { type: boolean }
@@ -3754,6 +3769,21 @@ components:
         # Where the door shuts if a pass is spent — or where it has already
         # moved to, for somebody who has spent one. Null with no deadline.
         windowEnd: { type: ["string", "null"] }
+        # What spending one here would open, so the offer can say so. "both"
+        # on a module with a quiz and a written task, which is most of them.
+        opens:
+          type: string
+          enum: [quiz, assignment, both]
+    LatePassClaim:
+      type: object
+      properties:
+        # Which of the module's two deadlines the learner is looking at. It
+        # decides the wording and which window end comes back, not what the
+        # pass opens — the pass opens both either way. Absent means the
+        # written task, which is the only thing the old address could mean.
+        piece:
+          type: string
+          enum: [quiz, assignment]
     LatePassResult:
       type: object
       required: [sessionId, spent, left, windowEnd]

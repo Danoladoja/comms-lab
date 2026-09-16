@@ -5,14 +5,15 @@ import {
   sessionReadingsTable, sessionSlidesTable, latePassesTable,
 } from "@workspace/db";
 import { and, asc, eq, sql } from "drizzle-orm";
-import { UpsertSessionQuizBody, SubmitQuizAttemptBody, UpsertSessionAssignmentBody, SubmitAssignmentBody } from "@workspace/api-zod";
+import { UpsertSessionQuizBody, SubmitQuizAttemptBody, UpsertSessionAssignmentBody, SubmitAssignmentBody, ClaimLatePassBody } from "@workspace/api-zod";
 import {
   QUIZ_PASS_MARK, DEFAULT_RUBRIC, DEFAULT_REVIEWS_REQUIRED, isModuleStaff, isValidRubric,
-  isPastDue, pastDueMessage, readyToPost, describePost, postAnnouncement, labLetter, weekDeadline,
+  isPastDue, readyToPost, describePost, postAnnouncement, labLetter, weekDeadline,
   disclosureProblem,
   sameQuiz,
-  latePassState, canClaimLatePass, lateSubmissionProblem, latePassWindowEnd, passesLeft,
-  type CourseworkPiece, type SendOutcome,
+  latePassState, canClaimForModule, lateSubmissionProblem,
+  latePassWindowEnd, latePassCovers, passesLeft,
+  type CourseworkPiece, type SendOutcome, type LatePassPiece,
 } from "@workspace/domain";
 import { currentRole, getCurrentUser } from "../lib/auth";
 import { progressForUser } from "../lib/progress";
@@ -73,7 +74,8 @@ export async function learnerAccessError(role: string | null, user: User, sessio
  */
 /**
  * A learner's late passes on one programme: how many are gone, and whether one
- * has been spent on this particular task.
+ * has been spent on this module — on the module, not on one piece of it, which
+ * is what lets a pass spent on the written task hold the quiz open too.
  *
  * Counted from the rows rather than kept as a running total, so there is no
  * balance that can drift away from what actually happened.
@@ -92,6 +94,48 @@ async function latePasses(userId: number, programId: number, sessionId: number) 
 function deadline(dueAt: Date | null | undefined) {
   const iso = dueAt ? dueAt.toISOString() : null;
   return { dueAt: iso, closed: isPastDue(iso, Date.now()) };
+}
+
+/** Both of a module's deadlines. A draft piece has none, because to a learner it does not exist. */
+type ModuleDeadlines = { quiz: string | null; assignment: string | null };
+
+/**
+ * The late-pass block, worded for the piece the learner is looking at.
+ *
+ * `state` and `windowEnd` are about that piece — each door shuts 48 hours after
+ * its own deadline, and a learner needs to know which one they are standing in
+ * front of. `canClaim` is about the module, because one pass opens both: a quiz
+ * that shut last night is reason enough to spend one even if the writing is not
+ * due until Friday.
+ */
+function latePassBlock(
+  due: ModuleDeadlines,
+  piece: LatePassPiece,
+  passes: { used: number; claimedHere: boolean },
+  now: number,
+) {
+  const mine = piece === "quiz" ? due.quiz : due.assignment;
+  const pieces = [
+    { dueAt: due.quiz, now, ...passes },
+    { dueAt: due.assignment, now, ...passes },
+  ];
+  return {
+    state: latePassState({ dueAt: mine, now, ...passes }),
+    left: passesLeft(passes.used),
+    canClaim: canClaimForModule(pieces),
+    windowEnd: latePassWindowEnd(mine),
+    opens: latePassCovers(due.quiz, due.assignment, piece),
+  };
+}
+
+/** This module's written deadline, for the times the quiz needs to know about it. */
+async function assignmentDeadline(sessionId: number): Promise<string | null> {
+  const [row] = await db
+    .select({ dueAt: assignmentsTable.dueAt, draft: assignmentsTable.draft })
+    .from(assignmentsTable)
+    .where(eq(assignmentsTable.sessionId, sessionId));
+  if (!row || row.draft) return null;
+  return row.dueAt?.toISOString() ?? null;
 }
 
 /**
@@ -148,6 +192,22 @@ router.get("/sessions/:id/quiz", async (req, res) => {
   }
 
   const best = await bestScore(user.id, sessionId);
+
+  // What this learner's late passes mean for this quiz.
+  //
+  // Asked only once the deadline has actually gone, which is almost never. On
+  // the ordinary path there is nothing a pass could change, and a quiz is opened
+  // far more often than it is missed — so the two extra reads are spent on the
+  // day they matter rather than on every day that they do not.
+  const quizDueIso = session.quizDraft ? null : session.quizDueAt?.toISOString() ?? null;
+  const now = Date.now();
+  let latePass = null;
+  if (isPastDue(quizDueIso, now)) {
+    const passes = await latePasses(user.id, session.programId, sessionId);
+    const due: ModuleDeadlines = { quiz: quizDueIso, assignment: await assignmentDeadline(sessionId) };
+    latePass = latePassBlock(due, "quiz", passes, now);
+  }
+
   res.json({
     sessionId,
     passMark: QUIZ_PASS_MARK,
@@ -162,6 +222,10 @@ router.get("/sessions/:id/quiz", async (req, res) => {
     bestScore: best,
     passed: (best ?? 0) >= QUIZ_PASS_MARK,
     ...deadline(session.quizDueAt),
+    // `closed` says the ordinary deadline has gone. This says whether there is
+    // still a way in — which, since a pass covers the whole module, may already
+    // have been opened by one spent on the written task.
+    latePass,
     draft: session.quizDraft,
     postedAt: session.quizPostedAt?.toISOString() ?? null,
     // Only staff are offered a date to set; a learner is told the one that is set.
@@ -285,9 +349,19 @@ router.post("/sessions/:id/quiz/attempts", async (req, res) => {
 
   // The deadline is enforced here, not merely displayed. The button in the
   // browser is a courtesy; this is the door.
-  if (isPastDue(session.quizDueAt?.toISOString(), Date.now())) {
-    res.status(403).json({ error: pastDueMessage("quiz") });
-    return;
+  //
+  // A spent late pass moves this door too. It was built for written work alone,
+  // on the reasoning that an auto-marked quiz with unlimited retakes has nothing
+  // to rescue — but a shut quiz leaves the module incomplete and the next week
+  // locked, which is the same loss by another road.
+  const quizDue = session.quizDueAt?.toISOString() ?? null;
+  if (isPastDue(quizDue, Date.now())) {
+    const passes = await latePasses(user.id, session.programId, sessionId);
+    const problem = lateSubmissionProblem({ dueAt: quizDue, now: Date.now(), ...passes }, "quiz");
+    if (problem) {
+      res.status(403).json({ error: problem });
+      return;
+    }
   }
 
   // Nobody sits a quiz that has not been posted.
@@ -342,9 +416,14 @@ router.get("/sessions/:id/assignment", async (req, res) => {
   // What this learner's late passes mean for this task right now. Worked out
   // here against the server's clock, because a laptop an hour out would
   // otherwise hand one learner extra time and rob another of it.
-  const dueIso = assignment.dueAt?.toISOString() ?? null;
+  const dueIso = assignment.draft ? null : assignment.dueAt?.toISOString() ?? null;
   const passes = await latePasses(user.id, session.programId, sessionId);
-  const passFacts = { dueAt: dueIso, now: Date.now(), ...passes };
+  // The quiz deadline comes free — the module row is already loaded — and it is
+  // needed here to say truthfully what spending a pass would open.
+  const due: ModuleDeadlines = {
+    quiz: session.quizDraft ? null : session.quizDueAt?.toISOString() ?? null,
+    assignment: dueIso,
+  };
 
   res.json({
     sessionId,
@@ -362,14 +441,7 @@ router.get("/sessions/:id/assignment", async (req, res) => {
     // `closed` above says the ordinary deadline has gone. This says whether
     // there is still a way in, which is a different question and the one the
     // learner actually needs answering.
-    latePass: {
-      state: latePassState(passFacts),
-      left: passesLeft(passes.used),
-      canClaim: canClaimLatePass(passFacts),
-      // Where the door shuts if they spend one — or where it has already moved
-      // to, for somebody who has.
-      windowEnd: latePassWindowEnd(dueIso),
-    },
+    latePass: latePassBlock(due, "assignment", passes, Date.now()),
     draft: assignment.draft,
     postedAt: assignment.postedAt?.toISOString() ?? null,
     ...(staff ? { suggestedDueAt: await suggestedDueAt(session) } : {}),
@@ -385,18 +457,28 @@ router.get("/sessions/:id/assignment", async (req, res) => {
 });
 
 /**
- * Spend a late pass on this task.
+ * Spend a late pass on this module.
  *
  * Deliberate rather than automatic. A learner who simply submitted late and
  * found a pass silently gone would have spent something scarce without being
  * asked, and would rightly feel tricked; so the extra time only exists once
  * they have chosen it, having been told what it costs.
  *
- * The unique index on (user, session) is what makes this safe. Two taps on a
- * slow connection reach here twice, and the second finds the row already there
- * and reports success rather than spending a second pass.
+ * One pass, one module, both doors — the quiz and the written task alike. The
+ * row was always keyed on the module rather than the piece, so covering the quiz
+ * needed nothing added to the database, only this route learning to ask about
+ * both deadlines instead of one.
+ *
+ * `piece` in the body says which of the two the learner is standing in front of.
+ * It changes the wording and which window end comes back; it does not change
+ * what the pass opens. Absent means the written task, which is the only thing
+ * the old address could ever have meant.
+ *
+ * Mounted at the old address as well, because a learner with yesterday's page
+ * still open is exactly the sort of person who needs a late pass, and their
+ * browser knows only the old one.
  */
-router.post("/sessions/:id/assignment/late-pass", async (req, res) => {
+router.post(["/sessions/:id/late-pass", "/sessions/:id/assignment/late-pass"], async (req, res) => {
   const user = await getCurrentUser(req);
   if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
   const sessionId = Number(req.params.id);
@@ -405,6 +487,12 @@ router.post("/sessions/:id/assignment/late-pass", async (req, res) => {
   if (!session) { res.status(404).json({ error: "Session not found" }); return; }
   const accessError = await learnerAccessError(await currentRole(req), user, session);
   if (accessError) { res.status(403).json({ error: accessError }); return; }
+
+  // Anything other than "quiz" means the written task, including nothing at all.
+  // A body this small is not worth refusing a late pass over.
+  const piece: LatePassPiece = ClaimLatePassBody.safeParse(req.body).data?.piece === "quiz"
+    ? "quiz"
+    : "assignment";
 
   const [assignment] = await db
     .select({
@@ -415,26 +503,42 @@ router.post("/sessions/:id/assignment/late-pass", async (req, res) => {
     })
     .from(assignmentsTable)
     .where(eq(assignmentsTable.sessionId, sessionId));
-  if (!assignment || assignment.draft) {
-    res.status(404).json({ error: "No assignment for this module" });
+
+  const due: ModuleDeadlines = {
+    quiz: session.quizDraft ? null : session.quizDueAt?.toISOString() ?? null,
+    assignment: !assignment || assignment.draft ? null : assignment.dueAt?.toISOString() ?? null,
+  };
+  // Nothing set here has a deadline, so there is nothing a pass could open.
+  // Worded as the missing piece rather than as "no assignment", which was
+  // baffling to read on a module that plainly has one.
+  if (due.quiz === null && due.assignment === null) {
+    res.status(404).json({ error: "Nothing on this module has a deadline to extend." });
     return;
   }
 
-  const dueIso = assignment.dueAt?.toISOString() ?? null;
+  const now = Date.now();
+  const dueIso = piece === "quiz" ? due.quiz : due.assignment;
   const passes = await latePasses(user.id, session.programId, sessionId);
-  const passFacts = { dueAt: dueIso, now: Date.now(), ...passes };
-  const state = latePassState(passFacts);
+  const askedAbout = { dueAt: dueIso, now, ...passes };
 
-  if (state === "in-use") {
-    // Already spent here. Saying so plainly beats an error for something that
-    // has, from the learner's point of view, already worked.
+  // Already spent on this module — so both doors are already open, whichever
+  // one they pressed. Saying so plainly beats an error for something that has,
+  // from the learner's point of view, already worked.
+  if (passes.claimedHere) {
     res.json({ sessionId, spent: false, left: passesLeft(passes.used), windowEnd: latePassWindowEnd(dueIso) });
     return;
   }
-  if (!canClaimLatePass(passFacts)) {
+
+  const pieces = [
+    { dueAt: due.quiz, now, ...passes },
+    { dueAt: due.assignment, now, ...passes },
+  ];
+  const spentAgainst = dueIso ?? due.quiz ?? due.assignment;
+  if (!canClaimForModule(pieces)) {
+    const state = latePassState(askedAbout);
     const why = state === "not-needed" || state === "no-deadline"
-      ? "This task is still open — you do not need a late pass."
-      : lateSubmissionProblem(passFacts) ?? "A late pass cannot be used here.";
+      ? `${piece === "quiz" ? "This quiz" : "This task"} is still open — you do not need a late pass.`
+      : lateSubmissionProblem(askedAbout, piece) ?? "A late pass cannot be used here.";
     res.status(400).json({ error: why });
     return;
   }
@@ -443,9 +547,12 @@ router.post("/sessions/:id/assignment/late-pass", async (req, res) => {
   //
   // I wrote in the schema that the unique index was "the whole safety
   // mechanism". It is not: it is on (user, session), so it stops two claims on
-  // the *same* task and nothing else. Two claims on two different tasks at the
-  // same moment — two tabs, or one retried request — both read one pass used,
-  // both passed the check, and a learner got three passes out of two.
+  // the *same* module and nothing else. Two claims on two different modules at
+  // the same moment — two tabs, or one retried request — both read one pass
+  // used, both passed the check, and a learner got three passes out of two.
+  //
+  // It does, however, do one thing well: a learner pressing the button on the
+  // quiz and on the written task of the same module spends one pass, not two.
   const after = await db.transaction(async (tx) => {
     await tx.execute(sql`
       select id from ${latePassesTable}
@@ -470,7 +577,10 @@ router.post("/sessions/:id/assignment/late-pass", async (req, res) => {
           userId: user.id,
           programId: session.programId,
           sessionId,
-          extendedFrom: assignment.dueAt ?? null,
+          // The deadline the learner was actually looking at when they spent
+          // it, falling back to the module's other one when the piece they
+          // pressed has none of its own.
+          extendedFrom: spentAgainst ? new Date(spentAgainst) : null,
         })
         .onConflictDoNothing();
     }

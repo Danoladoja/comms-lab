@@ -437,6 +437,36 @@ export interface QuizQuestionPublic {
   origin?: string | null;
 }
 
+export type LatePassStatusState = typeof LatePassStatusState[keyof typeof LatePassStatusState];
+
+
+export const LatePassStatusState = {
+  'no-deadline': 'no-deadline',
+  'not-needed': 'not-needed',
+  available: 'available',
+  'in-use': 'in-use',
+  'none-left': 'none-left',
+  'too-late': 'too-late',
+} as const;
+
+export type LatePassStatusOpens = typeof LatePassStatusOpens[keyof typeof LatePassStatusOpens];
+
+
+export const LatePassStatusOpens = {
+  quiz: 'quiz',
+  assignment: 'assignment',
+  both: 'both',
+} as const;
+
+export interface LatePassStatus {
+  state: LatePassStatusState;
+  left: number;
+  canClaim: boolean;
+  /** @nullable */
+  windowEnd: string | null;
+  opens?: LatePassStatusOpens;
+}
+
 export interface Quiz {
   sessionId: number;
   passMark: number;
@@ -447,6 +477,7 @@ export interface Quiz {
   /** @nullable */
   dueAt?: string | null;
   closed?: boolean;
+  latePass?: LatePassStatus;
   draft?: boolean;
   /** @nullable */
   postedAt?: string | null;
@@ -670,26 +701,6 @@ export interface ReplayProgressResult {
   presence: Presence;
 }
 
-export type LatePassStatusState = typeof LatePassStatusState[keyof typeof LatePassStatusState];
-
-
-export const LatePassStatusState = {
-  'no-deadline': 'no-deadline',
-  'not-needed': 'not-needed',
-  available: 'available',
-  'in-use': 'in-use',
-  'none-left': 'none-left',
-  'too-late': 'too-late',
-} as const;
-
-export interface LatePassStatus {
-  state: LatePassStatusState;
-  left: number;
-  canClaim: boolean;
-  /** @nullable */
-  windowEnd: string | null;
-}
-
 export interface AssignmentSubmission {
   sessionId: number;
   body: string;
@@ -715,6 +726,18 @@ export interface AssignmentDetail {
   suggestedDueAt?: string | null;
   latePass?: LatePassStatus;
   mySubmission?: AssignmentSubmission | null;
+}
+
+export type LatePassClaimPiece = typeof LatePassClaimPiece[keyof typeof LatePassClaimPiece];
+
+
+export const LatePassClaimPiece = {
+  quiz: 'quiz',
+  assignment: 'assignment',
+} as const;
+
+export interface LatePassClaim {
+  piece?: LatePassClaimPiece;
 }
 
 export interface LatePassResult {

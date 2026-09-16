@@ -21,10 +21,29 @@
  * Hence: a small, countable allowance, spent by the learner, visible to both
  * sides. Scarce enough that the deadline still means something, and honest
  * enough that using one is a decision rather than an accident.
+ *
+ * ---
+ *
+ * A pass covers a whole module — both its quiz and its written task.
+ *
+ * It was built for written work alone, on the reasoning that a quiz is
+ * auto-marked with unlimited retakes and so has nothing to rescue. That
+ * reasoning was wrong, and wrong in the way that matters: a closed quiz does not
+ * merely cost a score, it leaves the module incomplete and the following week
+ * shut. The learner with the dead grid loses the week either way.
+ *
+ * So the unit is the module, not the piece — which is also the unit the Lab
+ * already thinks in, since everything from a week is due at the end of the same
+ * Monday. One pass, one module, both doors. That is worth saying plainly,
+ * because the alternative — a pass per piece — would have quietly halved an
+ * allowance nobody would have noticed shrinking until they needed it.
  */
 
 /** Passes a learner gets for a whole programme. Not per week, and not per module. */
 export const LATE_PASSES_PER_PROGRAMME = 2;
+
+/** The two things a module can ask of a learner, each with its own deadline. */
+export type LatePassPiece = "quiz" | "assignment";
 
 /**
  * How much time one buys.
@@ -77,7 +96,13 @@ export type LatePassFacts = {
   now: number;
   /** Passes this learner has already spent anywhere on this programme. */
   used: number;
-  /** Has a pass already been spent on this particular task? */
+  /**
+   * Has a pass already been spent on this module?
+   *
+   * On the module, not on the piece. A pass spent to reopen the written task
+   * reopens the quiz as well, and the other way round — so this is true for
+   * both pieces once it is true for either.
+   */
   claimedHere: boolean;
 };
 
@@ -105,19 +130,57 @@ export function canClaimLatePass(f: LatePassFacts): boolean {
 }
 
 /**
+ * May a pass be spent on this module, given the state of every piece in it?
+ *
+ * One deadline having gone is enough. A module whose quiz shut last night and
+ * whose written task is not due until Friday is a module a pass can open — and
+ * once spent it covers both, because the pass belongs to the module.
+ *
+ * Asked of the pieces together rather than one at a time so that the browser
+ * never has to decide which deadline the learner is really asking about. It
+ * would get that wrong at exactly the moment it mattered.
+ */
+export function canClaimForModule(pieces: LatePassFacts[]): boolean {
+  return pieces.some(canClaimLatePass);
+}
+
+/**
+ * What a pass opens here, for the purpose of describing it.
+ *
+ * Worked out from which pieces actually have a deadline: one that has none is
+ * open regardless and there is nothing to say about it.
+ */
+export function latePassCovers(
+  quizDueAt: string | null | undefined,
+  assignmentDueAt: string | null | undefined,
+  asking: LatePassPiece,
+): LatePassPiece | "both" {
+  if (quizDueAt && assignmentDueAt) return "both";
+  if (quizDueAt) return "quiz";
+  if (assignmentDueAt) return "assignment";
+  return asking;
+}
+
+/**
  * Why a submission is being refused, or null when it should go through.
  *
  * The server asks this, not the browser. A learner whose laptop clock is a day
  * slow must not get an extra day, and one whose clock is fast must not lose one.
  */
-export function lateSubmissionProblem(f: LatePassFacts): string | null {
+export function lateSubmissionProblem(
+  f: LatePassFacts,
+  piece: LatePassPiece = "assignment",
+): string | null {
+  // Named, because "this task" in front of a quiz reads like a mistake and
+  // makes a learner wonder whether the app has confused their two deadlines.
+  const it = piece === "quiz" ? "this quiz" : "this task";
   switch (latePassState(f)) {
     case "no-deadline":
     case "not-needed":
     case "in-use":
       return null;
     case "available":
-      return "The deadline has passed. Use one of your late passes to reopen this task.";
+      return `The deadline has passed. Use one of your late passes to reopen ${it}.`;
     case "none-left":
       return "The deadline has passed and you have used both of your late passes. Talk to the team.";
     case "too-late":
@@ -131,11 +194,27 @@ export function lateSubmissionProblem(f: LatePassFacts): string | null {
  * It says the cost out loud — how many are left afterwards, and that critiques
  * may not come — because a scarce thing spent without seeing the price is a
  * thing people feel cheated by later.
+ *
+ * It also says what it buys, which on a module with both a quiz and a written
+ * task is both of them. A learner who spent one on the quiz and then found the
+ * writing still shut would have every reason to think they had been robbed.
  */
-export function latePassOffer(used: number): string {
+export function latePassOffer(
+  used: number,
+  covers: LatePassPiece | "both" = "assignment",
+): string {
   const left = passesLeft(used) - 1;
   const after = left === 1 ? "one left" : left === 0 ? "none left" : `${left} left`;
-  return `Using a late pass gives you ${LATE_PASS_HOURS} more hours on this task. You will have ${after} for the rest of the programme, and your piece may arrive after your cohort has finished critiquing — so it may get less feedback than usual.`;
+  const what = covers === "both"
+    ? "on both the quiz and the written task for this module"
+    : covers === "quiz"
+      ? "on this quiz"
+      : "on this task";
+  // The warning about critiques is only true where there is writing to critique.
+  const feedback = covers === "quiz"
+    ? ""
+    : ", and your piece may arrive after your cohort has finished critiquing — so it may get less feedback than usual";
+  return `Using a late pass gives you ${LATE_PASS_HOURS} more hours ${what}. You will have ${after} for the rest of the programme${feedback}.`;
 }
 
 /** The plain count, for a learner who has not needed one yet. */

@@ -52,6 +52,7 @@ import type {
   Invitation,
   InvitationInput,
   JoinResult,
+  LatePassClaim,
   LatePassResult,
   ListAllEnrollmentsParams,
   LiveSession,
@@ -1497,21 +1498,22 @@ export const getClaimLatePassUrl = (id: number,) => {
 
 
 
-  return `/api/sessions/${id}/assignment/late-pass`
+  return `/api/sessions/${id}/late-pass`
 }
 
 /**
- * Two per learner per programme, each buying 48 more hours. Deliberate rather than automatic: a learner who submitted late and found a pass silently gone would have spent something scarce without being asked. Spending one twice on the same task is not an error and costs nothing.
- * @summary Spend one of this learner's late passes on a module's written task
+ * Two per learner per programme, each buying 48 more hours on one module — both its quiz and its written task, because everything from a week is due at the same moment and a shut quiz locks the next week just as surely as an unfiled piece. Each piece still shuts at its own time, 48 hours after its own deadline. Deliberate rather than automatic: a learner who submitted late and found a pass silently gone would have spent something scarce without being asked. Spending one twice on the same module is not an error and costs nothing.
+ * @summary Spend one of this learner's late passes on a module
  */
-export const claimLatePass = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<LatePassResult> => {
+export const claimLatePass = async (id: number,
+    latePassClaim?: LatePassClaim, options?: Parameters<typeof customFetch>[1]): Promise<LatePassResult> => {
 
   return customFetch<LatePassResult>(getClaimLatePassUrl(id),
   {
     ...options,
-    method: 'POST'
-
-
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(latePassClaim)
   }
 );}
 
@@ -1520,8 +1522,8 @@ export const claimLatePass = async (id: number, options?: Parameters<typeof cust
 
 
 export const getClaimLatePassMutationOptions = <TError = ErrorType<ApiMessage>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof claimLatePass>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof claimLatePass>>, TError,{id: number}, TContext> => {
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof claimLatePass>>, TError,{id: number;data?: BodyType<LatePassClaim>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof claimLatePass>>, TError,{id: number;data?: BodyType<LatePassClaim>}, TContext> => {
 
 const mutationKey = ['claimLatePass'];
 const {mutation: mutationOptions, request: requestOptions} = options ?
@@ -1533,10 +1535,10 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof claimLatePass>>, {id: number}> = (props) => {
-          const {id} = props ?? {};
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof claimLatePass>>, {id: number;data?: BodyType<LatePassClaim>}> = (props) => {
+          const {id,data} = props ?? {};
 
-          return  claimLatePass(id,requestOptions)
+          return  claimLatePass(id,data,requestOptions)
         }
 
 
@@ -1547,18 +1549,18 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
   return  { mutationFn, ...mutationOptions }}
 
     export type ClaimLatePassMutationResult = NonNullable<Awaited<ReturnType<typeof claimLatePass>>>
-
+    export type ClaimLatePassMutationBody = BodyType<LatePassClaim> | undefined
     export type ClaimLatePassMutationError = ErrorType<ApiMessage>
 
     /**
- * @summary Spend one of this learner's late passes on a module's written task
+ * @summary Spend one of this learner's late passes on a module
  */
 export const useClaimLatePass = <TError = ErrorType<ApiMessage>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof claimLatePass>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof claimLatePass>>, TError,{id: number;data?: BodyType<LatePassClaim>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof claimLatePass>>,
         TError,
-        {id: number},
+        {id: number;data?: BodyType<LatePassClaim>},
         TContext
       > => {
       return useMutation(getClaimLatePassMutationOptions(options));

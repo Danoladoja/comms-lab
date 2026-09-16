@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { LatePassStatus } from './latePassStatus';
 import type { QuizQuestionPublic } from './quizQuestionPublic';
 
 export interface Quiz {
@@ -17,6 +18,7 @@ export interface Quiz {
   /** @nullable */
   dueAt?: string | null;
   closed?: boolean;
+  latePass?: LatePassStatus;
   draft?: boolean;
   /** @nullable */
   postedAt?: string | null;

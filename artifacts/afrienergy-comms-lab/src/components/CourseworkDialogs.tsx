@@ -70,7 +70,12 @@ export function QuizPanel({ sessionId, enabled = true }: { sessionId: number; en
   });
 
   const questions = quiz?.questions ?? [];
-  const closed = !!quiz?.closed;
+  // `closed` is the ordinary deadline. Whether the learner can still answer is a
+  // different question: a late pass covers the whole module, so one spent on the
+  // written task reopens this quiz too, and the server is the one that decides.
+  const pastDue = !!quiz?.closed;
+  const pass = quiz?.latePass;
+  const shut = pastDue && pass?.state !== 'in-use';
   const allAnswered = questions.length > 0 && questions.every(q => answers[q.id] !== undefined);
   const reset = () => { setAnswers({}); setResult(null); };
 
@@ -110,7 +115,20 @@ export function QuizPanel({ sessionId, enabled = true }: { sessionId: number; en
         Pass mark {quiz?.passMark ?? 70}%, unlimited retakes
         {quiz?.bestScore != null && ` · best score so far ${quiz.bestScore}%`}
       </p>
-      <Deadline dueAt={quiz?.dueAt} closed={closed} />
+      <Deadline dueAt={quiz?.dueAt} closed={pastDue} />
+
+      {pass && (
+        <LatePassCard
+          sessionId={sessionId}
+          piece="quiz"
+          state={pass.state}
+          left={pass.left}
+          canClaim={pass.canClaim}
+          windowEnd={pass.windowEnd}
+          opens={pass.opens}
+        />
+      )}
+
       {questions.map((q, qi) => (
         <fieldset key={q.id}>
           <legend className="font-medium text-sm mb-2">{qi + 1}. {q.prompt}</legend>
@@ -137,13 +155,13 @@ export function QuizPanel({ sessionId, enabled = true }: { sessionId: number; en
       ))}
       <Button
         className="w-full font-bold"
-        disabled={closed || !allAnswered || submit.isPending}
+        disabled={shut || !allAnswered || submit.isPending}
         onClick={() => submit.mutate({
           id: sessionId,
           data: { answers: questions.map(q => ({ questionId: q.id, answerIndex: answers[q.id] })) },
         })}
       >
-        {closed ? 'Closed' : submit.isPending ? 'Grading...' : 'Submit answers'}
+        {shut ? 'Closed' : submit.isPending ? 'Grading...' : 'Submit answers'}
       </Button>
     </div>
   );
@@ -237,12 +255,16 @@ function AiDisclosure({ sessionId, use, note, onUse, onNote, disabled }: {
  * so this says what it costs, including the cost nobody thinks of: a piece that
  * lands after the cohort has finished critiquing tends to get no critiques.
  */
-function LatePassCard({ sessionId, state, left, canClaim, windowEnd }: {
+function LatePassCard({ sessionId, piece, state, left, canClaim, windowEnd, opens }: {
   sessionId: number;
+  /** Which of the module's two deadlines this card is standing in front of. */
+  piece: 'quiz' | 'assignment';
   state: string;
   left: number;
   canClaim: boolean;
   windowEnd?: string | null;
+  /** What spending one would open. Absent from an older server: assume the piece in hand. */
+  opens?: 'quiz' | 'assignment' | 'both';
 }) {
   const qc = useQueryClient();
   const { toast } = useToast();
@@ -252,9 +274,17 @@ function LatePassCard({ sessionId, state, left, canClaim, windowEnd }: {
       onSuccess: (r) => {
         toast({
           title: 'Late pass used',
-          description: `You have until ${new Date(r.windowEnd ?? '').toLocaleString()} to file this one.`,
+          description: `You have until ${new Date(r.windowEnd ?? '').toLocaleString()} to ${
+            piece === 'quiz' ? 'answer this quiz' : 'file this one'
+          }.`,
         });
+        // One pass opens both doors, so both panels have to be told. Refreshing
+        // only the one in front of the learner left the other still saying
+        // "closed", which is exactly the moment somebody spends a second pass
+        // on a module they had already paid for.
         qc.invalidateQueries({ queryKey: getGetSessionAssignmentQueryKey(sessionId) });
+        qc.invalidateQueries({ queryKey: getGetSessionQuizQueryKey(sessionId) });
+        qc.invalidateQueries({ queryKey: getListMyProgressQueryKey() });
       },
       onError: (err) => toast({
         title: 'Could not use a late pass',
@@ -278,7 +308,12 @@ function LatePassCard({ sessionId, state, left, canClaim, windowEnd }: {
           Late pass in use — you have until {until}.
         </p>
         <p className="mt-1 text-xs text-emerald-900/80">
-          {latePassBalance(2 - left)} File as soon as you can: your cohort may already have finished critiquing.
+          {latePassBalance(2 - left)}{' '}
+          {piece === 'quiz'
+            // Only said where it is true: a module with no written task has
+            // nothing else for the pass to cover.
+            ? opens === 'both' ? 'It covers this module\u2019s written task as well.' : ''
+            : 'File as soon as you can: your cohort may already have finished critiquing.'}
         </p>
       </div>
     );
@@ -291,12 +326,12 @@ function LatePassCard({ sessionId, state, left, canClaim, windowEnd }: {
           <LifeBuoy className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
           The deadline has passed — but you have a late pass.
         </p>
-        <p className="mt-1.5 text-xs text-[#9A3412]/90">{latePassOffer(2 - left)}</p>
+        <p className="mt-1.5 text-xs text-[#9A3412]/90">{latePassOffer(2 - left, opens ?? piece)}</p>
         <Button
           size="sm"
           className="mt-3 font-bold"
           disabled={claim.isPending}
-          onClick={() => claim.mutate({ id: sessionId })}
+          onClick={() => claim.mutate({ id: sessionId, data: { piece } })}
         >
           {claim.isPending ? 'Using…' : `Use a late pass · ${LATE_PASS_HOURS} more hours`}
         </Button>
@@ -392,10 +427,12 @@ export function AssignmentPanel({ sessionId, enabled = true, onSubmitted }: {
       {pass && (
         <LatePassCard
           sessionId={sessionId}
+          piece="assignment"
           state={pass.state}
           left={pass.left}
           canClaim={pass.canClaim}
           windowEnd={pass.windowEnd}
+          opens={pass.opens}
         />
       )}
 

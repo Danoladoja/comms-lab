@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { LatePassStatusOpens } from './latePassStatusOpens';
 import type { LatePassStatusState } from './latePassStatusState';
 
 export interface LatePassStatus {
@@ -13,4 +14,5 @@ export interface LatePassStatus {
   canClaim: boolean;
   /** @nullable */
   windowEnd: string | null;
+  opens?: LatePassStatusOpens;
 }

@@ -53,12 +53,17 @@ export function dueState(dueAt: string | null | undefined, now: number): DueStat
   return ms - now <= CLOSING_SOON_HOURS * 60 * 60 * 1000 ? "closing-soon" : "open";
 }
 
-/** What a learner is told when they arrive after the door has shut. */
-export function pastDueMessage(kind: "quiz" | "assignment"): string {
-  return kind === "quiz"
-    ? "The deadline for this quiz has passed, so it can no longer be submitted. Ask the team if you need it reopened."
-    : "The deadline for this assignment has passed, so it can no longer be submitted. Ask the team if you need it reopened.";
-}
+/*
+ * What a learner used to be told when they arrived after the door had shut —
+ * "Ask the team if you need it reopened" — has been taken out.
+ *
+ * It was true when there was nothing else to offer. Now there is: a late pass
+ * covers both a module's quiz and its written task, and `lateSubmissionProblem`
+ * says which of the four things is actually the case. Sending somebody to ask a
+ * favour when they have a pass in their pocket is the exact failure the passes
+ * were built to end — favours reward the confident and quietly lose everybody
+ * else.
+ */
 
 /**
  * The value for a browser date-and-time box, in the reader's own clock.
