@@ -41,6 +41,52 @@ const EXPECTED_TABLES: { table: string; why: string }[] = [
   { table: "submission_comments", why: "the cohort room" },
 ];
 
+/**
+ * Unique indexes the app's safety depends on, and the rows that would stop one
+ * being created.
+ *
+ * Adding a unique index to a table that already holds duplicates fails, and
+ * `drizzle-kit push` knows it — which is why it stops and asks whether to
+ * *truncate the table* first. That prompt is how a whole afternoon was lost:
+ * `--force` does not skip it, so the push sits there waiting, applies nothing,
+ * and looks from the outside exactly like a push that ran.
+ *
+ * Knowing the answer beforehand turns that question from alarming into
+ * ordinary. If there are no duplicates, the safe option always succeeds.
+ */
+const EXPECTED_INDEXES: { name: string; table: string; columns: string[]; why: string }[] = [
+  {
+    name: "enrollments_user_program_unique",
+    table: "enrollments",
+    columns: ["user_id", "program_id"],
+    why: "one place per learner per programme",
+  },
+  {
+    name: "attendance_user_session_unique",
+    table: "session_attendance",
+    columns: ["user_id", "session_id"],
+    why: "attendance counted once",
+  },
+  {
+    name: "assignment_submissions_user_session_unique",
+    table: "assignment_submissions",
+    columns: ["user_id", "session_id"],
+    why: "one submission per learner per module",
+  },
+  {
+    name: "submission_reviews_submission_reviewer_unique",
+    table: "submission_reviews",
+    columns: ["submission_id", "reviewer_id"],
+    why: "stops one peer being critiqued twice to satisfy the requirement",
+  },
+  {
+    name: "late_passes_user_session_unique",
+    table: "late_passes",
+    columns: ["user_id", "session_id"],
+    why: "one late pass per task",
+  },
+];
+
 async function main() {
   const [{ rows: tableRows }, { rows: columnRows }] = await Promise.all([
     db.execute(sql`
@@ -57,7 +103,27 @@ async function main() {
   const missingTables = EXPECTED_TABLES.filter((t) => !tables.has(t.table));
   const missingColumns = EXPECTED.filter((c) => !columns.has(`${c.table}.${c.column}`));
 
-  if (missingTables.length === 0 && missingColumns.length === 0) {
+  // Which unique indexes are absent, and — for each absent one — whether the
+  // table holds rows that would stop it being created. This is the question
+  // `push` asks in the middle of running, worth answering before it does.
+  const { rows: indexRows } = (await db.execute(sql`
+    select indexname from pg_indexes where schemaname = 'public'
+  `)) as unknown as { rows: { indexname: string }[] };
+  const indexes = new Set(indexRows.map((r) => r.indexname));
+
+  const missingIndexes: { name: string; why: string; duplicates: number }[] = [];
+  for (const wanted of EXPECTED_INDEXES) {
+    if (indexes.has(wanted.name) || !tables.has(wanted.table)) continue;
+    const cols = sql.raw(wanted.columns.join(", "));
+    const { rows } = (await db.execute(sql`
+      select count(*)::int as n from (
+        select 1 from ${sql.raw(wanted.table)} group by ${cols} having count(*) > 1
+      ) d
+    `)) as unknown as { rows: { n: number }[] };
+    missingIndexes.push({ name: wanted.name, why: wanted.why, duplicates: rows[0]?.n ?? 0 });
+  }
+
+  if (missingTables.length === 0 && missingColumns.length === 0 && missingIndexes.length === 0) {
     console.log("The database has everything the app expects.\n");
     console.log("So a save that is still failing is not this. Check the server");
     console.log("log for the actual error — Deployments → the live one → View Logs.");
@@ -71,8 +137,23 @@ async function main() {
   for (const c of missingColumns) {
     console.log(`  column  ${c.table}.${c.column}   — needed for ${c.why}`);
   }
+  for (const i of missingIndexes) {
+    console.log(`  index   ${i.name}   — ${i.why}`);
+    if (i.duplicates > 0) {
+      console.log(`          WARNING: ${i.duplicates} duplicate group(s) already exist.`);
+      console.log("          Creating it will fail until those are cleaned up.");
+      console.log("          Do NOT let anything truncate the table to make room.");
+    } else {
+      console.log("          No duplicates — it will be created without trouble.");
+    }
+  }
   console.log("\nFix it by running, in this same console:");
   console.log("  pnpm --filter @workspace/db run push --force");
+  console.log("\nThat command may stop and ask a question — most often whether to");
+  console.log("truncate a table before adding a unique index. Always answer with the");
+  console.log("option that does NOT truncate. It waits for an answer rather than");
+  console.log("timing out, so a push left at that prompt applies nothing at all and");
+  console.log("looks, afterwards, exactly like a push that ran.");
   console.log("\nThen run this check again. If anything is still listed, the push");
   console.log("did not finish — read what it printed rather than trusting it ran.");
   process.exitCode = 1;
