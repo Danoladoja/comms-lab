@@ -1,4 +1,5 @@
 import { DEFAULT_RUBRIC, DEFAULT_REVIEWS_REQUIRED, type RubricCriterion } from "./reviews";
+import { MIN_TASK_WORDS } from "./wordMinimums";
 import { QUIZ_PASS_MARK } from "./progress";
 import { describeSource, type MaterialKind } from "./courseworkSource";
 
@@ -137,7 +138,9 @@ function taskRules(): string[] {
     "- It must be doable in under an hour and produce something a peer can critique.",
     "- It must be specific to this class. A brief that could be set for any module",
     "  in the programme is a failed brief.",
-    "- Give the learner a concrete scenario, an audience and a length.",
+    `- Give the learner a concrete scenario, an audience and a length. The length`,
+    `  you set must be at least ${MIN_TASK_WORDS} words, because that is the house`,
+    "  minimum and a brief asking for less cannot be filed.",
     "- It must be impossible to complete well without having attended or watched",
     "  the class.",
     "- Never ask for something that cannot be submitted as written text.",

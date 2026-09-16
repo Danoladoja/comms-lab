@@ -123,11 +123,14 @@ const answerQuiz = () =>
 
 const QUESTIONS = [{ id: 1, prompt: "Who pays?", options: ["A", "B"], correctIndex: 0, sortOrder: 0 }];
 
-const handIn = () =>
+/** Long enough to clear the 500-word floor on a module that has one. */
+const longPiece = Array.from({ length: 520 }, (_, i) => `word${i}`).join(" ");
+
+const handIn = (body = longPiece) =>
   fetch(`${baseUrl}/api/sessions/10/assignment/submission`, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ body: "Filed at the last possible moment.", aiUse: "none" }),
+    body: JSON.stringify({ body, aiUse: "none" }),
   });
 
 beforeEach(async () => {
@@ -373,5 +376,72 @@ describe("spending one from the quiz", () => {
 
     expect(res.status).toBe(201);
     expect(mocks.inserted.at(-1)).toMatchObject({ sessionId: 10 });
+  });
+});
+
+/**
+ * The word floors.
+ *
+ * Critiques had quietly become a formality: a score out of ten and "good work,
+ * maybe tighten the intro" clears a 120-character minimum with room to spare.
+ * Five hundred words on your own piece and two hundred and fifty on each of two
+ * peers' makes a thousand words a week, half of it spent reading somebody else
+ * closely enough to have something to say.
+ *
+ * The rule a module is judged by is the one it was set under, which is what
+ * keeps this off the first module of a cohort already teaching.
+ */
+describe("how much has to be written", () => {
+  /** session · enrolment · task · passes · the saved row */
+  const reads = (dueAt: Date | null) =>
+    mocks.setSelects([SESSION, ENROLLED, task(dueAt), [], [{
+      id: 1, body: "x", submittedAt: new Date(), late: false,
+    }]]);
+
+  /** A deadline safely after the floors came in. */
+  const laterModule = () => new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+
+  it("refuses a short piece, and says how far off it is", async () => {
+    reads(laterModule());
+    const res = await handIn("Two hundred words would be generous for this.");
+
+    expect(res.status).toBe(400);
+    const said = JSON.stringify(await res.json());
+    expect(said).toMatch(/at least 500 words/i);
+    // The number they are at, not just the number they need.
+    expect(said).toMatch(/You have 8 /);
+    expect(mocks.inserted).toHaveLength(0);
+  });
+
+  it("takes one that is long enough", async () => {
+    reads(laterModule());
+    expect((await handIn()).status).toBe(200);
+  });
+
+  // Which modules the floors apply to is decided by `wordsRequired`, and it is
+  // proved there — a module whose deadline had already passed when the rule
+  // came in keeps the rules it was set under. It cannot be shown from here
+  // without a test that decays: such a module's deadline has by definition
+  // gone, so the only way in is a late pass, and that window is 48 hours wide.
+  // Which is also the useful thing to know about the exemption — for
+  // submissions it is nearly moot, and it is really about the critiques still
+  // being written against those modules, which have no deadline of their own.
+
+  it("puts the floor on a module with no deadline at all", async () => {
+    // Falling the other way would exempt every future module that never gets a
+    // date, which is most of them.
+    reads(null);
+    expect((await handIn("Far too short.")).status).toBe(400);
+  });
+
+  it("asks about the deadline before it asks about the length", async () => {
+    // Somebody arriving after the door has shut is told the door has shut, not
+    // sent away to write another two hundred words for a door that was never
+    // going to open.
+    reads(longGone());
+    const res = await handIn("Short.");
+
+    expect(res.status).toBe(403);
+    expect(JSON.stringify(await res.json())).toMatch(/deadline/i);
   });
 });

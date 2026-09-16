@@ -8,6 +8,7 @@ import {
   MIN_REVIEW_COMMENT_LENGTH,
   type ReviewCandidate,
 } from "./reviews";
+import { MIN_CRITIQUE_WORDS } from "./wordMinimums";
 
 // By default a higher submissionId means a later submission, which is what the
 // database produces. Pass minutesAgo explicitly to test the tie-break directly.
@@ -134,5 +135,43 @@ describe("isValidRubric", () => {
   it("rejects non-arrays", () => {
     expect(isValidRubric({ id: "a" })).toBe(false);
     expect(isValidRubric(null)).toBe(false);
+  });
+});
+
+/**
+ * The word floor on a critique.
+ *
+ * The old rule was 120 characters — about twenty words, which is exactly long
+ * enough to write nothing at length. A score out of ten and "good work, maybe
+ * tighten the intro" cleared it with room to spare, and enough people wrote
+ * that the critique had quietly become a formality.
+ */
+describe("how long a critique has to be", () => {
+  const rubric = DEFAULT_RUBRIC;
+  const scores = Object.fromEntries(rubric.map((c) => [c.id, c.maxScore]));
+  const words = (n: number) => Array.from({ length: n }, (_, i) => `word${i}`).join(" ");
+
+  it("turns away the fifteen-second critique", () => {
+    const said = validateReview(rubric, scores, words(40), MIN_CRITIQUE_WORDS);
+    expect(said).toMatch(/at least 250 words/i);
+    // And still asks for the thing that makes a critique useful.
+    expect(said).toMatch(/what you would change and why/i);
+  });
+
+  it("takes one that is long enough", () => {
+    expect(validateReview(rubric, scores, words(MIN_CRITIQUE_WORDS), MIN_CRITIQUE_WORDS)).toBeNull();
+  });
+
+  it("keeps the old character minimum where there is no floor", () => {
+    // A module set before the floors came in. Short is still refused, by the
+    // rule that module was taught under.
+    expect(validateReview(rubric, scores, "Good work.", 0)).toMatch(/120 characters/);
+    expect(validateReview(rubric, scores, words(40), 0)).toBeNull();
+  });
+
+  it("checks the scores before the length either way", () => {
+    // Being told to write 250 words and then, having written them, being told
+    // a criterion was unscored is a way to lose somebody's afternoon.
+    expect(validateReview(rubric, {}, "short", MIN_CRITIQUE_WORDS)).toMatch(/score missing/i);
   });
 });

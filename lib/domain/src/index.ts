@@ -38,3 +38,4 @@ export * from "./latePass";
 export * from "./meetLink";
 export * from "./recordingLength";
 export * from "./quizChange";
+export * from "./wordMinimums";

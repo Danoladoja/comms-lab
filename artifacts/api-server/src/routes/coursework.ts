@@ -13,6 +13,7 @@ import {
   sameQuiz,
   latePassState, canClaimForModule, lateSubmissionProblem,
   latePassWindowEnd, latePassCovers, passesLeft,
+  wordsRequired, wordCountProblem,
   type CourseworkPiece, type SendOutcome, type LatePassPiece,
 } from "@workspace/domain";
 import { currentRole, getCurrentUser } from "../lib/auth";
@@ -442,6 +443,9 @@ router.get("/sessions/:id/assignment", async (req, res) => {
     // there is still a way in, which is a different question and the one the
     // learner actually needs answering.
     latePass: latePassBlock(due, "assignment", passes, Date.now()),
+    // The floor for this module's task, sent so the box can count up to it
+    // rather than refusing at the end of an hour's writing.
+    minWords: wordsRequired("task", dueIso),
     draft: assignment.draft,
     postedAt: assignment.postedAt?.toISOString() ?? null,
     ...(staff ? { suggestedDueAt: await suggestedDueAt(session) } : {}),
@@ -699,6 +703,16 @@ router.post("/sessions/:id/assignment/submission", async (req, res) => {
   // Whether this piece went in late is settled now and written down, not
   // recomputed later from a deadline an admin may since have moved.
   const filedLate = passFacts.claimedHere && isPastDue(dueIso, passFacts.now);
+
+  // Long enough to be the week's work. Asked after the deadline, so somebody
+  // arriving late is told the door is shut rather than being sent away to write
+  // another two hundred words for a door that was never going to open.
+  const shortProblem = wordCountProblem(
+    parsed.data.body,
+    wordsRequired("task", dueIso),
+    "task",
+  );
+  if (shortProblem) { res.status(400).json({ error: shortProblem }); return; }
 
   // The disclosure is required, and it is refused here rather than only in the
   // browser: a learner is being asked to say something true about their own

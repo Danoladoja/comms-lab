@@ -3830,6 +3830,9 @@ components:
         # is still a way in, which is the question the learner needs answered.
         latePass:
           $ref: "#/components/schemas/LatePassStatus"
+        # Words the task must reach. 0 on a module set before the floors came
+        # in, which keeps the rules it was taught under.
+        minWords: { type: integer }
         mySubmission:
           oneOf:
             - $ref: "#/components/schemas/AssignmentSubmission"
@@ -3934,6 +3937,10 @@ components:
       required: [sessionId, rubric, reviewsRequired, reviewsGiven, canReview, reason, targets]
       properties:
         sessionId: { type: integer }
+        # Words a critique must reach on this module. 0 on a module whose
+        # deadline had already passed when the floors came in — it keeps the
+        # rules it was taught under.
+        minWords: { type: integer }
         rubric:
           type: array
           items:
@@ -3955,7 +3962,10 @@ components:
         scores:
           type: object
           additionalProperties: { type: integer }
-        comment: { type: string, minLength: 1, maxLength: 5000 }
+        # 5,000 characters was about 830 words, which a thorough critique can
+        # reach — a ceiling that cuts someone off mid-sentence for doing the
+        # thing we asked is worse than no ceiling.
+        comment: { type: string, minLength: 1, maxLength: 20000 }
     ReceivedReview:
       type: object
       required: [id, scores, comment, createdAt, scorePct]

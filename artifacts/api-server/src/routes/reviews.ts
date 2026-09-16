@@ -8,6 +8,7 @@ import { and, asc, eq, isNull, sql } from "drizzle-orm";
 import {
   pickReviewTargets,
   validateReview,
+  wordsRequired,
   reviewScorePct,
   DEFAULT_RUBRIC,
   type RubricCriterion,
@@ -66,6 +67,9 @@ async function loadModule(sessionId: number) {
       instructions: assignmentsTable.instructions,
       rubric: assignmentsTable.rubric,
       reviewsRequired: assignmentsTable.reviewsRequired,
+      // The written-task deadline, which is what decides whether this module
+      // predates the word floors.
+      dueAt: assignmentsTable.dueAt,
     })
     .from(sessionsTable)
     .leftJoin(assignmentsTable, eq(assignmentsTable.sessionId, sessionsTable.id))
@@ -131,7 +135,10 @@ router.get("/sessions/:id/reviews/queue", async (req, res) => {
   const reviewsRequired = await effectiveReviewsRequired(mod.reviewsRequired ?? 0, sessionId, user.id);
   const reviewsGiven = await countReviewsGiven(user.id, sessionId);
 
-  const base = { sessionId, rubric, reviewsRequired, reviewsGiven };
+  // The floor for a critique on this module, sent so the box can count up to it
+  // from the first keystroke rather than springing it on Submit.
+  const minWords = wordsRequired("critique", mod.dueAt?.toISOString() ?? null);
+  const base = { sessionId, rubric, reviewsRequired, reviewsGiven, minWords };
 
   if (reviewsRequired === 0) {
     res.json({ ...base, canReview: false, reason: "done", targets: [] });
@@ -255,7 +262,11 @@ router.post("/submissions/:submissionId/reviews", async (req, res) => {
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
   const rubric = effectiveRubric(mod.rubric);
-  const problem = validateReview(rubric, parsed.data.scores, parsed.data.comment);
+  // The floor this module was set under. A module whose deadline had already
+  // passed when the floors came in keeps the rules it was taught under, which
+  // is what stops this landing on critiques already half-written.
+  const required = wordsRequired("critique", mod.dueAt?.toISOString() ?? null);
+  const problem = validateReview(rubric, parsed.data.scores, parsed.data.comment, required);
   if (problem) { res.status(400).json({ error: problem }); return; }
 
   const inserted = await db

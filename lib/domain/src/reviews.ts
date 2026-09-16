@@ -14,6 +14,8 @@
  * still ends up with even coverage.
  */
 
+import { wordCountProblem } from "./wordMinimums";
+
 export const DEFAULT_REVIEWS_REQUIRED = 2;
 
 export type ReviewCandidate = {
@@ -130,6 +132,12 @@ export function validateReview(
   rubric: RubricCriterion[],
   scores: ReviewScores,
   comment: string,
+  /**
+   * The word floor in force on this module, from `wordsRequired`. Zero on a
+   * module set before the floors came in, which then keeps the old character
+   * minimum and nothing more.
+   */
+  requiredWords = 0,
 ): string | null {
   for (const criterion of rubric) {
     const score = scores[criterion.id];
@@ -140,6 +148,11 @@ export function validateReview(
       return `Score for "${criterion.label}" must be between 1 and ${criterion.maxScore}`;
     }
   }
+  // The word floor, where there is one, is the stricter of the two and says
+  // more useful things, so it is asked first.
+  const tooShort = wordCountProblem(comment, requiredWords, "critique");
+  if (tooShort) return `${tooShort} Say what you would change and why.`;
+
   if (comment.trim().length < MIN_REVIEW_COMMENT_LENGTH) {
     return `Write at least ${MIN_REVIEW_COMMENT_LENGTH} characters of feedback — say what you would change and why`;
   }

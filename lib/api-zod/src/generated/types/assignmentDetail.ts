@@ -26,5 +26,6 @@ export interface AssignmentDetail {
   /** @nullable */
   suggestedDueAt?: string | null;
   latePass?: LatePassStatus;
+  minWords?: number;
   mySubmission?: AssignmentSubmission | null;
 }

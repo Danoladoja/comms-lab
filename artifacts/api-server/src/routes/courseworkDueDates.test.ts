@@ -94,12 +94,18 @@ const answerQuiz = () =>
     body: JSON.stringify({ answers: [{ questionId: 1, answerIndex: 0 }] }),
   });
 
+// Long enough to clear the 500-word floor. These tests are about the door, not
+// about length, so the piece has to be one the door is the only thing refusing.
+const PIECE = `My piece, written on the night of the deadline. ${
+  Array.from({ length: 520 }, (_, i) => `word${i}`).join(" ")
+}`;
+
 const handIn = () =>
   fetch(`${baseUrl}/api/sessions/10/assignment/submission`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({
-      body: "My piece, written on the night of the deadline.",
+      body: PIECE,
       // Required on every submission now; the deadline is what these tests are about.
       aiUse: "none",
     }),
@@ -189,7 +195,7 @@ describe("the assignment deadline", () => {
   it("takes a submission before the date", async () => {
     mocks.setSelects([
       [MODULE], ENROLLED, [{ id: 4, dueAt: nextWeek() }], [],
-      [{ body: "My piece, written on the night of the deadline.", submittedAt: new Date() }],
+      [{ body: PIECE, submittedAt: new Date() }],
     ]);
 
     expect((await handIn()).status).toBe(200);
@@ -201,7 +207,7 @@ describe("the assignment deadline", () => {
     // date would end somebody's programme.
     mocks.setSelects([
       [MODULE], ENROLLED, [{ id: 4, dueAt: null }], [],
-      [{ body: "My piece, written on the night of the deadline.", submittedAt: new Date() }],
+      [{ body: PIECE, submittedAt: new Date() }],
     ]);
 
     expect((await handIn()).status).toBe(200);

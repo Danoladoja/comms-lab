@@ -437,6 +437,7 @@ export const GetSessionAssignmentResponse = zod.object({
   "windowEnd": zod.string().nullable(),
   "opens": zod.enum(['quiz', 'assignment', 'both']).optional()
 }).optional(),
+  "minWords": zod.int().optional(),
   "mySubmission": zod.union([zod.object({
   "sessionId": zod.int(),
   "body": zod.string(),
@@ -509,6 +510,7 @@ export const UpsertSessionAssignmentResponse = zod.object({
   "windowEnd": zod.string().nullable(),
   "opens": zod.enum(['quiz', 'assignment', 'both']).optional()
 }).optional(),
+  "minWords": zod.int().optional(),
   "mySubmission": zod.union([zod.object({
   "sessionId": zod.int(),
   "body": zod.string(),
@@ -1052,6 +1054,7 @@ export const getReviewQueueResponseRubricItemMaxScoreMax = 10;
 
 export const GetReviewQueueResponse = zod.object({
   "sessionId": zod.int(),
+  "minWords": zod.int().optional(),
   "rubric": zod.array(zod.object({
   "id": zod.string().min(1),
   "label": zod.string().min(1),
@@ -1077,7 +1080,7 @@ export const SubmitReviewParams = zod.object({
   "submissionId": zod.coerce.number().int()
 })
 
-export const submitReviewBodyCommentMax = 5000;
+export const submitReviewBodyCommentMax = 20000;
 
 
 

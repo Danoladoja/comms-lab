@@ -11,7 +11,7 @@ export interface ReviewInput {
   scores: ReviewInputScores;
   /**
      * @minLength 1
-     * @maxLength 5000
+     * @maxLength 20000
      */
   comment: string;
 }

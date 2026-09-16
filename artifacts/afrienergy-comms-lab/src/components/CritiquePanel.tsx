@@ -12,11 +12,17 @@ import { useToast } from '@/hooks/use-toast';
 import {
   CheckCircle2, Lock, MessagesSquare, PenLine, Quote, Users,
 } from 'lucide-react';
-import { apiReason } from '@workspace/domain';
+import {
+  apiReason, countWords, meetsWordMinimum, wordCountNotice,
+  MIN_REVIEW_COMMENT_LENGTH,
+} from '@workspace/domain';
 import { CouldNotLoad } from '@/components/CouldNotLoad';
 
-/** Mirrors MIN_REVIEW_COMMENT_LENGTH on the server — the counter must agree with the validator. */
-const MIN_COMMENT = 120;
+/**
+ * The counter has to agree with the validator, so it is the validator's own
+ * number rather than a copy of it typed here.
+ */
+const MIN_COMMENT = MIN_REVIEW_COMMENT_LENGTH;
 
 /* ---------- Scoring one criterion ---------- */
 
@@ -65,11 +71,16 @@ function CriterionScorer({
 /* ---------- Writing one critique ---------- */
 
 function CritiqueForm({
-  sessionId, target, rubric, onDone, draft, onDraft,
+  sessionId, target, rubric, minWords = 0, onDone, draft, onDraft,
 }: {
   sessionId: number;
   target: ReviewTarget;
   rubric: RubricCriterion[];
+  /**
+   * Words this critique must reach, from the server. Zero on a module set
+   * before the floors came in, which keeps the old character minimum.
+   */
+  minWords?: number;
   onDone: () => void;
   /** Held above this component, so switching submissions cannot destroy it. */
   draft: { scores: Record<string, number>; comment: string };
@@ -101,8 +112,14 @@ function CritiqueForm({
   });
 
   const allScored = rubric.every((c) => typeof scores[c.id] === 'number');
-  const remaining = Math.max(0, MIN_COMMENT - comment.trim().length);
-  const ready = allScored && remaining === 0;
+  // Where there is a word floor it is the rule; the old character minimum
+  // stays in force on the modules that predate it.
+  const words = countWords(comment);
+  const shortOfChars = Math.max(0, MIN_COMMENT - comment.trim().length);
+  const longEnough = minWords > 0
+    ? meetsWordMinimum(words, minWords)
+    : shortOfChars === 0;
+  const ready = allScored && longEnough;
 
   return (
     <div className="space-y-6">
@@ -142,11 +159,16 @@ function CritiqueForm({
         />
         <p
           id={`critique-count-${target.submissionId}`}
-          className={`text-xs mt-1.5 ${remaining > 0 ? 'text-muted-foreground' : 'text-emerald-700'}`}
+          className={`text-xs mt-1.5 ${longEnough ? 'text-emerald-700' : 'text-muted-foreground'}`}
         >
-          {remaining > 0
-            ? `${remaining} more character${remaining === 1 ? '' : 's'} — scores without reasons do not help anyone`
-            : 'Long enough to be useful'}
+          {minWords > 0
+            ? <>
+              {wordCountNotice(words, minWords)}
+              {!longEnough && ' Scores without reasons do not help anyone.'}
+            </>
+            : shortOfChars > 0
+              ? `${shortOfChars} more character${shortOfChars === 1 ? '' : 's'} — scores without reasons do not help anyone`
+              : 'Long enough to be useful'}
         </p>
       </div>
 
@@ -245,6 +267,7 @@ export function CritiqueQueue({ sessionId }: { sessionId: number }) {
             sessionId={sessionId}
             target={target}
             rubric={queue.rubric}
+            minWords={queue?.minWords ?? 0}
             draft={drafts[target.submissionId] ?? { scores: {}, comment: '' }}
             onDraft={(next) => setDrafts((d) => ({ ...d, [target.submissionId]: next }))}
             onDone={() => {

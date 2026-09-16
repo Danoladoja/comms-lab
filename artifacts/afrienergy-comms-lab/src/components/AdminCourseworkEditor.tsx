@@ -10,6 +10,7 @@ import {
 import {
   originFor, resolveOrigin, MAX_QUIZ_QUESTIONS, roomForMoreQuestions, type CourseworkOrigin,
   apiReason, dueDateFromInput, dueDateInputValue,
+  MIN_TASK_WORDS, MIN_CRITIQUE_WORDS,
 } from '@workspace/domain';
 import { deadlineSummary } from '@/lib/dueDateText';
 import { Button } from '@/components/ui/button';
@@ -619,6 +620,8 @@ export function AssignmentEditor({ sessionId, seed, seedVersion = 0, onSaved, on
       <div className="flex flex-wrap items-start justify-between gap-2">
         <p className="text-xs text-muted-foreground">
           One written assignment per module. Submitting it counts toward module completion.
+          {' '}Learners must write at least {MIN_TASK_WORDS} words, and {MIN_CRITIQUE_WORDS} on each
+          critique — so do not set a brief asking for less than {MIN_TASK_WORDS}.
         </p>
         <Button
           size="sm"

@@ -745,6 +745,7 @@ export interface AssignmentDetail {
   /** @nullable */
   suggestedDueAt?: string | null;
   latePass?: LatePassStatus;
+  minWords?: number;
   mySubmission?: AssignmentSubmission | null;
 }
 
@@ -828,6 +829,7 @@ export interface ReviewTarget {
 
 export interface ReviewQueue {
   sessionId: number;
+  minWords?: number;
   rubric: RubricCriterion[];
   reviewsRequired: number;
   reviewsGiven: number;
@@ -842,7 +844,7 @@ export interface ReviewInput {
   scores: ReviewInputScores;
   /**
      * @minLength 1
-     * @maxLength 5000
+     * @maxLength 20000
      */
   comment: string;
 }

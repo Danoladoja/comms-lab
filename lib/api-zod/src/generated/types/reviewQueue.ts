@@ -10,6 +10,7 @@ import type { RubricCriterion } from './rubricCriterion';
 
 export interface ReviewQueue {
   sessionId: number;
+  minWords?: number;
   rubric: RubricCriterion[];
   reviewsRequired: number;
   reviewsGiven: number;

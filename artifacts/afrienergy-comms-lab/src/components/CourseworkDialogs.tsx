@@ -8,6 +8,7 @@ import {
 import {
   apiReason, AI_USE_CHOICES, MAX_AI_NOTE_CHARS, disclosureProblem, type AiUse,
   latePassOffer, latePassBalance, LATE_PASS_HOURS, isNotFound as isMissing,
+  countWords, meetsWordMinimum, wordCountNotice,
 } from '@workspace/domain';
 import { deadlineNotice } from '@/lib/dueDateText';
 import { useWritingProvenance } from '@/hooks/useWritingProvenance';
@@ -407,6 +408,11 @@ export function AssignmentPanel({ sessionId, enabled = true, onSubmitted }: {
   // The same check the server runs, so the button explains itself before the
   // learner presses it rather than after.
   const disclosureIssue = disclosureProblem(aiUse, aiNote);
+  // And the same for length. The count runs from the first keystroke: a floor
+  // discovered on pressing Submit reads as a punishment for having finished.
+  const minWords = assignment?.minWords ?? 0;
+  const words = countWords(text);
+  const longEnough = meetsWordMinimum(words, minWords);
 
   if (isLoading) return <div className="h-32 bg-muted/40 rounded-xl animate-pulse" />;
   if (error) {
@@ -458,7 +464,17 @@ export function AssignmentPanel({ sessionId, enabled = true, onSubmitted }: {
         placeholder={shut ? 'Submissions are closed for this assignment.' : 'Type your response here...'}
         rows={8}
         readOnly={shut}
+        aria-describedby={minWords > 0 ? `assignment-count-${sessionId}` : undefined}
       />
+
+      {minWords > 0 && !shut && (
+        <p
+          id={`assignment-count-${sessionId}`}
+          className={`text-xs ${longEnough ? 'text-emerald-700' : 'text-muted-foreground'}`}
+        >
+          {wordCountNotice(words, minWords)}
+        </p>
+      )}
 
       {!shut && (
         <AiDisclosure
@@ -472,7 +488,7 @@ export function AssignmentPanel({ sessionId, enabled = true, onSubmitted }: {
 
       <Button
         className="w-full font-bold"
-        disabled={shut || !text.trim() || !!disclosureIssue || submit.isPending}
+        disabled={shut || !text.trim() || !longEnough || !!disclosureIssue || submit.isPending}
         onClick={() => submit.mutate({
           id: sessionId,
           data: {
