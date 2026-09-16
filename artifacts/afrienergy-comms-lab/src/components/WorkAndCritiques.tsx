@@ -9,6 +9,7 @@ import { CommentComposer, StaffTag } from '@/components/CohortDiscussion';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { ChevronDown, Clock3, Eye, EyeOff, Flag, MessageCircle, PenLine, UserX } from 'lucide-react';
+import { CouldNotLoad } from '@/components/CouldNotLoad';
 
 /**
  * What the Lab's staff can see of a module's written work.
@@ -198,12 +199,13 @@ function PieceCard({ piece, sessionId }: { piece: StaffPiece; sessionId: number 
 }
 
 export default function WorkAndCritiques({ sessionId }: { sessionId: number }) {
-  const { data, isLoading, error } = useGetModuleWork(sessionId, {
+  const { data, isLoading, error, refetch } = useGetModuleWork(sessionId, {
     query: { queryKey: getGetModuleWorkQueryKey(sessionId), retry: false },
   });
 
   if (isLoading) return <div className="h-24 animate-pulse rounded-lg bg-muted/40" />;
-  if (error || !data) {
+  if (error) return <CouldNotLoad what="the cohort's work" onRetry={() => refetch()} compact />;
+  if (!data) {
     return <p className="text-xs text-muted-foreground">No task has been set for this module yet.</p>;
   }
 

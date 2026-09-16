@@ -10,6 +10,7 @@ import {
   QUIZ_PASS_MARK, DEFAULT_RUBRIC, DEFAULT_REVIEWS_REQUIRED, isModuleStaff, isValidRubric,
   isPastDue, pastDueMessage, readyToPost, describePost, postAnnouncement, labLetter, weekDeadline,
   disclosureProblem,
+  sameQuiz,
   latePassState, canClaimLatePass, lateSubmissionProblem, latePassWindowEnd, passesLeft,
   type CourseworkPiece, type SendOutcome,
 } from "@workspace/domain";
@@ -218,10 +219,28 @@ router.put("/sessions/:id/quiz", async (req, res) => {
     .set({ quizDueAt, quizDraft })
     .where(eq(sessionsTable.id, sessionId));
 
+  // Whether this save actually changes what a learner has to answer.
+  //
+  // Replacing the questions invalidates previous attempts — a pass on the old
+  // ones must not count against the new. But this ran on *every* save, so a
+  // facilitator opening the editor to set a due date erased the whole cohort's
+  // passes, un-completed their modules, re-locked the following week and broke
+  // certificates that had already been issued.
+  const existingQuestions = await db
+    .select({
+      prompt: quizQuestionsTable.prompt,
+      options: quizQuestionsTable.options,
+      correctIndex: quizQuestionsTable.correctIndex,
+    })
+    .from(quizQuestionsTable)
+    .where(eq(quizQuestionsTable.sessionId, sessionId))
+    .orderBy(asc(quizQuestionsTable.sortOrder), asc(quizQuestionsTable.id));
+  const questionsUnchanged = sameQuiz(existingQuestions, parsed.data.questions);
+
   const saved = await db.transaction(async (tx) => {
-    // Replacing the quiz invalidates all previous attempts: a pass on the old
-    // questions must not count against the new ones.
-    await tx.delete(quizAttemptsTable).where(eq(quizAttemptsTable.sessionId, sessionId));
+    if (!questionsUnchanged) {
+      await tx.delete(quizAttemptsTable).where(eq(quizAttemptsTable.sessionId, sessionId));
+    }
     await tx.delete(quizQuestionsTable).where(eq(quizQuestionsTable.sessionId, sessionId));
     if (parsed.data.questions.length === 0) return [];
     return tx

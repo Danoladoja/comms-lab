@@ -55,7 +55,7 @@ export async function progressForUser(userId: number, programIds: number[]): Pro
   // `.concat(-1)` keeps the IN clause non-empty for programs with no sessions.
   const sessionIds = sessions.map((s) => s.id).concat(-1);
 
-  const [att, replay, enrollRows, quizSessions, bestAttempts, assignments, submissions, reviewsGiven, reviewsReceived] =
+  const [att, replay, enrollRows, quizSessions, bestAttempts, assignments, submissions, reviewsGiven, reviewsReceived, peers] =
     await Promise.all([
       db
         .select()
@@ -125,6 +125,17 @@ export async function progressForUser(userId: number, programIds: number[]): Pro
           inArray(assignmentSubmissionsTable.sessionId, sessionIds),
         ))
         .groupBy(assignmentSubmissionsTable.sessionId),
+      // How many *other* people filed work on each module. This is the ceiling
+      // on how many critiques anybody can possibly write, and without it a
+      // cohort too small to supply reviewers strands everyone in it for good.
+      db
+        .select({
+          sessionId: assignmentSubmissionsTable.sessionId,
+          count: sql<number>`count(*) filter (where ${assignmentSubmissionsTable.userId} <> ${userId})::int`,
+        })
+        .from(assignmentSubmissionsTable)
+        .where(inArray(assignmentSubmissionsTable.sessionId, sessionIds))
+        .groupBy(assignmentSubmissionsTable.sessionId),
     ]);
 
   const attendance = new Map(att.map((a) => [a.sessionId, a.joinedAt]));
@@ -161,6 +172,7 @@ export async function progressForUser(userId: number, programIds: number[]): Pro
   const submittedSet = new Set(submissions.map((s) => s.sessionId));
   const givenBySession = new Map(reviewsGiven.map((r) => [r.sessionId, r.count]));
   const receivedBySession = new Map(reviewsReceived.map((r) => [r.sessionId, r.count]));
+  const peersBySession = new Map(peers.map((r) => [r.sessionId, r.count]));
 
   const coursework = new Map<number, CourseworkStatus>(
     sessions.map((s) => [
@@ -174,6 +186,7 @@ export async function progressForUser(userId: number, programIds: number[]): Pro
         reviewsRequired: reviewsRequiredBySession.get(s.id) ?? 0,
         reviewsGiven: givenBySession.get(s.id) ?? 0,
         reviewsReceived: receivedBySession.get(s.id) ?? 0,
+        peersToReview: peersBySession.get(s.id) ?? 0,
         // Deadlines ride along so the dashboard can show what is due without
         // opening every quiz and task in turn. They change no rule below.
         quizDueAt: quizDueBySession.get(s.id)?.toISOString() ?? null,

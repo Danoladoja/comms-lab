@@ -86,6 +86,34 @@ async function countReviewsGiven(userId: number, sessionId: number): Promise<num
   return row?.count ?? 0;
 }
 
+/**
+ * How many critiques this learner can actually be asked for.
+ *
+ * Never more than the number of other people who filed work. Asking for two
+ * when one other person has filed is asking for something nobody can do, and
+ * the consequences compound quietly: the module never completes, the next week
+ * never opens, their own feedback never unseals and no certificate is ever
+ * issued. Once the deadline closes the pool, that is permanent.
+ *
+ * The requirement is a teaching floor, not an arithmetic trap, so it bends to
+ * the size of the room.
+ */
+async function effectiveReviewsRequired(
+  asked: number,
+  sessionId: number,
+  userId: number,
+): Promise<number> {
+  if (asked <= 0) return 0;
+  const [row] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(assignmentSubmissionsTable)
+    .where(and(
+      eq(assignmentSubmissionsTable.sessionId, sessionId),
+      sql`${assignmentSubmissionsTable.userId} <> ${userId}`,
+    ));
+  return Math.min(asked, Math.max(0, row?.count ?? 0));
+}
+
 /* ---------- The review queue ---------- */
 
 router.get("/sessions/:id/reviews/queue", async (req, res) => {
@@ -100,7 +128,7 @@ router.get("/sessions/:id/reviews/queue", async (req, res) => {
   if (err) { res.status(403).json({ error: err }); return; }
 
   const rubric = effectiveRubric(mod.rubric);
-  const reviewsRequired = mod.reviewsRequired ?? 0;
+  const reviewsRequired = await effectiveReviewsRequired(mod.reviewsRequired ?? 0, sessionId, user.id);
   const reviewsGiven = await countReviewsGiven(user.id, sessionId);
 
   const base = { sessionId, rubric, reviewsRequired, reviewsGiven };
@@ -270,7 +298,7 @@ router.get("/sessions/:id/feedback", async (req, res) => {
   if (err) { res.status(403).json({ error: err }); return; }
 
   const rubric = effectiveRubric(mod.rubric);
-  const reviewsRequired = mod.reviewsRequired ?? 0;
+  const reviewsRequired = await effectiveReviewsRequired(mod.reviewsRequired ?? 0, sessionId, user.id);
   const reviewsGiven = await countReviewsGiven(user.id, sessionId);
   // Give to receive. This is what stops the critique loop from starving.
   const unlocked = reviewsRequired === 0 || reviewsGiven >= reviewsRequired;
@@ -544,7 +572,7 @@ router.get("/sessions/:id/discussion", async (req, res) => {
   if (err) { res.status(403).json({ error: err }); return; }
 
   const staff = isStaffFor(user, mod);
-  const reviewsRequired = mod.reviewsRequired ?? 0;
+  const reviewsRequired = await effectiveReviewsRequired(mod.reviewsRequired ?? 0, sessionId, user.id);
   const [reviewsGiven, mineRows] = await Promise.all([
     countReviewsGiven(user.id, sessionId),
     db
@@ -675,7 +703,9 @@ router.post("/submissions/:id/comments", async (req, res) => {
   if (err) { res.status(403).json({ error: err }); return; }
 
   const staff = isStaffFor(user, mod);
-  const reviewsRequired = mod.reviewsRequired ?? 0;
+  const reviewsRequired = await effectiveReviewsRequired(
+    mod.reviewsRequired ?? 0, submission.sessionId, user.id,
+  );
   const [reviewsGiven, mineRows] = await Promise.all([
     countReviewsGiven(user.id, submission.sessionId),
     db

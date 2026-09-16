@@ -11,7 +11,10 @@ export function useCurrentUser() {
     query: {
       queryKey: getGetMeQueryKey(),
       enabled: isLoaded && !!isSignedIn,
-      retry: false,
+      // Two retries, because one dropped packet used to cost a facilitator
+      // their console: with no role the app concluded they had never been given
+      // access and told them so, minutes before a class.
+      retry: 2,
       staleTime: 60_000,
     },
   });
@@ -21,5 +24,11 @@ export function useCurrentUser() {
     user: query.data ?? null,
     role: query.data?.role ?? null,
     isLoading: (isSignedIn && query.isLoading) || !isLoaded,
+    /**
+     * We asked and could not get an answer — which is a different thing from
+     * being told no, and must not be shown as "you do not have access".
+     */
+    unreachable: !!query.isError,
+    retry: () => { void query.refetch(); },
   };
 }

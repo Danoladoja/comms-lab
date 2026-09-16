@@ -148,6 +148,9 @@ async function syncOne(accessToken: string, row: SessionRow): Promise<boolean> {
       .update(sessionsTable)
       .set({
         recordingUrl: youtubeUrlFor(videoId),
+        // A new video has its own length; the figure the cohort's replay
+        // coverage is measured against must not carry over from the old one.
+        recordingDurationSeconds: null,
         recordingStatus: "ready",
         recordingError: null,
         recordingCheckedAt: new Date(),

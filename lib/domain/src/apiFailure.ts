@@ -112,3 +112,18 @@ export function apiReason(error: unknown, fallback: string): string {
 
   return fallback;
 }
+
+/**
+ * Did the Lab answer "there is no such thing", or did we never reach it?
+ *
+ * The difference matters more than it sounds. Screens used to treat any failure
+ * as an empty answer and say so confidently — "Peer critique is not set up for
+ * this module", "No certificates yet" — so a learner on a dropped line was told
+ * their work did not exist. Only a 404 actually means absent; everything else
+ * means we could not ask.
+ */
+export function isNotFound(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const status = (error as { status?: unknown }).status;
+  return status === 404;
+}

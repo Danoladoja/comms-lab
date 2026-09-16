@@ -39,6 +39,7 @@ const statusClass: Record<string, string> = {
 import type { SessionDetail } from '@workspace/api-client-react';
 import { ProgramForum } from '@/components/CohortForum';
 import { openJoinLink } from '@/lib/openJoinLink';
+import { CouldNotLoad } from '@/components/CouldNotLoad';
 type SessionRow = SessionDetail;
 
 /**
@@ -58,7 +59,8 @@ export default function LearnerDashboard() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const qc = useQueryClient();
-  const { data: enrollments = [], isLoading: loadingEnrollments } = useListMyEnrollments();
+  const { data: enrollments = [], isLoading: loadingEnrollments, isError: enrollmentsFailed, refetch: retryEnrollments } =
+    useListMyEnrollments();
   const { data: sessions = [] } = useListMySessions();
   const { data: progress = [] } = useListMyProgress();
   const progressBySession = new Map(progress.map(p => [p.sessionId, p]));
@@ -137,6 +139,9 @@ export default function LearnerDashboard() {
         <div className="lg:col-span-2">
           {loadingEnrollments ? (
             <div className="h-40 bg-card border border-border rounded-2xl animate-pulse" />
+          ) : enrollmentsFailed ? (
+            // A dropped request must never read as "you are enrolled in nothing".
+            <CouldNotLoad what="your programmes" onRetry={() => void retryEnrollments()} />
           ) : active.length === 0 ? (
             <div className="bg-card border border-border rounded-2xl p-10 text-center">
               <GraduationCap className="w-10 h-10 text-muted-foreground mx-auto mb-3" />

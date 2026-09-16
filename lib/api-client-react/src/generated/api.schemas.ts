@@ -383,6 +383,7 @@ export type PresenceVia = typeof PresenceVia[keyof typeof PresenceVia];
 export const PresenceVia = {
   live: 'live',
   replay: 'replay',
+  waived: 'waived',
   none: 'none',
 } as const;
 
@@ -392,7 +393,10 @@ export interface Presence {
   bestPct: number;
   met: boolean;
   via: PresenceVia;
+  share: number;
   thresholdPct: number;
+  liveThresholdPct: number;
+  replayThresholdPct: number;
 }
 
 export interface SessionProgress {

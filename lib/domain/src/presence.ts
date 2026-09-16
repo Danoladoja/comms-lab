@@ -115,6 +115,16 @@ export type PresenceStatus = {
   via: "live" | "replay" | "waived" | "none";
   /** The bar the learner is closest to clearing, so the UI can name a number. */
   thresholdPct: number;
+  /**
+   * How far along they are as a fraction of that bar, 0 to 1.
+   *
+   * Computed here rather than left to callers to divide `bestPct` by
+   * `thresholdPct`, because those two can describe different routes — the raw
+   * higher percentage and the nearer bar — and dividing one by the other told
+   * a learner who attended half the class and watched most of the recording
+   * that they were at 100% of a module that would not complete.
+   */
+  share: number;
   liveThresholdPct: number;
   replayThresholdPct: number;
 };
@@ -139,6 +149,7 @@ export function presenceStatus(input: PresenceInput): PresenceStatus {
   const liveShare = livePct / PRESENCE_LIVE_THRESHOLD_PCT;
   const replayShare = replayPct / PRESENCE_REPLAY_THRESHOLD_PCT;
   const onLive = liveShare >= replayShare;
+  const share = waived ? 1 : Math.min(1, Math.max(liveShare, replayShare));
 
   const via: PresenceStatus["via"] = waived
     ? "waived"
@@ -152,6 +163,7 @@ export function presenceStatus(input: PresenceInput): PresenceStatus {
     bestPct: waived ? 100 : Math.max(livePct, replayPct),
     met: waived || liveMet || replayMet,
     via,
+    share,
     thresholdPct: onLive ? PRESENCE_LIVE_THRESHOLD_PCT : PRESENCE_REPLAY_THRESHOLD_PCT,
     liveThresholdPct: PRESENCE_LIVE_THRESHOLD_PCT,
     replayThresholdPct: PRESENCE_REPLAY_THRESHOLD_PCT,

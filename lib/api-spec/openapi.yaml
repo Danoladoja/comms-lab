@@ -3650,7 +3650,7 @@ components:
         summary: { type: string }
     Presence:
       type: object
-      required: [livePct, replayPct, bestPct, met, via, thresholdPct]
+      required: [livePct, replayPct, bestPct, met, via, share, thresholdPct, liveThresholdPct, replayThresholdPct]
       properties:
         livePct: { type: integer }
         replayPct: { type: integer }
@@ -3658,8 +3658,15 @@ components:
         # cover the same material.
         bestPct: { type: integer }
         met: { type: boolean }
-        via: { type: string, enum: [live, replay, none] }
+        # "waived" is attendance credited without being measured.
+        via: { type: string, enum: [live, replay, waived, none] }
+        # How far along, as a fraction of the bar for the route the learner is
+        # actually on. Divide bestPct by thresholdPct and you mix the routes,
+        # which showed a full bar over a module that would not complete.
+        share: { type: number }
         thresholdPct: { type: integer }
+        liveThresholdPct: { type: integer }
+        replayThresholdPct: { type: integer }
     HeartbeatResult:
       type: object
       required: [sessionId, liveSeconds, presence]

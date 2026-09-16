@@ -7,15 +7,17 @@ import {
 } from '@workspace/api-client-react';
 import {
   apiReason, AI_USE_CHOICES, MAX_AI_NOTE_CHARS, disclosureProblem, type AiUse,
-  latePassOffer, latePassBalance, LATE_PASS_HOURS,
+  latePassOffer, latePassBalance, LATE_PASS_HOURS, isNotFound as isMissing,
 } from '@workspace/domain';
 import { deadlineNotice } from '@/lib/dueDateText';
 import { useWritingProvenance } from '@/hooks/useWritingProvenance';
+import { useDraft } from '@/hooks/useDraft';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { CheckCircle2, XCircle, RotateCcw, CalendarClock, LockKeyhole, LifeBuoy, Clock3 } from 'lucide-react';
+import { CouldNotLoad } from '@/components/CouldNotLoad';
 
 /**
  * The deadline, as a learner sees it.
@@ -44,7 +46,7 @@ function Deadline({ dueAt, closed }: { dueAt?: string | null; closed?: boolean }
 export function QuizPanel({ sessionId, enabled = true }: { sessionId: number; enabled?: boolean }) {
   const qc = useQueryClient();
   const { toast } = useToast();
-  const { data: quiz, isLoading, error } = useGetSessionQuiz(sessionId, {
+  const { data: quiz, isLoading, error, refetch } = useGetSessionQuiz(sessionId, {
     query: { queryKey: getGetSessionQuizQueryKey(sessionId), enabled },
   });
   const [answers, setAnswers] = useState<Record<number, number>>({});
@@ -73,7 +75,12 @@ export function QuizPanel({ sessionId, enabled = true }: { sessionId: number; en
   const reset = () => { setAnswers({}); setResult(null); };
 
   if (isLoading) return <div className="h-32 bg-muted/40 rounded-xl animate-pulse" />;
-  if (error) return <p className="text-sm text-muted-foreground py-4">This quiz is not available yet.</p>;
+  // A 404 genuinely means there is no quiz; anything else means we could not ask.
+  if (error) {
+    return isMissing(error)
+      ? <p className="text-sm text-muted-foreground py-4">This quiz is not available yet.</p>
+      : <CouldNotLoad what="this quiz" onRetry={() => refetch()} compact />;
+  }
 
   if (result) {
     return (
@@ -327,11 +334,13 @@ export function AssignmentPanel({ sessionId, enabled = true, onSubmitted }: {
 }) {
   const qc = useQueryClient();
   const { toast } = useToast();
-  const { data: assignment, isLoading, error } = useGetSessionAssignment(sessionId, {
+  const { data: assignment, isLoading, error, refetch } = useGetSessionAssignment(sessionId, {
     query: { queryKey: getGetSessionAssignmentQueryKey(sessionId), enabled },
   });
-  const [body, setBody] = useState<string | null>(null);
-  const text = body ?? assignment?.mySubmission?.body ?? '';
+  // Saved as it is typed, so switching tabs or a phone reclaiming the tab
+  // cannot destroy an hour's writing.
+  const draft = useDraft(`assignment.${sessionId}`, assignment?.mySubmission?.body ?? '');
+  const text = draft.text;
   const [aiUse, setAiUse] = useState<AiUse | ''>('');
   const [aiNote, setAiNote] = useState('');
   const provenance = useWritingProvenance(sessionId);
@@ -340,6 +349,7 @@ export function AssignmentPanel({ sessionId, enabled = true, onSubmitted }: {
     mutation: {
       onSuccess: () => {
         toast({ title: 'Assignment submitted', description: 'Your response has been saved.' });
+        draft.clear();
         provenance.clear();
         qc.invalidateQueries({ queryKey: getListMyProgressQueryKey() });
         qc.invalidateQueries({ queryKey: getGetSessionAssignmentQueryKey(sessionId) });
@@ -364,7 +374,11 @@ export function AssignmentPanel({ sessionId, enabled = true, onSubmitted }: {
   const disclosureIssue = disclosureProblem(aiUse, aiNote);
 
   if (isLoading) return <div className="h-32 bg-muted/40 rounded-xl animate-pulse" />;
-  if (error) return <p className="text-sm text-muted-foreground py-4">This assignment is not available yet.</p>;
+  if (error) {
+    return isMissing(error)
+      ? <p className="text-sm text-muted-foreground py-4">This assignment is not available yet.</p>
+      : <CouldNotLoad what="this assignment" onRetry={() => refetch()} compact />;
+  }
 
   return (
     <div className="space-y-4">
@@ -385,6 +399,13 @@ export function AssignmentPanel({ sessionId, enabled = true, onSubmitted }: {
         />
       )}
 
+      {draft.restored && !shut && (
+        <p className="flex items-start gap-1.5 text-xs font-medium text-muted-foreground">
+          <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+          <span>We kept what you had written. Nothing is filed until you press Submit.</span>
+        </p>
+      )}
+
       {assignment?.mySubmission && (
         <p className="text-xs font-semibold text-emerald-700 flex items-center gap-1.5">
           <CheckCircle2 className="w-3.5 h-3.5" />
@@ -395,7 +416,7 @@ export function AssignmentPanel({ sessionId, enabled = true, onSubmitted }: {
       )}
       <Textarea
         value={text}
-        onChange={e => { setBody(e.target.value); provenance.onType(); }}
+        onChange={e => { draft.setText(e.target.value); provenance.onType(); }}
         onPaste={e => provenance.onPaste(e.clipboardData.getData('text'))}
         placeholder={shut ? 'Submissions are closed for this assignment.' : 'Type your response here...'}
         rows={8}

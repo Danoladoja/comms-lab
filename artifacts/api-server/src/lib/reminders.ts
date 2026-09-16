@@ -1,6 +1,6 @@
 import { db, enrollmentsTable, programsTable, sessionsTable, usersTable, sessionRemindersTable } from "@workspace/db";
 import { and, eq, gt, inArray, lte, sql } from "drizzle-orm";
-import { labLetter } from "@workspace/domain";
+import { labLetter, formatDeadlineInZone } from "@workspace/domain";
 import { sendEmail, EmailRejectedError } from "./email";
 import { labLogoUrl } from "./enrollmentEmails";
 import { logger } from "./logger";
@@ -31,10 +31,19 @@ function appUrl(path: string): string {
   return domain ? `https://${domain}${APP_BASE_PATH}${path}` : `${APP_BASE_PATH}${path}`;
 }
 
+/**
+ * When the class is, in the Lab's own clock.
+ *
+ * This used to call `toLocaleString` with no zone at all, so it printed the
+ * *server's* time — UTC on Railway — and labelled it "GMT". Lagos is an hour
+ * ahead, so every reminder the Lab has ever sent was an hour out, and learners
+ * either turned up late or believed they had missed it.
+ *
+ * The app already knew how to do this: coursework emails name WAT and there is
+ * a test holding them to it. This path simply never used it.
+ */
 function whenText(startsAt: Date, durationMins: number): string {
-  return `${startsAt.toLocaleString("en-GB", {
-    weekday: "long", day: "numeric", month: "long", hour: "numeric", minute: "2-digit", timeZoneName: "short",
-  })} (${durationMins} min)`;
+  return `${formatDeadlineInZone(startsAt.toISOString())} (${durationMins} min)`;
 }
 
 async function runOnce(): Promise<void> {

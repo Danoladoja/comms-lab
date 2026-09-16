@@ -17,6 +17,19 @@ export const sessionsTable = pgTable("sessions", {
   meetUrl: text("meet_url"),
   recordingUrl: text("recording_url"),
   /**
+   * How long the recording runs, settled once for the whole cohort.
+   *
+   * It used to arrive from each learner's own browser in the same request that
+   * reported what they had watched — so "this is one second long and I watched
+   * one second" was a completed module and a certificate. The length belongs to
+   * the recording, not to the person watching it, so it lives here: the first
+   * plausible report from any player sets it and every later one is ignored.
+   *
+   * Cleared whenever the recording is replaced, so a new video is measured
+   * against its own length rather than the old one's.
+   */
+  recordingDurationSeconds: integer("recording_duration_seconds"),
+  /**
    * Where the automatic Meet-to-YouTube copy has got to for this class:
    * pending | searching | uploading | ready | failed | manual.
    * "manual" means a human pasted a link and the pipeline must not touch it.

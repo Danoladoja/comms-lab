@@ -1,6 +1,7 @@
 import { Link } from 'wouter';
 import { useListMyCertificates } from '@workspace/api-client-react';
 import { Award, ArrowRight } from 'lucide-react';
+import { CouldNotLoad } from '@/components/CouldNotLoad';
 
 function formatDate(iso: string | null) {
   if (!iso) return 'Date to be confirmed';
@@ -9,7 +10,17 @@ function formatDate(iso: string | null) {
 
 /** Lists every certificate the learner has earned, one per fully completed program. */
 export default function Certificates() {
-  const { data: certificates = [], isLoading } = useListMyCertificates();
+  const { data: certificates = [], isLoading, isError, refetch } = useListMyCertificates();
+
+  // Telling somebody who finished a programme that they have no certificate is
+  // the worst version of this bug, so it is the first thing checked.
+  if (isError) {
+    return (
+      <div className="container mx-auto max-w-lg px-4 py-16">
+        <CouldNotLoad what="your certificates" onRetry={() => void refetch()} />
+      </div>
+    );
+  }
 
   return (
     <div className="container mx-auto px-4 md:px-6 py-10">

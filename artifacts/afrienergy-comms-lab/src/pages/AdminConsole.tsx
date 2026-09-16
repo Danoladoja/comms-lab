@@ -74,6 +74,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { SaveAndClose } from '@/components/EditorSection';
 import { ChevronDown, ChevronUp, Plus, Trash2, CircleAlert, Pencil, Clock, Send, X, Mail } from 'lucide-react';
+import { CouldNotLoad } from '@/components/CouldNotLoad';
 
 const TABS = ['Programmes', 'Live Sessions', 'Enrolments', 'People', 'Recordings'] as const;
 type Tab = (typeof TABS)[number];
@@ -1596,7 +1597,7 @@ function PeopleTab({ selfId, everybody }: {
 /* ---------- Console ---------- */
 
 export default function AdminConsole() {
-  const { role, user, isLoading } = useCurrentUser();
+  const { role, user, isLoading, unreachable, retry } = useCurrentUser();
   const [tab, setTab] = useState<Tab>('Programmes');
   /**
    * The programme an admin pressed "Write to the cohort" on.
@@ -1610,6 +1611,15 @@ export default function AdminConsole() {
   const isStaffAdmin = satisfiesRole(role, ['admin']);
   const { data: users = [] } = useListUsers({ query: { queryKey: getListUsersQueryKey(), enabled: isStaffAdmin } });
   const instructors = users.filter(u => isStaffRole(u.role));
+
+  // As in Teach: a failed check must not read as a refused one.
+  if (unreachable) {
+    return (
+      <div className="container mx-auto max-w-lg px-4 py-24">
+        <CouldNotLoad what="your admin access" onRetry={retry} />
+      </div>
+    );
+  }
 
   if (!isLoading && !isStaffAdmin) {
     return (

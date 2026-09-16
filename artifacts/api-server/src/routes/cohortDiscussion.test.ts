@@ -190,9 +190,15 @@ afterEach(async () => {
   await new Promise((r) => server.close(r));
 });
 
-/** module · enrolment · critiques given · own submission · pieces · critiques · comments */
-const learnerReads = (given: number, mine: unknown[]) =>
-  mocks.setSelects([MODULE, ENROLLED, [{ count: given }], mine, PIECES, CRITIQUES, COMMENTS]);
+/**
+ * module · enrolment · peers who filed · critiques given · own submission ·
+ * pieces · critiques · comments
+ *
+ * The peer count is what caps the requirement, so that a cohort too small to
+ * supply reviewers is not asked for more critiques than it can provide.
+ */
+const learnerReads = (given: number, mine: unknown[], peers = 8) =>
+  mocks.setSelects([MODULE, ENROLLED, [{ count: peers }], [{ count: given }], mine, PIECES, CRITIQUES, COMMENTS]);
 
 describe("GET /sessions/:id/discussion", () => {
   it("stays shut until the learner has filed their own piece", async () => {
@@ -240,6 +246,16 @@ describe("GET /sessions/:id/discussion", () => {
     // teacher's view for a peer's.
     expect(amina.comments[1].authorName).toBe("Dan");
     expect(amina.comments[1].staff).toBe(true);
+  });
+
+  it("opens for a cohort too small to supply two reviewers", async () => {
+    // One other person filed, so one critique is all anybody can write. Asking
+    // for two left everyone stuck behind a door that could never open.
+    learnerReads(1, [{ id: 21 }], 1);
+    const { body } = await discussion();
+
+    expect(body.open).toBe(true);
+    expect(body.lockedReason).toBe("");
   });
 
   it("never sends a score of any kind, only what people wrote", async () => {

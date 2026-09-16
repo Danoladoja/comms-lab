@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { ChevronDown, GraduationCap, Lock, MessageCircle, Sparkles, Users } from 'lucide-react';
+import { CouldNotLoad } from '@/components/CouldNotLoad';
 
 /**
  * The cohort reading each other, once the blind work is done.
@@ -187,12 +188,13 @@ function Piece({ piece, sessionId }: { piece: DiscussionPiece; sessionId: number
 }
 
 export function CohortDiscussion({ sessionId }: { sessionId: number }) {
-  const { data, isLoading, error } = useGetCohortDiscussion(sessionId, {
+  const { data, isLoading, error, refetch } = useGetCohortDiscussion(sessionId, {
     query: { queryKey: getGetCohortDiscussionQueryKey(sessionId), retry: false },
   });
 
   if (isLoading) return <div className="h-40 animate-pulse rounded-xl bg-muted/40" />;
-  if (error || !data) {
+  if (error) return <CouldNotLoad what="the cohort room" onRetry={() => refetch()} compact />;
+  if (!data) {
     return <p className="py-4 text-sm text-muted-foreground">There is no cohort discussion for this module.</p>;
   }
 

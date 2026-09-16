@@ -398,3 +398,64 @@ describe("whyModuleLocked", () => {
     }
   });
 });
+
+describe("edges that stranded real learners", () => {
+  it("completes a module with no date and nothing to do", () => {
+    // This branch read `hasEnded`, which needs a start time — the one thing
+    // this case does not have — so it was always false. A single "date to be
+    // confirmed" placeholder could never complete, and because a certificate
+    // needs every module complete, one placeholder silently denied
+    // certificates to an entire programme. It locked nothing, so there was no
+    // symptom to follow.
+    const [entry] = computeProgress(
+      [{ ...session(1), startsAt: null }], new Map(), enrolledLongAgo, new Map(), new Map(), NOW,
+    );
+    expect(entry.completed).toBe(true);
+    expect(entry.progressPct).toBe(100);
+  });
+
+  it("never asks for more critiques than there are people to critique", () => {
+    // A cohort of two: each can write exactly one. Asking for two meant neither
+    // ever finished the module, the next week never opened, their own feedback
+    // never unsealed and no certificate was ever issued — permanently, once the
+    // deadline closed the pool.
+    const tiny = new Map([[1, {
+      ...EMPTY_COURSEWORK, hasAssignment: true, assignmentSubmitted: true,
+      reviewsRequired: 2, reviewsGiven: 1, reviewsReceived: 1, peersToReview: 1,
+    }]]);
+    const present = new Map([[1, { ...EMPTY_PRESENCE, liveSeconds: 60 * 60, sessionSeconds: 60 * 60 }]]);
+    const [entry] = computeProgress([session(1)], new Map(), enrolledLongAgo, tiny, present, NOW);
+
+    expect(entry.reviewsRequired).toBe(1);
+    expect(entry.completed).toBe(true);
+    expect(entry.feedbackUnlocked).toBe(true);
+  });
+
+  it("still asks for the full number when the cohort can supply it", () => {
+    const full = new Map([[1, {
+      ...EMPTY_COURSEWORK, hasAssignment: true, assignmentSubmitted: true,
+      reviewsRequired: 2, reviewsGiven: 1, reviewsReceived: 1, peersToReview: 8,
+    }]]);
+    const present = new Map([[1, { ...EMPTY_PRESENCE, liveSeconds: 60 * 60, sessionSeconds: 60 * 60 }]]);
+    const [entry] = computeProgress([session(1)], new Map(), enrolledLongAgo, full, present, NOW);
+
+    expect(entry.reviewsRequired).toBe(2);
+    expect(entry.completed).toBe(false);
+  });
+
+  it("does not claim a full bar on a module that will not complete", () => {
+    // Half the class attended, then most of the recording watched: the raw
+    // higher figure (70) divided by the nearer bar (60) came out over 100, so
+    // the learner saw a full green bar over a module that quietly refused to
+    // complete. The commonest catch-up pattern there is.
+    const mixed = new Map([[1, {
+      ...EMPTY_PRESENCE,
+      liveSeconds: 30 * 60, sessionSeconds: 60 * 60,
+      replayWatchedSeconds: 42 * 60, replayDurationSeconds: 60 * 60,
+    }]]);
+    const [entry] = computeProgress([session(1)], new Map(), enrolledLongAgo, new Map(), mixed, NOW);
+
+    expect(entry.completed).toBe(false);
+    expect(entry.progressPct).toBeLessThan(100);
+  });
+});

@@ -13,6 +13,7 @@ import {
   CheckCircle2, Lock, MessagesSquare, PenLine, Quote, Users,
 } from 'lucide-react';
 import { apiReason } from '@workspace/domain';
+import { CouldNotLoad } from '@/components/CouldNotLoad';
 
 /** Mirrors MIN_REVIEW_COMMENT_LENGTH on the server — the counter must agree with the validator. */
 const MIN_COMMENT = 120;
@@ -163,13 +164,14 @@ function CritiqueForm({
 
 export function CritiqueQueue({ sessionId }: { sessionId: number }) {
   const qc = useQueryClient();
-  const { data: queue, isLoading, error } = useGetReviewQueue(sessionId, {
+  const { data: queue, isLoading, error, refetch } = useGetReviewQueue(sessionId, {
     query: { queryKey: getGetReviewQueueQueryKey(sessionId), retry: false },
   });
   const [index, setIndex] = useState(0);
 
   if (isLoading) return <div className="h-40 bg-muted/40 rounded-xl animate-pulse" />;
-  if (error || !queue) {
+  if (error) return <CouldNotLoad what="the critique queue" onRetry={() => refetch()} compact />;
+  if (!queue) {
     return <p className="text-sm text-muted-foreground py-4">Peer critique is not set up for this module.</p>;
   }
 
@@ -258,12 +260,13 @@ export function CritiqueQueue({ sessionId }: { sessionId: number }) {
 /* ---------- Feedback received ---------- */
 
 export function MyFeedbackPanel({ sessionId }: { sessionId: number }) {
-  const { data, isLoading, error } = useGetMyFeedback(sessionId, {
+  const { data, isLoading, error, refetch } = useGetMyFeedback(sessionId, {
     query: { queryKey: getGetMyFeedbackQueryKey(sessionId), retry: false },
   });
 
   if (isLoading) return <div className="h-32 bg-muted/40 rounded-xl animate-pulse" />;
-  if (error || !data) {
+  if (error) return <CouldNotLoad what="your feedback" onRetry={() => refetch()} compact />;
+  if (!data) {
     return <p className="text-sm text-muted-foreground py-4">No feedback available for this module.</p>;
   }
 

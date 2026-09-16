@@ -17,6 +17,7 @@ import { CohortDiscussion } from '@/components/CohortDiscussion';
 import TrackedReplay from '@/components/TrackedReplay';
 import { ReadingListView } from '@/components/ReadingListEditor';
 import { openJoinLink } from '@/lib/openJoinLink';
+import { CouldNotLoad } from '@/components/CouldNotLoad';
 import {
   ArrowLeft, Video, PlayCircle, CheckCircle2, Lock, Radio, Clock,
   FileQuestion, ClipboardList, CalendarClock, MessagesSquare, FileText, BookOpen,
@@ -43,7 +44,8 @@ export default function Classroom() {
   const qc = useQueryClient();
 
   const [tab, setTab] = useState<Tab>('');
-  const { data: sessions = [], isLoading: loadingSessions } = useListMySessions();
+  const { data: sessions = [], isLoading: loadingSessions, isError: sessionsFailed, refetch: retrySessions } =
+    useListMySessions();
   const { data: progress = [] } = useListMyProgress();
   const session = sessions.find(s => s.id === sessionId);
   const entry = progress.find(p => p.sessionId === sessionId);
@@ -90,6 +92,16 @@ export default function Classroom() {
 
   if (loadingSessions) {
     return <div className="container mx-auto px-4 py-12"><div className="h-72 bg-card border border-border rounded-2xl animate-pulse" /></div>;
+  }
+
+  // "Not part of your enrolled programmes" is a strong claim to make on the
+  // strength of a request that may simply not have arrived.
+  if (sessionsFailed) {
+    return (
+      <div className="container mx-auto max-w-lg px-4 py-16">
+        <CouldNotLoad what="this classroom" onRetry={() => void retrySessions()} />
+      </div>
+    );
   }
 
   if (!session) {

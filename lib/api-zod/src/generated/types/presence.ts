@@ -13,5 +13,8 @@ export interface Presence {
   bestPct: number;
   met: boolean;
   via: PresenceVia;
+  share: number;
   thresholdPct: number;
+  liveThresholdPct: number;
+  replayThresholdPct: number;
 }

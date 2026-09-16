@@ -915,8 +915,11 @@ export const RecordHeartbeatResponse = zod.object({
   "replayPct": zod.int(),
   "bestPct": zod.int(),
   "met": zod.boolean(),
-  "via": zod.enum(['live', 'replay', 'none']),
-  "thresholdPct": zod.int()
+  "via": zod.enum(['live', 'replay', 'waived', 'none']),
+  "share": zod.number(),
+  "thresholdPct": zod.int(),
+  "liveThresholdPct": zod.int(),
+  "replayThresholdPct": zod.int()
 })
 })
 
@@ -949,8 +952,11 @@ export const RecordReplayProgressResponse = zod.object({
   "replayPct": zod.int(),
   "bestPct": zod.int(),
   "met": zod.boolean(),
-  "via": zod.enum(['live', 'replay', 'none']),
-  "thresholdPct": zod.int()
+  "via": zod.enum(['live', 'replay', 'waived', 'none']),
+  "share": zod.number(),
+  "thresholdPct": zod.int(),
+  "liveThresholdPct": zod.int(),
+  "replayThresholdPct": zod.int()
 })
 })
 
@@ -1213,8 +1219,11 @@ export const ListMyProgressResponseItem = zod.object({
   "replayPct": zod.int(),
   "bestPct": zod.int(),
   "met": zod.boolean(),
-  "via": zod.enum(['live', 'replay', 'none']),
-  "thresholdPct": zod.int()
+  "via": zod.enum(['live', 'replay', 'waived', 'none']),
+  "share": zod.number(),
+  "thresholdPct": zod.int(),
+  "liveThresholdPct": zod.int(),
+  "replayThresholdPct": zod.int()
 }),
   "completed": zod.boolean(),
   "locked": zod.boolean(),

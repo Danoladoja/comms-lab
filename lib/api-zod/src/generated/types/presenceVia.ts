@@ -12,5 +12,6 @@ export type PresenceVia = typeof PresenceVia[keyof typeof PresenceVia];
 export const PresenceVia = {
   live: 'live',
   replay: 'replay',
+  waived: 'waived',
   none: 'none',
 } as const;

@@ -57,6 +57,18 @@ export type CourseworkStatus = {
   /** How many critiques the learner's own submission has received. */
   reviewsReceived: number;
   /**
+   * How many other people filed work on this module that this learner could
+   * critique. Undefined on callers written before small cohorts were handled,
+   * which then behave exactly as they did.
+   *
+   * This is what stops a small cohort stranding everybody in it. Asking for two
+   * critiques when only one other person has filed is asking for something
+   * nobody can do, and the module then never completes, the next week never
+   * opens, the learner's own feedback never unseals and no certificate is ever
+   * issued — permanently, once the deadline has closed the pool.
+   */
+  peersToReview?: number;
+  /**
    * When each stops accepting work, or nothing at all for no deadline.
    *
    * Carried through untouched, and deliberately absent from every rule below. A
@@ -201,7 +213,12 @@ export function computeProgress(
 
       const cw = coursework.get(s.id) ?? EMPTY_COURSEWORK;
       const quizPassed = cw.hasQuiz && (cw.quizBestScore ?? 0) >= QUIZ_PASS_MARK;
-      const reviewsRequired = cw.hasAssignment ? cw.reviewsRequired : 0;
+      const asked = cw.hasAssignment ? cw.reviewsRequired : 0;
+      // Never ask for more critiques than there are people to critique. The
+      // requirement is a teaching floor, not an arithmetic trap.
+      const reviewsRequired = cw.peersToReview === undefined
+        ? asked
+        : Math.min(asked, Math.max(0, cw.peersToReview));
       const reviewsDone = cw.reviewsGiven >= reviewsRequired;
 
       // Attending the class is a requirement in its own right, and counts as one
@@ -209,10 +226,13 @@ export function computeProgress(
       const parts: number[] = [];
       const presenceRequired = start !== null;
       if (presenceRequired) {
-        // Against the bar for the route the learner is actually on: the live
-        // and replay bars differ, and measuring replay coverage against the
-        // live bar would credit half a recording as nearly done.
-        parts.push(Math.min(100, Math.round((presence.bestPct / presence.thresholdPct) * 100)));
+        // How far along the learner is, as a share of the bar they are closest
+        // to clearing. `bestPct` is the raw higher of the two percentages while
+        // `thresholdPct` is the bar of the *nearer* route — dividing one by the
+        // other mixed the routes, and someone who attended half the class and
+        // then watched most of the recording was shown a full green bar over a
+        // module that quietly refused to complete.
+        parts.push(Math.min(100, Math.round(presence.share * 100)));
       }
       if (cw.hasAssignment) {
         parts.push(cw.assignmentSubmitted ? 100 : 0);
@@ -231,9 +251,16 @@ export function computeProgress(
       // Both halves: attended the class, and did the work.
       const requirementsMet = (!presenceRequired || presence.met) && deliverablesMet;
 
-      // Nothing scheduled and nothing published → the module completes once it is
-      // in the past, so an empty module never dams the sequence behind it.
-      const completed = parts.length === 0 ? hasEnded : requirementsMet;
+      // Nothing scheduled and nothing published. There is nothing to do, so
+      // there is nothing to wait for — it completes.
+      //
+      // This used to read `hasEnded`, which can only be true when there is a
+      // start time, which is exactly the case this branch excludes. So it was
+      // always false: a single "date to be confirmed" placeholder could never
+      // be completed, and since a certificate needs every module complete, one
+      // placeholder silently denied certificates to a whole programme. It
+      // locked nothing, so nobody could see why.
+      const completed = parts.length === 0 ? true : requirementsMet;
 
       const progressPct = completed
         ? 100

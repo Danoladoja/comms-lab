@@ -17,6 +17,7 @@ import { Video, PlayCircle, CircleAlert, CircleCheck, ChevronDown, ChevronUp } f
 import CourseworkStudio from '@/components/CourseworkStudio';
 import TaughtCohort from '@/components/TaughtCohort';
 import { openJoinLink } from '@/lib/openJoinLink';
+import { CouldNotLoad } from '@/components/CouldNotLoad';
 
 function formatSessionDate(iso: string | null | undefined) {
   if (!iso) return 'Date to be announced';
@@ -151,9 +152,19 @@ function SessionCard({ session, onSaved }: { session: SessionDetail; onSaved: ()
 }
 
 export default function Teach() {
-  const { role, isLoading } = useCurrentUser();
+  const { role, isLoading, unreachable, retry } = useCurrentUser();
   const qc = useQueryClient();
   const { data: sessions = [], isLoading: loadingSessions } = useListMySessions();
+
+  // Could not ask is not the same as told no. One dropped request used to tell
+  // a facilitator, minutes before a class, that they had never been given access.
+  if (unreachable) {
+    return (
+      <div className="container mx-auto max-w-lg px-4 py-24">
+        <CouldNotLoad what="your facilitator access" onRetry={retry} />
+      </div>
+    );
+  }
 
   if (!isLoading && !satisfiesRole(role, ['instructor', 'admin'])) {
     return (
