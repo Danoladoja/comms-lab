@@ -8,6 +8,9 @@
     "./schema": "./src/schema/index.ts"
   },
   "scripts": {
+    "generate": "drizzle-kit generate --config ./drizzle.config.ts",
+    "migrate": "node ./migrate.mjs",
+    "migrate:status": "node ./migrate-status.mjs",
     "push": "node ./push-note.mjs && drizzle-kit push --config ./drizzle.config.ts",
     "push-force": "node ./push-note.mjs && drizzle-kit push --force --config ./drizzle.config.ts"
   },
