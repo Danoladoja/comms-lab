@@ -34,23 +34,35 @@
  * is a proxy, and a noisy one, so the bar is set where somebody who genuinely
  * sat through the class will clear it without a perfect connection.
  *
- * The replay was held to a different, much higher bar — ninety-five per cent,
- * on the reasoning that somebody choosing to catch up can watch the whole
- * thing. In practice that asked for something close to perfection from a
- * measurement that is not perfect: coverage is counted in fifteen-second
- * buckets, the player stops reporting near the end, and skipping a title card
- * or rewatching a minute leaves gaps. People who watched the whole recording
- * were failing it.
+ * The replay is the opposite: deliberate, repeatable, and measured directly from
+ * the player. Somebody watching a recording can pause it, rewind it and come
+ * back tomorrow, so none of the excuses that justify a lenient live bar apply —
+ * and at the Lab most of the people who were in the class watch it again
+ * anyway. A replay route that could be cleared by skimming would let somebody
+ * pass on neither route while appearing to pass on one.
  *
- * The Lab's rule is simpler than the bars were, and it is the Lab's rule that
- * governs: you attend the class, or you watch the replay. So the two routes now
- * share one bar. Sixty per cent either way, said the same way to everybody.
+ * Not 100, though it means "all of it". Coverage is counted in fifteen-second
+ * buckets and players stop reporting a second or two before the end, so the last
+ * bucket is often unreachable and a literal 100 would fail people who watched
+ * every frame. Ninety-five cannot be reached by skipping.
  *
- * If that is the wrong number it is one number, here, and nothing else needs to
- * move with it.
+ * ---
+ *
+ * Both of these are shares of the class's SCHEDULED length, and that is the part
+ * that bites. When the Lab moved from ninety-minute classes to sixty-minute
+ * ones, the modules went on saying ninety: a learner who sat through every
+ * minute of an hour was recorded at 67%, and the ones who joined five minutes
+ * late landed at 57–59% and were failed for missing nothing.
+ *
+ * So these numbers only mean what they say while a module's length is the length
+ * it actually runs. Seventy per cent of a sixty-minute class is forty-two
+ * minutes. Seventy per cent of a sixty-minute class recorded as ninety is
+ * sixty-three — longer than the class, and unreachable by everyone in it.
+ * `why:locked` reports the scheduled length beside the recording's for exactly
+ * this reason.
  */
-export const PRESENCE_LIVE_THRESHOLD_PCT = 60;
-export const PRESENCE_REPLAY_THRESHOLD_PCT = 60;
+export const PRESENCE_LIVE_THRESHOLD_PCT = 70;
+export const PRESENCE_REPLAY_THRESHOLD_PCT = 95;
 
 /**
  * Kept so existing callers and stored values still mean something. It is the

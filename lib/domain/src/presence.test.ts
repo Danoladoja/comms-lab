@@ -18,7 +18,7 @@ const HOUR_SECONDS = 3600;
 describe("presenceStatus", () => {
   it("passes on live attendance alone at the live bar", () => {
     const s = presenceStatus({
-      liveSeconds: HOUR_SECONDS * 0.6,
+      liveSeconds: HOUR_SECONDS * 0.7,
       sessionSeconds: HOUR_SECONDS,
       replayWatchedSeconds: 0,
       replayDurationSeconds: null,
@@ -28,19 +28,18 @@ describe("presenceStatus", () => {
     expect(s.via).toBe("live");
   });
 
-  it("holds the two routes to one bar", () => {
-    // The Lab's rule is that you attend the class or you watch the replay, and
-    // the bars now say the same. The replay used to ask for 95%, which failed
-    // people who had watched the whole recording: coverage is counted in
-    // fifteen-second buckets, players stop reporting near the end, and skipping
-    // a title card leaves a gap.
-    expect(PRESENCE_LIVE_THRESHOLD_PCT).toBe(60);
-    expect(PRESENCE_REPLAY_THRESHOLD_PCT).toBe(60);
+  it("holds the live and replay bars apart", () => {
+    // Attending is measured by a heartbeat from a tab while the class runs
+    // somewhere else, and is interrupted by everything. Watching the recording
+    // is deliberate and repeatable — and at the Lab most of the people who were
+    // in the class watch it again anyway — so it asks for the whole thing.
+    expect(PRESENCE_LIVE_THRESHOLD_PCT).toBe(70);
+    expect(PRESENCE_REPLAY_THRESHOLD_PCT).toBe(95);
   });
 
   it("fails just below the live bar", () => {
     const s = presenceStatus({
-      liveSeconds: HOUR_SECONDS * 0.59,
+      liveSeconds: HOUR_SECONDS * 0.69,
       sessionSeconds: HOUR_SECONDS,
       replayWatchedSeconds: 0,
       replayDurationSeconds: null,
@@ -48,10 +47,10 @@ describe("presenceStatus", () => {
     expect(s.met).toBe(false);
   });
 
-  it("passes somebody who watched most of the recording", () => {
-    // Two thirds of a recording used to fail, on a bar of 95%. Somebody who
-    // missed the class and sat down with the replay has attended, and the
-    // measurement is too lossy to argue about the last third.
+  it("will not pass a two-thirds-watched replay on the live bar", () => {
+    // The two routes must not borrow each other's bar: 67% of a recording is
+    // not watching the recording, and somebody who did neither fully must not
+    // appear to have done one.
     const s = presenceStatus({
       liveSeconds: 0,
       sessionSeconds: HOUR_SECONDS,
@@ -59,7 +58,7 @@ describe("presenceStatus", () => {
       replayDurationSeconds: 3600,
     });
     expect(s.replayPct).toBe(67);
-    expect(s.met).toBe(true);
+    expect(s.met).toBe(false);
     expect(s.via).toBe("replay");
   });
 
@@ -263,5 +262,43 @@ describe("replay buckets", () => {
   it("never reports more watched than the recording is long", () => {
     const buckets = Array.from({ length: 100 }, (_, i) => i);
     expect(replayWatchedSeconds(buckets, 60)).toBe(60);
+  });
+});
+
+/**
+ * The bars are shares of the SCHEDULED length, which is the part that bit.
+ *
+ * The Lab moved from ninety-minute classes to sixty-minute ones and the modules
+ * went on saying ninety. Nobody changed a threshold; the denominator changed
+ * underneath them.
+ */
+describe("a class recorded longer than it runs", () => {
+  const HOUR = 3600;
+
+  it("passes somebody who sat through a sixty-minute class recorded as sixty", () => {
+    const s = presenceStatus({
+      liveSeconds: 55 * 60,
+      sessionSeconds: HOUR,
+      replayWatchedSeconds: 0,
+      replayDurationSeconds: null,
+    });
+    expect(s.livePct).toBe(92);
+    expect(s.met).toBe(true);
+  });
+
+  it("fails the same person when the module still says ninety minutes", () => {
+    // Fifty-five minutes of an hour is 61% of ninety. Under a 70% bar they are
+    // refused, having missed nothing — and at 70% of ninety the bar is
+    // sixty-three minutes, which is longer than the class. Nobody in the room
+    // can clear it, however well they attend.
+    const s = presenceStatus({
+      liveSeconds: 55 * 60,
+      sessionSeconds: 90 * 60,
+      replayWatchedSeconds: 0,
+      replayDurationSeconds: null,
+    });
+    expect(s.livePct).toBe(61);
+    expect(s.met).toBe(false);
+    expect(Math.round(90 * 60 * 0.7 / 60)).toBeGreaterThan(60);
   });
 });

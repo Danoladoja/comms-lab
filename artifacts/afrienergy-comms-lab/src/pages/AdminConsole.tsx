@@ -365,7 +365,11 @@ function ProgramSessions({ programId, instructors }: { programId: number; instru
   const { data: sessions = [] } = useListProgramSessions(programId);
   const [title, setTitle] = useState('');
   const [startsAt, setStartsAt] = useState('');
-  const [duration, setDuration] = useState('90');
+  // The Lab's classes run an hour. It defaulted to 90, which is how eight
+  // modules came to be measured against a length none of them ran — attendance
+  // is a share of this number, so a class recorded longer than it runs fails
+  // people who sat through all of it.
+  const [duration, setDuration] = useState('60');
 
   const onChanged = () => qc.invalidateQueries({ queryKey: getListProgramSessionsQueryKey(programId) });
 

@@ -35,6 +35,7 @@ import {
   replayWatchedSeconds,
   EMPTY_PRESENCE,
   QUIZ_PASS_MARK,
+  PRESENCE_LIVE_THRESHOLD_PCT,
 } from "@workspace/domain";
 import { and, asc, eq, sql } from "drizzle-orm";
 
@@ -288,8 +289,8 @@ async function main() {
         // Not said once everybody has been credited by hand: the measurement is
         // still poor, but nobody is standing behind it, and a warning nobody
         // needs to act on is a warning that teaches people to skip warnings.
-        if (measured > 0 && bestLivePct < 60 && unfinished.length > 0) {
-          console.log(`  !! the best attendance anybody managed here is ${bestLivePct}% — nobody cleared the 60% bar.`);
+        if (measured > 0 && bestLivePct < PRESENCE_LIVE_THRESHOLD_PCT && unfinished.length > 0) {
+          console.log(`  !! the best attendance anybody managed here is ${bestLivePct}% — nobody cleared the ${PRESENCE_LIVE_THRESHOLD_PCT}% bar.`);
           console.log("     A class that ran shorter than its scheduled length does exactly this,");
           console.log("     because presence is measured against the scheduled minutes.");
           if (rec !== null && rec < session.durationMins) {
