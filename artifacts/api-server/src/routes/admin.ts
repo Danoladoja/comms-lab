@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import {
   db, enrollmentsTable, programsTable, usersTable, pendingInvitationsTable, sessionsTable,
-  assignmentsTable, assignmentSubmissionsTable, deadlineExtensionsTable,
+  assignmentsTable, assignmentSubmissionsTable, deadlineExtensionsTable, quizAttemptsTable,
 } from "@workspace/db";
 import { and, asc, desc, eq, inArray, isNull, isNotNull, sql } from "drizzle-orm";
 import {
@@ -12,7 +12,8 @@ import {
   checkRoleChange, validateInvite, describeInvite, mayResendInvitation, MAX_RESEND_AT_ONCE,
   cohortStart, startDateFor, modulesMissed, lateEnrolmentNote, lateEnrolmentProblem,
   generateCertificateCode,
-  extensionProblem, extensionNote, describeWhen,
+  extensionProblem, extensionNote, manyExtensionsNote, describeWhen,
+  QUIZ_PASS_MARK,
 } from "@workspace/domain";
 import { currentRole, founderId, requireRole, getCurrentUser } from "../lib/auth";
 import { syncAttendanceForSession } from "../lib/meetAttendanceSync";
@@ -152,70 +153,99 @@ router.patch("/admin/users/:id/role", async (req, res) => {
  * ------------------------------------------------------------------ */
 
 /**
- * Every module on a programme, with this learner's standing on each.
+ * One module, and where every learner on it stands.
  *
- * The list an admin reads before deciding. It carries the module's own
- * deadlines, whatever this learner has already been given, and whether they
- * have filed — because "did the extension work" is the question asked straight
- * after granting one, and it should not require going somewhere else.
+ * Module first, because that is how the question arrives. An admin thinks
+ * "module two caught people out" far more often than "Kwame specifically", and
+ * the learner-first version of this meant opening forty-five people one at a
+ * time to find out who was stuck on the same module.
+ *
+ * Who has filed and who has passed the quiz travel with each name, because the
+ * decision being made is "who still needs more time", and answering it anywhere
+ * else means holding two screens in your head.
  */
-router.get("/admin/programs/:id/learners/:userId/deadline-extensions", async (req, res) => {
-  const programId = Number(req.params.id);
-  const userId = Number(req.params.userId);
-  if (!Number.isInteger(programId) || !Number.isInteger(userId)) {
-    res.status(400).json({ error: "That is not a programme and learner." });
-    return;
-  }
+router.get("/admin/sessions/:id/extensions", async (req, res) => {
+  const sessionId = Number(req.params.id);
+  if (!Number.isInteger(sessionId)) { res.status(400).json({ error: "That is not a module." }); return; }
 
-  const rows = await db
+  const [session] = await db
     .select({
-      sessionId: sessionsTable.id,
+      id: sessionsTable.id,
       title: sessionsTable.title,
+      programId: sessionsTable.programId,
+      programTitle: programsTable.title,
       startsAt: sessionsTable.startsAt,
       quizDueAt: sessionsTable.quizDueAt,
       quizDraft: sessionsTable.quizDraft,
-      assignmentDueAt: assignmentsTable.dueAt,
-      assignmentDraft: assignmentsTable.draft,
-      assignmentId: assignmentsTable.id,
-      extendedTo: deadlineExtensionsTable.dueAt,
-      extensionReason: deadlineExtensionsTable.reason,
-      submittedAt: assignmentSubmissionsTable.submittedAt,
     })
     .from(sessionsTable)
-    .leftJoin(assignmentsTable, eq(assignmentsTable.sessionId, sessionsTable.id))
-    .leftJoin(deadlineExtensionsTable, and(
-      eq(deadlineExtensionsTable.sessionId, sessionsTable.id),
-      eq(deadlineExtensionsTable.userId, userId),
-    ))
+    .innerJoin(programsTable, eq(programsTable.id, sessionsTable.programId))
+    .where(eq(sessionsTable.id, sessionId));
+  if (!session) { res.status(404).json({ error: "That module no longer exists." }); return; }
+
+  const [assignment] = await db
+    .select({ dueAt: assignmentsTable.dueAt, draft: assignmentsTable.draft })
+    .from(assignmentsTable)
+    .where(eq(assignmentsTable.sessionId, sessionId));
+
+  // A draft piece does not exist as far as a learner is concerned, so its
+  // deadline is not one either.
+  const quizDue = session.quizDraft ? null : session.quizDueAt?.toISOString() ?? null;
+  const taskDue = !assignment || assignment.draft ? null : assignment.dueAt?.toISOString() ?? null;
+
+  const learners = await db
+    .select({
+      userId: usersTable.id,
+      name: usersTable.name,
+      email: usersTable.email,
+      submittedAt: assignmentSubmissionsTable.submittedAt,
+      best: sql<number | null>`(
+        select max(${quizAttemptsTable.scorePct}) from ${quizAttemptsTable}
+        where ${quizAttemptsTable.userId} = ${usersTable.id}
+          and ${quizAttemptsTable.sessionId} = ${sessionId}
+      )`,
+      extendedTo: deadlineExtensionsTable.dueAt,
+      extensionReason: deadlineExtensionsTable.reason,
+    })
+    .from(enrollmentsTable)
+    .innerJoin(usersTable, eq(usersTable.id, enrollmentsTable.userId))
     .leftJoin(assignmentSubmissionsTable, and(
-      eq(assignmentSubmissionsTable.sessionId, sessionsTable.id),
-      eq(assignmentSubmissionsTable.userId, userId),
+      eq(assignmentSubmissionsTable.sessionId, sessionId),
+      eq(assignmentSubmissionsTable.userId, enrollmentsTable.userId),
     ))
-    .where(eq(sessionsTable.programId, programId))
-    .orderBy(asc(sessionsTable.sortOrder), asc(sessionsTable.id));
+    .leftJoin(deadlineExtensionsTable, and(
+      eq(deadlineExtensionsTable.sessionId, sessionId),
+      eq(deadlineExtensionsTable.userId, enrollmentsTable.userId),
+    ))
+    .where(and(
+      eq(enrollmentsTable.programId, session.programId),
+      sql`${enrollmentsTable.status} in ('enrolled', 'completed')`,
+    ))
+    .orderBy(asc(usersTable.name));
 
   const now = Date.now();
-  res.json(rows.map((r) => {
-    // A draft piece does not exist as far as a learner is concerned, so its
-    // deadline is not one either.
-    const quizDue = r.quizDraft ? null : r.quizDueAt?.toISOString() ?? null;
-    const taskDue = r.assignmentDraft ? null : r.assignmentDueAt?.toISOString() ?? null;
-    return {
-      sessionId: r.sessionId,
-      title: r.title,
-      startsAt: r.startsAt?.toISOString() ?? null,
-      quizDueAt: quizDue,
-      assignmentDueAt: taskDue,
-      // Shut for the cohort — which is what makes an extension worth granting.
-      moduleClosed: [quizDue, taskDue].some((d) => d !== null && new Date(d).getTime() < now),
-      // Nothing set means nothing to extend, and the control says so rather
-      // than offering a date box that would be refused.
-      hasCoursework: quizDue !== null || taskDue !== null,
-      extendedTo: r.extendedTo?.toISOString() ?? null,
-      extensionReason: r.extendedTo ? r.extensionReason : null,
-      submitted: !!r.submittedAt,
-    };
-  }));
+  res.json({
+    sessionId,
+    title: session.title,
+    programTitle: session.programTitle,
+    startsAt: session.startsAt?.toISOString() ?? null,
+    quizDueAt: quizDue,
+    assignmentDueAt: taskDue,
+    // Shut for the cohort — which is what makes extra time worth giving.
+    moduleClosed: [quizDue, taskDue].some((d) => d !== null && new Date(d).getTime() < now),
+    // Nothing set means nothing to extend, and the panel says so rather than
+    // offering a date box that would be refused.
+    hasCoursework: quizDue !== null || taskDue !== null,
+    learners: learners.map((l) => ({
+      userId: l.userId,
+      name: l.name,
+      email: l.email,
+      submitted: !!l.submittedAt,
+      quizPassed: (l.best ?? 0) >= QUIZ_PASS_MARK,
+      extendedTo: l.extendedTo?.toISOString() ?? null,
+      extensionReason: l.extendedTo ? l.extensionReason : null,
+    })),
+  });
 });
 
 /**
@@ -250,20 +280,24 @@ router.put("/admin/sessions/:id/deadline-extension", async (req, res) => {
     .where(eq(sessionsTable.id, sessionId));
   if (!session) { res.status(404).json({ error: "That module no longer exists." }); return; }
 
-  const [learner] = await db.select().from(usersTable).where(eq(usersTable.id, parsed.data.userId));
-  if (!learner) { res.status(404).json({ error: "That learner no longer has an account." }); return; }
-
-  const [enrolment] = await db
-    .select({ id: enrollmentsTable.id })
+  // Everybody asked for who is actually on this programme. Filtering here rather
+  // than refusing the whole request means "give the cohort extra time" survives
+  // one stale id in the list — and the number skipped is reported, because an
+  // admin who asked for forty-five and got forty-three wants to know.
+  const asked = [...new Set(parsed.data.userIds)];
+  const learners = await db
+    .select({ id: usersTable.id, name: usersTable.name, email: usersTable.email })
     .from(enrollmentsTable)
+    .innerJoin(usersTable, eq(usersTable.id, enrollmentsTable.userId))
     .where(and(
-      eq(enrollmentsTable.userId, learner.id),
       eq(enrollmentsTable.programId, session.programId),
+      inArray(enrollmentsTable.userId, asked),
       sql`${enrollmentsTable.status} in ('enrolled', 'completed')`,
     ));
-  if (!enrolment) {
+
+  if (learners.length === 0) {
     res.status(400).json({
-      error: `${learner.name || learner.email} is not on this programme, so there is no deadline of theirs to move. `
+      error: "None of those people are on this programme, so there is no deadline of theirs to move. "
         + "Add them to the cohort first.",
     });
     return;
@@ -295,22 +329,24 @@ router.put("/admin/sessions/:id/deadline-extension", async (req, res) => {
 
   const me = await getCurrentUser(req);
   const dueAt = wanted;
-  const values = {
-    userId: learner.id,
-    sessionId,
-    programId: session.programId,
-    dueAt,
-    reason: (parsed.data.reason ?? "").slice(0, 500),
-    grantedByUserId: me?.id ?? null,
-  };
+  const reason = (parsed.data.reason ?? "").slice(0, 500);
+
+  // One statement for the whole cohort. Granting again moves the same dates
+  // rather than stacking second rows behind the first, where nobody would ever
+  // see them.
   await db
     .insert(deadlineExtensionsTable)
-    .values(values)
-    // Granting again moves the same date rather than stacking a second row
-    // behind the first, where nobody would ever see it.
+    .values(learners.map((l) => ({
+      userId: l.id,
+      sessionId,
+      programId: session.programId,
+      dueAt,
+      reason,
+      grantedByUserId: me?.id ?? null,
+    })))
     .onConflictDoUpdate({
       target: [deadlineExtensionsTable.userId, deadlineExtensionsTable.sessionId],
-      set: { dueAt: values.dueAt, reason: values.reason, grantedByUserId: values.grantedByUserId },
+      set: { dueAt, reason, grantedByUserId: me?.id ?? null },
     });
 
   const when = describeWhen(dueAt.toISOString());
@@ -320,33 +356,44 @@ router.put("/admin/sessions/:id/deadline-extension", async (req, res) => {
       .select({ title: programsTable.title })
       .from(programsTable)
       .where(eq(programsTable.id, session.programId));
-    sendDeadlineExtended(
-      { email: learner.email, name: learner.name },
-      {
-        programTitle: program?.title ?? "your programme",
-        moduleTitle: session.title,
-        when,
-        sessionId,
-      },
-    );
+    for (const l of learners) {
+      sendDeadlineExtended(
+        { email: l.email, name: l.name },
+        {
+          programTitle: program?.title ?? "your programme",
+          moduleTitle: session.title,
+          when,
+          sessionId,
+        },
+      );
+    }
   }
 
   logger.info(
-    { userId: learner.id, sessionId, dueAt, by: me?.id, notify },
-    "Deadline extended for one learner",
+    { sessionId, granted: learners.length, asked: asked.length, dueAt, by: me?.id, notify },
+    "Deadline extended",
   );
 
+  const moduleAlreadyClosed = latest !== null && new Date(latest).getTime() < Date.now();
   res.json({
     sessionId,
-    userId: learner.id,
     dueAt: dueAt.toISOString(),
-    emailed: notify,
-    note: extensionNote({
-      learnerName: learner.name,
-      moduleTitle: session.title,
-      extendedTo: dueAt.toISOString(),
-      moduleAlreadyClosed: latest !== null && new Date(latest).getTime() < Date.now(),
-    }),
+    granted: learners.length,
+    skipped: asked.length - learners.length,
+    emailed: notify ? learners.length : 0,
+    note: learners.length === 1
+      ? extensionNote({
+        learnerName: learners[0].name,
+        moduleTitle: session.title,
+        extendedTo: dueAt.toISOString(),
+        moduleAlreadyClosed,
+      })
+      : manyExtensionsNote({
+        count: learners.length,
+        moduleTitle: session.title,
+        extendedTo: dueAt.toISOString(),
+        moduleAlreadyClosed,
+      }),
   });
 });
 
@@ -358,16 +405,17 @@ router.delete("/admin/sessions/:id/deadline-extension", async (req, res) => {
   const parsed = RevokeDeadlineExtensionBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
+  const asked = [...new Set(parsed.data.userIds)];
   await db
     .delete(deadlineExtensionsTable)
     .where(and(
       eq(deadlineExtensionsTable.sessionId, sessionId),
-      eq(deadlineExtensionsTable.userId, parsed.data.userId),
+      inArray(deadlineExtensionsTable.userId, asked),
     ));
 
   // Deliberately not an error when there was nothing there. The admin wanted no
-  // extension on this module for this learner, and there is now no extension.
-  logger.info({ userId: parsed.data.userId, sessionId }, "Deadline extension taken back");
+  // extension on this module for these learners, and there is now none.
+  logger.info({ userIds: asked.length, sessionId }, "Deadline extension taken back");
   res.json({ error: "Extension taken back" });
 });
 

@@ -8,8 +8,9 @@
 
 export interface DeadlineExtensionResult {
   sessionId: number;
-  userId: number;
   dueAt: Date;
+  granted: number;
+  skipped?: number;
+  emailed: number;
   note: string;
-  emailed: boolean;
 }

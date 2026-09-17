@@ -23,10 +23,10 @@ import {
   useListUnattachedUsers,
   useEnrolExistingAccount,
   useCreateClassMeeting,
-  useListDeadlineExtensions,
+  useListModuleExtensions,
   useGrantDeadlineExtension,
   useRevokeDeadlineExtension,
-  getListDeadlineExtensionsQueryKey,
+  getListModuleExtensionsQueryKey,
   getListUnattachedUsersQueryKey,
   getListWaitlistQueryKey,
   useUpdateUserRole,
@@ -81,7 +81,10 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { SaveAndClose } from '@/components/EditorSection';
-import { ChevronDown, ChevronUp, Plus, Trash2, CircleAlert, Pencil, Clock, Send, X, Mail, Video } from 'lucide-react';
+import {
+  ChevronDown, ChevronUp, Plus, Trash2, CircleAlert, Pencil, Clock, Send, X, Mail, Video,
+  CalendarClock, Users,
+} from 'lucide-react';
 import { CouldNotLoad } from '@/components/CouldNotLoad';
 
 const TABS = ['Programmes', 'Live Sessions', 'Enrolments', 'People', 'Recordings'] as const;
@@ -1006,8 +1009,6 @@ function CohortSection({
    * one is, and the names are one click away.
    */
   const [open, setOpen] = useState(writeTo);
-  /** Whose module deadlines are on screen. One at a time: this is a per-person job. */
-  const [deadlinesFor, setDeadlinesFor] = useState<number | null>(null);
   const active = rows.filter(r => r.status === 'enrolled' || r.status === 'completed').length;
 
   return (
@@ -1095,39 +1096,14 @@ function CohortSection({
                           its Studio work.
                         </p>
                       )}
-                      {/* Hidden until asked for. A cohort of fifty would
-                          otherwise carry fifty module lists nobody opened. */}
-                      {(r.status === 'enrolled' || r.status === 'completed') && (
-                        <button
-                          type="button"
-                          className="mt-2 text-xs font-medium text-[#C2410C] underline underline-offset-2"
-                          aria-expanded={deadlinesFor === r.userId}
-                          onClick={() => setDeadlinesFor(deadlinesFor === r.userId ? null : r.userId)}
-                        >
-                          {deadlinesFor === r.userId ? 'Hide deadlines' : 'Deadlines…'}
-                        </button>
-                      )}
                     </td>
                   </tr>
                 ))}
-                {rows.some(r => r.userId === deadlinesFor) && (
-                  <tr>
-                    <td colSpan={2} className="bg-muted/20 p-0">
-                      <LearnerDeadlines
-                        programId={programme.id}
-                        userId={deadlinesFor as number}
-                        learnerName={
-                          rows.find(r => r.userId === deadlinesFor)?.userName
-                          || rows.find(r => r.userId === deadlinesFor)?.userEmail
-                          || 'This learner'
-                        }
-                      />
-                    </td>
-                  </tr>
-                )}
               </tbody>
             </table>
           )}
+
+          <Extensions programId={programme.id} />
 
           <AddExistingAccount programId={programme.id} programmeTitle={programme.title} />
 
@@ -1147,32 +1123,49 @@ function CohortSection({
 }
 
 /**
- * One learner's deadlines, module by module, with the power to move them.
+ * Extensions: extra time on a module, for one learner or the whole cohort.
  *
- * The late pass is the learner's own remedy and it is deliberately narrow — two
- * per programme, 48 hours each. This is the case it cannot reach: somebody added
- * to a cohort weeks in, somebody whose passes are spent, a reason that does not
- * fit in a rule. Until now the app's answer was "talk to the team" and the team
- * had nothing to act with but the database.
+ * This began as a link beside each learner reading "Deadlines…", which was
+ * wrong twice over. It did not look like something you could press, and it was
+ * organised around the wrong noun: an admin thinks "module two caught people
+ * out" far more often than "Kwame specifically", so finding everyone stuck on
+ * one module meant opening forty-five people one at a time.
  *
- * The date box is a plain `datetime-local`, which is what opens the browser's
- * own calendar and clock. A picker library would look more designed and behave
- * worse on a phone, where this is as likely to be used as at a desk.
+ * So: module first. Choose one, and the whole cohort's standing on it is a
+ * single table — who has filed, who has not, who already has extra time. The
+ * decision an admin is actually making is visible in one place, and giving the
+ * whole cohort extra time is one button rather than forty-five.
+ *
+ * Note what the cohort-wide button does NOT do: it does not move the module's
+ * own deadline. Every learner gets the new date individually, which is slower
+ * in the database and correct in the way that matters — the module keeps the
+ * rules it was taught under. Moving module one's deadline forward would quietly
+ * impose the 500-word floor on a cohort that was never asked for it.
  */
-function LearnerDeadlines({
-  programId, userId, learnerName,
-}: { programId: number; userId: number; learnerName: string }) {
+function Extensions({ programId }: { programId: number }) {
   const qc = useQueryClient();
   const { toast } = useToast();
-  const { data: modules = [], isLoading } = useListDeadlineExtensions(programId, userId);
-  /** The box for the module currently being edited. One at a time. */
-  const [editing, setEditing] = useState<number | null>(null);
+  const [open, setOpen] = useState(false);
+  const [sessionId, setSessionId] = useState<number | null>(null);
   const [when, setWhen] = useState('');
   const [reason, setReason] = useState('');
+  /** Who the next grant applies to. Empty means nobody has been picked yet. */
+  const [chosen, setChosen] = useState<Set<number>>(new Set());
+
+  const { data: sessions = [] } = useListProgramSessions(programId, {
+    query: { queryKey: getListProgramSessionsQueryKey(programId), enabled: open },
+  });
+  const { data: module, isLoading } = useListModuleExtensions(sessionId as number, {
+    query: {
+      queryKey: getListModuleExtensionsQueryKey(sessionId as number),
+      enabled: open && sessionId !== null,
+    },
+  });
 
   const refresh = () => {
-    qc.invalidateQueries({ queryKey: getListDeadlineExtensionsQueryKey(programId, userId) });
-    // Their dashboard reads the same dates.
+    if (sessionId !== null) {
+      qc.invalidateQueries({ queryKey: getListModuleExtensionsQueryKey(sessionId) });
+    }
     qc.invalidateQueries({ queryKey: getListAllEnrollmentsQueryKey() });
   };
 
@@ -1180,16 +1173,16 @@ function LearnerDeadlines({
     mutation: {
       onSuccess: (r) => {
         toast({
-          title: 'Deadline moved',
-          description: r.emailed ? `${r.note} They have been emailed.` : r.note,
+          title: r.granted === 1 ? 'Extra time given' : `Extra time given to ${r.granted}`,
+          description: r.emailed > 0 ? `${r.note} They have been emailed.` : r.note,
         });
-        setEditing(null); setWhen(''); setReason('');
+        setChosen(new Set()); setWhen(''); setReason('');
         refresh();
       },
-      // The server's sentence, not a generic failure: every refusal here names
-      // something specific about the date that was typed.
+      // Every refusal here names something specific about the date that was
+      // typed, so the server's sentence travels rather than a generic failure.
       onError: (err) => toast({
-        title: 'Could not move that deadline',
+        title: 'Could not give extra time',
         description: apiReason(err, 'Try again in a moment.'),
         variant: 'destructive',
       }),
@@ -1198,7 +1191,7 @@ function LearnerDeadlines({
 
   const revoke = useRevokeDeadlineExtension({
     mutation: {
-      onSuccess: () => { toast({ title: 'Extension taken back' }); refresh(); },
+      onSuccess: () => { toast({ title: 'Extra time taken back' }); refresh(); },
       onError: (err) => toast({
         title: 'Could not take it back',
         description: apiReason(err, 'Try again in a moment.'),
@@ -1207,120 +1200,210 @@ function LearnerDeadlines({
     },
   });
 
-  if (isLoading) return <div className="m-4 h-24 animate-pulse rounded-lg bg-muted/40" />;
+  const learners = module?.learners ?? [];
+  const withExtra = learners.filter(l => l.extendedTo);
+  const notFiled = learners.filter(l => !l.submitted);
 
-  const settable = modules.filter(m => m.hasCoursework);
+  const give = (userIds: number[]) => {
+    const iso = sessionDateTimeFromInput(when);
+    if (!iso) { toast({ title: 'Pick a date and time first', variant: 'destructive' }); return; }
+    if (sessionId === null || userIds.length === 0) return;
+    grant.mutate({ id: sessionId, data: { userIds, dueAt: iso, reason, notify: true } });
+  };
+
+  const toggle = (userId: number) => {
+    const next = new Set(chosen);
+    if (next.has(userId)) next.delete(userId); else next.add(userId);
+    setChosen(next);
+  };
 
   return (
-    <div className="p-5">
-      <h4 className="text-sm font-semibold">Deadlines for {learnerName}</h4>
-      <p className="mt-0.5 text-xs text-muted-foreground">
-        Moving a deadline reopens that module for this learner alone — both its quiz and its written
-        task. It does not use up either of their late passes, and it does not change anything for the
-        rest of the cohort.
-      </p>
+    <div className="border-t border-border">
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        aria-expanded={open}
+        className="flex w-full items-center justify-between p-5 text-left"
+      >
+        <span>
+          <span className="flex items-center gap-2 text-sm font-semibold">
+            <CalendarClock className="h-4 w-4 text-[#C2410C]" aria-hidden />Extensions
+          </span>
+          <span className="mt-0.5 block text-xs text-muted-foreground">
+            Give a learner — or the whole cohort — more time on a module whose deadline has passed.
+          </span>
+        </span>
+        {open ? <ChevronUp className="h-4 w-4 flex-shrink-0" /> : <ChevronDown className="h-4 w-4 flex-shrink-0" />}
+      </button>
 
-      {settable.length === 0 ? (
-        <p className="mt-3 text-xs text-muted-foreground">
-          No module on this programme has a deadline yet, so there is nothing to extend.
-        </p>
-      ) : (
-        <ul className="mt-3 space-y-2">
-          {settable.map(m => (
-            <li key={m.sessionId} className="rounded-lg border border-border bg-card p-3">
-              <div className="flex flex-wrap items-start justify-between gap-2">
-                <div className="min-w-[180px] flex-1">
-                  <p className="text-sm font-medium">{m.title}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {describeModuleDeadline(m)}
-                  </p>
-                  {m.extendedTo && (
-                    <p className="mt-1 text-xs font-medium text-emerald-700">
-                      Extended for them to {new Date(m.extendedTo as unknown as string).toLocaleString()}
-                      {m.extensionReason ? ` — ${m.extensionReason}` : ''}
-                    </p>
-                  )}
-                  {/* The question asked straight after granting one. */}
-                  {m.submitted && (
-                    <p className="mt-1 text-xs text-muted-foreground">Their work is in.</p>
-                  )}
-                </div>
-                <div className="flex flex-shrink-0 gap-2">
+      {open && (
+        <div className="border-t border-border p-5">
+          <label className="block text-xs font-medium text-muted-foreground">
+            Which module?
+            <select
+              className="mt-1 block w-full max-w-md rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground"
+              value={sessionId ?? ''}
+              onChange={e => {
+                setSessionId(e.target.value ? Number(e.target.value) : null);
+                setChosen(new Set());
+              }}
+            >
+              <option value="">Choose a module…</option>
+              {sessions.map(s => (
+                <option key={s.id} value={s.id}>{s.title}</option>
+              ))}
+            </select>
+          </label>
+
+          {sessionId === null ? null : isLoading ? (
+            <div className="mt-4 h-32 animate-pulse rounded-lg bg-muted/40" />
+          ) : !module?.hasCoursework ? (
+            <p className="mt-4 text-xs text-muted-foreground">
+              Nothing on this module has a deadline, so there is nothing to extend — the work is already open.
+            </p>
+          ) : (
+            <>
+              <div className="mt-4 rounded-lg border border-border bg-muted/20 p-3 text-xs">
+                <p>
+                  <span className="font-medium">The cohort's deadline:</span>{' '}
+                  {describeModuleDeadline(module)}
+                </p>
+                <p className="mt-1 text-muted-foreground">
+                  {notFiled.length === 0
+                    ? 'Everyone has filed their written work.'
+                    : `${notFiled.length} of ${learners.length} have not filed their written work.`}
+                  {withExtra.length > 0 && ` ${withExtra.length} already have extra time.`}
+                </p>
+              </div>
+
+              {/* The date first, because it is what every button below needs. */}
+              <div className="mt-4 flex flex-wrap items-end gap-2">
+                <label className="text-xs text-muted-foreground">
+                  New date and time
+                  <input
+                    type="datetime-local"
+                    className="mt-1 block rounded-md border border-border bg-background px-2 py-2 text-sm text-foreground"
+                    value={when}
+                    onChange={e => setWhen(e.target.value)}
+                  />
+                </label>
+                <label className="min-w-[180px] flex-1 text-xs text-muted-foreground">
+                  Why (staff only)
+                  <input
+                    className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground"
+                    placeholder="Power cuts across Lagos"
+                    value={reason}
+                    onChange={e => setReason(e.target.value)}
+                  />
+                </label>
+              </div>
+
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Button
+                  size="sm"
+                  disabled={grant.isPending || !when || chosen.size === 0}
+                  onClick={() => give([...chosen])}
+                >
+                  {grant.isPending ? 'Saving…' : `Give ${chosen.size || 'the'} selected ${chosen.size === 1 ? 'learner' : 'learners'} extra time`}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={grant.isPending || !when || learners.length === 0}
+                  onClick={() => {
+                    if (!confirm(`Give all ${learners.length} learners on this cohort extra time on ${module.title}? Each one is emailed.`)) return;
+                    give(learners.map(l => l.userId));
+                  }}
+                >
+                  <Users className="mr-1.5 h-3.5 w-3.5" aria-hidden />Everyone ({learners.length})
+                </Button>
+                {notFiled.length > 0 && notFiled.length < learners.length && (
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={() => {
-                      const next = editing === m.sessionId ? null : m.sessionId;
-                      setEditing(next);
-                      // Opens on the extension they already have, so changing it
-                      // is an edit rather than a retype.
-                      setWhen(next === null ? '' : sessionDateTimeInput(m.extendedTo as unknown as string));
-                      setReason(next === null ? '' : m.extensionReason ?? '');
-                    }}
-                  >
-                    {m.extendedTo ? 'Change' : 'Give more time'}
-                  </Button>
-                  {m.extendedTo && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={revoke.isPending}
-                      onClick={() => {
-                        if (!confirm(`Take back ${learnerName}'s extra time on ${m.title}? The cohort's own deadline applies to them again straight away.`)) return;
-                        revoke.mutate({ id: m.sessionId, data: { userId } });
-                      }}
-                    >
-                      Take back
-                    </Button>
-                  )}
-                </div>
-              </div>
-
-              {editing === m.sessionId && (
-                <div className="mt-3 flex flex-wrap items-end gap-2 border-t border-border pt-3">
-                  <label className="text-xs text-muted-foreground">
-                    New date and time
-                    <input
-                      type="datetime-local"
-                      className="mt-1 block rounded-md border border-border bg-background px-2 py-2 text-sm text-foreground"
-                      value={when}
-                      onChange={e => setWhen(e.target.value)}
-                    />
-                  </label>
-                  <label className="min-w-[180px] flex-1 text-xs text-muted-foreground">
-                    Why (staff only)
-                    <input
-                      className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground"
-                      placeholder="Added to the cohort late"
-                      value={reason}
-                      onChange={e => setReason(e.target.value)}
-                    />
-                  </label>
-                  <Button
-                    size="sm"
                     disabled={grant.isPending || !when}
                     onClick={() => {
-                      const iso = sessionDateTimeFromInput(when);
-                      if (!iso) {
-                        toast({ title: 'Pick a date and time first', variant: 'destructive' });
-                        return;
-                      }
-                      grant.mutate({
-                        id: m.sessionId,
-                        data: { userId, dueAt: iso, reason, notify: true },
-                      });
+                      if (!confirm(`Give extra time to the ${notFiled.length} who have not filed? Each one is emailed.`)) return;
+                      give(notFiled.map(l => l.userId));
                     }}
                   >
-                    {grant.isPending ? 'Saving…' : 'Save'}
+                    Only those who have not filed ({notFiled.length})
                   </Button>
-                  <p className="w-full text-xs text-muted-foreground/80">
-                    They will be emailed to say the module is open again and until when.
-                  </p>
-                </div>
-              )}
-            </li>
-          ))}
-        </ul>
+                )}
+              </div>
+
+              <table className="mt-4 w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border text-left text-xs uppercase tracking-wider text-muted-foreground">
+                    <th className="w-8 p-2">
+                      <input
+                        type="checkbox"
+                        aria-label="Select everyone"
+                        checked={chosen.size > 0 && chosen.size === learners.length}
+                        onChange={e => setChosen(e.target.checked ? new Set(learners.map(l => l.userId)) : new Set())}
+                      />
+                    </th>
+                    <th className="p-2">Learner</th>
+                    <th className="p-2">On this module</th>
+                    <th className="p-2">Extra time</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {learners.map(l => (
+                    <tr key={l.userId} className="border-b border-border/60">
+                      <td className="p-2">
+                        <input
+                          type="checkbox"
+                          aria-label={`Select ${l.name || l.email}`}
+                          checked={chosen.has(l.userId)}
+                          onChange={() => toggle(l.userId)}
+                        />
+                      </td>
+                      <td className="p-2">
+                        <p className="font-medium">{l.name || l.email}</p>
+                        <p className="text-xs text-muted-foreground">{l.email}</p>
+                      </td>
+                      <td className="p-2 text-xs">
+                        <span className={l.submitted ? 'text-emerald-700' : 'text-amber-800'}>
+                          {l.submitted ? 'Work filed' : 'Not filed'}
+                        </span>
+                        {l.quizPassed && <span className="text-muted-foreground"> · quiz passed</span>}
+                      </td>
+                      <td className="p-2 text-xs">
+                        {l.extendedTo ? (
+                          <span className="flex flex-wrap items-center gap-2">
+                            <span className="font-medium text-emerald-700">
+                              until {new Date(l.extendedTo as unknown as string).toLocaleString()}
+                            </span>
+                            <button
+                              type="button"
+                              className="underline underline-offset-2 text-muted-foreground"
+                              disabled={revoke.isPending}
+                              onClick={() => {
+                                if (!confirm(`Take back ${l.name || l.email}'s extra time on ${module.title}? The cohort's own deadline applies to them again straight away.`)) return;
+                                revoke.mutate({ id: sessionId, data: { userIds: [l.userId] } });
+                              }}
+                            >
+                              take back
+                            </button>
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+
+              <p className="mt-3 text-xs text-muted-foreground">
+                Extra time moves both doors on this module — its quiz and its written task — for the people
+                chosen, and nobody else. It costs them no late passes, and it does not change the rules the
+                module was set under.
+              </p>
+            </>
+          )}
+        </div>
       )}
     </div>
   );

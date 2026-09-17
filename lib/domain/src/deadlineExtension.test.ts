@@ -4,6 +4,7 @@ import {
   taughtUnder,
   extensionProblem,
   extensionNote,
+  manyExtensionsNote,
   MAX_EXTENSION_DAYS,
 } from "./deadlineExtension";
 import { wordsRequired } from "./wordMinimums";
@@ -146,5 +147,27 @@ describe("what the admin reads back", () => {
     expect(extensionNote({
       learnerName: "  ", moduleTitle: "M1", extendedTo: NEXT_WEEK, moduleAlreadyClosed: false,
     })).toMatch(/^This learner/);
+  });
+});
+
+describe("what the admin reads back about a group", () => {
+  it("speaks about the group, not about one person", () => {
+    // "Kwame Mensah can now file…" and "23 learners can now file…" are
+    // different sentences; one function serving both reads like neither.
+    const note = manyExtensionsNote({
+      count: 23, moduleTitle: "Energy Fundamentals",
+      extendedTo: NEXT_WEEK, moduleAlreadyClosed: true,
+    });
+    expect(note).toMatch(/^23 learners can now file Energy Fundamentals/);
+    expect(note).toMatch(/quiz and written task/);
+    expect(note).toMatch(/It was shut\./);
+  });
+
+  it("does not claim to have reopened something that was never shut", () => {
+    const note = manyExtensionsNote({
+      count: 23, moduleTitle: "This week", extendedTo: NEXT_WEEK, moduleAlreadyClosed: false,
+    });
+    expect(note).not.toMatch(/It was shut/);
+    expect(note).toMatch(/23 learners have until/);
   });
 });

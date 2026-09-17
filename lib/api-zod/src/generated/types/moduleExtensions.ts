@@ -5,10 +5,12 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { ModuleLearnerStanding } from './moduleLearnerStanding';
 
-export interface ModuleDeadlineRow {
+export interface ModuleExtensions {
   sessionId: number;
   title: string;
+  programTitle?: string;
   /** @nullable */
   startsAt?: Date | null;
   /** @nullable */
@@ -17,9 +19,5 @@ export interface ModuleDeadlineRow {
   assignmentDueAt?: Date | null;
   moduleClosed: boolean;
   hasCoursework: boolean;
-  /** @nullable */
-  extendedTo?: Date | null;
-  /** @nullable */
-  extensionReason?: string | null;
-  submitted?: boolean;
+  learners: ModuleLearnerStanding[];
 }

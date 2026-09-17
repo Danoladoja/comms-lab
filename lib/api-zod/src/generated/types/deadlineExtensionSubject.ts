@@ -7,5 +7,9 @@
  */
 
 export interface DeadlineExtensionSubject {
-  userId: number;
+  /**
+     * @minItems 1
+     * @maxItems 500
+     */
+  userIds: number[];
 }

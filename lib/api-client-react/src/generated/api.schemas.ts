@@ -1426,9 +1426,50 @@ export interface GoogleHoldings {
   ready: boolean;
 }
 
-export interface ModuleDeadlineRow {
+export interface DeadlineExtensionSubject {
+  /**
+     * @minItems 1
+     * @maxItems 500
+     */
+  userIds: number[];
+}
+
+export interface DeadlineExtensionGrant {
+  /**
+     * @minItems 1
+     * @maxItems 500
+     */
+  userIds: number[];
+  dueAt: string;
+  reason?: string;
+  notify?: boolean;
+}
+
+export interface DeadlineExtensionResult {
+  sessionId: number;
+  dueAt: string;
+  granted: number;
+  skipped?: number;
+  emailed: number;
+  note: string;
+}
+
+export interface ModuleLearnerStanding {
+  userId: number;
+  name: string;
+  email: string;
+  submitted: boolean;
+  quizPassed: boolean;
+  /** @nullable */
+  extendedTo?: string | null;
+  /** @nullable */
+  extensionReason?: string | null;
+}
+
+export interface ModuleExtensions {
   sessionId: number;
   title: string;
+  programTitle?: string;
   /** @nullable */
   startsAt?: string | null;
   /** @nullable */
@@ -1437,30 +1478,7 @@ export interface ModuleDeadlineRow {
   assignmentDueAt?: string | null;
   moduleClosed: boolean;
   hasCoursework: boolean;
-  /** @nullable */
-  extendedTo?: string | null;
-  /** @nullable */
-  extensionReason?: string | null;
-  submitted?: boolean;
-}
-
-export interface DeadlineExtensionSubject {
-  userId: number;
-}
-
-export interface DeadlineExtensionGrant {
-  userId: number;
-  dueAt: string;
-  reason?: string;
-  notify?: boolean;
-}
-
-export interface DeadlineExtensionResult {
-  sessionId: number;
-  userId: number;
-  dueAt: string;
-  note: string;
-  emailed: boolean;
+  learners: ModuleLearnerStanding[];
 }
 
 export type LateEnrolmentCountsFrom = typeof LateEnrolmentCountsFrom[keyof typeof LateEnrolmentCountsFrom];

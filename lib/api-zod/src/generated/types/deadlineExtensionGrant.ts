@@ -7,7 +7,11 @@
  */
 
 export interface DeadlineExtensionGrant {
-  userId: number;
+  /**
+     * @minItems 1
+     * @maxItems 500
+     */
+  userIds: number[];
   dueAt: Date;
   reason?: string;
   notify?: boolean;

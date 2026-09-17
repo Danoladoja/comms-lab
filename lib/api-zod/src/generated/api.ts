@@ -1916,27 +1916,32 @@ export const ListAllEnrollmentsResponse = zod.array(ListAllEnrollmentsResponseIt
 
 
 /**
- * The learner is a path segment rather than a query parameter on purpose. A path parameter plus a query parameter makes Orval generate the same `Params` type in both generated packages, and the build fails on the duplicate export — a collision this repo has hit twice before.
- * @summary Every module on this programme, with any extension granted to one learner
+ * Module first, because that is how the question actually arrives — "module two caught people out" far more often than "Kwame specifically". One table shows who has filed, who has not, and who already has extra time, which is what an admin needs before deciding who to give it to.
+ * @summary One module, and where every learner on it stands
  */
-export const ListDeadlineExtensionsParams = zod.object({
-  "id": zod.coerce.number().int(),
-  "userId": zod.coerce.number().int()
+export const ListModuleExtensionsParams = zod.object({
+  "id": zod.coerce.number().int()
 })
 
-export const ListDeadlineExtensionsResponseItem = zod.object({
+export const ListModuleExtensionsResponse = zod.object({
   "sessionId": zod.int(),
   "title": zod.string(),
+  "programTitle": zod.string().optional(),
   "startsAt": zod.coerce.date().nullish(),
   "quizDueAt": zod.coerce.date().nullish(),
   "assignmentDueAt": zod.coerce.date().nullish(),
   "moduleClosed": zod.boolean(),
   "hasCoursework": zod.boolean(),
+  "learners": zod.array(zod.object({
+  "userId": zod.int(),
+  "name": zod.string(),
+  "email": zod.string(),
+  "submitted": zod.boolean(),
+  "quizPassed": zod.boolean(),
   "extendedTo": zod.coerce.date().nullish(),
-  "extensionReason": zod.string().nullish(),
-  "submitted": zod.boolean().optional()
+  "extensionReason": zod.string().nullish()
+}))
 })
-export const ListDeadlineExtensionsResponse = zod.array(ListDeadlineExtensionsResponseItem)
 
 
 /**
@@ -1947,8 +1952,12 @@ export const GrantDeadlineExtensionParams = zod.object({
   "id": zod.coerce.number().int()
 })
 
+export const grantDeadlineExtensionBodyUserIdsMax = 500;
+
+
+
 export const GrantDeadlineExtensionBody = zod.object({
-  "userId": zod.int(),
+  "userIds": zod.array(zod.int()).min(1).max(grantDeadlineExtensionBodyUserIdsMax),
   "dueAt": zod.coerce.date(),
   "reason": zod.string().optional(),
   "notify": zod.boolean().optional()
@@ -1956,10 +1965,11 @@ export const GrantDeadlineExtensionBody = zod.object({
 
 export const GrantDeadlineExtensionResponse = zod.object({
   "sessionId": zod.int(),
-  "userId": zod.int(),
   "dueAt": zod.coerce.date(),
-  "note": zod.string(),
-  "emailed": zod.boolean()
+  "granted": zod.int(),
+  "skipped": zod.int().optional(),
+  "emailed": zod.int(),
+  "note": zod.string()
 })
 
 
@@ -1970,8 +1980,12 @@ export const RevokeDeadlineExtensionParams = zod.object({
   "id": zod.coerce.number().int()
 })
 
+export const revokeDeadlineExtensionBodyUserIdsMax = 500;
+
+
+
 export const RevokeDeadlineExtensionBody = zod.object({
-  "userId": zod.int()
+  "userIds": zod.array(zod.int()).min(1).max(revokeDeadlineExtensionBodyUserIdsMax)
 })
 
 export const RevokeDeadlineExtensionResponse = zod.object({

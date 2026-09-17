@@ -129,6 +129,27 @@ export function extensionNote(facts: {
 }
 
 /**
+ * The same thing said about a group.
+ *
+ * Kept separate from the one-learner version rather than made to serve both.
+ * "Kwame Mensah can now file Energy Fundamentals" and "23 learners can now file
+ * Energy Fundamentals" are different sentences, and the generic one that covers
+ * both reads like neither.
+ */
+export function manyExtensionsNote(facts: {
+  count: number;
+  moduleTitle: string;
+  extendedTo: string;
+  moduleAlreadyClosed: boolean;
+}): string {
+  const when = describeWhen(facts.extendedTo);
+  const who = `${facts.count} learners`;
+  return facts.moduleAlreadyClosed
+    ? `${who} can now file ${facts.moduleTitle} — quiz and written task — until ${when}. It was shut.`
+    : `${who} have until ${when} for ${facts.moduleTitle}, rather than the cohort's deadline.`;
+}
+
+/**
  * A date a person can read, without a formatting library.
  *
  * Deliberately plain: this appears in an email and in an admin panel, and the

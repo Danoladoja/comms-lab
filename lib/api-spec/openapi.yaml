@@ -2286,34 +2286,28 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiMessage"
-  /admin/programs/{id}/learners/{userId}/deadline-extensions:
+  /admin/sessions/{id}/extensions:
     get:
-      operationId: listDeadlineExtensions
+      operationId: listModuleExtensions
       tags: [admin]
-      summary: Every module on this programme, with any extension granted to one learner
+      summary: One module, and where every learner on it stands
       description: >
-        The learner is a path segment rather than a query parameter on purpose.
-        A path parameter plus a query parameter makes Orval generate the same
-        `Params` type in both generated packages, and the build fails on the
-        duplicate export — a collision this repo has hit twice before.
+        Module first, because that is how the question actually arrives — "module
+        two caught people out" far more often than "Kwame specifically". One table
+        shows who has filed, who has not, and who already has extra time, which is
+        what an admin needs before deciding who to give it to.
       parameters:
         - name: id
           in: path
           required: true
           schema: { type: integer }
-        - name: userId
-          in: path
-          required: true
-          schema: { type: integer }
       responses:
         "200":
-          description: The modules, with this learner's standing on each
+          description: The module and its learners
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/ModuleDeadlineRow"
+                $ref: "#/components/schemas/ModuleExtensions"
         "403":
           description: Forbidden
           content:
@@ -4776,49 +4770,69 @@ components:
         advice: { type: string }
         # Whether this class is in the state the automation would need.
         ready: { type: boolean }
-    ModuleDeadlineRow:
-      type: object
-      required: [sessionId, title, moduleClosed, hasCoursework]
-      properties:
-        sessionId: { type: integer }
-        title: { type: string }
-        startsAt: { type: ["string", "null"], format: date-time }
-        # The module's own deadlines, which belong to the whole cohort.
-        quizDueAt: { type: ["string", "null"], format: date-time }
-        assignmentDueAt: { type: ["string", "null"], format: date-time }
-        # Whether the cohort's door has already shut on this module.
-        moduleClosed: { type: boolean }
-        # False when there is no quiz and no task, so nothing to extend.
-        hasCoursework: { type: boolean }
-        # This learner's extension, if they have one.
-        extendedTo: { type: ["string", "null"], format: date-time }
-        extensionReason: { type: ["string", "null"] }
-        # Whether they have already filed, so an admin can see the extension worked.
-        submitted: { type: boolean }
     DeadlineExtensionSubject:
       type: object
-      required: [userId]
+      required: [userIds]
       properties:
-        userId: { type: integer }
+        # A set rather than one, so the whole cohort is a single action.
+        userIds:
+          type: array
+          items: { type: integer }
+          minItems: 1
+          maxItems: 500
     DeadlineExtensionGrant:
       type: object
-      required: [userId, dueAt]
+      required: [userIds, dueAt]
       properties:
-        userId: { type: integer }
+        userIds:
+          type: array
+          items: { type: integer }
+          minItems: 1
+          maxItems: 500
         # The new date and time, from the browser's own calendar.
         dueAt: { type: string, format: date-time }
         reason: { type: string }
-        # Off only when the admin is already talking to the learner themselves.
+        # Off only when the admin is already talking to the learners themselves.
         notify: { type: boolean }
     DeadlineExtensionResult:
       type: object
-      required: [sessionId, userId, dueAt, note, emailed]
+      required: [sessionId, dueAt, granted, emailed, note]
       properties:
         sessionId: { type: integer }
-        userId: { type: integer }
         dueAt: { type: string, format: date-time }
+        # How many learners now hold this extension.
+        granted: { type: integer }
+        # Named because an admin who asked for the cohort and got 43 wants to know.
+        skipped: { type: integer }
+        emailed: { type: integer }
         note: { type: string }
-        emailed: { type: boolean }
+    ModuleExtensions:
+      type: object
+      required: [sessionId, title, moduleClosed, hasCoursework, learners]
+      properties:
+        sessionId: { type: integer }
+        title: { type: string }
+        programTitle: { type: string }
+        startsAt: { type: ["string", "null"], format: date-time }
+        quizDueAt: { type: ["string", "null"], format: date-time }
+        assignmentDueAt: { type: ["string", "null"], format: date-time }
+        moduleClosed: { type: boolean }
+        hasCoursework: { type: boolean }
+        learners:
+          type: array
+          items:
+            $ref: "#/components/schemas/ModuleLearnerStanding"
+    ModuleLearnerStanding:
+      type: object
+      required: [userId, name, email, submitted, quizPassed]
+      properties:
+        userId: { type: integer }
+        name: { type: string }
+        email: { type: string }
+        submitted: { type: boolean }
+        quizPassed: { type: boolean }
+        extendedTo: { type: ["string", "null"], format: date-time }
+        extensionReason: { type: ["string", "null"] }
     LateEnrolment:
       type: object
       required: [email, countsFrom]

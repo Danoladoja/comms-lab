@@ -69,7 +69,7 @@ import type {
   LiveSessionJoin,
   LiveSessionRegistered,
   MeetAttendanceResult,
-  ModuleDeadlineRow,
+  ModuleExtensions,
   ModuleWork,
   MoreQuestionsInput,
   MyFeedback,
@@ -5608,23 +5608,21 @@ export function useListAllEnrollments<TData = Awaited<ReturnType<typeof listAllE
 
 
 
-export const getListDeadlineExtensionsUrl = (id: number,
-    userId: number,) => {
+export const getListModuleExtensionsUrl = (id: number,) => {
 
 
 
 
-  return `/api/admin/programs/${id}/learners/${userId}/deadline-extensions`
+  return `/api/admin/sessions/${id}/extensions`
 }
 
 /**
- * The learner is a path segment rather than a query parameter on purpose. A path parameter plus a query parameter makes Orval generate the same `Params` type in both generated packages, and the build fails on the duplicate export — a collision this repo has hit twice before.
- * @summary Every module on this programme, with any extension granted to one learner
+ * Module first, because that is how the question actually arrives — "module two caught people out" far more often than "Kwame specifically". One table shows who has filed, who has not, and who already has extra time, which is what an admin needs before deciding who to give it to.
+ * @summary One module, and where every learner on it stands
  */
-export const listDeadlineExtensions = async (id: number,
-    userId: number, options?: Parameters<typeof customFetch>[1]): Promise<ModuleDeadlineRow[]> => {
+export const listModuleExtensions = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<ModuleExtensions> => {
 
-  return customFetch<ModuleDeadlineRow[]>(getListDeadlineExtensionsUrl(id,userId),
+  return customFetch<ModuleExtensions>(getListModuleExtensionsUrl(id),
   {
     ...options,
     method: 'GET'
@@ -5637,48 +5635,45 @@ export const listDeadlineExtensions = async (id: number,
 
 
 
-export const getListDeadlineExtensionsQueryKey = (id: number,
-    userId: number,) => {
+export const getListModuleExtensionsQueryKey = (id: number,) => {
     return [
-    `/api/admin/programs/${id}/learners/${userId}/deadline-extensions`
+    `/api/admin/sessions/${id}/extensions`
     ] as const;
     }
 
 
-export const getListDeadlineExtensionsQueryOptions = <TData = Awaited<ReturnType<typeof listDeadlineExtensions>>, TError = ErrorType<ApiMessage>>(id: number,
-    userId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listDeadlineExtensions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export const getListModuleExtensionsQueryOptions = <TData = Awaited<ReturnType<typeof listModuleExtensions>>, TError = ErrorType<ApiMessage>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listModuleExtensions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getListDeadlineExtensionsQueryKey(id,userId);
+  const queryKey =  queryOptions?.queryKey ?? getListModuleExtensionsQueryKey(id);
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof listDeadlineExtensions>>> = ({ signal }) => listDeadlineExtensions(id,userId, { signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listModuleExtensions>>> = ({ signal }) => listModuleExtensions(id, { signal, ...requestOptions });
 
 
 
 
 
-   return  { queryKey, queryFn, enabled: id !== null && id !== undefined && userId !== null && userId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listDeadlineExtensions>>, TError, TData> & { queryKey: QueryKey }
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listModuleExtensions>>, TError, TData> & { queryKey: QueryKey }
 }
 
-export type ListDeadlineExtensionsQueryResult = NonNullable<Awaited<ReturnType<typeof listDeadlineExtensions>>>
-export type ListDeadlineExtensionsQueryError = ErrorType<ApiMessage>
+export type ListModuleExtensionsQueryResult = NonNullable<Awaited<ReturnType<typeof listModuleExtensions>>>
+export type ListModuleExtensionsQueryError = ErrorType<ApiMessage>
 
 
 /**
- * @summary Every module on this programme, with any extension granted to one learner
+ * @summary One module, and where every learner on it stands
  */
 
-export function useListDeadlineExtensions<TData = Awaited<ReturnType<typeof listDeadlineExtensions>>, TError = ErrorType<ApiMessage>>(
- id: number,
-    userId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listDeadlineExtensions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export function useListModuleExtensions<TData = Awaited<ReturnType<typeof listModuleExtensions>>, TError = ErrorType<ApiMessage>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listModuleExtensions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
-  const queryOptions = getListDeadlineExtensionsQueryOptions(id,userId,options)
+  const queryOptions = getListModuleExtensionsQueryOptions(id,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 
