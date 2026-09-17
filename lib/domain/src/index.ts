@@ -40,3 +40,4 @@ export * from "./recordingLength";
 export * from "./quizChange";
 export * from "./wordMinimums";
 export * from "./meetAttendance";
+export * from "./appPath";

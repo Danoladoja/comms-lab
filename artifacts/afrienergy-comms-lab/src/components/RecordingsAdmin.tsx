@@ -64,6 +64,24 @@ export default function RecordingsAdmin() {
   // list doing, and half a dozen videos loaded at once is a lot of nothing.
   const [playing, setPlaying] = useState<number | null>(null);
 
+  /**
+   * What Google's sign-in came back saying.
+   *
+   * The callback used to land here with a bare `?google=error` and log the real
+   * reason where only somebody reading the server logs could find it — which is
+   * nobody, at the moment it happens, having just spent twenty minutes on the
+   * setup. Every one of these has a different next step, so each gets said.
+   */
+  const params = new URLSearchParams(window.location.search);
+  const googleResult = params.get('google');
+  const whyFailed = ({
+    'no-code': 'Google sent us back without a sign-in code. Start the connection again.',
+    expired: 'The connection took too long, or the server restarted part-way through. Nothing is wrong — press Connect and go straight through it.',
+    'not-configured': 'The four Google settings are not all on the server. Check GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI and GOOGLE_TOKEN_SECRET in Railway.',
+    'no-refresh-token': 'Google did not hand over a lasting key, which happens when this app was approved before. Remove it at myaccount.google.com → Data & privacy → Third-party apps, then connect again.',
+    'exchange-failed': 'Google refused the exchange. Nearly always the redirect address: GOOGLE_REDIRECT_URI in Railway must match the one in Google Cloud exactly — same https, same spelling, no trailing slash.',
+  } as Record<string, string>)[params.get('why') ?? ''] ?? 'Something went wrong signing in to Google. Try again.';
+
   const { data: connection, isLoading: loadingConnection } = useGetGoogleConnection({
     query: { queryKey: getGetGoogleConnectionQueryKey() },
   });
@@ -215,6 +233,21 @@ export default function RecordingsAdmin() {
         <h2 className="font-display font-bold mb-1">
           Google connection
         </h2>
+
+        {googleResult === 'error' && (
+          <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-4">
+            <p className="font-semibold text-red-900 flex items-center gap-2 mb-1">
+              <CircleAlert className="w-4 h-4" aria-hidden />Google did not finish connecting
+            </p>
+            <p className="text-sm text-red-900/80">{whyFailed}</p>
+          </div>
+        )}
+
+        {googleResult === 'connected' && (
+          <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+            <p className="font-semibold text-emerald-900">Google connected.</p>
+          </div>
+        )}
         <p className="text-sm text-muted-foreground mb-5">
           Two things run off this. Each finished class is copied from Meet to YouTube and published by itself — and
           attendance is read from Google's own record of who was in the room, so it no longer depends on a learner

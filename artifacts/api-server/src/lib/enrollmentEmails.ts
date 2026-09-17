@@ -1,4 +1,4 @@
-import { labLetter } from "@workspace/domain";
+import { labLetter, appPath } from "@workspace/domain";
 import { sendEmail, EmailRejectedError } from "./email";
 import { logger } from "./logger";
 
@@ -15,8 +15,10 @@ export function appUrl(path: string): string {
   if (configured) return `${configured}${path}`;
 
   const domain = process.env.REPLIT_DOMAINS?.split(",")[0] ?? process.env.REPLIT_DEV_DOMAIN;
-  const basePath = (process.env.BASE_PATH ?? "/").replace(/\/$/, "");
-  return domain ? `https://${domain}${basePath}${path}` : `${basePath}${path}`;
+  // Same builder as every other in-app link, so a base of "/" cannot turn a
+  // path into a hostname here either.
+  const rooted = appPath(process.env.BASE_PATH, path);
+  return domain ? `https://${domain}${rooted}` : rooted;
 }
 
 /** The white logo, absolute, for the dark band. Null where no address is set. */

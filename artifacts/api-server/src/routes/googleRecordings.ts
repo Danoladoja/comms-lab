@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { db, sessionsTable, programsTable } from "@workspace/db";
 import { and, desc, eq, isNotNull, lt, sql } from "drizzle-orm";
 import { randomBytes } from "node:crypto";
+import { appPath } from "@workspace/domain";
 import { requireRole, getCurrentUser } from "../lib/auth";
 import {
   googleEnv,
@@ -82,29 +83,35 @@ router.delete("/admin/google", requireRole("admin"), async (_req, res) => {
 router.get("/google/oauth/callback", async (req, res) => {
   const code = typeof req.query.code === "string" ? req.query.code : null;
   const state = typeof req.query.state === "string" ? req.query.state : null;
-  const basePath = process.env.BASE_PATH ?? "";
-
-  const fail = (reason: string) => {
+  /**
+   * Why it failed, carried back to the page.
+   *
+   * It used to redirect to a bare `?google=error` and log the reason where only
+   * somebody with the server logs could read it. The person who needs it is
+   * standing in front of the screen having just done twenty minutes of setup,
+   * and every one of these has a different next step.
+   */
+  const fail = (reason: string, code: string) => {
     logger.warn({ reason }, "Google OAuth callback rejected");
-    res.redirect(`${basePath}/admin?google=error`);
+    res.redirect(appPath(process.env.BASE_PATH, `/admin?google=error&why=${code}`));
   };
 
-  if (!code || !state) return fail("missing code or state");
+  if (!code || !state) return fail("missing code or state", "no-code");
 
   sweepStates();
   const pending = pendingStates.get(state);
-  if (!pending) return fail("unknown or expired state");
+  if (!pending) return fail("unknown or expired state", "expired");
   pendingStates.delete(state);
 
   const env = googleEnv();
-  if (!env) return fail("server not configured");
+  if (!env) return fail("server not configured", "not-configured");
 
   try {
     const token = await exchangeCode(env, code);
     if (!token.refresh_token) {
       // Google only issues one on first consent; forcing prompt=consent should
       // prevent this, but say so plainly rather than storing a useless row.
-      return fail("no refresh token returned — revoke the app in the Google account and try again");
+      return fail("no refresh token returned", "no-refresh-token");
     }
     const email = await fetchGoogleEmail(token.access_token);
     await saveConnection({
@@ -115,10 +122,10 @@ router.get("/google/oauth/callback", async (req, res) => {
     });
     clearTokenCache();
     logger.info({ email }, "Google account connected for recording transfers");
-    res.redirect(`${basePath}/admin?google=connected`);
+    res.redirect(appPath(process.env.BASE_PATH, "/admin?google=connected"));
   } catch (err) {
     logger.error({ err }, "Google OAuth exchange failed");
-    fail("token exchange failed");
+    fail("token exchange failed", "exchange-failed");
   }
 });
 
