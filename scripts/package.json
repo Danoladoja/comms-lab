@@ -11,7 +11,8 @@
     "credit:attendance": "tsx ./src/credit-missed-attendance.ts",
     "check:schema": "tsx ./src/check-schema.ts",
     "why:locked": "tsx ./src/why-locked.ts",
-    "freeze:critiques": "tsx ./src/freeze-critique-requirements.ts"
+    "freeze:critiques": "tsx ./src/freeze-critique-requirements.ts",
+    "credit:class": "tsx ./src/credit-class-attendance.ts"
   },
   "devDependencies": {
     "@types/node": "catalog:",

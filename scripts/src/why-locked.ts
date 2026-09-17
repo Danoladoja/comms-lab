@@ -67,6 +67,7 @@ async function main() {
         title: sessionsTable.title,
         startsAt: sessionsTable.startsAt,
         durationMins: sessionsTable.durationMins,
+        recordingSeconds: sessionsTable.recordingDurationSeconds,
         quizDraft: sessionsTable.quizDraft,
       })
       .from(sessionsTable)
@@ -160,6 +161,9 @@ async function main() {
       const filedCount = peers[0]?.count ?? 0;
 
       const unfinished: string[] = [];
+      /** How many learners the app measured at all, and the best anyone managed. */
+      let measured = 0;
+      let bestLivePct = 0;
 
       for (const learner of learners) {
         const enrolledAt = (learner.startedAt ?? learner.createdAt)?.getTime() ?? 0;
@@ -181,11 +185,22 @@ async function main() {
             replayDurationSeconds: replay?.durationSeconds ?? null,
             sessionSeconds: session.durationMins * 60,
           });
+          if (joined || replay) {
+            measured += 1;
+            bestLivePct = Math.max(bestLivePct, presence.livePct);
+          }
           if (!presence.met) {
+            // Minutes, not a share of anything. The first version of this
+            // printed `share`, which is progress *towards the bar* — so a
+            // learner who sat through 59% of a class read as "99%" and looked
+            // like someone the app was wrongly refusing. It sent me looking in
+            // the wrong place, and it would have sent anyone else there too.
+            const mins = Math.round((joined?.liveSeconds ?? 0) / 60);
             why.push(
               !joined && !replay
-                ? "never opened the class or the replay"
-                : `attendance ${Math.round(presence.share * 100)}% — needs ${presence.liveThresholdPct}% live or ${presence.replayThresholdPct}% of the replay`,
+                ? "no record of opening the class or the replay"
+                : `${mins} of the class's ${session.durationMins} scheduled minutes measured (${presence.livePct}%)`
+                  + `, replay ${presence.replayPct}% — needs ${presence.liveThresholdPct}% live or ${presence.replayThresholdPct}% of the replay`,
             );
           }
         }
@@ -232,6 +247,34 @@ async function main() {
 
       console.log(`\n  ${session.title}   (${day(session.startsAt)})`);
       console.log(`  asks for: ${asks}`);
+
+      if (session.startsAt) {
+        const rec = session.recordingSeconds ? Math.round(session.recordingSeconds / 60) : null;
+        console.log(
+          `  attendance measured for ${measured} of ${learners.length}`
+          + ` · scheduled ${session.durationMins} min`
+          + (rec === null ? " · no recording length known" : ` · recording ${rec} min`),
+        );
+        // A bar nobody in the room could clear is not a cohort that did not
+        // turn up. Presence is measured against the *scheduled* length, so a
+        // class that ran short makes 60% unreachable for everyone in it.
+        // Not said once everybody has been credited by hand: the measurement is
+        // still poor, but nobody is standing behind it, and a warning nobody
+        // needs to act on is a warning that teaches people to skip warnings.
+        if (measured > 0 && bestLivePct < 60 && unfinished.length > 0) {
+          console.log(`  !! the best attendance anybody managed here is ${bestLivePct}% — nobody cleared the 60% bar.`);
+          console.log("     A class that ran shorter than its scheduled length does exactly this,");
+          console.log("     because presence is measured against the scheduled minutes.");
+          if (rec !== null && rec < session.durationMins) {
+            console.log(`     The recording is ${rec} min against ${session.durationMins} scheduled, which fits.`);
+          }
+        }
+        if (measured === 0) {
+          console.log("  !! nobody has any attendance record for this class at all.");
+          console.log("     If it ran and people were in it, the app did not see them —");
+          console.log("     joining Meet directly from a calendar invite leaves no trace here.");
+        }
+      }
 
       if (unfinished.length === 0) {
         console.log("  everyone has finished this one.");
