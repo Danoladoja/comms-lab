@@ -39,3 +39,4 @@ export * from "./meetLink";
 export * from "./recordingLength";
 export * from "./quizChange";
 export * from "./wordMinimums";
+export * from "./meetAttendance";

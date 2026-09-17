@@ -661,6 +661,15 @@ export interface MoreQuestionsInput {
   guidance?: string;
 }
 
+export interface MeetAttendanceResult {
+  sessionId: number;
+  note: string;
+  seen: number;
+  matched: number;
+  written: number;
+  unmatched: string[];
+}
+
 export interface TaskDraftCurrent {
   /** @maxLength 300 */
   title?: string;

@@ -28,7 +28,27 @@ export const GOOGLE_SCOPES = [
   "https://www.googleapis.com/auth/drive.readonly",
   "https://www.googleapis.com/auth/youtube.upload",
   "https://www.googleapis.com/auth/userinfo.email",
+  /**
+   * Who was in the room, and for how long.
+   *
+   * The Workspace audit trail, which requires an administrator of the domain
+   * that hosts the classes. It is what lets attendance stop depending on a
+   * learner having the Lab's own page open during the class — the assumption
+   * that cost a cohort three weeks when the join link failed and everybody used
+   * the calendar invite instead.
+   *
+   * Adding a scope does not extend a connection that already exists: Google
+   * only grants it at the consent screen, so the admin has to reconnect once
+   * after this ships. `meetReportsAuthorised` below is how the app tells the
+   * difference between "not an admin" and "has not reconnected yet".
+   */
+  "https://www.googleapis.com/auth/admin.reports.audit.readonly",
 ];
+
+/** Has the stored connection actually been granted the reports permission? */
+export function hasReportsScope(grantedScopes: string | null | undefined): boolean {
+  return (grantedScopes ?? "").includes("admin.reports.audit.readonly");
+}
 
 export type GoogleEnv = { clientId: string; clientSecret: string; redirectUri: string };
 

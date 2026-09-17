@@ -76,6 +76,7 @@ export * from './liveSessionJoin';
 export * from './liveSessionRegistered';
 export * from './liveSessionState';
 export * from './liveSessionStatus';
+export * from './meetAttendanceResult';
 export * from './moduleWork';
 export * from './moreQuestionsInput';
 export * from './myFeedback';

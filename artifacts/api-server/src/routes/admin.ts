@@ -8,6 +8,7 @@ import {
   checkRoleChange, validateInvite, describeInvite, mayResendInvitation, MAX_RESEND_AT_ONCE,
 } from "@workspace/domain";
 import { currentRole, founderId, requireRole, getCurrentUser } from "../lib/auth";
+import { syncAttendanceForSession } from "../lib/meetAttendanceSync";
 import { revokeInvitation, invitesConfigured } from "../lib/clerkInvites";
 import { deliverInvitation } from "../lib/invitationDelivery";
 import { sendWaitlistPromotion } from "../lib/enrollmentEmails";
@@ -270,6 +271,32 @@ router.patch("/admin/enrollments/:id", async (req, res) => {
  * arrives already a facilitator with their classes waiting. The role travels on
  * Clerk's public metadata, which only a backend can write.
  */
+/**
+ * Fill in this class's attendance from Google's record of the room.
+ *
+ * Here rather than in a console command because the console is where a bad
+ * afternoon is spent, and this is the tool for getting out of one. It is also
+ * run automatically an hour after each class ends — this is for the classes
+ * that happened before any of that existed.
+ */
+router.post("/admin/sessions/:id/attendance/from-google", requireRole("admin", "superadmin"), async (req, res) => {
+  const sessionId = Number(req.params.id);
+  if (!Number.isInteger(sessionId)) { res.status(400).json({ error: "That is not a module." }); return; }
+
+  // No dry run here, unlike the scripts. This only ever raises a number and
+  // repeats harmlessly, so there is nothing for a rehearsal to protect against
+  // — and a button with two modes is a button somebody presses the wrong one of.
+  const result = await syncAttendanceForSession(sessionId);
+  if ("error" in result) {
+    // 403 for the two that are about permission, because they need a different
+    // action from the admin: reconnect Google, or use an account that can.
+    const permission = result.error.includes("administrator") || result.error.includes("Reconnect");
+    res.status(permission ? 403 : 400).json({ error: result.error });
+    return;
+  }
+  res.json(result);
+});
+
 router.post("/admin/invitations", async (req, res) => {
   if (!invitesConfigured()) {
     res.status(503).json({ error: "Clerk is not configured on the server, so invitations cannot be sent." });

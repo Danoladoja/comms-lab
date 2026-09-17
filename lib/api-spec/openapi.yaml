@@ -883,6 +883,42 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiMessage"
+  /admin/sessions/{id}/attendance/from-google:
+    post:
+      operationId: syncMeetAttendance
+      tags: [admin]
+      summary: Read who was in this class from Google, and fill attendance in
+      description: >
+        The app's own measurement only counts while a learner has the classroom
+        page open, so a cohort that joins from a calendar invite leaves no trace.
+        This asks Google's Meet report who was actually in the room and for how
+        long. It never lowers anybody's recorded attendance, and running it twice
+        changes nothing the second time. Requires the connected Google account to
+        be an administrator of the domain hosting the classes.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: What Google saw, and what was filled in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MeetAttendanceResult"
+        "400":
+          description: Nothing to read — no date, or no meeting link on the module
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "403":
+          description: Forbidden, or the Google account is not an administrator
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
   /sessions/{id}/coursework/task:
     post:
       operationId: draftWrittenTask
@@ -3681,6 +3717,25 @@ components:
             $ref: "#/components/schemas/ExistingQuestionInput"
         wanted: { type: integer, minimum: 1, maximum: 4 }
         guidance: { type: string, maxLength: 500 }
+    MeetAttendanceResult:
+      type: object
+      required: [sessionId, note, seen, matched, written, unmatched]
+      properties:
+        sessionId: { type: integer }
+        # What happened, in a sentence an admin can act on.
+        note: { type: string }
+        # People Google saw in the room.
+        seen: { type: integer }
+        # Of those, matched to somebody enrolled on this programme.
+        matched: { type: integer }
+        # Of those, whose recorded attendance actually went up.
+        written: { type: integer }
+        # Addresses Google saw that match nobody enrolled. Usually staff and
+        # guests — but a learner signed in with a different address looks the
+        # same, and would go on being marked absent.
+        unmatched:
+          type: array
+          items: { type: string }
     TaskDraftInput:
       type: object
       properties:

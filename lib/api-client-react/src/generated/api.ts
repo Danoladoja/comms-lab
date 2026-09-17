@@ -61,6 +61,7 @@ import type {
   LiveSessionInput,
   LiveSessionJoin,
   LiveSessionRegistered,
+  MeetAttendanceResult,
   ModuleWork,
   MoreQuestionsInput,
   MyFeedback,
@@ -2302,6 +2303,78 @@ export const useReplaceDraftQuestion = <TError = ErrorType<ApiMessage>,
         TContext
       > => {
       return useMutation(getReplaceDraftQuestionMutationOptions(options));
+    }
+
+export const getSyncMeetAttendanceUrl = (id: number,) => {
+
+
+
+
+  return `/api/admin/sessions/${id}/attendance/from-google`
+}
+
+/**
+ * The app's own measurement only counts while a learner has the classroom page open, so a cohort that joins from a calendar invite leaves no trace. This asks Google's Meet report who was actually in the room and for how long. It never lowers anybody's recorded attendance, and running it twice changes nothing the second time. Requires the connected Google account to be an administrator of the domain hosting the classes.
+ * @summary Read who was in this class from Google, and fill attendance in
+ */
+export const syncMeetAttendance = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<MeetAttendanceResult> => {
+
+  return customFetch<MeetAttendanceResult>(getSyncMeetAttendanceUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getSyncMeetAttendanceMutationOptions = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof syncMeetAttendance>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof syncMeetAttendance>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['syncMeetAttendance'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof syncMeetAttendance>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  syncMeetAttendance(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SyncMeetAttendanceMutationResult = NonNullable<Awaited<ReturnType<typeof syncMeetAttendance>>>
+
+    export type SyncMeetAttendanceMutationError = ErrorType<ApiMessage>
+
+    /**
+ * @summary Read who was in this class from Google, and fill attendance in
+ */
+export const useSyncMeetAttendance = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof syncMeetAttendance>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof syncMeetAttendance>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getSyncMeetAttendanceMutationOptions(options));
     }
 
 export const getDraftWrittenTaskUrl = (id: number,) => {

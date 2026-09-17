@@ -37,6 +37,21 @@ export const attendanceTable = pgTable(
      */
     presenceWaivedAt: timestamp("presence_waived_at", { withTimezone: true }),
     presenceWaivedReason: text("presence_waived_reason").notNull().default(""),
+
+    /**
+     * Where `liveSeconds` came from: "heartbeat" or "google".
+     *
+     * The heartbeat measures how long the Lab's own page stayed open while the
+     * class ran elsewhere; Google's report measures time actually connected to
+     * the call. Both land in the same column on purpose — every rule reads
+     * seconds and none of them should care — but when a number is disputed,
+     * "which of the two said this" is the first question, and for three weeks
+     * there was no way to answer it.
+     *
+     * Empty on every row written before the distinction existed, all of which
+     * were heartbeats.
+     */
+    liveSource: text("live_source").notNull().default(""),
   },
   (t) => [uniqueIndex("attendance_user_session_unique").on(t.userId, t.sessionId)],
 );

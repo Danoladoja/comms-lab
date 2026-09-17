@@ -860,6 +860,24 @@ export const ReplaceDraftQuestionResponse = zod.object({
 
 
 /**
+ * The app's own measurement only counts while a learner has the classroom page open, so a cohort that joins from a calendar invite leaves no trace. This asks Google's Meet report who was actually in the room and for how long. It never lowers anybody's recorded attendance, and running it twice changes nothing the second time. Requires the connected Google account to be an administrator of the domain hosting the classes.
+ * @summary Read who was in this class from Google, and fill attendance in
+ */
+export const SyncMeetAttendanceParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const SyncMeetAttendanceResponse = zod.object({
+  "sessionId": zod.int(),
+  "note": zod.string(),
+  "seen": zod.int(),
+  "matched": zod.int(),
+  "written": zod.int(),
+  "unmatched": zod.array(zod.string())
+})
+
+
+/**
  * Writes one brief from the class material, leaving the quiz alone. It exists because the task was previously only obtainable as half of a full draft, so a facilitator who wanted the brief rewritten had to draft the quiz again too — and either discard questions they had already checked or not bother. Whatever is in the editor is sent along, so "write something other than this" is what the model is actually asked. Saves nothing.
  * @summary Ask for the module's written task, and nothing else
  */

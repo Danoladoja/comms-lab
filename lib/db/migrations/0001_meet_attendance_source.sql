@@ -1,0 +1,1 @@
+ALTER TABLE "session_attendance" ADD COLUMN "live_source" text DEFAULT '' NOT NULL;

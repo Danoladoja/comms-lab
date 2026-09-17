@@ -60,6 +60,7 @@ import {
   isMeasurableRecording,
 } from '@workspace/domain';
 import CourseworkStudio, { confirmLosingDraft } from '@/components/CourseworkStudio';
+import { useSyncMeetAttendance } from '@workspace/api-client-react';
 import InviteFacilitator from '@/components/InviteFacilitator';
 import InviteLearners from '@/components/InviteLearners';
 import MessageCohort from '@/components/MessageCohort';
@@ -99,6 +100,26 @@ function SessionRow({ session, instructors, onChanged }: {
   // What the coursework panel is holding but has not saved, so the toggle can
   // ask before unmounting it. A ref, because nothing here renders it.
   const holdingDraft = useRef({ quiz: false, task: false });
+
+  const attendance = useSyncMeetAttendance({
+    mutation: {
+      onSuccess: (r) => {
+        toast({
+          title: r.written > 0
+            ? `Attendance filled in for ${r.written}`
+            : 'Nothing to fill in',
+          description: r.unmatched.length > 0
+            ? `${r.note} ${r.unmatched.length} in the room match nobody enrolled — usually staff, but a learner signed in with a different address looks the same.`
+            : r.note,
+        });
+      },
+      onError: (err) => toast({
+        title: 'Could not read the attendance',
+        description: apiReason(err, 'Try again in a moment.'),
+        variant: 'destructive',
+      }),
+    },
+  });
   /** What the typed text means right now: an account, a guest, or nobody. */
   const choice = matchFacilitator(facilitator, instructors);
   const [editing, setEditing] = useState(false);
@@ -333,6 +354,19 @@ function SessionRow({ session, instructors, onChanged }: {
         {/* The label says what pressing it will do, and the arrow says which way
             it goes. "Slides & coursework" on its own read as a place rather than
             a switch, so nobody thought to press it again to shut it. */}
+        {/* Attendance comes from Google an hour after each class by itself. This
+            is for the classes that finished before any of that existed, and for
+            the afternoon when somebody needs an answer now. */}
+        {isPast && (
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={attendance.isPending}
+            onClick={() => attendance.mutate({ id: session.id })}
+          >
+            {attendance.isPending ? 'Reading…' : 'Attendance from Google'}
+          </Button>
+        )}
         <Button
           size="sm" variant={coursework === 'open' ? 'secondary' : 'outline'}
           onClick={() => {
