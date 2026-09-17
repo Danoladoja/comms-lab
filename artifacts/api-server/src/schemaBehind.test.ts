@@ -38,7 +38,14 @@ describe("a database that has not caught up", () => {
     expect(said).toMatch(/database has not caught up/i);
     // Postgres names the column, and that is what makes the fix obvious.
     expect(said).toContain("recording_duration_seconds");
-    expect(said).toContain("push --force");
+    // `migrate`, and emphatically not `push --force`, which this asserted until
+    // the day a cohort's dashboards went down and this message was what an
+    // alarmed admin would have followed. `push --force` exists to make the
+    // database match the code by any means available to it, including dropping
+    // columns and tables. Handed to somebody who has just been told learners'
+    // work has vanished, it is the one command that could make that true.
+    expect(said).toContain("run migrate");
+    expect(said).not.toMatch(/--force/);
     // And it says the two things an admin would otherwise assume were true.
     expect(said).toMatch(/nothing you did/i);
     expect(said).toMatch(/will not help/i);

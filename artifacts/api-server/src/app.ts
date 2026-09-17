@@ -8,6 +8,7 @@ import {
   clerkProxyMiddleware,
   getClerkProxyHost,
 } from "./middlewares/clerkProxyMiddleware";
+import { schemaBehindMessage } from "@workspace/domain";
 import router from "./routes";
 import { webRouter } from "./web";
 import { logger } from "./lib/logger";
@@ -153,10 +154,12 @@ export function schemaBehindCode(err: unknown): string | null {
   if (!source) return null;
 
   const said = typeof source.message === "string" ? source.message : "";
-  return "The app has been updated but the database has not caught up yet"
-    + (said ? ` — ${said}` : "")
-    + ". Nothing you did caused this and trying again will not help. Run "
-    + "`pnpm --filter @workspace/db run push --force` in the Railway console.";
+  // The wording lives in the domain, where the one thing that matters about it
+  // is tested: it must never send a frightened person to `push --force`, whose
+  // purpose is to make the database match the code by any means — including
+  // dropping columns and tables. That is how somebody worried about lost work
+  // loses it for real. This used to say exactly that.
+  return schemaBehindMessage(said);
 }
 
 const apiErrors: ErrorRequestHandler = (err, req, res, next) => {
