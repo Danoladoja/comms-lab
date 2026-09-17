@@ -1522,6 +1522,27 @@ export const ListRecordingStatusResponse = zod.array(ListRecordingStatusResponse
 
 
 /**
+ * Strictly read-only. Asks Meet for the conferences this class's room hosted, and what each one produced — a recording, a transcript, both or neither. Nothing here writes anything, in Google or in the Lab: the first question about a live cohort's records is "what is actually there", and it should be answerable without risking an answer that changes it.
+ * @summary Ask Google what it actually holds for this class
+ */
+export const CheckGoogleHoldingsParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const CheckGoogleHoldingsResponse = zod.object({
+  "sessionId": zod.int(),
+  "conferences": zod.int(),
+  "recordings": zod.int(),
+  "transcriptsReady": zod.int(),
+  "transcriptsUnfinished": zod.int(),
+  "transcriptUrl": zod.string().nullish(),
+  "headline": zod.string(),
+  "advice": zod.string(),
+  "ready": zod.boolean()
+})
+
+
+/**
  * @summary Run the recording transfer immediately instead of waiting
  */
 export const SyncRecordingsNowResponse = zod.object({

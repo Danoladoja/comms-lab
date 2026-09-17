@@ -1396,6 +1396,19 @@ export interface EnrollmentUpdate {
   status: EnrollmentUpdateStatus;
 }
 
+export interface GoogleHoldings {
+  sessionId: number;
+  conferences: number;
+  recordings: number;
+  transcriptsReady: number;
+  transcriptsUnfinished: number;
+  /** @nullable */
+  transcriptUrl?: string | null;
+  headline: string;
+  advice: string;
+  ready: boolean;
+}
+
 export interface ModuleDeadlineRow {
   sessionId: number;
   title: string;

@@ -96,3 +96,121 @@ function durationOf(r: MeetRecording): number {
   if (!r.startTime || !r.endTime) return 0;
   return new Date(r.endTime).getTime() - new Date(r.startTime).getTime();
 }
+
+/* ------------------------------------------------------------------ *
+ * Transcripts
+ * ------------------------------------------------------------------ */
+
+/**
+ * One transcript of one conference.
+ *
+ * Meet writes a Google Doc per transcribed conference and hands back its id.
+ * `entries` on the API give the same thing as structured turns — speaker and
+ * text — which is the better source for drafting, since a Doc has to be
+ * exported and parsed. Both routes need the transcript to exist in the first
+ * place, which is the part nobody can assume: somebody has to have started it,
+ * or an administrator has to have turned on automatic transcription.
+ */
+export type MeetTranscript = {
+  /** conferenceRecords/{record}/transcripts/{transcript} — the handle for the entries. */
+  name: string;
+  state: string;
+  startTime: string | null;
+  endTime: string | null;
+  /** The Google Doc, when one has been written. */
+  documentId: string | null;
+  exportUri: string | null;
+};
+
+/** What Google actually holds for one class. Nothing here writes anything. */
+export type MeetHoldings = {
+  /** Times this room was used inside the window. Zero means the class did not happen here. */
+  conferences: number;
+  recordings: MeetRecording[];
+  transcripts: MeetTranscript[];
+};
+
+/**
+ * Everything Google has for a meeting code in a window: conferences, their
+ * recordings and their transcripts, in one pass.
+ *
+ * Read-only by construction — every call here is a GET — because the first
+ * question about a live cohort's records is "what is actually there", and that
+ * question should be answerable without risking an answer that changes it.
+ */
+export async function findHoldings(args: {
+  accessToken: string;
+  meetCode: string;
+  windowStartMs: number;
+  windowEndMs: number;
+}): Promise<MeetHoldings> {
+  const { accessToken, meetCode, windowStartMs, windowEndMs } = args;
+
+  const space = await meetGet<{ name?: string }>(accessToken, `spaces/${encodeURIComponent(meetCode)}`);
+  if (!space.name) return { conferences: 0, recordings: [], transcripts: [] };
+
+  const conferences = await meetGet<{
+    conferenceRecords?: { name: string; startTime?: string; endTime?: string }[];
+  }>(accessToken, "conferenceRecords", {
+    filter: `space.name="${space.name}"`,
+    pageSize: "20",
+  });
+
+  const inWindow = (conferences.conferenceRecords ?? []).filter((c) => {
+    if (!c.startTime) return false;
+    const started = new Date(c.startTime).getTime();
+    return started >= windowStartMs && started <= windowEndMs;
+  });
+
+  const recordings: MeetRecording[] = [];
+  const transcripts: MeetTranscript[] = [];
+
+  for (const conference of inWindow) {
+    const recorded = await meetGet<{
+      recordings?: {
+        state?: string;
+        startTime?: string;
+        endTime?: string;
+        driveDestination?: { file?: string };
+      }[];
+    }>(accessToken, `${conference.name}/recordings`);
+
+    for (const recording of recorded.recordings ?? []) {
+      const fileId = recording.driveDestination?.file;
+      if (!fileId || recording.state !== "FILE_GENERATED") continue;
+      recordings.push({
+        driveFileId: fileId,
+        state: recording.state,
+        startTime: recording.startTime ?? null,
+        endTime: recording.endTime ?? null,
+      });
+    }
+
+    const written = await meetGet<{
+      transcripts?: {
+        name?: string;
+        state?: string;
+        startTime?: string;
+        endTime?: string;
+        docsDestination?: { document?: string; exportUri?: string };
+      }[];
+    }>(accessToken, `${conference.name}/transcripts`);
+
+    for (const transcript of written.transcripts ?? []) {
+      if (!transcript.name) continue;
+      // Unlike recordings, a transcript that has not finished writing is still
+      // worth reporting: it tells an admin transcription was on, which is the
+      // thing they are usually trying to find out.
+      transcripts.push({
+        name: transcript.name,
+        state: transcript.state ?? "STATE_UNSPECIFIED",
+        startTime: transcript.startTime ?? null,
+        endTime: transcript.endTime ?? null,
+        documentId: transcript.docsDestination?.document ?? null,
+        exportUri: transcript.docsDestination?.exportUri ?? null,
+      });
+    }
+  }
+
+  return { conferences: inWindow.length, recordings, transcripts };
+}

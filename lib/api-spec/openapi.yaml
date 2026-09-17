@@ -1671,6 +1671,42 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiMessage"
+  /admin/sessions/{id}/google-holdings:
+    get:
+      operationId: checkGoogleHoldings
+      tags: [admin]
+      summary: Ask Google what it actually holds for this class
+      description: >
+        Strictly read-only. Asks Meet for the conferences this class's room
+        hosted, and what each one produced — a recording, a transcript, both or
+        neither. Nothing here writes anything, in Google or in the Lab: the
+        first question about a live cohort's records is "what is actually
+        there", and it should be answerable without risking an answer that
+        changes it.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: What Google has
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GoogleHoldings"
+        "400":
+          description: Nothing to ask about, with the reason
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "403":
+          description: Forbidden, or the connection cannot read this
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
   /admin/recordings/sync:
     post:
       operationId: syncRecordingsNow
@@ -4630,6 +4666,23 @@ components:
       required: [status]
       properties:
         status: { type: string, enum: [enrolled, waitlisted, cancelled, completed] }
+    GoogleHoldings:
+      type: object
+      required: [sessionId, conferences, recordings, transcriptsReady, transcriptsUnfinished, headline, advice, ready]
+      properties:
+        sessionId: { type: integer }
+        # Times this room was used around the class. Zero usually means the
+        # meeting link saved on the module is not the one people joined.
+        conferences: { type: integer }
+        recordings: { type: integer }
+        transcriptsReady: { type: integer }
+        transcriptsUnfinished: { type: integer }
+        # A link straight to the Google Doc, when there is one to open.
+        transcriptUrl: { type: ["string", "null"] }
+        headline: { type: string }
+        advice: { type: string }
+        # Whether this class is in the state the automation would need.
+        ready: { type: boolean }
     ModuleDeadlineRow:
       type: object
       required: [sessionId, title, moduleClosed, hasCoursework]

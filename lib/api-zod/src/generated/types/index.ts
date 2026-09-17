@@ -57,6 +57,7 @@ export * from './forbiddenResponse';
 export * from './forumPost';
 export * from './forumThread';
 export * from './googleConnectionStatus';
+export * from './googleHoldings';
 export * from './healthStatus';
 export * from './heartbeatResult';
 export * from './invitation';

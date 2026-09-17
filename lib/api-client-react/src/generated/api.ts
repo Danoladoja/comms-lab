@@ -50,6 +50,7 @@ import type {
   ForumPost,
   ForumThread,
   GoogleConnectionStatus,
+  GoogleHoldings,
   HealthStatus,
   HeartbeatResult,
   Invitation,
@@ -4099,6 +4100,84 @@ export function useListRecordingStatus<TData = Awaited<ReturnType<typeof listRec
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getListRecordingStatusQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCheckGoogleHoldingsUrl = (id: number,) => {
+
+
+
+
+  return `/api/admin/sessions/${id}/google-holdings`
+}
+
+/**
+ * Strictly read-only. Asks Meet for the conferences this class's room hosted, and what each one produced — a recording, a transcript, both or neither. Nothing here writes anything, in Google or in the Lab: the first question about a live cohort's records is "what is actually there", and it should be answerable without risking an answer that changes it.
+ * @summary Ask Google what it actually holds for this class
+ */
+export const checkGoogleHoldings = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<GoogleHoldings> => {
+
+  return customFetch<GoogleHoldings>(getCheckGoogleHoldingsUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getCheckGoogleHoldingsQueryKey = (id: number,) => {
+    return [
+    `/api/admin/sessions/${id}/google-holdings`
+    ] as const;
+    }
+
+
+export const getCheckGoogleHoldingsQueryOptions = <TData = Awaited<ReturnType<typeof checkGoogleHoldings>>, TError = ErrorType<ApiMessage>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof checkGoogleHoldings>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getCheckGoogleHoldingsQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof checkGoogleHoldings>>> = ({ signal }) => checkGoogleHoldings(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof checkGoogleHoldings>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type CheckGoogleHoldingsQueryResult = NonNullable<Awaited<ReturnType<typeof checkGoogleHoldings>>>
+export type CheckGoogleHoldingsQueryError = ErrorType<ApiMessage>
+
+
+/**
+ * @summary Ask Google what it actually holds for this class
+ */
+
+export function useCheckGoogleHoldings<TData = Awaited<ReturnType<typeof checkGoogleHoldings>>, TError = ErrorType<ApiMessage>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof checkGoogleHoldings>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getCheckGoogleHoldingsQueryOptions(id,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

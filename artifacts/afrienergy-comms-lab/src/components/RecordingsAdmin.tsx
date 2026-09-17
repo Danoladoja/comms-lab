@@ -3,13 +3,16 @@ import { useQueryClient } from '@tanstack/react-query';
 import {
   useGetGoogleConnection, useDisconnectGoogle,
   useListRecordingStatus, useSyncRecordingsNow,
+  useCheckGoogleHoldings, getCheckGoogleHoldingsQueryKey,
   getGetGoogleConnectionQueryKey, getListRecordingStatusQueryKey,
 } from '@workspace/api-client-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import ReplayPlayer from '@/components/ReplayPlayer';
+import { apiReason } from '@workspace/domain';
 import {
   CircleCheck, CircleAlert, Loader, RefreshCw, Link2, Unlink, Clock, PlayCircle, ChevronUp,
+  FileText, Search,
 } from 'lucide-react';
 
 /**
@@ -24,6 +27,82 @@ import {
  * A class with no recording is the state that actually holds learners up, so it
  * is never left to be inferred.
  */
+
+/**
+ * Asking Google what it holds for one class.
+ *
+ * Read-only, and said so on the button, because this is the first thing anybody
+ * points at a live cohort's records and the first question is always whether it
+ * can break anything. It cannot: every call behind it is a read.
+ *
+ * It exists ahead of the automation it informs. A Meet transcript exists only
+ * if somebody started one or an administrator turned transcription on for the
+ * whole domain, and neither fact is visible from inside the Lab — so building
+ * the fetch first would mean building it against a folder that might be empty,
+ * where "found nothing" and "broken" look identical from here.
+ */
+function GoogleHoldingsCheck({ sessionId }: { sessionId: number }) {
+  const [asked, setAsked] = useState(false);
+  const { data, isLoading, error } = useCheckGoogleHoldings(sessionId, {
+    // Nothing happens until the admin asks. Checking every class on every page
+    // load would be dozens of calls to Google to answer a question nobody put.
+    query: {
+      queryKey: getCheckGoogleHoldingsQueryKey(sessionId),
+      enabled: asked, retry: false, staleTime: 60_000,
+    },
+  });
+
+  if (!asked) {
+    return (
+      <Button
+        size="sm"
+        variant="ghost"
+        className="mt-2 h-7 px-2 text-xs font-semibold text-primary"
+        onClick={() => setAsked(true)}
+      >
+        <Search className="mr-1.5 h-3.5 w-3.5" aria-hidden />What does Google have for this class?
+      </Button>
+    );
+  }
+
+  if (isLoading) {
+    return <p className="mt-2 text-xs text-muted-foreground">Asking Google…</p>;
+  }
+
+  if (error) {
+    return (
+      <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+        {apiReason(error, 'Google could not be asked about this class.')}
+      </p>
+    );
+  }
+
+  if (!data) return null;
+
+  return (
+    <div className={`mt-2 rounded-lg border px-3 py-2 text-xs ${
+      data.ready
+        ? 'border-emerald-200 bg-emerald-50 text-emerald-900'
+        : 'border-border bg-muted/30 text-muted-foreground'
+    }`}>
+      <p className="font-medium">{data.headline}</p>
+      <p className="mt-1">{data.advice}</p>
+      {data.transcriptUrl && (
+        <a
+          className="mt-2 inline-flex items-center font-medium underline underline-offset-2"
+          href={data.transcriptUrl}
+          target="_blank"
+          rel="noreferrer"
+        >
+          <FileText className="mr-1.5 h-3.5 w-3.5" aria-hidden />Open the transcript in Google Docs
+        </a>
+      )}
+      <p className="mt-2 text-[11px] opacity-70">
+        Read only — this asked Google a question and changed nothing.
+      </p>
+    </div>
+  );
+}
 
 function statusChip(status: string, hasRecording: boolean, automationOn: boolean) {
   // With no Google account connected nothing is in flight, so there are only
@@ -203,6 +282,12 @@ export default function RecordingsAdmin() {
                     <p className="text-xs text-red-800 mt-2 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
                       {row.error}
                     </p>
+                  )}
+
+                  {/* Only worth offering once Google is connected and the class
+                      has a room to ask about. */}
+                  {automationOn && row.hasMeetUrl && (
+                    <GoogleHoldingsCheck sessionId={row.sessionId} />
                   )}
 
                   {/*

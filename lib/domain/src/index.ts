@@ -43,3 +43,4 @@ export * from "./meetAttendance";
 export * from "./appPath";
 export * from "./lateEnrolment";
 export * from "./deadlineExtension";
+export * from "./googleHoldings";

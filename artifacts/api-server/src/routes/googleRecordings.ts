@@ -1,8 +1,8 @@
 import { Router, type IRouter } from "express";
-import { db, sessionsTable, programsTable } from "@workspace/db";
+import { db, sessionsTable, programsTable, sessionNotesTable } from "@workspace/db";
 import { and, desc, eq, isNotNull, lt, sql } from "drizzle-orm";
 import { randomBytes } from "node:crypto";
-import { appPath } from "@workspace/domain";
+import { appPath, meetCodeFrom, reportWindow, readHoldings } from "@workspace/domain";
 import { requireRole, getCurrentUser } from "../lib/auth";
 import {
   googleEnv,
@@ -14,8 +14,10 @@ import {
   disconnect,
   clearTokenCache,
   GoogleTokenError,
+  getAccessToken,
   GOOGLE_SCOPES,
 } from "../lib/google/oauth";
+import { findHoldings } from "../lib/google/meetApi";
 import { tokenSecretConfigured } from "../lib/google/secrets";
 import { runRecordingSync } from "../lib/recordingSync";
 import { logger } from "../lib/logger";
@@ -179,6 +181,104 @@ router.get("/admin/recordings", requireRole("admin"), async (_req, res) => {
       checkedAt: r.checkedAt?.toISOString() ?? null,
     })),
   );
+});
+
+/**
+ * What Google actually holds for one class.
+ *
+ * Built before any of the automation it is meant to inform, deliberately. A
+ * Meet transcript exists only if somebody started one, or if an administrator
+ * turned on automatic transcription for the domain — and neither is visible
+ * from inside the Lab. Writing the transcript fetch first would mean writing it
+ * against a folder that may be empty, where "it found nothing" and "it is
+ * broken" look identical. That confusion is what cost this cohort three weeks
+ * of attendance, and it is not worth repeating with transcripts.
+ *
+ * Every call this makes is a GET. It cannot change anything in Google or here.
+ */
+router.get("/admin/sessions/:id/google-holdings", requireRole("admin"), async (req, res) => {
+  const sessionId = Number(req.params.id);
+  if (!Number.isInteger(sessionId)) { res.status(400).json({ error: "That is not a module." }); return; }
+
+  const [session] = await db
+    .select({
+      id: sessionsTable.id,
+      title: sessionsTable.title,
+      startsAt: sessionsTable.startsAt,
+      durationMins: sessionsTable.durationMins,
+      meetUrl: sessionsTable.meetUrl,
+      recordingUrl: sessionsTable.recordingUrl,
+    })
+    .from(sessionsTable)
+    .where(eq(sessionsTable.id, sessionId));
+  if (!session) { res.status(404).json({ error: "That module no longer exists." }); return; }
+  if (!session.startsAt) {
+    res.status(400).json({ error: `"${session.title}" has no date, so there was no class to ask about.` });
+    return;
+  }
+
+  const meetCode = meetCodeFrom(session.meetUrl);
+  if (!meetCode) {
+    res.status(400).json({
+      error: `"${session.title}" has no Google Meet link saved, so there is no room to ask about. `
+        + "Add the meeting link to the module first.",
+    });
+    return;
+  }
+
+  const connection = await getConnection();
+  if (!connection) { res.status(403).json({ error: "Google is not connected." }); return; }
+  const accessToken = await getAccessToken();
+  if (!accessToken) {
+    res.status(403).json({ error: "Could not refresh the Google connection. Reconnect it above." });
+    return;
+  }
+
+  const window = reportWindow(session.startsAt.getTime(), session.durationMins);
+
+  let holdings;
+  try {
+    holdings = await findHoldings({
+      accessToken,
+      meetCode,
+      windowStartMs: window.startMs,
+      windowEndMs: window.endMs,
+    });
+  } catch (err) {
+    // The Meet API's own words are a status code and a blob. Worth logging in
+    // full and worth not showing.
+    logger.error({ err, sessionId }, "Could not read what Google holds for a class");
+    res.status(403).json({
+      error: "Google refused the question. The connected account must be able to see the meetings this room "
+        + "hosted — usually it is the organiser's account, or an administrator's.",
+    });
+    return;
+  }
+
+  const [notes] = await db
+    .select({ body: sessionNotesTable.body })
+    .from(sessionNotesTable)
+    .where(eq(sessionNotesTable.sessionId, sessionId));
+
+  const ready = holdings.transcripts.filter((t) => t.state === "FILE_GENERATED" && t.documentId);
+  const verdict = readHoldings({
+    conferences: holdings.conferences,
+    recordings: holdings.recordings.length,
+    transcriptsReady: ready.length,
+    transcriptsUnfinished: holdings.transcripts.length - ready.length,
+    hasRecordingLink: !!session.recordingUrl,
+    hasPastedMaterial: (notes?.body ?? "").trim().length > 0,
+  });
+
+  res.json({
+    sessionId,
+    conferences: holdings.conferences,
+    recordings: holdings.recordings.length,
+    transcriptsReady: ready.length,
+    transcriptsUnfinished: holdings.transcripts.length - ready.length,
+    transcriptUrl: ready[0]?.exportUri ?? null,
+    ...verdict,
+  });
 });
 
 router.post("/admin/recordings/sync", requireRole("admin"), async (_req, res) => {
