@@ -2,7 +2,7 @@ import { Router, type IRouter } from "express";
 import {
   db, sessionsTable, enrollmentsTable, programsTable, usersTable,
   quizQuestionsTable, quizAttemptsTable, assignmentsTable, assignmentSubmissionsTable,
-  sessionReadingsTable, sessionSlidesTable, latePassesTable,
+  sessionReadingsTable, sessionSlidesTable, latePassesTable, deadlineExtensionsTable,
 } from "@workspace/db";
 import { and, asc, eq, sql } from "drizzle-orm";
 import { UpsertSessionQuizBody, SubmitQuizAttemptBody, UpsertSessionAssignmentBody, SubmitAssignmentBody, ClaimLatePassBody } from "@workspace/api-zod";
@@ -14,6 +14,7 @@ import {
   latePassState, canClaimForModule, lateSubmissionProblem,
   latePassWindowEnd, latePassCovers, passesLeft,
   wordsRequired, wordCountProblem,
+  effectiveDueAt, taughtUnder,
   type CourseworkPiece, type SendOutcome, type LatePassPiece,
 } from "@workspace/domain";
 import { currentRole, getCurrentUser } from "../lib/auth";
@@ -66,14 +67,6 @@ export async function learnerAccessError(role: string | null, user: User, sessio
 }
 
 /**
- * A deadline as it travels to the browser, and whether it has passed.
- *
- * The verdict is worked out here and sent as an answer rather than left for the
- * browser to compute from the date. A learner whose laptop clock is a day slow
- * would otherwise be handed an extra day, and one whose clock runs fast would
- * lose one — and neither would have any idea why.
- */
-/**
  * A learner's late passes on one programme: how many are gone, and whether one
  * has been spent on this module — on the module, not on one piece of it, which
  * is what lets a pass spent on the written task hold the quiz open too.
@@ -92,9 +85,37 @@ async function latePasses(userId: number, programId: number, sessionId: number) 
   };
 }
 
-function deadline(dueAt: Date | null | undefined) {
-  const iso = dueAt ? dueAt.toISOString() : null;
-  return { dueAt: iso, closed: isPastDue(iso, Date.now()) };
+/**
+ * A deadline an admin has moved, for this one learner on this one module.
+ *
+ * Read wherever a due date is read, and substituted for it. That substitution
+ * is the whole mechanism: the quiz door, the submission door, the late-pass
+ * arithmetic and the dashboard go on working exactly as they did, on a
+ * different date — rather than each growing its own exception, which is how
+ * four gates end up disagreeing about whether somebody may hand in their work.
+ */
+async function extendedTo(userId: number, sessionId: number): Promise<string | null> {
+  const [row] = await db
+    .select({ dueAt: deadlineExtensionsTable.dueAt })
+    .from(deadlineExtensionsTable)
+    .where(and(
+      eq(deadlineExtensionsTable.userId, userId),
+      eq(deadlineExtensionsTable.sessionId, sessionId),
+    ));
+  return row?.dueAt?.toISOString() ?? null;
+}
+
+/**
+ * A deadline as it travels to the browser, and whether it has passed.
+ *
+ * The verdict is worked out here and sent as an answer rather than left for the
+ * browser to compute from the date. A learner whose laptop clock is a day slow
+ * would otherwise be handed an extra day, and one whose clock runs fast would
+ * lose one — and neither would have any idea why.
+ */
+function deadline(dueAt: Date | null | undefined, extension: string | null = null) {
+  const iso = effectiveDueAt(dueAt ? dueAt.toISOString() : null, extension);
+  return { dueAt: iso, closed: isPastDue(iso, Date.now()), extended: !!iso && iso === extension };
 }
 
 /** Both of a module's deadlines. A draft piece has none, because to a learner it does not exist. */
@@ -200,12 +221,20 @@ router.get("/sessions/:id/quiz", async (req, res) => {
   // the ordinary path there is nothing a pass could change, and a quiz is opened
   // far more often than it is missed — so the two extra reads are spent on the
   // day they matter rather than on every day that they do not.
-  const quizDueIso = session.quizDraft ? null : session.quizDueAt?.toISOString() ?? null;
+  // An extension moves this learner's door before any of that is asked, so a
+  // quiz an admin has reopened is simply open — no pass offered, none spent.
+  const extension = session.quizDraft ? null : await extendedTo(user.id, sessionId);
+  const quizDueIso = session.quizDraft
+    ? null
+    : effectiveDueAt(session.quizDueAt?.toISOString() ?? null, extension);
   const now = Date.now();
   let latePass = null;
   if (isPastDue(quizDueIso, now)) {
     const passes = await latePasses(user.id, session.programId, sessionId);
-    const due: ModuleDeadlines = { quiz: quizDueIso, assignment: await assignmentDeadline(sessionId) };
+    const due: ModuleDeadlines = {
+      quiz: quizDueIso,
+      assignment: effectiveDueAt(await assignmentDeadline(sessionId), extension),
+    };
     latePass = latePassBlock(due, "quiz", passes, now);
   }
 
@@ -222,7 +251,7 @@ router.get("/sessions/:id/quiz", async (req, res) => {
     })),
     bestScore: best,
     passed: (best ?? 0) >= QUIZ_PASS_MARK,
-    ...deadline(session.quizDueAt),
+    ...deadline(session.quizDueAt, extension),
     // `closed` says the ordinary deadline has gone. This says whether there is
     // still a way in — which, since a pass covers the whole module, may already
     // have been opened by one spent on the written task.
@@ -355,7 +384,12 @@ router.post("/sessions/:id/quiz/attempts", async (req, res) => {
   // on the reasoning that an auto-marked quiz with unlimited retakes has nothing
   // to rescue — but a shut quiz leaves the module incomplete and the next week
   // locked, which is the same loss by another road.
-  const quizDue = session.quizDueAt?.toISOString() ?? null;
+  // An admin's extension is read first and replaces the date this door checks,
+  // so a learner who has been given more time walks straight through.
+  const quizDue = effectiveDueAt(
+    session.quizDueAt?.toISOString() ?? null,
+    await extendedTo(user.id, sessionId),
+  );
   if (isPastDue(quizDue, Date.now())) {
     const passes = await latePasses(user.id, session.programId, sessionId);
     const problem = lateSubmissionProblem({ dueAt: quizDue, now: Date.now(), ...passes }, "quiz");
@@ -417,12 +451,16 @@ router.get("/sessions/:id/assignment", async (req, res) => {
   // What this learner's late passes mean for this task right now. Worked out
   // here against the server's clock, because a laptop an hour out would
   // otherwise hand one learner extra time and rob another of it.
-  const dueIso = assignment.draft ? null : assignment.dueAt?.toISOString() ?? null;
+  const extension = assignment.draft ? null : await extendedTo(user.id, sessionId);
+  const setUnder = assignment.draft ? null : taughtUnder(assignment.dueAt?.toISOString() ?? null);
+  const dueIso = effectiveDueAt(setUnder, extension);
   const passes = await latePasses(user.id, session.programId, sessionId);
   // The quiz deadline comes free — the module row is already loaded — and it is
   // needed here to say truthfully what spending a pass would open.
   const due: ModuleDeadlines = {
-    quiz: session.quizDraft ? null : session.quizDueAt?.toISOString() ?? null,
+    quiz: session.quizDraft
+      ? null
+      : effectiveDueAt(session.quizDueAt?.toISOString() ?? null, extension),
     assignment: dueIso,
   };
 
@@ -438,14 +476,16 @@ router.get("/sessions/:id/assignment", async (req, res) => {
     // it drafted last week from one a person wrote, and would record every later
     // save as hand-written.
     ...(staff ? { origin: assignment.origin } : {}),
-    ...deadline(assignment.dueAt),
+    ...deadline(assignment.dueAt, extension),
     // `closed` above says the ordinary deadline has gone. This says whether
     // there is still a way in, which is a different question and the one the
     // learner actually needs answering.
     latePass: latePassBlock(due, "assignment", passes, Date.now()),
     // The floor for this module's task, sent so the box can count up to it
     // rather than refusing at the end of an hour's writing.
-    minWords: wordsRequired("task", dueIso),
+    // `setUnder`, not the extended date: the floor belongs to the module and
+    // must not move because one learner was given more time.
+    minWords: wordsRequired("task", setUnder),
     draft: assignment.draft,
     postedAt: assignment.postedAt?.toISOString() ?? null,
     ...(staff ? { suggestedDueAt: await suggestedDueAt(session) } : {}),
@@ -508,9 +548,17 @@ router.post(["/sessions/:id/late-pass", "/sessions/:id/assignment/late-pass"], a
     .from(assignmentsTable)
     .where(eq(assignmentsTable.sessionId, sessionId));
 
+  // An admin's extension is read here too, so a learner who has already been
+  // given more time is told the work is open rather than being allowed to spend
+  // one of their two passes on a door that is not shut.
+  const extension = await extendedTo(user.id, sessionId);
   const due: ModuleDeadlines = {
-    quiz: session.quizDraft ? null : session.quizDueAt?.toISOString() ?? null,
-    assignment: !assignment || assignment.draft ? null : assignment.dueAt?.toISOString() ?? null,
+    quiz: session.quizDraft
+      ? null
+      : effectiveDueAt(session.quizDueAt?.toISOString() ?? null, extension),
+    assignment: !assignment || assignment.draft
+      ? null
+      : effectiveDueAt(assignment.dueAt?.toISOString() ?? null, extension),
   };
   // Nothing set here has a deadline, so there is nothing a pass could open.
   // Worded as the missing piece rather than as "no assignment", which was
@@ -714,7 +762,15 @@ router.post("/sessions/:id/assignment/submission", async (req, res) => {
   //
   // A spent late pass moves the door rather than removing it: the learner gets
   // 48 more hours, and when those are gone it is shut for good.
-  const dueIso = assignment.dueAt?.toISOString() ?? null;
+  //
+  // An admin's extension replaces the date this door reads. Two dates are kept
+  // apart here on purpose: `dueIso` is the one this learner is held to, and
+  // `setUnder` is the module's own — the rules it was taught under. Using the
+  // extended date for the word floor below would ask a learner being done a
+  // favour for five hundred words nobody else on that module was ever asked
+  // for, which is a punishment wearing a favour's clothes.
+  const setUnder = taughtUnder(assignment.dueAt?.toISOString() ?? null);
+  const dueIso = effectiveDueAt(setUnder, await extendedTo(user.id, sessionId));
   const passes = await latePasses(user.id, session.programId, sessionId);
   const passFacts = { dueAt: dueIso, now: Date.now(), ...passes };
   const lateProblem = lateSubmissionProblem(passFacts);
@@ -731,7 +787,9 @@ router.post("/sessions/:id/assignment/submission", async (req, res) => {
   // another two hundred words for a door that was never going to open.
   const shortProblem = wordCountProblem(
     parsed.data.body,
-    wordsRequired("task", dueIso),
+    // `setUnder`, not `dueIso`. See above: the floor belongs to the module, not
+    // to the one learner whose door was moved.
+    wordsRequired("task", setUnder),
     "task",
   );
   if (shortProblem) { res.status(400).json({ error: shortProblem }); return; }

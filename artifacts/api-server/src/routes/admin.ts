@@ -1,22 +1,24 @@
 import { Router, type IRouter } from "express";
 import {
   db, enrollmentsTable, programsTable, usersTable, pendingInvitationsTable, sessionsTable,
-  assignmentsTable,
+  assignmentsTable, assignmentSubmissionsTable, deadlineExtensionsTable,
 } from "@workspace/db";
 import { and, asc, desc, eq, inArray, isNull, isNotNull, sql } from "drizzle-orm";
 import {
   UpdateUserRoleBody, UpdateEnrollmentBody, InviteFacilitatorBody, EnrolExistingAccountBody,
+  GrantDeadlineExtensionBody, RevokeDeadlineExtensionBody,
 } from "@workspace/api-zod";
 import {
   checkRoleChange, validateInvite, describeInvite, mayResendInvitation, MAX_RESEND_AT_ONCE,
   cohortStart, startDateFor, modulesMissed, lateEnrolmentNote, lateEnrolmentProblem,
   generateCertificateCode,
+  extensionProblem, extensionNote, describeWhen,
 } from "@workspace/domain";
 import { currentRole, founderId, requireRole, getCurrentUser } from "../lib/auth";
 import { syncAttendanceForSession } from "../lib/meetAttendanceSync";
 import { revokeInvitation, invitesConfigured } from "../lib/clerkInvites";
 import { deliverInvitation } from "../lib/invitationDelivery";
-import { sendWaitlistPromotion, sendEnrollmentConfirmation } from "../lib/enrollmentEmails";
+import { sendWaitlistPromotion, sendAdminEnrollment, sendDeadlineExtended } from "../lib/enrollmentEmails";
 import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
@@ -143,6 +145,230 @@ router.patch("/admin/users/:id/role", async (req, res) => {
   const u = outcome.row;
   logger.info({ userId: u.id, role: u.role, by: me?.id }, "Role changed");
   res.json({ id: u.id, clerkUserId: u.clerkUserId, email: u.email, name: u.name, role: u.role });
+});
+
+/* ------------------------------------------------------------------ *
+ * Moving one learner's deadline
+ * ------------------------------------------------------------------ */
+
+/**
+ * Every module on a programme, with this learner's standing on each.
+ *
+ * The list an admin reads before deciding. It carries the module's own
+ * deadlines, whatever this learner has already been given, and whether they
+ * have filed — because "did the extension work" is the question asked straight
+ * after granting one, and it should not require going somewhere else.
+ */
+router.get("/admin/programs/:id/learners/:userId/deadline-extensions", async (req, res) => {
+  const programId = Number(req.params.id);
+  const userId = Number(req.params.userId);
+  if (!Number.isInteger(programId) || !Number.isInteger(userId)) {
+    res.status(400).json({ error: "That is not a programme and learner." });
+    return;
+  }
+
+  const rows = await db
+    .select({
+      sessionId: sessionsTable.id,
+      title: sessionsTable.title,
+      startsAt: sessionsTable.startsAt,
+      quizDueAt: sessionsTable.quizDueAt,
+      quizDraft: sessionsTable.quizDraft,
+      assignmentDueAt: assignmentsTable.dueAt,
+      assignmentDraft: assignmentsTable.draft,
+      assignmentId: assignmentsTable.id,
+      extendedTo: deadlineExtensionsTable.dueAt,
+      extensionReason: deadlineExtensionsTable.reason,
+      submittedAt: assignmentSubmissionsTable.submittedAt,
+    })
+    .from(sessionsTable)
+    .leftJoin(assignmentsTable, eq(assignmentsTable.sessionId, sessionsTable.id))
+    .leftJoin(deadlineExtensionsTable, and(
+      eq(deadlineExtensionsTable.sessionId, sessionsTable.id),
+      eq(deadlineExtensionsTable.userId, userId),
+    ))
+    .leftJoin(assignmentSubmissionsTable, and(
+      eq(assignmentSubmissionsTable.sessionId, sessionsTable.id),
+      eq(assignmentSubmissionsTable.userId, userId),
+    ))
+    .where(eq(sessionsTable.programId, programId))
+    .orderBy(asc(sessionsTable.sortOrder), asc(sessionsTable.id));
+
+  const now = Date.now();
+  res.json(rows.map((r) => {
+    // A draft piece does not exist as far as a learner is concerned, so its
+    // deadline is not one either.
+    const quizDue = r.quizDraft ? null : r.quizDueAt?.toISOString() ?? null;
+    const taskDue = r.assignmentDraft ? null : r.assignmentDueAt?.toISOString() ?? null;
+    return {
+      sessionId: r.sessionId,
+      title: r.title,
+      startsAt: r.startsAt?.toISOString() ?? null,
+      quizDueAt: quizDue,
+      assignmentDueAt: taskDue,
+      // Shut for the cohort — which is what makes an extension worth granting.
+      moduleClosed: [quizDue, taskDue].some((d) => d !== null && new Date(d).getTime() < now),
+      // Nothing set means nothing to extend, and the control says so rather
+      // than offering a date box that would be refused.
+      hasCoursework: quizDue !== null || taskDue !== null,
+      extendedTo: r.extendedTo?.toISOString() ?? null,
+      extensionReason: r.extendedTo ? r.extensionReason : null,
+      submitted: !!r.submittedAt,
+    };
+  }));
+});
+
+/**
+ * Move one learner's deadline on one module.
+ *
+ * The other half of the late pass. A pass is the learner's own remedy — two per
+ * programme, forty-eight hours each, spent without asking — and it deliberately
+ * does not stretch to somebody added to a cohort three weeks in, somebody whose
+ * passes are gone, or a reason that does not fit in a rule. For all of those the
+ * app said "talk to the team", and the team had nothing to act with.
+ *
+ * It replaces the date the doors read rather than adding an exception to each
+ * one, so the quiz gate, the submission gate, the late-pass arithmetic and the
+ * dashboard all keep working unchanged, on a different number.
+ */
+router.put("/admin/sessions/:id/deadline-extension", async (req, res) => {
+  const sessionId = Number(req.params.id);
+  if (!Number.isInteger(sessionId)) { res.status(400).json({ error: "That is not a module." }); return; }
+
+  const parsed = GrantDeadlineExtensionBody.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
+
+  const [session] = await db
+    .select({
+      id: sessionsTable.id,
+      programId: sessionsTable.programId,
+      title: sessionsTable.title,
+      quizDueAt: sessionsTable.quizDueAt,
+      quizDraft: sessionsTable.quizDraft,
+    })
+    .from(sessionsTable)
+    .where(eq(sessionsTable.id, sessionId));
+  if (!session) { res.status(404).json({ error: "That module no longer exists." }); return; }
+
+  const [learner] = await db.select().from(usersTable).where(eq(usersTable.id, parsed.data.userId));
+  if (!learner) { res.status(404).json({ error: "That learner no longer has an account." }); return; }
+
+  const [enrolment] = await db
+    .select({ id: enrollmentsTable.id })
+    .from(enrollmentsTable)
+    .where(and(
+      eq(enrollmentsTable.userId, learner.id),
+      eq(enrollmentsTable.programId, session.programId),
+      sql`${enrollmentsTable.status} in ('enrolled', 'completed')`,
+    ));
+  if (!enrolment) {
+    res.status(400).json({
+      error: `${learner.name || learner.email} is not on this programme, so there is no deadline of theirs to move. `
+        + "Add them to the cohort first.",
+    });
+    return;
+  }
+
+  const [assignment] = await db
+    .select({ dueAt: assignmentsTable.dueAt, draft: assignmentsTable.draft })
+    .from(assignmentsTable)
+    .where(eq(assignmentsTable.sessionId, sessionId));
+
+  const quizDue = session.quizDraft ? null : session.quizDueAt?.toISOString() ?? null;
+  const taskDue = !assignment || assignment.draft ? null : assignment.dueAt?.toISOString() ?? null;
+
+  // Checked against the later of the two, because one date moves both doors and
+  // an extension that beat only the quiz would leave the writing shut.
+  const latest = [quizDue, taskDue]
+    .filter((d): d is string => d !== null)
+    .sort()
+    .at(-1) ?? null;
+
+  // The generated schema hands back a Date, not the string it arrived as.
+  const wanted = new Date(parsed.data.dueAt);
+  const problem = extensionProblem({
+    newDueAt: Number.isFinite(wanted.getTime()) ? wanted.toISOString() : null,
+    moduleDueAt: latest,
+    nowMs: Date.now(),
+  });
+  if (problem) { res.status(400).json({ error: problem }); return; }
+
+  const me = await getCurrentUser(req);
+  const dueAt = wanted;
+  const values = {
+    userId: learner.id,
+    sessionId,
+    programId: session.programId,
+    dueAt,
+    reason: (parsed.data.reason ?? "").slice(0, 500),
+    grantedByUserId: me?.id ?? null,
+  };
+  await db
+    .insert(deadlineExtensionsTable)
+    .values(values)
+    // Granting again moves the same date rather than stacking a second row
+    // behind the first, where nobody would ever see it.
+    .onConflictDoUpdate({
+      target: [deadlineExtensionsTable.userId, deadlineExtensionsTable.sessionId],
+      set: { dueAt: values.dueAt, reason: values.reason, grantedByUserId: values.grantedByUserId },
+    });
+
+  const when = describeWhen(dueAt.toISOString());
+  const notify = parsed.data.notify !== false;
+  if (notify) {
+    const [program] = await db
+      .select({ title: programsTable.title })
+      .from(programsTable)
+      .where(eq(programsTable.id, session.programId));
+    sendDeadlineExtended(
+      { email: learner.email, name: learner.name },
+      {
+        programTitle: program?.title ?? "your programme",
+        moduleTitle: session.title,
+        when,
+        sessionId,
+      },
+    );
+  }
+
+  logger.info(
+    { userId: learner.id, sessionId, dueAt, by: me?.id, notify },
+    "Deadline extended for one learner",
+  );
+
+  res.json({
+    sessionId,
+    userId: learner.id,
+    dueAt: dueAt.toISOString(),
+    emailed: notify,
+    note: extensionNote({
+      learnerName: learner.name,
+      moduleTitle: session.title,
+      extendedTo: dueAt.toISOString(),
+      moduleAlreadyClosed: latest !== null && new Date(latest).getTime() < Date.now(),
+    }),
+  });
+});
+
+/** Take an extension back. The module's own deadline applies again immediately. */
+router.delete("/admin/sessions/:id/deadline-extension", async (req, res) => {
+  const sessionId = Number(req.params.id);
+  if (!Number.isInteger(sessionId)) { res.status(400).json({ error: "That is not a module." }); return; }
+
+  const parsed = RevokeDeadlineExtensionBody.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
+
+  await db
+    .delete(deadlineExtensionsTable)
+    .where(and(
+      eq(deadlineExtensionsTable.sessionId, sessionId),
+      eq(deadlineExtensionsTable.userId, parsed.data.userId),
+    ));
+
+  // Deliberately not an error when there was nothing there. The admin wanted no
+  // extension on this module for this learner, and there is now no extension.
+  logger.info({ userId: parsed.data.userId, sessionId }, "Deadline extension taken back");
+  res.json({ error: "Extension taken back" });
 });
 
 /**
@@ -289,7 +515,10 @@ router.post("/admin/programs/:id/enrollments", async (req, res) => {
   // a learner already on the programme is not news to them.
   const wasAlreadyOn = !!existing && existing.status !== "cancelled";
   if (!wasAlreadyOn) {
-    sendEnrollmentConfirmation({ email: user!.email, name: user!.name }, program);
+    // `sendAdminEnrollment`, not the self-enrolment confirmation: somebody put
+    // on a cohort three weeks in should not be told the programme is about to
+    // start and that reminders are coming before each class.
+    sendAdminEnrollment({ email: user!.email, name: user!.name }, program);
   }
 
   logger.info(

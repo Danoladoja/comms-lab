@@ -23,6 +23,7 @@ const mocks = vi.hoisted(() => {
     assignmentsTable: { sessionId: "sessionId", reviewsRequired: "reviewsRequired", dueAt: "dueAt", draft: "draft" },
     assignmentSubmissionsTable: { sessionId: "sessionId", userId: "userId", id: "id" },
     submissionReviewsTable: { sessionId: "sessionId", reviewerId: "reviewerId", submissionId: "submissionId", id: "id" },
+    deadlineExtensionsTable: { userId: "userId", sessionId: "sessionId", dueAt: "dueAt" },
   };
 
   let queue: unknown[][] = [];

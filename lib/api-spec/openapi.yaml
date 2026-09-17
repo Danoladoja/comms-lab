@@ -2181,6 +2181,107 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiMessage"
+  /admin/programs/{id}/learners/{userId}/deadline-extensions:
+    get:
+      operationId: listDeadlineExtensions
+      tags: [admin]
+      summary: Every module on this programme, with any extension granted to one learner
+      description: >
+        The learner is a path segment rather than a query parameter on purpose.
+        A path parameter plus a query parameter makes Orval generate the same
+        `Params` type in both generated packages, and the build fails on the
+        duplicate export — a collision this repo has hit twice before.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+        - name: userId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: The modules, with this learner's standing on each
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ModuleDeadlineRow"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+  /admin/sessions/{id}/deadline-extension:
+    put:
+      operationId: grantDeadlineExtension
+      tags: [admin]
+      summary: Move one learner's deadline on this module
+      description: >
+        Moves both of the module's doors — its quiz and its written task — for
+        this learner alone. Granting again replaces the date rather than adding
+        a second row. It does not move the rules the module was taught under.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DeadlineExtensionGrant"
+      responses:
+        "200":
+          description: Granted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeadlineExtensionResult"
+        "400":
+          description: Refused, with what is wrong with the date
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+    delete:
+      operationId: revokeDeadlineExtension
+      tags: [admin]
+      summary: Take back a learner's extension on this module
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DeadlineExtensionSubject"
+      responses:
+        "200":
+          description: Taken back
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
   /admin/programs/{id}/enrollments:
     post:
       operationId: enrolExistingAccount
@@ -4529,6 +4630,49 @@ components:
       required: [status]
       properties:
         status: { type: string, enum: [enrolled, waitlisted, cancelled, completed] }
+    ModuleDeadlineRow:
+      type: object
+      required: [sessionId, title, moduleClosed, hasCoursework]
+      properties:
+        sessionId: { type: integer }
+        title: { type: string }
+        startsAt: { type: ["string", "null"], format: date-time }
+        # The module's own deadlines, which belong to the whole cohort.
+        quizDueAt: { type: ["string", "null"], format: date-time }
+        assignmentDueAt: { type: ["string", "null"], format: date-time }
+        # Whether the cohort's door has already shut on this module.
+        moduleClosed: { type: boolean }
+        # False when there is no quiz and no task, so nothing to extend.
+        hasCoursework: { type: boolean }
+        # This learner's extension, if they have one.
+        extendedTo: { type: ["string", "null"], format: date-time }
+        extensionReason: { type: ["string", "null"] }
+        # Whether they have already filed, so an admin can see the extension worked.
+        submitted: { type: boolean }
+    DeadlineExtensionSubject:
+      type: object
+      required: [userId]
+      properties:
+        userId: { type: integer }
+    DeadlineExtensionGrant:
+      type: object
+      required: [userId, dueAt]
+      properties:
+        userId: { type: integer }
+        # The new date and time, from the browser's own calendar.
+        dueAt: { type: string, format: date-time }
+        reason: { type: string }
+        # Off only when the admin is already talking to the learner themselves.
+        notify: { type: boolean }
+    DeadlineExtensionResult:
+      type: object
+      required: [sessionId, userId, dueAt, note, emailed]
+      properties:
+        sessionId: { type: integer }
+        userId: { type: integer }
+        dueAt: { type: string, format: date-time }
+        note: { type: string }
+        emailed: { type: boolean }
     LateEnrolment:
       type: object
       required: [email, countsFrom]

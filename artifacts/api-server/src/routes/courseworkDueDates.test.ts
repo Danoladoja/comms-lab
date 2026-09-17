@@ -26,6 +26,7 @@ const mocks = vi.hoisted(() => {
     assignmentsTable: { id: "id", sessionId: "sessionId", dueAt: "dueAt" },
     assignmentSubmissionsTable: { userId: "userId", sessionId: "sessionId", body: "body", submittedAt: "submittedAt", late: "late" },
     latePassesTable: { userId: "userId", programId: "programId", sessionId: "sessionId" },
+    deadlineExtensionsTable: { userId: "userId", sessionId: "sessionId", dueAt: "dueAt" },
   };
 
   let selectResults: unknown[][] = [];
@@ -144,8 +145,11 @@ describe("the quiz deadline", () => {
 
   it("takes answers when the deadline is still ahead", async () => {
     mocks.setSelects([
-      [{ ...MODULE, quizDueAt: nextWeek() }], ENROLLED, QUESTIONS,
-      [{ id: 1 }], [{ best: 100 }],
+      [{ ...MODULE, quizDueAt: nextWeek() }], ENROLLED,
+      // The learner's own extension, if an admin has moved this deadline for
+      // them. Empty here: these tests are about the cohort's deadline.
+      [],
+      QUESTIONS, [{ id: 1 }], [{ best: 100 }],
     ]);
 
     const res = await answerQuiz();
@@ -157,8 +161,11 @@ describe("the quiz deadline", () => {
   it("takes answers when there is no deadline at all", async () => {
     // Every module worked this way before deadlines existed, and most still do.
     mocks.setSelects([
-      [{ ...MODULE, quizDueAt: null }], ENROLLED, QUESTIONS,
-      [{ id: 1 }], [{ best: 100 }],
+      [{ ...MODULE, quizDueAt: null }], ENROLLED,
+      // The learner's own extension, if an admin has moved this deadline for
+      // them. Empty here: these tests are about the cohort's deadline.
+      [],
+      QUESTIONS, [{ id: 1 }], [{ best: 100 }],
     ]);
 
     expect((await answerQuiz()).status).toBe(200);
@@ -166,7 +173,7 @@ describe("the quiz deadline", () => {
 
   it("tells the learner the deadline and that it has closed", async () => {
     const due = yesterday();
-    mocks.setSelects([[{ ...MODULE, quizDueAt: due }], ENROLLED, QUESTIONS, [{ best: null }]]);
+    mocks.setSelects([[{ ...MODULE, quizDueAt: due }], ENROLLED, QUESTIONS, [{ best: null }], []]);
 
     const body = (await (await fetch(`${baseUrl}/api/sessions/10/quiz`)).json()) as {
       dueAt: string; closed: boolean;
@@ -183,7 +190,7 @@ describe("the assignment deadline", () => {
   it("refuses a submission once the date has passed", async () => {
     // The fourth read is the learner's late passes: none spent, so the door
     // stays shut until they choose to spend one.
-    mocks.setSelects([[MODULE], ENROLLED, [{ id: 4, dueAt: yesterday() }], []]);
+    mocks.setSelects([[MODULE], ENROLLED, [{ id: 4, dueAt: yesterday() }], [], []]);
 
     const res = await handIn();
 
@@ -194,7 +201,10 @@ describe("the assignment deadline", () => {
 
   it("takes a submission before the date", async () => {
     mocks.setSelects([
-      [MODULE], ENROLLED, [{ id: 4, dueAt: nextWeek() }], [],
+      [MODULE], ENROLLED, [{ id: 4, dueAt: nextWeek() }],
+      // The learner's own extension, then their late passes. Both empty: this
+      // is about the cohort's deadline.
+      [], [],
       [{ body: PIECE, submittedAt: new Date() }],
     ]);
 
@@ -206,7 +216,10 @@ describe("the assignment deadline", () => {
     // safe to set at all. If clearing it did not reopen the door, one wrong
     // date would end somebody's programme.
     mocks.setSelects([
-      [MODULE], ENROLLED, [{ id: 4, dueAt: null }], [],
+      [MODULE], ENROLLED, [{ id: 4, dueAt: null }],
+      // The learner's own extension, then their late passes. Both empty: this
+      // is about the cohort's deadline.
+      [], [],
       [{ body: PIECE, submittedAt: new Date() }],
     ]);
 

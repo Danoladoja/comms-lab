@@ -126,3 +126,40 @@ export function sendWaitlistPromotion(learner: Learner, program: Program): void 
     ],
   });
 }
+
+/**
+ * A learner told their deadline has moved.
+ *
+ * Without it the extension is invisible where it matters. Somebody who hit a
+ * shut door last week has already stopped checking — that is what hitting a
+ * shut door does — and an admin's kindness would sit there unnoticed until the
+ * new date passed too. It names the module, says both pieces are open, and
+ * gives the date in words rather than a bare timestamp.
+ */
+export function sendDeadlineExtended(
+  learner: Learner,
+  args: { programTitle: string; moduleTitle: string; when: string; sessionId: number },
+): void {
+  const { html, text } = letter({
+    learner,
+    paragraphs: [
+      `Your deadline for ${args.moduleTitle} on ${args.programTitle} has been extended to ${args.when}.`,
+      "Both the quiz and the written task for that module are open again until then. "
+        + "This has not used either of your late passes — they are still there for another week.",
+    ],
+    // The classroom, which is where the quiz and the task actually are.
+    // There is no /modules route; a link to one would open nothing.
+    action: { label: "Open the classroom", url: appUrl(`/classroom/${args.sessionId}`) },
+  });
+  void sendEmail({
+    to: { email: learner.email, name: learner.name || learner.email },
+    subject: `More time on ${args.moduleTitle}`,
+    html,
+    text,
+  }).catch((err) => {
+    logger.error(
+      { err, to: learner.email, module: args.moduleTitle, definite: err instanceof EmailRejectedError },
+      "Deadline extension email failed",
+    );
+  });
+}

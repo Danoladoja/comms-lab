@@ -1396,6 +1396,43 @@ export interface EnrollmentUpdate {
   status: EnrollmentUpdateStatus;
 }
 
+export interface ModuleDeadlineRow {
+  sessionId: number;
+  title: string;
+  /** @nullable */
+  startsAt?: string | null;
+  /** @nullable */
+  quizDueAt?: string | null;
+  /** @nullable */
+  assignmentDueAt?: string | null;
+  moduleClosed: boolean;
+  hasCoursework: boolean;
+  /** @nullable */
+  extendedTo?: string | null;
+  /** @nullable */
+  extensionReason?: string | null;
+  submitted?: boolean;
+}
+
+export interface DeadlineExtensionSubject {
+  userId: number;
+}
+
+export interface DeadlineExtensionGrant {
+  userId: number;
+  dueAt: string;
+  reason?: string;
+  notify?: boolean;
+}
+
+export interface DeadlineExtensionResult {
+  sessionId: number;
+  userId: number;
+  dueAt: string;
+  note: string;
+  emailed: boolean;
+}
+
 export type LateEnrolmentCountsFrom = typeof LateEnrolmentCountsFrom[keyof typeof LateEnrolmentCountsFrom];
 
 

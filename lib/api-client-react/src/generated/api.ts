@@ -40,6 +40,9 @@ import type {
   CourseworkDraftRun,
   CourseworkPostResult,
   CourseworkPostState,
+  DeadlineExtensionGrant,
+  DeadlineExtensionResult,
+  DeadlineExtensionSubject,
   Enrollment,
   EnrollmentDetail,
   EnrollmentUpdate,
@@ -64,6 +67,7 @@ import type {
   LiveSessionJoin,
   LiveSessionRegistered,
   MeetAttendanceResult,
+  ModuleDeadlineRow,
   ModuleWork,
   MoreQuestionsInput,
   MyFeedback,
@@ -5378,6 +5382,234 @@ export function useListAllEnrollments<TData = Awaited<ReturnType<typeof listAllE
 
 
 
+
+export const getListDeadlineExtensionsUrl = (id: number,
+    userId: number,) => {
+
+
+
+
+  return `/api/admin/programs/${id}/learners/${userId}/deadline-extensions`
+}
+
+/**
+ * The learner is a path segment rather than a query parameter on purpose. A path parameter plus a query parameter makes Orval generate the same `Params` type in both generated packages, and the build fails on the duplicate export — a collision this repo has hit twice before.
+ * @summary Every module on this programme, with any extension granted to one learner
+ */
+export const listDeadlineExtensions = async (id: number,
+    userId: number, options?: Parameters<typeof customFetch>[1]): Promise<ModuleDeadlineRow[]> => {
+
+  return customFetch<ModuleDeadlineRow[]>(getListDeadlineExtensionsUrl(id,userId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListDeadlineExtensionsQueryKey = (id: number,
+    userId: number,) => {
+    return [
+    `/api/admin/programs/${id}/learners/${userId}/deadline-extensions`
+    ] as const;
+    }
+
+
+export const getListDeadlineExtensionsQueryOptions = <TData = Awaited<ReturnType<typeof listDeadlineExtensions>>, TError = ErrorType<ApiMessage>>(id: number,
+    userId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listDeadlineExtensions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListDeadlineExtensionsQueryKey(id,userId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listDeadlineExtensions>>> = ({ signal }) => listDeadlineExtensions(id,userId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined && userId !== null && userId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listDeadlineExtensions>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListDeadlineExtensionsQueryResult = NonNullable<Awaited<ReturnType<typeof listDeadlineExtensions>>>
+export type ListDeadlineExtensionsQueryError = ErrorType<ApiMessage>
+
+
+/**
+ * @summary Every module on this programme, with any extension granted to one learner
+ */
+
+export function useListDeadlineExtensions<TData = Awaited<ReturnType<typeof listDeadlineExtensions>>, TError = ErrorType<ApiMessage>>(
+ id: number,
+    userId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listDeadlineExtensions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListDeadlineExtensionsQueryOptions(id,userId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGrantDeadlineExtensionUrl = (id: number,) => {
+
+
+
+
+  return `/api/admin/sessions/${id}/deadline-extension`
+}
+
+/**
+ * Moves both of the module's doors — its quiz and its written task — for this learner alone. Granting again replaces the date rather than adding a second row. It does not move the rules the module was taught under.
+ * @summary Move one learner's deadline on this module
+ */
+export const grantDeadlineExtension = async (id: number,
+    deadlineExtensionGrant: DeadlineExtensionGrant, options?: Parameters<typeof customFetch>[1]): Promise<DeadlineExtensionResult> => {
+
+  return customFetch<DeadlineExtensionResult>(getGrantDeadlineExtensionUrl(id),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(deadlineExtensionGrant)
+  }
+);}
+
+
+
+
+
+export const getGrantDeadlineExtensionMutationOptions = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof grantDeadlineExtension>>, TError,{id: number;data: BodyType<DeadlineExtensionGrant>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof grantDeadlineExtension>>, TError,{id: number;data: BodyType<DeadlineExtensionGrant>}, TContext> => {
+
+const mutationKey = ['grantDeadlineExtension'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof grantDeadlineExtension>>, {id: number;data: BodyType<DeadlineExtensionGrant>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  grantDeadlineExtension(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type GrantDeadlineExtensionMutationResult = NonNullable<Awaited<ReturnType<typeof grantDeadlineExtension>>>
+    export type GrantDeadlineExtensionMutationBody = BodyType<DeadlineExtensionGrant>
+    export type GrantDeadlineExtensionMutationError = ErrorType<ApiMessage>
+
+    /**
+ * @summary Move one learner's deadline on this module
+ */
+export const useGrantDeadlineExtension = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof grantDeadlineExtension>>, TError,{id: number;data: BodyType<DeadlineExtensionGrant>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof grantDeadlineExtension>>,
+        TError,
+        {id: number;data: BodyType<DeadlineExtensionGrant>},
+        TContext
+      > => {
+      return useMutation(getGrantDeadlineExtensionMutationOptions(options));
+    }
+
+export const getRevokeDeadlineExtensionUrl = (id: number,) => {
+
+
+
+
+  return `/api/admin/sessions/${id}/deadline-extension`
+}
+
+/**
+ * @summary Take back a learner's extension on this module
+ */
+export const revokeDeadlineExtension = async (id: number,
+    deadlineExtensionSubject: DeadlineExtensionSubject, options?: Parameters<typeof customFetch>[1]): Promise<ApiMessage> => {
+
+  return customFetch<ApiMessage>(getRevokeDeadlineExtensionUrl(id),
+  {
+    ...options,
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(deadlineExtensionSubject)
+  }
+);}
+
+
+
+
+
+export const getRevokeDeadlineExtensionMutationOptions = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof revokeDeadlineExtension>>, TError,{id: number;data: BodyType<DeadlineExtensionSubject>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof revokeDeadlineExtension>>, TError,{id: number;data: BodyType<DeadlineExtensionSubject>}, TContext> => {
+
+const mutationKey = ['revokeDeadlineExtension'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof revokeDeadlineExtension>>, {id: number;data: BodyType<DeadlineExtensionSubject>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  revokeDeadlineExtension(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RevokeDeadlineExtensionMutationResult = NonNullable<Awaited<ReturnType<typeof revokeDeadlineExtension>>>
+    export type RevokeDeadlineExtensionMutationBody = BodyType<DeadlineExtensionSubject>
+    export type RevokeDeadlineExtensionMutationError = ErrorType<ApiMessage>
+
+    /**
+ * @summary Take back a learner's extension on this module
+ */
+export const useRevokeDeadlineExtension = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof revokeDeadlineExtension>>, TError,{id: number;data: BodyType<DeadlineExtensionSubject>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof revokeDeadlineExtension>>,
+        TError,
+        {id: number;data: BodyType<DeadlineExtensionSubject>},
+        TContext
+      > => {
+      return useMutation(getRevokeDeadlineExtensionMutationOptions(options));
+    }
 
 export const getEnrolExistingAccountUrl = (id: number,) => {
 

@@ -15,6 +15,13 @@
       "when": 1789636879100,
       "tag": "0001_meet_attendance_source",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1789657025343,
+      "tag": "0002_sudden_corsair",
+      "breakpoints": true
     }
   ]
 }

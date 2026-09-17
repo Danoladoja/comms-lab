@@ -1,7 +1,7 @@
 import {
   db, attendanceTable, replayProgressTable, enrollmentsTable, sessionsTable, programsTable,
   quizQuestionsTable, quizAttemptsTable, assignmentsTable, assignmentSubmissionsTable,
-  submissionReviewsTable,
+  submissionReviewsTable, deadlineExtensionsTable,
 } from "@workspace/db";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import {
@@ -14,6 +14,7 @@ import {
   type ProgressEntry,
   type Progression,
   weeksOfSessions,
+  effectiveDueAt,
 } from "@workspace/domain";
 
 export type { ProgressEntry };
@@ -55,7 +56,7 @@ export async function progressForUser(userId: number, programIds: number[]): Pro
   // `.concat(-1)` keeps the IN clause non-empty for programs with no sessions.
   const sessionIds = sessions.map((s) => s.id).concat(-1);
 
-  const [att, replay, enrollRows, quizSessions, bestAttempts, assignments, submissions, reviewsGiven, reviewsReceived, peers] =
+  const [att, replay, enrollRows, quizSessions, bestAttempts, assignments, submissions, reviewsGiven, reviewsReceived, peers, extensions] =
     await Promise.all([
       db
         .select()
@@ -146,6 +147,17 @@ export async function progressForUser(userId: number, programIds: number[]): Pro
         .from(assignmentSubmissionsTable)
         .where(inArray(assignmentSubmissionsTable.sessionId, sessionIds))
         .groupBy(assignmentSubmissionsTable.sessionId),
+      // Deadlines an admin has moved for this learner alone.
+      db
+        .select({
+          sessionId: deadlineExtensionsTable.sessionId,
+          dueAt: deadlineExtensionsTable.dueAt,
+        })
+        .from(deadlineExtensionsTable)
+        .where(and(
+          eq(deadlineExtensionsTable.userId, userId),
+          inArray(deadlineExtensionsTable.sessionId, sessionIds),
+        )),
     ]);
 
   const attendance = new Map(att.map((a) => [a.sessionId, a.joinedAt]));
@@ -183,6 +195,11 @@ export async function progressForUser(userId: number, programIds: number[]): Pro
   const reviewsRequiredBySession = new Map(assignments.map((a) => [a.sessionId, a.reviewsRequired]));
   const assignmentDueBySession = new Map(assignments.map((a) => [a.sessionId, a.dueAt]));
   const quizDueBySession = new Map(sessions.map((s) => [s.id, s.quizDueAt]));
+  // Deadlines an admin has moved for this learner. Applied here so the date on
+  // their own dashboard is the one the doors will actually check — being shown
+  // a deadline that passed while the work is in fact open is how somebody
+  // decides not to bother.
+  const extendedBySession = new Map(extensions.map((e) => [e.sessionId, e.dueAt.toISOString()]));
   const submittedSet = new Set(submissions.map((s) => s.sessionId));
   // What each learner was actually asked for when they filed. Raising the
   // number afterwards must not reach back and un-complete their module.
@@ -210,8 +227,14 @@ export async function progressForUser(userId: number, programIds: number[]): Pro
         peersToReview: peersBySession.get(s.id) ?? 0,
         // Deadlines ride along so the dashboard can show what is due without
         // opening every quiz and task in turn. They change no rule below.
-        quizDueAt: quizDueBySession.get(s.id)?.toISOString() ?? null,
-        assignmentDueAt: assignmentDueBySession.get(s.id)?.toISOString() ?? null,
+        quizDueAt: effectiveDueAt(
+          quizDueBySession.get(s.id)?.toISOString() ?? null,
+          extendedBySession.get(s.id) ?? null,
+        ),
+        assignmentDueAt: effectiveDueAt(
+          assignmentDueBySession.get(s.id)?.toISOString() ?? null,
+          extendedBySession.get(s.id) ?? null,
+        ),
       },
     ]),
   );

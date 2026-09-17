@@ -1861,6 +1861,70 @@ export const ListAllEnrollmentsResponse = zod.array(ListAllEnrollmentsResponseIt
 
 
 /**
+ * The learner is a path segment rather than a query parameter on purpose. A path parameter plus a query parameter makes Orval generate the same `Params` type in both generated packages, and the build fails on the duplicate export — a collision this repo has hit twice before.
+ * @summary Every module on this programme, with any extension granted to one learner
+ */
+export const ListDeadlineExtensionsParams = zod.object({
+  "id": zod.coerce.number().int(),
+  "userId": zod.coerce.number().int()
+})
+
+export const ListDeadlineExtensionsResponseItem = zod.object({
+  "sessionId": zod.int(),
+  "title": zod.string(),
+  "startsAt": zod.coerce.date().nullish(),
+  "quizDueAt": zod.coerce.date().nullish(),
+  "assignmentDueAt": zod.coerce.date().nullish(),
+  "moduleClosed": zod.boolean(),
+  "hasCoursework": zod.boolean(),
+  "extendedTo": zod.coerce.date().nullish(),
+  "extensionReason": zod.string().nullish(),
+  "submitted": zod.boolean().optional()
+})
+export const ListDeadlineExtensionsResponse = zod.array(ListDeadlineExtensionsResponseItem)
+
+
+/**
+ * Moves both of the module's doors — its quiz and its written task — for this learner alone. Granting again replaces the date rather than adding a second row. It does not move the rules the module was taught under.
+ * @summary Move one learner's deadline on this module
+ */
+export const GrantDeadlineExtensionParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const GrantDeadlineExtensionBody = zod.object({
+  "userId": zod.int(),
+  "dueAt": zod.coerce.date(),
+  "reason": zod.string().optional(),
+  "notify": zod.boolean().optional()
+})
+
+export const GrantDeadlineExtensionResponse = zod.object({
+  "sessionId": zod.int(),
+  "userId": zod.int(),
+  "dueAt": zod.coerce.date(),
+  "note": zod.string(),
+  "emailed": zod.boolean()
+})
+
+
+/**
+ * @summary Take back a learner's extension on this module
+ */
+export const RevokeDeadlineExtensionParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const RevokeDeadlineExtensionBody = zod.object({
+  "userId": zod.int()
+})
+
+export const RevokeDeadlineExtensionResponse = zod.object({
+  "error": zod.string()
+})
+
+
+/**
  * For the person who signed up but never onboarded, and now has an account on no programme. Self-enrolment cannot help them once the programme has closed to it, and the invitation tool refuses anybody who already has an account. Everything travels in the body: a path parameter plus a query parameter makes Orval generate the same Params type in two packages.
  * @summary Put somebody who already has an account onto this programme (admin)
  */

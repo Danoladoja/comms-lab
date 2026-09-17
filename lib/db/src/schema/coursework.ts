@@ -260,3 +260,52 @@ export type AssignmentSubmission = typeof assignmentSubmissionsTable.$inferSelec
 export type SubmissionReview = typeof submissionReviewsTable.$inferSelect;
 export type SubmissionComment = typeof submissionCommentsTable.$inferSelect;
 export type LatePass = typeof latePassesTable.$inferSelect;
+
+/**
+ * A deadline moved for one learner, on one module, by an admin.
+ *
+ * The late pass is the learner's own remedy: fixed, countable, spent without
+ * asking. This is the other half — the case the pass cannot reach. Somebody
+ * added to a cohort three weeks in, somebody whose passes are gone, somebody
+ * with a reason that does not fit in a rule. Until now the only answer was
+ * "talk to the team", and the team had nothing to act with but the database.
+ *
+ * One row per learner per module, carrying one date that moves both of that
+ * module's doors — its quiz and its written task — because a learner told the
+ * writing had reopened while the quiz stayed shut has been helped with one hand
+ * and blocked with the other.
+ *
+ * What it deliberately does NOT move is the rules the module was taught under.
+ * The word floors are anchored to a module's original deadline so that a module
+ * whose deadline had already passed when they came in keeps the rules its
+ * cohort actually worked to. An extension that dragged those floors forward
+ * would quietly ask a late learner for five hundred words nobody else on that
+ * module was ever asked for.
+ */
+export const deadlineExtensionsTable = pgTable(
+  "deadline_extensions",
+  {
+    id: serial("id").primaryKey(),
+    userId: integer("user_id").notNull().references(() => usersTable.id, { onDelete: "cascade" }),
+    sessionId: integer("session_id").notNull().references(() => sessionsTable.id, { onDelete: "cascade" }),
+    programId: integer("program_id")
+      .notNull()
+      .references(() => programsTable.id, { onDelete: "cascade" }),
+    /** The new door. Always later than the module's own deadline. */
+    dueAt: timestamp("due_at", { withTimezone: true }).notNull(),
+    /** Why, in the admin's words. Shown to nobody but staff; kept so a decision has a reason attached. */
+    reason: text("reason").notNull().default(""),
+    /** Who granted it. Null if that admin's account is later removed. */
+    grantedByUserId: integer("granted_by_user_id").references(() => usersTable.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+  },
+  (t) => [
+    // One extension per learner per module: granting again moves the same date
+    // rather than stacking a second row nobody can see behind the first.
+    uniqueIndex("deadline_extensions_user_session_unique").on(t.userId, t.sessionId),
+    index("deadline_extensions_user_program_idx").on(t.userId, t.programId),
+  ],
+);
+
+export type DeadlineExtension = typeof deadlineExtensionsTable.$inferSelect;

@@ -29,6 +29,7 @@ const mocks = vi.hoisted(() => {
       id: "id", userId: "userId", programId: "programId", sessionId: "sessionId",
       claimedAt: "claimedAt", extendedFrom: "extendedFrom",
     },
+    deadlineExtensionsTable: { userId: "userId", sessionId: "sessionId", dueAt: "dueAt" },
   };
 
   let selectResults: unknown[][] = [];
@@ -155,7 +156,7 @@ afterEach(async () => {
 describe("POST /sessions/:id/late-pass", () => {
   /** session · enrolment · task · passes already spent */
   const reads = (dueAt: Date | null, spent: unknown[]) =>
-    mocks.setSelects([SESSION, ENROLLED, task(dueAt), spent, [{ id: 1 }], spent]);
+    mocks.setSelects([SESSION, ENROLLED, task(dueAt), [] /* the learner's own extension: none here */, spent, [{ id: 1 }], spent]);
 
   it("spends one once the deadline has gone", async () => {
     reads(passed(), []);
@@ -211,7 +212,7 @@ describe("POST /sessions/:id/late-pass", () => {
 describe("filing after the deadline", () => {
   /** session · enrolment · task · passes spent */
   const reads = (dueAt: Date | null, spent: unknown[]) =>
-    mocks.setSelects([SESSION, ENROLLED, task(dueAt), spent, [{
+    mocks.setSelects([SESSION, ENROLLED, task(dueAt), [] /* the learner's own extension: none here */, spent, [{
       id: 1, body: "Filed at the last possible moment.", submittedAt: new Date(), late: true,
     }]]);
 
@@ -271,7 +272,7 @@ describe("filing after the deadline", () => {
 describe("a late pass covers the quiz too", () => {
   it("refuses a late attempt by offering the pass, not by sending them to ask a favour", async () => {
     // session · enrolment · passes spent (none)
-    mocks.setSelects([withQuizDue(passed()), ENROLLED, []]);
+    mocks.setSelects([withQuizDue(passed()), ENROLLED, [] /* the learner's own extension: none here */, []]);
     const res = await answerQuiz();
 
     expect(res.status).toBe(403);
@@ -286,7 +287,7 @@ describe("a late pass covers the quiz too", () => {
     // The pass was spent on the written task. The quiz opens because the pass
     // belongs to the module, which is the whole of this change.
     mocks.setSelects([
-      withQuizDue(passed()), ENROLLED, [{ sessionId: 10 }],
+      withQuizDue(passed()), ENROLLED, [] /* the learner's own extension: none here */, [{ sessionId: 10 }],
       QUESTIONS, [{ id: 1 }], [{ best: 100 }],
     ]);
     const res = await answerQuiz();
@@ -297,7 +298,7 @@ describe("a late pass covers the quiz too", () => {
 
   it("shuts the quiz again once the pass's own window has run out", async () => {
     // A pass buys 48 hours on each door, not an open one.
-    mocks.setSelects([withQuizDue(longGone()), ENROLLED, [{ sessionId: 10 }]]);
+    mocks.setSelects([withQuizDue(longGone()), ENROLLED, [] /* the learner's own extension: none here */, [{ sessionId: 10 }]]);
     const res = await answerQuiz();
 
     expect(res.status).toBe(403);
@@ -307,7 +308,7 @@ describe("a late pass covers the quiz too", () => {
   it("leaves a quiz with no deadline exactly as it was", async () => {
     // Most modules have no quiz deadline and must behave as they always have —
     // and must not spend a read on late passes to find that out.
-    mocks.setSelects([withQuizDue(null), ENROLLED, QUESTIONS, [{ id: 1 }], [{ best: 100 }]]);
+    mocks.setSelects([withQuizDue(null), ENROLLED, [] /* the learner's own extension: none here */, QUESTIONS, [{ id: 1 }], [{ best: 100 }]]);
     expect((await answerQuiz()).status).toBe(200);
   });
 });
@@ -316,7 +317,7 @@ describe("spending one from the quiz", () => {
   /** session · enrolment · task · passes · rows inside the lock · passes after */
   const reads = (quizDueAt: Date | null, workDueAt: Date | null, spent: unknown[]) =>
     mocks.setSelects([
-      withQuizDue(quizDueAt), ENROLLED, task(workDueAt), spent, [{ id: 1 }], spent,
+      withQuizDue(quizDueAt), ENROLLED, task(workDueAt), [] /* the learner's own extension: none here */, spent, [{ id: 1 }], spent,
     ]);
 
   it("spends one, and it is the module that is paid for", async () => {
@@ -394,7 +395,7 @@ describe("spending one from the quiz", () => {
 describe("how much has to be written", () => {
   /** session · enrolment · task · passes · the saved row */
   const reads = (dueAt: Date | null) =>
-    mocks.setSelects([SESSION, ENROLLED, task(dueAt), [], [{
+    mocks.setSelects([SESSION, ENROLLED, task(dueAt), [] /* the learner's own extension: none here */, [], [{
       id: 1, body: "x", submittedAt: new Date(), late: false,
     }]]);
 
@@ -418,14 +419,30 @@ describe("how much has to be written", () => {
     expect((await handIn()).status).toBe(200);
   });
 
-  // Which modules the floors apply to is decided by `wordsRequired`, and it is
-  // proved there — a module whose deadline had already passed when the rule
-  // came in keeps the rules it was set under. It cannot be shown from here
-  // without a test that decays: such a module's deadline has by definition
-  // gone, so the only way in is a late pass, and that window is 48 hours wide.
-  // Which is also the useful thing to know about the exemption — for
-  // submissions it is nearly moot, and it is really about the critiques still
-  // being written against those modules, which have no deadline of their own.
+  it("keeps an old module's rules when an admin reopens it", async () => {
+    // This could not be shown from here until extensions existed: such a
+    // module's deadline has by definition gone, so the only way back in was a
+    // late pass and its window is only 48 hours wide.
+    //
+    // It is the trap the extension feature had to avoid. The floor is anchored
+    // to a module's own deadline precisely so a module taught before the floors
+    // arrived keeps the rules its cohort worked to. Reading the extended date
+    // instead would ask the one learner being done a favour for five hundred
+    // words nobody else on that module was ever asked for — a punishment
+    // wearing a favour's clothes, and invisible until somebody complained.
+    const before = new Date("2026-09-01T00:00:00Z");   // before the floors came in
+    const reopened = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    mocks.setSelects([
+      SESSION, ENROLLED, task(before),
+      [{ dueAt: reopened }],   // the admin's extension
+      [],                      // no late pass spent, and none needed
+      [{ id: 1, body: "x", submittedAt: new Date(), late: false }],
+    ]);
+
+    // Eight words, filed against a module whose cohort was never asked for 500.
+    expect((await handIn("Two hundred words would be generous for this.")).status).toBe(200);
+  });
+
 
   it("puts the floor on a module with no deadline at all", async () => {
     // Falling the other way would exempt every future module that never gets a

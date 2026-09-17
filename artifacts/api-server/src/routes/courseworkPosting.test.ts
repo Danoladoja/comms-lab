@@ -33,6 +33,7 @@ const mocks = vi.hoisted(() => {
     assignmentSubmissionsTable: { userId: "userId", sessionId: "sessionId", body: "body", submittedAt: "submittedAt" },
     sessionReadingsTable: { id: "id", sessionId: "sessionId" },
     sessionSlidesTable: { id: "id", sessionId: "sessionId", visibleToLearners: "visibleToLearners" },
+    deadlineExtensionsTable: { userId: "userId", sessionId: "sessionId", dueAt: "dueAt" },
   };
 
   let selectResults: unknown[][] = [];
