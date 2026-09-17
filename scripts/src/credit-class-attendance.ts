@@ -31,8 +31,9 @@ import {
   sessionsTable,
   enrollmentsTable,
   usersTable,
+  programsTable,
 } from "@workspace/db";
-import { and, asc, eq, isNull, sql } from "drizzle-orm";
+import { and, asc, eq, isNotNull, isNull, lte, sql } from "drizzle-orm";
 
 const REASON =
   "Credited by hand: the app has no usable measurement for this class. "
@@ -42,12 +43,22 @@ async function main() {
   const args = process.argv.slice(2);
   const write = args.includes("--write");
   const measuredOnly = args.includes("--measured-only");
+  const untilArg = args.find((a) => a.startsWith("--until="));
+
+  // Two ways in. By date is the one to reach for: "every class up to here was
+  // ours to get wrong, so stop holding it against anybody", which is a sentence
+  // about the teaching rather than about module ids nobody knows by heart.
+  if (untilArg) {
+    await creditUpTo(args.filter((a) => !a.startsWith("--")).join(" ").trim(), untilArg.slice(8), write, measuredOnly);
+    return;
+  }
+
   const sessionId = Number(args.find((a) => !a.startsWith("--")));
 
   if (!Number.isInteger(sessionId)) {
-    console.error("Which module? Pass its id:");
+    console.error("Either one module by id, or every class up to a date:");
     console.error("  pnpm --filter @workspace/scripts run credit:class -- 12");
-    console.error("\nThe ids are in the address bar when you open a module in the console.");
+    console.error('  pnpm --filter @workspace/scripts run credit:class -- "AfriEnergy" --until=2026-09-20');
     process.exit(1);
   }
 
@@ -129,6 +140,48 @@ async function main() {
     return;
   }
 
+  await creditOne(sessionId, measuredOnly);
+
+  console.log(`\nCredited ${candidates.length}. Their attendance for this class now reads`);
+  console.log("\"could not be measured\" rather than \"did not attend\".");
+  console.log("\nCheck what it opened with:");
+  console.log("  pnpm --filter @workspace/scripts run why:locked");
+}
+
+/**
+ * Write the waiver for one class, and say how many rows it touched.
+ *
+ * Rows that already carry a waiver are left exactly as they are, so running
+ * this twice changes nothing the second time and a hand-written reason from
+ * last week is never overwritten by this one.
+ */
+async function creditOne(sessionId: number, measuredOnly: boolean): Promise<number> {
+  const [session] = await db
+    .select({ programId: sessionsTable.programId, startsAt: sessionsTable.startsAt })
+    .from(sessionsTable)
+    .where(eq(sessionsTable.id, sessionId));
+  if (!session) return 0;
+
+  const learners = await db
+    .select({
+      id: usersTable.id,
+      liveSeconds: attendanceTable.liveSeconds,
+      waivedAt: attendanceTable.presenceWaivedAt,
+    })
+    .from(enrollmentsTable)
+    .innerJoin(usersTable, eq(usersTable.id, enrollmentsTable.userId))
+    .leftJoin(attendanceTable, and(
+      eq(attendanceTable.userId, enrollmentsTable.userId),
+      eq(attendanceTable.sessionId, sessionId),
+    ))
+    .where(and(
+      eq(enrollmentsTable.programId, session.programId),
+      sql`${enrollmentsTable.status} in ('enrolled', 'completed')`,
+    ));
+
+  const candidates = learners.filter((l) => l.waivedAt === null
+    && (!measuredOnly || (l.liveSeconds ?? 0) > 0));
+
   const now = new Date();
   for (const l of candidates) {
     await db
@@ -136,7 +189,7 @@ async function main() {
       .values({
         userId: l.id,
         sessionId,
-        joinedAt: session.startsAt,
+        joinedAt: session.startsAt ?? now,
         presenceWaivedAt: now,
         presenceWaivedReason: REASON,
       })
@@ -146,10 +199,71 @@ async function main() {
         setWhere: isNull(attendanceTable.presenceWaivedAt),
       });
   }
+  return candidates.length;
+}
 
-  console.log(`\nCredited ${candidates.length}. Their attendance for this class now reads`);
-  console.log("\"could not be measured\" rather than \"did not attend\".");
-  console.log("\nCheck what it opened with:");
+/**
+ * Credit every scheduled class in a programme up to and including a date.
+ *
+ * For the weeks where the fault was the Lab's — a join link that 404'd, so the
+ * cohort used the calendar invite and the app saw nothing. There is no
+ * measurement to rescue and no way to tell who was in the room, so this says
+ * "not measured" for all of them and stops holding it against anybody.
+ */
+async function creditUpTo(wanted: string, until: string, write: boolean, measuredOnly: boolean) {
+  const cutoff = new Date(`${until}T23:59:59.999Z`);
+  if (!Number.isFinite(cutoff.getTime())) {
+    console.error(`"${until}" is not a date I can read. Use --until=2026-09-20`);
+    process.exit(1);
+  }
+
+  const programmes = await db
+    .select({ id: programsTable.id, title: programsTable.title })
+    .from(programsTable);
+  const matched = programmes.filter((p) => p.title.toLowerCase().includes(wanted.toLowerCase()));
+  if (matched.length !== 1) {
+    console.error(matched.length === 0
+      ? `No programme matches "${wanted}".`
+      : `"${wanted}" matches more than one programme.`);
+    for (const p of programmes) console.error(`  ${p.title}`);
+    process.exit(1);
+  }
+
+  const classes = await db
+    .select({ id: sessionsTable.id, title: sessionsTable.title, startsAt: sessionsTable.startsAt })
+    .from(sessionsTable)
+    .where(and(
+      eq(sessionsTable.programId, matched[0].id),
+      isNotNull(sessionsTable.startsAt),
+      lte(sessionsTable.startsAt, cutoff),
+    ))
+    .orderBy(asc(sessionsTable.startsAt));
+
+  if (classes.length === 0) {
+    console.log(`No scheduled classes in "${matched[0].title}" on or before ${until}.`);
+    return;
+  }
+
+  console.log(`\n${matched[0].title}`);
+  console.log(`  ${classes.length} class${classes.length === 1 ? "" : "es"} on or before ${until}:\n`);
+  for (const c of classes) {
+    console.log(`  ${c.startsAt?.toISOString().slice(0, 10)}  ${c.title}`);
+  }
+  console.log("\nEverybody enrolled will be credited for these, whether or not the app");
+  console.log("measured them. Attendance from the class after these is unaffected.\n");
+
+  if (!write) {
+    console.log("Nothing was changed. To do it:");
+    console.log(`  pnpm --filter @workspace/scripts run credit:class -- "${wanted}" --until=${until} --write`);
+    return;
+  }
+
+  let total = 0;
+  for (const c of classes) {
+    total += await creditOne(c.id, measuredOnly);
+  }
+  console.log(`Credited ${total} attendance record${total === 1 ? "" : "s"} across ${classes.length} classes.`);
+  console.log("\nSee what that opened:");
   console.log("  pnpm --filter @workspace/scripts run why:locked");
 }
 

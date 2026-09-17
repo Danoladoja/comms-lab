@@ -197,7 +197,15 @@ export default function LearnerDashboard() {
                             const lockedReason = locked
                               ? entry?.lockedReason || whyModuleLocked(mods[i - 1]?.title)
                               : '';
-                            const pct = entry?.completed ? 100 : entry?.progressPct ?? 0;
+                            // Nothing set for this module yet — no date, no quiz,
+                            // no task. It counts as complete so a placeholder
+                            // cannot hold up a certificate, but showing "100%"
+                            // and a tick against a class that has not been
+                            // scheduled is how a learner came to send a
+                            // screenshot asking what on earth was going on.
+                            const notSet = entry?.notSetYet ?? false;
+                            const done = !!entry?.completed && !notSet;
+                            const pct = notSet ? 0 : done ? 100 : entry?.progressPct ?? 0;
                             const owed = Math.max(0, (entry?.reviewsRequired ?? 0) - (entry?.reviewsGiven ?? 0));
                             // The class itself is outstanding once it has ended and
                             // the presence bar has not been reached by either route.
@@ -213,7 +221,7 @@ export default function LearnerDashboard() {
                                 >
                                   {locked
                                     ? <Lock className="w-5 h-5 text-muted-foreground/60 flex-shrink-0" />
-                                    : entry?.completed
+                                    : done
                                       ? <CheckCircle2 className="w-5 h-5 text-emerald-600 flex-shrink-0" />
                                       : state === 'live'
                                         ? <Radio className="w-5 h-5 text-[#C2410C] flex-shrink-0 animate-pulse" />
@@ -230,6 +238,13 @@ export default function LearnerDashboard() {
                                       <p className="text-xs font-medium text-muted-foreground">
                                         {lockedReason}
                                       </p>
+                                    ) : notSet ? (
+                                      // No bar at all. There is nothing to be a
+                                      // share of, and a 0% bar reads as failure
+                                      // rather than as "we have not set this yet".
+                                      <p className="text-xs font-medium text-muted-foreground">
+                                        Not scheduled yet — nothing to do here so far.
+                                      </p>
                                     ) : (
                                       <div className="flex items-center gap-2">
                                         <Progress value={pct} className="h-1.5 flex-1 max-w-[220px]" />
@@ -242,8 +257,10 @@ export default function LearnerDashboard() {
                                       ? <span className="text-muted-foreground">Locked</span>
                                       : state === 'live'
                                         ? <><Video className="w-4 h-4" aria-hidden />Join live</>
-                                        : entry?.completed
-                                          ? 'Completed'
+                                        : notSet
+                                          ? <span className="text-muted-foreground">To come</span>
+                                          : done
+                                            ? 'Completed'
                                           : needsClass
                                             ? <><PlayCircle className="w-4 h-4" aria-hidden />Watch the class</>
                                             : owed > 0

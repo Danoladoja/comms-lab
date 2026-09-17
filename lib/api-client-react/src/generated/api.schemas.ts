@@ -421,6 +421,7 @@ export interface SessionProgress {
   quizDueAt?: string | null;
   /** @nullable */
   assignmentDueAt?: string | null;
+  notSetYet?: boolean;
   /** @nullable */
   lockedReason?: string | null;
   feedbackUnlocked: boolean;

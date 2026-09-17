@@ -411,7 +411,21 @@ describe("edges that stranded real learners", () => {
       [{ ...session(1), startsAt: null }], new Map(), enrolledLongAgo, new Map(), new Map(), NOW,
     );
     expect(entry.completed).toBe(true);
-    expect(entry.progressPct).toBe(100);
+    // But it does not claim to be finished. A learner sent a screenshot of
+    // "100%" against classes that had not happened, which is what an empty
+    // placeholder looked like on the dashboard. It completes so it cannot hold
+    // a certificate up; it reads as "not scheduled yet", because it is.
+    expect(entry.progressPct).toBe(0);
+    expect(entry.notSetYet).toBe(true);
+  });
+
+  it("does not mark a real module as not-set", () => {
+    // The flag is only for a module with no date and nothing published. A
+    // scheduled class that nobody has attended yet is a different thing.
+    const [entry] = computeProgress(
+      [session(1)], new Map(), enrolledLongAgo, new Map(), new Map(), NOW,
+    );
+    expect(entry.notSetYet).toBeUndefined();
   });
 
   it("never asks for more critiques than there are people to critique", () => {

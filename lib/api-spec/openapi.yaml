@@ -3411,6 +3411,10 @@ components:
         # quiz and task. Null means no deadline. They affect no rule above.
         quizDueAt: { type: ["string", "null"] }
         assignmentDueAt: { type: ["string", "null"] }
+        # Nothing set for this module yet — no date, no quiz, no task. It
+        # counts as complete so a placeholder cannot hold up a certificate, but
+        # it is not finished and must not be shown as 100%.
+        notSetYet: { type: boolean }
         # Why this one is shut, in words, or null when it is open. Worded by the
         # server because only it knows how the programme advances.
         lockedReason: { type: ["string", "null"] }

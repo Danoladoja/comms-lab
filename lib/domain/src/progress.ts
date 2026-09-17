@@ -108,6 +108,16 @@ export type ProgressEntry = {
    * honestly instead of claiming work they never did.
    */
   beforeEnrolled?: boolean;
+  /**
+   * Nothing has been set for this module yet — no date, no quiz, no task.
+   *
+   * It counts as done so that a placeholder cannot deny a whole programme its
+   * certificates, but it is emphatically not finished, and saying "100%" about
+   * a class that has not been scheduled is how a learner comes to send a
+   * screenshot asking what is going on. The dashboard reads this and says
+   * "not scheduled yet" instead.
+   */
+  notSetYet?: boolean;
   locked: boolean;
   hasQuiz: boolean;
   quizPassed: boolean;
@@ -266,12 +276,16 @@ export function computeProgress(
       // be completed, and since a certificate needs every module complete, one
       // placeholder silently denied certificates to a whole programme. It
       // locked nothing, so nobody could see why.
-      const completed = parts.length === 0 ? true : requirementsMet;
+      const nothingSet = parts.length === 0;
+      const completed = nothingSet ? true : requirementsMet;
 
-      const progressPct = completed
-        ? 100
-        : parts.length === 0
-          ? 0
+      // A module with nothing in it is not 100% done — it is not started,
+      // because there is nothing to start. It completes only so that a
+      // placeholder cannot hold up a certificate.
+      const progressPct = nothingSet
+        ? 0
+        : completed
+          ? 100
           : Math.round(parts.reduce((a, b) => a + b, 0) / parts.length);
 
       const entry: ProgressEntry = {
@@ -282,6 +296,7 @@ export function computeProgress(
         attended,
         presence,
         completed,
+        ...(nothingSet ? { notSetYet: true } : {}),
         // Filled in by the second pass below.
         locked: false,
         lockedReason: null,

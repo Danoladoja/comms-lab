@@ -1314,6 +1314,7 @@ export const ListMyProgressResponseItem = zod.object({
   "reviewsReceived": zod.int(),
   "quizDueAt": zod.string().nullish(),
   "assignmentDueAt": zod.string().nullish(),
+  "notSetYet": zod.boolean().optional(),
   "lockedReason": zod.string().nullish(),
   "feedbackUnlocked": zod.boolean()
 })
