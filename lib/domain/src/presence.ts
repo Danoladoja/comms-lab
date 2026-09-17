@@ -34,17 +34,23 @@
  * is a proxy, and a noisy one, so the bar is set where somebody who genuinely
  * sat through the class will clear it without a perfect connection.
  *
- * The replay is the opposite: deliberate, repeatable, and measured directly
- * from the player. Somebody choosing to catch up can watch the whole thing, so
- * they are asked to.
+ * The replay was held to a different, much higher bar — ninety-five per cent,
+ * on the reasoning that somebody choosing to catch up can watch the whole
+ * thing. In practice that asked for something close to perfection from a
+ * measurement that is not perfect: coverage is counted in fifteen-second
+ * buckets, the player stops reporting near the end, and skipping a title card
+ * or rewatching a minute leaves gaps. People who watched the whole recording
+ * were failing it.
  *
- * Not 100 for the replay, though it means "all of it". Coverage is counted in
- * fifteen-second buckets and players stop reporting a second or two before the
- * end, so the last bucket is often unreachable and a literal 100 would fail
- * people who watched every frame. Ninety-five cannot be reached by skipping.
+ * The Lab's rule is simpler than the bars were, and it is the Lab's rule that
+ * governs: you attend the class, or you watch the replay. So the two routes now
+ * share one bar. Sixty per cent either way, said the same way to everybody.
+ *
+ * If that is the wrong number it is one number, here, and nothing else needs to
+ * move with it.
  */
 export const PRESENCE_LIVE_THRESHOLD_PCT = 60;
-export const PRESENCE_REPLAY_THRESHOLD_PCT = 95;
+export const PRESENCE_REPLAY_THRESHOLD_PCT = 60;
 
 /**
  * Kept so existing callers and stored values still mean something. It is the

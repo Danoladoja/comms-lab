@@ -164,6 +164,19 @@ async function main() {
       /** How many learners the app measured at all, and the best anyone managed. */
       let measured = 0;
       let bestLivePct = 0;
+      /**
+       * What the app thinks the cohort HAS done.
+       *
+       * Printed because a list of what is missing reads as a cohort that did
+       * nothing, and that is worth being able to check against what the Lab
+       * knows actually happened. If these counts disagree with the room, the
+       * app is wrong and that is the thing to chase.
+       */
+      let attendedCount = 0;
+      let filedCount2 = 0;
+      let critiquesDone = 0;
+      let quizPassed = 0;
+      let counted = 0;
 
       for (const learner of learners) {
         const enrolledAt = (learner.startedAt ?? learner.createdAt)?.getTime() ?? 0;
@@ -173,6 +186,7 @@ async function main() {
         if (end !== null && end < enrolledAt) continue;
 
         const why: string[] = [];
+        counted += 1;
 
         if (start !== null) {
           const joined = joinedBy.get(learner.id);
@@ -189,6 +203,7 @@ async function main() {
             measured += 1;
             bestLivePct = Math.max(bestLivePct, presence.livePct);
           }
+          if (presence.met) attendedCount += 1;
           if (!presence.met) {
             // Minutes, not a share of anything. The first version of this
             // printed `share`, which is progress *towards the bar* — so a
@@ -207,6 +222,7 @@ async function main() {
 
         if (task) {
           const mine = submittedBy.get(learner.id);
+          if (mine) filedCount2 += 1;
           if (!mine) {
             why.push("written task not filed");
           } else {
@@ -218,6 +234,7 @@ async function main() {
             const frozen = mine.askedAtSubmission;
             const asked = frozen ?? askedNow;
             const given = givenBy.get(learner.id) ?? 0;
+            if (given >= asked) critiquesDone += 1;
             if (given < asked) {
               const note = frozen === null
                 ? `  <-- not recorded at the time, so this follows the module's CURRENT setting of ${task.reviewsRequired}`
@@ -229,6 +246,7 @@ async function main() {
 
         if (asksQuiz) {
           const best = bestBy.get(learner.id) ?? null;
+          if ((best ?? 0) >= QUIZ_PASS_MARK) quizPassed += 1;
           if ((best ?? 0) < QUIZ_PASS_MARK) {
             why.push(best === null ? "quiz not attempted" : `quiz best ${best}% — needs ${QUIZ_PASS_MARK}%`);
           }
@@ -247,6 +265,15 @@ async function main() {
 
       console.log(`\n  ${session.title}   (${day(session.startsAt)})`);
       console.log(`  asks for: ${asks}`);
+
+      const done: string[] = [];
+      if (session.startsAt) done.push(`attendance ${attendedCount}/${counted}`);
+      if (task) {
+        done.push(`task filed ${filedCount2}/${counted}`);
+        if (task.reviewsRequired > 0) done.push(`critiques done ${critiquesDone}/${counted}`);
+      }
+      if (asksQuiz) done.push(`quiz passed ${quizPassed}/${counted}`);
+      if (done.length > 0) console.log(`  done: ${done.join(" · ")}`);
 
       if (session.startsAt) {
         const rec = session.recordingSeconds ? Math.round(session.recordingSeconds / 60) : null;

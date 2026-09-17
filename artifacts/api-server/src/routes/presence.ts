@@ -30,20 +30,27 @@ async function accessError(
   /**
    * Whether to also check the module is unlocked.
    *
-   * That check runs the whole progress calculation — around eighteen queries
-   * across the learner's entire programme — which is affordable once on a page
-   * load and ruinous every thirty seconds for every learner in a live class.
-   * At two or three classes running together the database's ten connections are
-   * exhausted, heartbeats queue, and attendance is under-recorded: exactly the
-   * failure the heartbeat was fixed for in the first place.
+   * Nothing to do with attendance asks for this any more, and the reason is
+   * worth writing down because it cost a cohort three weeks.
    *
-   * The heartbeat therefore skips it, and loses nothing by doing so. A lock
-   * governs whether a learner may *open* a module; this endpoint returns no
-   * module content, only that learner's own minutes. Banking attendance for a
-   * class they sat through does not move them past anything — they still have
-   * to finish the previous week to reach it.
+   * A lock governs whether a learner may *open* a module's coursework. It was
+   * also gating the two things that record attendance — joining the class and
+   * watching the replay — and that closes a circle nobody can get out of. Miss
+   * one measurement, and the next module locks; locked, you cannot join its
+   * class, so nothing is recorded for it either; and you cannot watch its
+   * replay to make up for it. The lock then feeds itself down the whole
+   * programme, and every learner sees the same sentence about finishing a
+   * module they have finished.
+   *
+   * Banking attendance moves nobody past anything: they still have to finish
+   * the previous week's coursework to reach this one. It only records that they
+   * were there, which is true whether or not the app was willing to let them in.
+   *
+   * The check is also expensive — around eighteen queries across a learner's
+   * whole programme — which is ruinous every thirty seconds for everybody in a
+   * live class.
    */
-  requireUnlocked = true,
+  requireUnlocked = false,
 ): Promise<string | null> {
   if (isModuleStaff(user.role, user.id, session.instructorId)) return null;
   const [enrollment] = await db
@@ -170,6 +177,10 @@ router.post("/sessions/:id/replay/progress", async (req, res) => {
   const [session] = await db.select().from(sessionsTable).where(eq(sessionsTable.id, sessionId));
   if (!session) { res.status(404).json({ error: "Session not found" }); return; }
 
+  // Enrolment only. A learner locked out of this module's coursework may still
+  // watch its recording — the replay is how somebody who missed the class gets
+  // their attendance back, so gating it on being unlocked is gating the ladder
+  // on already being out of the hole.
   const err = await accessError(user, session);
   if (err) { res.status(403).json({ error: err }); return; }
 

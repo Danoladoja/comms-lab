@@ -127,12 +127,20 @@ router.post("/sessions/:id/join", async (req, res) => {
       res.status(403).json({ error: "You are not enrolled on this programme" });
       return;
     }
-    const progress = await progressForUser(user.id, [session.programId]);
-    const entry = progress.find((p) => p.sessionId === sessionId);
-    if (entry?.locked) {
-      res.status(403).json({ error: "Finish the previous module's work to unlock this one" });
-      return;
-    }
+    // Deliberately not checked here: whether the module is unlocked.
+    //
+    // It used to be, and it shut a cohort out of their own classes. A learner
+    // whose attendance went unrecorded one week has the next module locked; the
+    // lock then refused them the door to the next class, so nothing was
+    // recorded for that one either, and the week after locked too. Three weeks
+    // in, most of a cohort could not join a live class they were enrolled on,
+    // and the app told each of them to finish a module they had finished.
+    //
+    // A lock is about coursework — opening the quiz and the task before the
+    // work behind it is done. It was never meant to be a bouncer on the door of
+    // a class that is happening now, with their cohort in it. Letting them in
+    // moves them past nothing: the coursework stays shut until the previous
+    // week is done.
     // The join window comes from @workspace/domain, which is also what the web
     // client reads to decide when to show the button. They cannot drift apart
     // again: the old client offered "Join" at T-15 while this rejected it

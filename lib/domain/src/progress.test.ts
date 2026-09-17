@@ -466,14 +466,17 @@ describe("edges that stranded real learners", () => {
   });
 
   it("does not claim a full bar on a module that will not complete", () => {
-    // Half the class attended, then most of the recording watched: the raw
-    // higher figure (70) divided by the nearer bar (60) came out over 100, so
-    // the learner saw a full green bar over a module that quietly refused to
-    // complete. The commonest catch-up pattern there is.
+    // Half the class attended, then some of the recording watched: the raw
+    // higher figure divided by the nearer bar came out over 100, so the learner
+    // saw a full green bar over a module that quietly refused to complete. The
+    // commonest catch-up pattern there is.
+    //
+    // The numbers are both under the bar now that the two routes share one —
+    // 70% of the recording would complete the module today, and should.
     const mixed = new Map([[1, {
       ...EMPTY_PRESENCE,
       liveSeconds: 30 * 60, sessionSeconds: 60 * 60,
-      replayWatchedSeconds: 42 * 60, replayDurationSeconds: 60 * 60,
+      replayWatchedSeconds: 33 * 60, replayDurationSeconds: 60 * 60,
     }]]);
     const [entry] = computeProgress([session(1)], new Map(), enrolledLongAgo, new Map(), mixed, NOW);
 

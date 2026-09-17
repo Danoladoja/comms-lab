@@ -28,12 +28,14 @@ describe("presenceStatus", () => {
     expect(s.via).toBe("live");
   });
 
-  it("holds the live and replay bars apart", () => {
-    // Attending is measured by a heartbeat from a tab while the class runs
-    // somewhere else, and is interrupted by everything. Watching the recording
-    // is deliberate and repeatable, so it asks for the whole thing.
+  it("holds the two routes to one bar", () => {
+    // The Lab's rule is that you attend the class or you watch the replay, and
+    // the bars now say the same. The replay used to ask for 95%, which failed
+    // people who had watched the whole recording: coverage is counted in
+    // fifteen-second buckets, players stop reporting near the end, and skipping
+    // a title card leaves a gap.
     expect(PRESENCE_LIVE_THRESHOLD_PCT).toBe(60);
-    expect(PRESENCE_REPLAY_THRESHOLD_PCT).toBe(95);
+    expect(PRESENCE_REPLAY_THRESHOLD_PCT).toBe(60);
   });
 
   it("fails just below the live bar", () => {
@@ -46,9 +48,10 @@ describe("presenceStatus", () => {
     expect(s.met).toBe(false);
   });
 
-  it("will not pass a half-watched replay on the live bar", () => {
-    // The two routes must not borrow each other's bar: 60% of a recording is
-    // not watching the recording.
+  it("passes somebody who watched most of the recording", () => {
+    // Two thirds of a recording used to fail, on a bar of 95%. Somebody who
+    // missed the class and sat down with the replay has attended, and the
+    // measurement is too lossy to argue about the last third.
     const s = presenceStatus({
       liveSeconds: 0,
       sessionSeconds: HOUR_SECONDS,
@@ -56,8 +59,20 @@ describe("presenceStatus", () => {
       replayDurationSeconds: 3600,
     });
     expect(s.replayPct).toBe(67);
-    expect(s.met).toBe(false);
+    expect(s.met).toBe(true);
     expect(s.via).toBe("replay");
+  });
+
+  it("still refuses a replay somebody barely opened", () => {
+    // A bar of 60 is a bar. Five minutes of an hour is not watching it.
+    const s = presenceStatus({
+      liveSeconds: 0,
+      sessionSeconds: HOUR_SECONDS,
+      replayWatchedSeconds: 300,
+      replayDurationSeconds: 3600,
+    });
+    expect(s.replayPct).toBe(8);
+    expect(s.met).toBe(false);
   });
 
   it("passes on the replay alone", () => {
