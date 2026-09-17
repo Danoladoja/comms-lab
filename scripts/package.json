@@ -13,7 +13,8 @@
     "why:locked": "tsx ./src/why-locked.ts",
     "freeze:critiques": "tsx ./src/freeze-critique-requirements.ts",
     "credit:class": "tsx ./src/credit-class-attendance.ts",
-    "set:length": "tsx ./src/set-class-length.ts"
+    "set:length": "tsx ./src/set-class-length.ts",
+    "what:remains": "tsx ./src/what-is-still-there.ts"
   },
   "devDependencies": {
     "@types/node": "catalog:",

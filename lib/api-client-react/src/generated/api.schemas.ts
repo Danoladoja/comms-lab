@@ -1396,6 +1396,13 @@ export interface EnrollmentUpdate {
   status: EnrollmentUpdateStatus;
 }
 
+export interface TranscriptImportResult {
+  sessionId: number;
+  title: string;
+  saved: boolean;
+  note: string;
+}
+
 export interface GoogleHoldings {
   sessionId: number;
   conferences: number;

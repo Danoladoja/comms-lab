@@ -20,6 +20,7 @@ import {
 import { findHoldings } from "../lib/google/meetApi";
 import { tokenSecretConfigured } from "../lib/google/secrets";
 import { runRecordingSync } from "../lib/recordingSync";
+import { importTranscriptForSession } from "../lib/transcriptSync";
 import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
@@ -279,6 +280,26 @@ router.get("/admin/sessions/:id/google-holdings", requireRole("admin"), async (r
     transcriptUrl: ready[0]?.exportUri ?? null,
     ...verdict,
   });
+});
+
+/**
+ * Fill one class's material box from the transcript Google holds.
+ *
+ * The automatic pass does this an hour after every class from here on. This is
+ * for the ones that already happened — and it is the same code, so a button
+ * that works is also a rehearsal of the thing that runs unattended.
+ */
+router.post("/admin/sessions/:id/transcript-from-google", requireRole("admin"), async (req, res) => {
+  const sessionId = Number(req.params.id);
+  if (!Number.isInteger(sessionId)) { res.status(400).json({ error: "That is not a module." }); return; }
+
+  const result = await importTranscriptForSession(sessionId);
+  if ("error" in result) {
+    const permission = result.error.includes("Reconnect") || result.error.includes("not connected");
+    res.status(permission ? 403 : 400).json({ error: result.error });
+    return;
+  }
+  res.json(result);
 });
 
 router.post("/admin/recordings/sync", requireRole("admin"), async (_req, res) => {

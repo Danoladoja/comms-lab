@@ -131,6 +131,7 @@ import type {
   ThreadInput,
   ThreadList,
   TooManyRequestsResponse,
+  TranscriptImportResult,
   UnattachedUser,
   UnauthorizedResponse,
   User,
@@ -4189,6 +4190,78 @@ export function useCheckGoogleHoldings<TData = Awaited<ReturnType<typeof checkGo
 
 
 
+
+export const getFetchTranscriptFromGoogleUrl = (id: number,) => {
+
+
+
+
+  return `/api/admin/sessions/${id}/transcript-from-google`
+}
+
+/**
+ * Runs by itself an hour after each class; this is for the ones that finished before any of that existed. It will never overwrite material a person put there, and never saves a fragment — an empty box is honest about having nothing, where a forty-word one gets drafted from.
+ * @summary Fill this class's material box from the transcript Google holds
+ */
+export const fetchTranscriptFromGoogle = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<TranscriptImportResult> => {
+
+  return customFetch<TranscriptImportResult>(getFetchTranscriptFromGoogleUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getFetchTranscriptFromGoogleMutationOptions = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof fetchTranscriptFromGoogle>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof fetchTranscriptFromGoogle>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['fetchTranscriptFromGoogle'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof fetchTranscriptFromGoogle>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  fetchTranscriptFromGoogle(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type FetchTranscriptFromGoogleMutationResult = NonNullable<Awaited<ReturnType<typeof fetchTranscriptFromGoogle>>>
+
+    export type FetchTranscriptFromGoogleMutationError = ErrorType<ApiMessage>
+
+    /**
+ * @summary Fill this class's material box from the transcript Google holds
+ */
+export const useFetchTranscriptFromGoogle = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof fetchTranscriptFromGoogle>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof fetchTranscriptFromGoogle>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getFetchTranscriptFromGoogleMutationOptions(options));
+    }
 
 export const getSyncRecordingsNowUrl = () => {
 

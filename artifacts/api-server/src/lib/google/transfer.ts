@@ -114,3 +114,28 @@ export async function transferToYouTube(args: {
   if (!uploaded.id) throw new Error("YouTube accepted the upload but returned no video id");
   return uploaded.id;
 }
+
+/**
+ * A Meet transcript, as plain text.
+ *
+ * Exported from the Google Doc rather than assembled from the Meet API's
+ * structured entries, and deliberately. The entries name a participant by
+ * resource id — `conferenceRecords/x/participants/y` — so turning them into
+ * "Amina Bello: ..." means a second lookup per speaker and a guess at
+ * formatting. The Doc already has the speaker names in it, laid out exactly the
+ * way a facilitator has been copying them by hand. Same text, one call, and
+ * nothing for the app to get subtly wrong about who said what.
+ *
+ * Read-only: `files.export` cannot change the document.
+ */
+export async function exportTranscriptText(accessToken: string, documentId: string): Promise<string> {
+  const url = new URL(`${DRIVE_API}/files/${encodeURIComponent(documentId)}/export`);
+  url.searchParams.set("mimeType", "text/plain");
+  url.searchParams.set("supportsAllDrives", "true");
+
+  const res = await fetch(url, { headers: { authorization: `Bearer ${accessToken}` } });
+  if (!res.ok) {
+    throw new Error(`Could not read the transcript from Drive (${res.status})`);
+  }
+  return await res.text();
+}

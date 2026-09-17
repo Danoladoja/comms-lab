@@ -1543,6 +1543,22 @@ export const CheckGoogleHoldingsResponse = zod.object({
 
 
 /**
+ * Runs by itself an hour after each class; this is for the ones that finished before any of that existed. It will never overwrite material a person put there, and never saves a fragment — an empty box is honest about having nothing, where a forty-word one gets drafted from.
+ * @summary Fill this class's material box from the transcript Google holds
+ */
+export const FetchTranscriptFromGoogleParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const FetchTranscriptFromGoogleResponse = zod.object({
+  "sessionId": zod.int(),
+  "title": zod.string(),
+  "saved": zod.boolean(),
+  "note": zod.string()
+})
+
+
+/**
  * @summary Run the recording transfer immediately instead of waiting
  */
 export const SyncRecordingsNowResponse = zod.object({

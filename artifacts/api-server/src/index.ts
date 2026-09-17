@@ -3,6 +3,7 @@ import { logger } from "./lib/logger";
 import { startReminderScheduler } from "./lib/reminders";
 import { startRecordingSync } from "./lib/recordingSync";
 import { startMeetAttendanceSync } from "./lib/meetAttendanceSync";
+import { startTranscriptSync } from "./lib/transcriptSync";
 
 const rawPort = process.env["PORT"];
 
@@ -28,4 +29,5 @@ app.listen(port, (err) => {
   startReminderScheduler();
   startRecordingSync();
   startMeetAttendanceSync();
+  startTranscriptSync();
 });

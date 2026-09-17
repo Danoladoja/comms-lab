@@ -1707,6 +1707,40 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiMessage"
+  /admin/sessions/{id}/transcript-from-google:
+    post:
+      operationId: fetchTranscriptFromGoogle
+      tags: [admin]
+      summary: Fill this class's material box from the transcript Google holds
+      description: >
+        Runs by itself an hour after each class; this is for the ones that
+        finished before any of that existed. It will never overwrite material a
+        person put there, and never saves a fragment — an empty box is honest
+        about having nothing, where a forty-word one gets drafted from.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: What happened
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TranscriptImportResult"
+        "400":
+          description: Nothing to fetch, with the reason
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
   /admin/recordings/sync:
     post:
       operationId: syncRecordingsNow
@@ -4666,6 +4700,16 @@ components:
       required: [status]
       properties:
         status: { type: string, enum: [enrolled, waitlisted, cancelled, completed] }
+    TranscriptImportResult:
+      type: object
+      required: [sessionId, title, saved, note]
+      properties:
+        sessionId: { type: integer }
+        title: { type: string }
+        # False is a normal outcome, not a failure: the box was already filled,
+        # or Google has nothing worth saving.
+        saved: { type: boolean }
+        note: { type: string }
     GoogleHoldings:
       type: object
       required: [sessionId, conferences, recordings, transcriptsReady, transcriptsUnfinished, headline, advice, ready]

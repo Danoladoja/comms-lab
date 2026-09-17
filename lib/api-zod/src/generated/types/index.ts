@@ -198,6 +198,7 @@ export * from './threadDetail';
 export * from './threadInput';
 export * from './threadList';
 export * from './tooManyRequestsResponse';
+export * from './transcriptImportResult';
 export * from './unattachedUser';
 export * from './unauthorizedResponse';
 export * from './user';

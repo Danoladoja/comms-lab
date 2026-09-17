@@ -4,6 +4,7 @@ import {
   useGetGoogleConnection, useDisconnectGoogle,
   useListRecordingStatus, useSyncRecordingsNow,
   useCheckGoogleHoldings, getCheckGoogleHoldingsQueryKey,
+  useFetchTranscriptFromGoogle,
   getGetGoogleConnectionQueryKey, getListRecordingStatusQueryKey,
 } from '@workspace/api-client-react';
 import { Button } from '@/components/ui/button';
@@ -12,7 +13,7 @@ import ReplayPlayer from '@/components/ReplayPlayer';
 import { apiReason } from '@workspace/domain';
 import {
   CircleCheck, CircleAlert, Loader, RefreshCw, Link2, Unlink, Clock, PlayCircle, ChevronUp,
-  FileText, Search,
+  FileText, FileDown, Search,
 } from 'lucide-react';
 
 /**
@@ -43,6 +44,14 @@ import {
  */
 function GoogleHoldingsCheck({ sessionId }: { sessionId: number }) {
   const [asked, setAsked] = useState(false);
+  /** What the fetch said, kept on screen rather than shown as a toast that slides away. */
+  const [imported, setImported] = useState<string | null>(null);
+  const fetchIt = useFetchTranscriptFromGoogle({
+    mutation: {
+      onSuccess: (r) => setImported(r.note),
+      onError: (err) => setImported(apiReason(err, 'The transcript could not be fetched.')),
+    },
+  });
   const { data, isLoading, error } = useCheckGoogleHoldings(sessionId, {
     // Nothing happens until the admin asks. Checking every class on every page
     // load would be dozens of calls to Google to answer a question nobody put.
@@ -87,18 +96,42 @@ function GoogleHoldingsCheck({ sessionId }: { sessionId: number }) {
     }`}>
       <p className="font-medium">{data.headline}</p>
       <p className="mt-1">{data.advice}</p>
-      {data.transcriptUrl && (
-        <a
-          className="mt-2 inline-flex items-center font-medium underline underline-offset-2"
-          href={data.transcriptUrl}
-          target="_blank"
-          rel="noreferrer"
-        >
-          <FileText className="mr-1.5 h-3.5 w-3.5" aria-hidden />Open the transcript in Google Docs
-        </a>
+
+      <div className="mt-2 flex flex-wrap items-center gap-3">
+        {data.transcriptUrl && (
+          <a
+            className="inline-flex items-center font-medium underline underline-offset-2"
+            href={data.transcriptUrl}
+            target="_blank"
+            rel="noreferrer"
+          >
+            <FileText className="mr-1.5 h-3.5 w-3.5" aria-hidden />Open the transcript in Google Docs
+          </a>
+        )}
+        {/* Only where there is a finished transcript to fetch. From here on
+            this happens by itself an hour after each class; the button is for
+            the ones that finished before any of that existed. */}
+        {data.transcriptsReady > 0 && (
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7 px-2 text-xs"
+            disabled={fetchIt.isPending}
+            onClick={() => fetchIt.mutate({ id: sessionId })}
+          >
+            <FileDown className="mr-1.5 h-3.5 w-3.5" aria-hidden />
+            {fetchIt.isPending ? 'Fetching…' : 'Put it in the class material'}
+          </Button>
+        )}
+      </div>
+
+      {imported && (
+        <p className="mt-2 rounded border border-border bg-background/70 px-2 py-1.5">{imported}</p>
       )}
+
       <p className="mt-2 text-[11px] opacity-70">
-        Read only — this asked Google a question and changed nothing.
+        Asking Google changes nothing. Fetching fills the class material box, and never replaces
+        anything already in it.
       </p>
     </div>
   );

@@ -44,3 +44,4 @@ export * from "./appPath";
 export * from "./lateEnrolment";
 export * from "./deadlineExtension";
 export * from "./googleHoldings";
+export * from "./transcriptImport";
