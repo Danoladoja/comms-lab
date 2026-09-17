@@ -213,12 +213,14 @@ export default function RecordingsAdmin() {
 
       <section className="bg-card border border-border rounded-2xl p-6 max-w-3xl">
         <h2 className="font-display font-bold mb-1">
-          Automatic transfers <span className="font-normal text-sm text-muted-foreground">— optional</span>
+          Google connection
         </h2>
         <p className="text-sm text-muted-foreground mb-5">
-          Connect the Google account that holds your Meet recordings and owns the YouTube channel, and each finished
-          class is copied across and published by itself. Everything above keeps working by hand either way. Setup
-          takes about twenty minutes and is written up in <code className="text-xs">docs/recording-automation-setup.md</code>.
+          Two things run off this. Each finished class is copied from Meet to YouTube and published by itself — and
+          attendance is read from Google's own record of who was in the room, so it no longer depends on a learner
+          having this site open during the class. Pasting recording links by hand keeps working either way; attendance
+          does not, because there is nothing to paste. Setup takes about twenty minutes and is written up in{' '}
+          <code className="text-xs">docs/google-setup.md</code>.
         </p>
 
         {loadingConnection ? (
@@ -237,7 +239,8 @@ export default function RecordingsAdmin() {
               {!connection?.configured && <code className="text-xs">GOOGLE_REDIRECT_URI</code>}
               {!connection?.configured && !connection?.secretConfigured && ' and '}
               {!connection?.secretConfigured && <code className="text-xs">GOOGLE_TOKEN_SECRET</code>}
-              . Until then recordings must be pasted in by hand, which still works.
+              . Until then, recordings must be pasted in by hand — that still works — but attendance cannot be read
+              from Google at all, and only counts for learners who had this site open during the class.
             </p>
           </div>
         ) : connection.connected ? (

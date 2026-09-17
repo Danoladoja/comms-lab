@@ -18,7 +18,7 @@ portfolio.
 - Recording automation (optional) needs `GOOGLE_CLIENT_ID`,
   `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI` and `GOOGLE_TOKEN_SECRET`.
   Without them the app runs fine and recordings are pasted in by hand. See
-  `docs/recording-automation-setup.md`.
+  `docs/google-setup.md`.
 - Email needs `BREVO_API_KEY`, and optionally `BREVO_SENDER_EMAIL` and
   `BREVO_SENDER_NAME`. Without it the app runs and each skipped send is logged
   as a warning.

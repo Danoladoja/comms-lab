@@ -1,13 +1,17 @@
-# Setting up automatic class recordings
+# Connecting Google
 
-**This is optional.** The manual workflow works without any of it: after a
-class, upload the recording to YouTube as unlisted and paste the link under
-**Admin Console → Programs → the programme → the session → Recording link**.
-**Admin Console → Recordings** lists which past classes are still missing one.
+Two things run off this connection.
 
-Do the setup below only when pasting links each week becomes a chore. Once it is
-done, every finished class ends up on YouTube by itself and appears in the
-classroom as a replay.
+**Recordings.** Every finished class is copied from Meet to YouTube and appears
+in the classroom as a replay, by itself. This part is optional — you can go on
+pasting links by hand under **Admin Console → Programs → the programme → the
+session → Recording link**.
+
+**Attendance.** The app reads Google's own record of who was in the room and for
+how long. This part is not optional in any real sense, because there is nothing
+to paste by hand. Without it, attendance only counts for learners who had this
+site open in a tab during the class — and a cohort that joins from a calendar
+invite leaves no trace at all. That failure cost one cohort three weeks.
 
 You do this **once**. It takes about twenty minutes, and most of it is clicking
 around Google Cloud.
@@ -18,10 +22,14 @@ around Google Cloud.
 
 - The Google account that hosts your Meet classes and owns your YouTube channel.
   This must be the **same account** for both.
+- That account must be an **administrator of your Google Workspace**. Attendance
+  comes from the Workspace audit log, and only an admin may read it. Recordings
+  work without this; attendance does not.
 - A Google Workspace plan that includes **recording to Drive**. Recording is not
   in the free tier. If your facilitators can already hit "Record" in Meet and
   find the file in Drive afterwards, you have it.
-- Somewhere to paste four settings into your app's environment variables.
+- Access to your app's environment variables. On Railway: open the project, pick
+  the service, then the **Variables** tab.
 
 ---
 
@@ -32,7 +40,7 @@ around Google Cloud.
 3. Top bar → project dropdown → **New Project**
 4. Name it `Ananse Comms Lab` and click **Create**
 
-## Step 2 — Turn on the three APIs
+## Step 2 — Turn on the four APIs
 
 With your new project selected, go to **APIs & Services → Library** and enable
 each of these (search the name, click it, click **Enable**):
@@ -40,6 +48,11 @@ each of these (search the name, click it, click **Enable**):
 - **Google Meet API** — finds the recording that belongs to a class
 - **Google Drive API** — reads the file
 - **YouTube Data API v3** — publishes it
+- **Admin SDK API** — reads who was in the room, and for how long
+
+Miss the last one and everything still installs cleanly; attendance simply comes
+back empty, which looks exactly like a class nobody attended. It is worth
+checking twice.
 
 ## Step 3 — Set up the consent screen
 
@@ -75,7 +88,7 @@ that window open.
 
 ## Step 5 — Add four settings to your app
 
-In Replit, open the **Secrets** panel (padlock icon) and add:
+In Railway, open the project → the service → the **Variables** tab, and add:
 
 | Name | Value |
 |---|---|
@@ -88,13 +101,14 @@ In Replit, open the **Secrets** panel (padlock icon) and add:
 it. Don't reuse a password; mash the keyboard. If you ever change it, you simply
 reconnect the account.
 
-Restart the app so it picks these up.
+Railway redeploys by itself when variables change. Wait for it to go green.
 
 ## Step 6 — Connect the account
 
 1. Open your platform and sign in as an admin
 2. Go to **Admin Console → Recordings**
-3. Click **Connect Google account**
+3. Click **Connect Google account** — this button only appears once step 5 is
+   done, which is why the page says "not set up on the server yet" until then
 4. Sign in with the account that owns the recordings and the channel
 5. Approve the permissions — Meet (read), Drive (read), YouTube (upload)
 
@@ -169,3 +183,35 @@ resume the next day on their own.
 - **Recordings must end up on YouTube** — that is the only player the platform
   can measure watch time in, and watch time is what lets a learner who missed the
   class complete the module.
+
+---
+
+## Attendance, once it is connected
+
+An hour after each class ends, the app asks Google who was in the room and fills
+attendance in. An hour, because Google's audit trail is not instant and the
+record is written when somebody *leaves* — reading sooner gets half a room.
+
+For classes that finished before this was set up, open the module in the admin
+console and press **Attendance from Google**. Google keeps the reports for about
+six months, so past classes can be filled in with real numbers rather than
+waived. It only ever raises somebody's attendance, never lowers it, and pressing
+it twice changes nothing.
+
+It will list any addresses Google saw that match nobody enrolled. Facilitators
+and guests are expected there. But **a learner who signed into Meet with a
+different address from the one they enrolled with looks exactly the same**, and
+will go on being marked absent until those two match. That list is worth reading
+the first time.
+
+### If attendance comes back empty
+
+- **"not an administrator"** — the connected account can host meetings but not
+  read the audit log. Reconnect with an account that administers the Workspace.
+- **Nothing at all, no error** — check the **Admin SDK API** from step 2 is
+  actually enabled, and that the meeting link saved on the module is the one the
+  class actually used. A room that was never used has no attendance in it.
+- **Connected before attendance existed** — Google only grants a new permission
+  at the consent screen, so an older connection cannot read reports however
+  administrative the account is. Press **Connect Google account** again; it is
+  the same button, and the consent screen will ask for one more permission.
