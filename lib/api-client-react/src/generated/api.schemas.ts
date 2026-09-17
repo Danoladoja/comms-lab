@@ -1396,6 +1396,31 @@ export interface EnrollmentUpdate {
   status: EnrollmentUpdateStatus;
 }
 
+export type LateEnrolmentCountsFrom = typeof LateEnrolmentCountsFrom[keyof typeof LateEnrolmentCountsFrom];
+
+
+export const LateEnrolmentCountsFrom = {
+  'cohort-start': 'cohort-start',
+  today: 'today',
+} as const;
+
+export interface LateEnrolment {
+  email: string;
+  countsFrom: LateEnrolmentCountsFrom;
+}
+
+export interface LateEnrolmentResult {
+  enrollmentId: number;
+  status: string;
+  name?: string;
+  countsFrom: string;
+  modulesAlreadyRun: number;
+  deadlinesPassed: number;
+  alreadyOnProgramme: boolean;
+  overCapacity?: boolean;
+  note: string;
+}
+
 export interface SimulationGroup {
   /** @minLength 1 */
   id: string;

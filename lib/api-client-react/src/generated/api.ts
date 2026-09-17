@@ -52,6 +52,8 @@ import type {
   Invitation,
   InvitationInput,
   JoinResult,
+  LateEnrolment,
+  LateEnrolmentResult,
   LatePassClaim,
   LatePassResult,
   ListAllEnrollmentsParams,
@@ -5376,6 +5378,79 @@ export function useListAllEnrollments<TData = Awaited<ReturnType<typeof listAllE
 
 
 
+
+export const getEnrolExistingAccountUrl = (id: number,) => {
+
+
+
+
+  return `/api/admin/programs/${id}/enrollments`
+}
+
+/**
+ * For the person who signed up but never onboarded, and now has an account on no programme. Self-enrolment cannot help them once the programme has closed to it, and the invitation tool refuses anybody who already has an account. Everything travels in the body: a path parameter plus a query parameter makes Orval generate the same Params type in two packages.
+ * @summary Put somebody who already has an account onto this programme (admin)
+ */
+export const enrolExistingAccount = async (id: number,
+    lateEnrolment: LateEnrolment, options?: Parameters<typeof customFetch>[1]): Promise<LateEnrolmentResult> => {
+
+  return customFetch<LateEnrolmentResult>(getEnrolExistingAccountUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(lateEnrolment)
+  }
+);}
+
+
+
+
+
+export const getEnrolExistingAccountMutationOptions = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof enrolExistingAccount>>, TError,{id: number;data: BodyType<LateEnrolment>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof enrolExistingAccount>>, TError,{id: number;data: BodyType<LateEnrolment>}, TContext> => {
+
+const mutationKey = ['enrolExistingAccount'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof enrolExistingAccount>>, {id: number;data: BodyType<LateEnrolment>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  enrolExistingAccount(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type EnrolExistingAccountMutationResult = NonNullable<Awaited<ReturnType<typeof enrolExistingAccount>>>
+    export type EnrolExistingAccountMutationBody = BodyType<LateEnrolment>
+    export type EnrolExistingAccountMutationError = ErrorType<ApiMessage>
+
+    /**
+ * @summary Put somebody who already has an account onto this programme (admin)
+ */
+export const useEnrolExistingAccount = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof enrolExistingAccount>>, TError,{id: number;data: BodyType<LateEnrolment>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof enrolExistingAccount>>,
+        TError,
+        {id: number;data: BodyType<LateEnrolment>},
+        TContext
+      > => {
+      return useMutation(getEnrolExistingAccountMutationOptions(options));
+    }
 
 export const getUpdateEnrollmentUrl = (id: number,) => {
 

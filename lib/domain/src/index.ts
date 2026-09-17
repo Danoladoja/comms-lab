@@ -41,3 +41,4 @@ export * from "./quizChange";
 export * from "./wordMinimums";
 export * from "./meetAttendance";
 export * from "./appPath";
+export * from "./lateEnrolment";

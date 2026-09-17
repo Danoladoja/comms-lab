@@ -21,6 +21,8 @@ import {
   useListWaitlist,
   useUpdateWaitlistEntry,
   useListUnattachedUsers,
+  useEnrolExistingAccount,
+  getListUnattachedUsersQueryKey,
   getListWaitlistQueryKey,
   useUpdateUserRole,
   getListProgramsQueryKey,
@@ -1045,6 +1047,8 @@ function CohortSection({
             </table>
           )}
 
+          <AddExistingAccount programId={programme.id} programmeTitle={programme.title} />
+
           <InvitedLearners
             invites={invites}
             onResend={onResend}
@@ -1057,6 +1061,110 @@ function CohortSection({
         </div>
       )}
     </section>
+  );
+}
+
+/**
+ * Putting somebody who already has an account onto this cohort.
+ *
+ * The one way in that did not exist. A learner who signed up and never finished
+ * onboarding cannot enrol themselves once the programme closes to enrolment,
+ * and the invitation tool refuses anybody who already has an account — so the
+ * only remaining answer was the database.
+ *
+ * The result is left on screen rather than shown as a toast that slides away,
+ * because the sentence it carries is the one that decides whether this person
+ * can finish the programme, and it is the admin's cue to do something else.
+ */
+function AddExistingAccount({ programId, programmeTitle }: { programId: number; programmeTitle: string }) {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const [email, setEmail] = useState('');
+  const [countsFrom, setCountsFrom] = useState<'cohort-start' | 'today'>('cohort-start');
+  const [result, setResult] = useState<{ note: string; stuck: boolean } | null>(null);
+
+  const add = useEnrolExistingAccount({
+    mutation: {
+      onSuccess: (r) => {
+        setEmail('');
+        setResult({ note: r.note, stuck: r.deadlinesPassed > 0 && countsFrom === 'cohort-start' });
+        toast({
+          title: r.alreadyOnProgramme ? 'Their start date was moved' : `Added to ${programmeTitle}`,
+          description: r.overCapacity
+            ? 'This cohort is now over its stated number of places.'
+            : undefined,
+        });
+        qc.invalidateQueries({ queryKey: getListAllEnrollmentsQueryKey() });
+        qc.invalidateQueries({ queryKey: getListUnattachedUsersQueryKey() });
+      },
+      onError: (err) => {
+        setResult(null);
+        toast({
+          title: 'Could not add them',
+          description: apiReason(err, 'Try again in a moment.'),
+          variant: 'destructive',
+        });
+      },
+    },
+  });
+
+  return (
+    <div className="border-t border-border p-5">
+      <h4 className="text-sm font-semibold">Add someone who already has an account</h4>
+      <p className="mt-0.5 text-xs text-muted-foreground">
+        For a learner who signed up but never got onto a cohort. They cannot enrol themselves once a
+        programme is running, and inviting them will be refused because the account already exists.
+        They get the same welcome email everyone else got.
+      </p>
+
+      <div className="mt-3 flex flex-wrap items-end gap-2">
+        <label className="min-w-[220px] flex-1 text-xs text-muted-foreground">
+          Their email address
+          <input
+            type="email"
+            className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground"
+            placeholder="name@example.com"
+            value={email}
+            onChange={e => setEmail(e.target.value)}
+          />
+        </label>
+        <label className="text-xs text-muted-foreground">
+          Count them from
+          <select
+            className="mt-1 block rounded-md border border-border bg-background px-2 py-2 text-sm text-foreground"
+            value={countsFrom}
+            onChange={e => setCountsFrom(e.target.value as 'cohort-start' | 'today')}
+          >
+            <option value="cohort-start">The start of the cohort</option>
+            <option value="today">Today</option>
+          </select>
+        </label>
+        <Button
+          size="sm"
+          disabled={add.isPending || !email.trim()}
+          onClick={() => add.mutate({ id: programId, data: { email: email.trim(), countsFrom } })}
+        >
+          {add.isPending ? 'Adding…' : 'Add to this cohort'}
+        </Button>
+      </div>
+
+      <p className="mt-2 text-xs text-muted-foreground/80">
+        {countsFrom === 'cohort-start'
+          ? 'Held to the whole programme, like everyone else — including the modules that already ran.'
+          : 'The modules that already ran are counted as done, so they begin at the current week.'}
+      </p>
+
+      {result && (
+        <div className={`mt-3 rounded-lg border p-3 text-xs ${
+          result.stuck
+            ? 'border-amber-300 bg-amber-50 text-amber-900'
+            : 'border-emerald-200 bg-emerald-50 text-emerald-900'
+        }`}>
+          {result.stuck && <CircleAlert className="mr-1.5 inline h-3.5 w-3.5 align-text-bottom" aria-hidden />}
+          {result.note}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -1137,9 +1245,13 @@ function UnattachedSection() {
         <CircleAlert className="h-4 w-4" aria-hidden />
         {users.length} account{users.length === 1 ? '' : 's'} on no programme
       </h3>
+      {/* This used to point at the invitation tool, which refuses anybody who
+          already has an account — which is every single person in this list. A
+          signpost to a locked door. It points at the right control now. */}
       <p className="mt-0.5 text-xs text-[#7C2D12]/80">
-        These people signed up when anyone could. Enrol them onto a programme with the tool below using
-        their email address, or leave them — they can sign in but see nothing until they are on a cohort.
+        These people signed up but never got onto a cohort. They can sign in and see nothing until
+        they do. To let one in, open the programme below and use <strong>Add someone who already has
+        an account</strong> — inviting them will be refused, because the account already exists.
         Nothing here changes anybody on its own.
       </p>
       <ul className="mt-3 divide-y divide-[#B45309]/20">

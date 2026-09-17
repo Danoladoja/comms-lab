@@ -1861,6 +1861,32 @@ export const ListAllEnrollmentsResponse = zod.array(ListAllEnrollmentsResponseIt
 
 
 /**
+ * For the person who signed up but never onboarded, and now has an account on no programme. Self-enrolment cannot help them once the programme has closed to it, and the invitation tool refuses anybody who already has an account. Everything travels in the body: a path parameter plus a query parameter makes Orval generate the same Params type in two packages.
+ * @summary Put somebody who already has an account onto this programme (admin)
+ */
+export const EnrolExistingAccountParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const EnrolExistingAccountBody = zod.object({
+  "email": zod.string(),
+  "countsFrom": zod.enum(['cohort-start', 'today'])
+})
+
+export const EnrolExistingAccountResponse = zod.object({
+  "enrollmentId": zod.int(),
+  "status": zod.string(),
+  "name": zod.string().optional(),
+  "countsFrom": zod.coerce.date(),
+  "modulesAlreadyRun": zod.int(),
+  "deadlinesPassed": zod.int(),
+  "alreadyOnProgramme": zod.boolean(),
+  "overCapacity": zod.boolean().optional(),
+  "note": zod.string()
+})
+
+
+/**
  * @summary Update an enrollment's status (admin)
  */
 export const UpdateEnrollmentParams = zod.object({

@@ -2181,6 +2181,47 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiMessage"
+  /admin/programs/{id}/enrollments:
+    post:
+      operationId: enrolExistingAccount
+      tags: [admin]
+      summary: Put somebody who already has an account onto this programme (admin)
+      description: >
+        For the person who signed up but never onboarded, and now has an account
+        on no programme. Self-enrolment cannot help them once the programme has
+        closed to it, and the invitation tool refuses anybody who already has an
+        account. Everything travels in the body: a path parameter plus a query
+        parameter makes Orval generate the same Params type in two packages.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LateEnrolment"
+      responses:
+        "200":
+          description: On the programme
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LateEnrolmentResult"
+        "400":
+          description: Refused, with what to do instead
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
   /admin/enrollments/{id}:
     patch:
       operationId: updateEnrollment
@@ -4488,6 +4529,34 @@ components:
       required: [status]
       properties:
         status: { type: string, enum: [enrolled, waitlisted, cancelled, completed] }
+    LateEnrolment:
+      type: object
+      required: [email, countsFrom]
+      properties:
+        # The address on their account. An admin has this to hand; a user id
+        # is something they would have to go and look up.
+        email: { type: string }
+        # Where the app measures them from. "cohort-start" holds them to the
+        # whole programme; "today" writes off the modules that already ran.
+        countsFrom: { type: string, enum: [cohort-start, today] }
+    LateEnrolmentResult:
+      type: object
+      required: [enrollmentId, status, countsFrom, modulesAlreadyRun, deadlinesPassed, note, alreadyOnProgramme]
+      properties:
+        enrollmentId: { type: integer }
+        status: { type: string }
+        name: { type: string }
+        # The date written on the enrolment, so the admin can see the choice took.
+        countsFrom: { type: string, format: date-time }
+        modulesAlreadyRun: { type: integer }
+        # Of those modules, how many have a deadline that has already gone. The
+        # number that decides whether this person can finish the programme.
+        deadlinesPassed: { type: integer }
+        # Whether they were already on it and this only moved their start date.
+        alreadyOnProgramme: { type: boolean }
+        # Whether the cohort is now over its stated number of places.
+        overCapacity: { type: boolean }
+        note: { type: string }
     SimulationGroup:
       type: object
       required: [id, name, roleName, confidentialBrief]

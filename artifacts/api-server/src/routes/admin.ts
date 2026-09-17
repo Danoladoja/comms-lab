@@ -1,17 +1,22 @@
 import { Router, type IRouter } from "express";
 import {
   db, enrollmentsTable, programsTable, usersTable, pendingInvitationsTable, sessionsTable,
+  assignmentsTable,
 } from "@workspace/db";
-import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
-import { UpdateUserRoleBody, UpdateEnrollmentBody, InviteFacilitatorBody } from "@workspace/api-zod";
+import { and, asc, desc, eq, inArray, isNull, isNotNull, sql } from "drizzle-orm";
+import {
+  UpdateUserRoleBody, UpdateEnrollmentBody, InviteFacilitatorBody, EnrolExistingAccountBody,
+} from "@workspace/api-zod";
 import {
   checkRoleChange, validateInvite, describeInvite, mayResendInvitation, MAX_RESEND_AT_ONCE,
+  cohortStart, startDateFor, modulesMissed, lateEnrolmentNote, lateEnrolmentProblem,
+  generateCertificateCode,
 } from "@workspace/domain";
 import { currentRole, founderId, requireRole, getCurrentUser } from "../lib/auth";
 import { syncAttendanceForSession } from "../lib/meetAttendanceSync";
 import { revokeInvitation, invitesConfigured } from "../lib/clerkInvites";
 import { deliverInvitation } from "../lib/invitationDelivery";
-import { sendWaitlistPromotion } from "../lib/enrollmentEmails";
+import { sendWaitlistPromotion, sendEnrollmentConfirmation } from "../lib/enrollmentEmails";
 import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
@@ -138,6 +143,176 @@ router.patch("/admin/users/:id/role", async (req, res) => {
   const u = outcome.row;
   logger.info({ userId: u.id, role: u.role, by: me?.id }, "Role changed");
   res.json({ id: u.id, clerkUserId: u.clerkUserId, email: u.email, name: u.name, role: u.role });
+});
+
+/**
+ * Put somebody who already has an account onto a programme.
+ *
+ * The gap this fills: a person signs up, never finishes onboarding, and ends up
+ * with an account on no programme. Self-enrolment cannot help — a running
+ * cohort is closed to it — and the invitation tool refuses anybody who already
+ * has an account. The admin console's own "accounts on no programme" panel sent
+ * admins to that tool, which is a signpost to a locked door.
+ *
+ * The real decision is where the app measures them from, and it is consequential
+ * in both directions: from today writes off the modules that already ran, and
+ * from the start of the cohort can hand somebody a module whose deadline has
+ * already shut. So the answer comes back saying which of those just happened,
+ * and running this again with the other choice undoes it.
+ */
+router.post("/admin/programs/:id/enrollments", async (req, res) => {
+  const programId = Number(req.params.id);
+  if (!Number.isInteger(programId)) { res.status(400).json({ error: "That is not a programme." }); return; }
+
+  const parsed = EnrolExistingAccountBody.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
+  const email = parsed.data.email.trim().toLowerCase();
+  const choice = parsed.data.countsFrom;
+
+  const [program] = await db.select().from(programsTable).where(eq(programsTable.id, programId));
+  if (!program) { res.status(404).json({ error: "That programme no longer exists." }); return; }
+
+  // Matched case-insensitively: the users table holds whatever Clerk gave it,
+  // unnormalised, and an admin types an address the way a person wrote it.
+  const [user] = await db
+    .select()
+    .from(usersTable)
+    .where(and(sql`lower(${usersTable.email}) = ${email}`, sql`${usersTable.email} <> ''`));
+
+  const [existing] = user
+    ? await db
+      .select()
+      .from(enrollmentsTable)
+      .where(and(eq(enrollmentsTable.userId, user.id), eq(enrollmentsTable.programId, programId)))
+    : [];
+
+  const problem = lateEnrolmentProblem({
+    accountExists: !!user,
+    email: parsed.data.email.trim(),
+    existingStatus: (existing?.status ?? null) as "enrolled" | "waitlisted" | "cancelled" | "completed" | null,
+  });
+  if (problem) { res.status(400).json({ error: problem }); return; }
+
+  const now = new Date();
+
+  // When this cohort began. `programs.startDate` cannot answer it — it is a
+  // display string like "Nov 2026" — so the first dated class is the beginning,
+  // and the oldest enrolment stands in where no class has a date yet.
+  const [firstClass] = await db
+    .select({ startsAt: sessionsTable.startsAt })
+    .from(sessionsTable)
+    .where(and(eq(sessionsTable.programId, programId), isNotNull(sessionsTable.startsAt)))
+    .orderBy(asc(sessionsTable.startsAt))
+    .limit(1);
+  const [oldestEnrolment] = await db
+    .select({ createdAt: enrollmentsTable.createdAt })
+    .from(enrollmentsTable)
+    .where(eq(enrollmentsTable.programId, programId))
+    .orderBy(asc(enrollmentsTable.createdAt))
+    .limit(1);
+
+  const startOfCohort = cohortStart(
+    firstClass?.startsAt ?? null,
+    oldestEnrolment?.createdAt ?? null,
+    now,
+  );
+  const startedAt = startDateFor(choice, startOfCohort, now);
+
+  // What they are walking into. Every dated module comes back and the counting
+  // happens in the domain, against *now* — how much of the programme has gone
+  // by in real time. Counting against the date being written instead made the
+  // warning go quiet for the one case it exists for: somebody held to the whole
+  // programme starts before the first class, so nothing has "already run"
+  // relative to them, and an admin was told nothing was closed about a learner
+  // who could not file a thing.
+  const moduleRows = await db
+    .select({
+      id: sessionsTable.id,
+      startsAt: sessionsTable.startsAt,
+      durationMins: sessionsTable.durationMins,
+      quizDueAt: sessionsTable.quizDueAt,
+      taskDueAt: assignmentsTable.dueAt,
+    })
+    .from(sessionsTable)
+    .leftJoin(assignmentsTable, eq(assignmentsTable.sessionId, sessionsTable.id))
+    .where(eq(sessionsTable.programId, programId));
+
+  // One row per module, because the join multiplies a module by its tasks and a
+  // module with a quiz and an assignment is still one module somebody missed.
+  const byModule = new Map<number, { startsAtMs: number | null; durationMins: number; dueAtMs: (number | null)[] }>();
+  for (const r of moduleRows) {
+    const entry = byModule.get(r.id) ?? {
+      startsAtMs: r.startsAt?.getTime() ?? null,
+      durationMins: r.durationMins,
+      dueAtMs: [r.quizDueAt?.getTime() ?? null],
+    };
+    if (r.taskDueAt) entry.dueAtMs.push(r.taskDueAt.getTime());
+    byModule.set(r.id, entry);
+  }
+  const { alreadyRun, deadlinesPassed } = modulesMissed([...byModule.values()], now);
+
+  const enrolment = await db.transaction(async (tx) => {
+    if (existing) {
+      const [updated] = await tx
+        .update(enrollmentsTable)
+        .set({ status: "enrolled", startedAt })
+        .where(eq(enrollmentsTable.id, existing.id))
+        .returning();
+      return updated;
+    }
+    const [created] = await tx
+      .insert(enrollmentsTable)
+      .values({
+        userId: user!.id,
+        programId,
+        status: "enrolled",
+        startedAt,
+        certificateCode: generateCertificateCode(),
+      })
+      .returning();
+    return created;
+  });
+
+  // Capacity does not refuse an admin doing this deliberately — they are
+  // holding a reason the database cannot see. It is reported rather than
+  // enforced, because a cohort silently one over its places is how a room
+  // gets double-booked.
+  const [{ count: taken }] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(enrollmentsTable)
+    .where(and(
+      eq(enrollmentsTable.programId, programId),
+      sql`${enrollmentsTable.status} in ('enrolled', 'completed')`,
+    ));
+
+  // Only somebody actually arriving gets the welcome. Moving the start date of
+  // a learner already on the programme is not news to them.
+  const wasAlreadyOn = !!existing && existing.status !== "cancelled";
+  if (!wasAlreadyOn) {
+    sendEnrollmentConfirmation({ email: user!.email, name: user!.name }, program);
+  }
+
+  logger.info(
+    { userId: user!.id, programId, choice, startedAt, deadlinesPassed },
+    "Account added to a running programme by an admin",
+  );
+
+  res.json({
+    enrollmentId: enrolment.id,
+    status: enrolment.status,
+    name: user!.name,
+    countsFrom: startedAt.toISOString(),
+    modulesAlreadyRun: alreadyRun,
+    deadlinesPassed,
+    alreadyOnProgramme: wasAlreadyOn,
+    overCapacity: taken > program.capacity,
+    note: lateEnrolmentNote({
+      name: user!.name,
+      choice,
+      modulesAlreadyRun: alreadyRun,
+      deadlinesPassed,
+    }),
+  });
 });
 
 /**
