@@ -47,3 +47,4 @@ export * from "./googleHoldings";
 export * from "./transcriptImport";
 export * from "./schemaGap";
 export * from "./classMeeting";
+export * from "./cohortProgress";

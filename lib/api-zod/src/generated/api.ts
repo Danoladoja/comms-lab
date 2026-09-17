@@ -1916,6 +1916,96 @@ export const ListAllEnrollmentsResponse = zod.array(ListAllEnrollmentsResponseIt
 
 
 /**
+ * Every number here comes from the same function that produces each learner's own dashboard, run once per learner, so the tracker and the dashboard cannot disagree about whether a module is complete. "Behind" means a module whose deadline has passed is not finished; somebody who joined after a module ran, and somebody an admin has given extra time that has not run out, are deliberately not counted as behind.
+ * @summary How a whole cohort is doing, module by module and person by person
+ */
+export const GetCohortProgressParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const GetCohortProgressResponse = zod.object({
+  "programme": zod.object({
+  "id": zod.int(),
+  "title": zod.string()
+}),
+  "headlineText": zod.string().optional(),
+  "headline": zod.object({
+  "learners": zod.int(),
+  "onTrack": zod.int(),
+  "behind": zod.int(),
+  "onExtraTime": zod.int(),
+  "modulesDue": zod.int(),
+  "modules": zod.int(),
+  "completionPct": zod.int()
+}),
+  "modules": zod.array(zod.object({
+  "sessionId": zod.int(),
+  "title": zod.string(),
+  "startsAt": zod.coerce.date().nullish(),
+  "dueAt": zod.coerce.date().nullish(),
+  "due": zod.boolean(),
+  "learners": zod.int(),
+  "complete": zod.int(),
+  "behind": zod.int(),
+  "onExtraTime": zod.int(),
+  "waived": zod.int(),
+  "attended": zod.int(),
+  "viaLive": zod.int(),
+  "viaReplay": zod.int(),
+  "presenceWaived": zod.int(),
+  "notAttended": zod.int(),
+  "hasQuiz": zod.boolean(),
+  "quizPassed": zod.int(),
+  "hasAssignment": zod.boolean(),
+  "submitted": zod.int(),
+  "filedBeforeDeadline": zod.int(),
+  "filedAfterDeadline": zod.int(),
+  "critiquesAsked": zod.int(),
+  "critiquesGiven": zod.int()
+})),
+  "learners": zod.array(zod.object({
+  "userId": zod.int(),
+  "name": zod.string().nullable(),
+  "email": zod.string(),
+  "cells": zod.array(zod.object({
+  "sessionId": zod.int(),
+  "state": zod.enum(['complete', 'waived', 'notSet', 'extended', 'behind', 'open']),
+  "progressPct": zod.int(),
+  "missing": zod.array(zod.string()),
+  "extendedTo": zod.coerce.date().nullish()
+})),
+  "behind": zod.int(),
+  "onExtraTime": zod.int(),
+  "complete": zod.int(),
+  "askedSoFar": zod.int(),
+  "why": zod.string().optional()
+})),
+  "needsAttention": zod.array(zod.object({
+  "userId": zod.int(),
+  "name": zod.string().nullable(),
+  "email": zod.string(),
+  "cells": zod.array(zod.object({
+  "sessionId": zod.int(),
+  "state": zod.enum(['complete', 'waived', 'notSet', 'extended', 'behind', 'open']),
+  "progressPct": zod.int(),
+  "missing": zod.array(zod.string()),
+  "extendedTo": zod.coerce.date().nullish()
+})),
+  "behind": zod.int(),
+  "onExtraTime": zod.int(),
+  "complete": zod.int(),
+  "askedSoFar": zod.int(),
+  "why": zod.string().optional()
+})),
+  "undatedModulesThatHaveRun": zod.array(zod.object({
+  "sessionId": zod.int(),
+  "title": zod.string()
+})),
+  "generatedAt": zod.coerce.date()
+})
+
+
+/**
  * Module first, because that is how the question actually arrives — "module two caught people out" far more often than "Kwame specifically". One table shows who has filed, who has not, and who already has extra time, which is what an admin needs before deciding who to give it to.
  * @summary One module, and where every learner on it stands
  */

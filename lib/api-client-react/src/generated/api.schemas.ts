@@ -1454,6 +1454,99 @@ export interface DeadlineExtensionResult {
   note: string;
 }
 
+export type CohortProgressProgramme = {
+  id: number;
+  title: string;
+};
+
+export type CohortProgressUndatedModulesThatHaveRunItem = {
+  sessionId: number;
+  title: string;
+};
+
+export interface CohortHeadline {
+  learners: number;
+  onTrack: number;
+  behind: number;
+  onExtraTime: number;
+  modulesDue: number;
+  modules: number;
+  completionPct: number;
+}
+
+export interface CohortModuleRollup {
+  sessionId: number;
+  title: string;
+  /** @nullable */
+  startsAt?: string | null;
+  /** @nullable */
+  dueAt?: string | null;
+  due: boolean;
+  learners: number;
+  complete: number;
+  behind: number;
+  onExtraTime: number;
+  waived: number;
+  attended: number;
+  viaLive: number;
+  viaReplay: number;
+  presenceWaived: number;
+  notAttended: number;
+  hasQuiz: boolean;
+  quizPassed: number;
+  hasAssignment: boolean;
+  submitted: number;
+  filedBeforeDeadline: number;
+  filedAfterDeadline: number;
+  critiquesAsked: number;
+  critiquesGiven: number;
+}
+
+export type CohortCellState = typeof CohortCellState[keyof typeof CohortCellState];
+
+
+export const CohortCellState = {
+  complete: 'complete',
+  waived: 'waived',
+  notSet: 'notSet',
+  extended: 'extended',
+  behind: 'behind',
+  open: 'open',
+} as const;
+
+export interface CohortCell {
+  sessionId: number;
+  state: CohortCellState;
+  progressPct: number;
+  missing: string[];
+  /** @nullable */
+  extendedTo?: string | null;
+}
+
+export interface CohortLearnerRow {
+  userId: number;
+  /** @nullable */
+  name: string | null;
+  email: string;
+  cells: CohortCell[];
+  behind: number;
+  onExtraTime: number;
+  complete: number;
+  askedSoFar: number;
+  why?: string;
+}
+
+export interface CohortProgress {
+  programme: CohortProgressProgramme;
+  headlineText?: string;
+  headline: CohortHeadline;
+  modules: CohortModuleRollup[];
+  learners: CohortLearnerRow[];
+  needsAttention: CohortLearnerRow[];
+  undatedModulesThatHaveRun: CohortProgressUndatedModulesThatHaveRunItem[];
+  generatedAt: string;
+}
+
 export interface ModuleLearnerStanding {
   userId: number;
   name: string;

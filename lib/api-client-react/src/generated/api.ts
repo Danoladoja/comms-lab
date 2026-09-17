@@ -35,6 +35,7 @@ import type {
   CohortMessage,
   CohortMessageInput,
   CohortMessageResult,
+  CohortProgress,
   CohortRecipients,
   ConflictResponse,
   CourseworkDraftResult,
@@ -5596,6 +5597,84 @@ export function useListAllEnrollments<TData = Awaited<ReturnType<typeof listAllE
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getListAllEnrollmentsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetCohortProgressUrl = (id: number,) => {
+
+
+
+
+  return `/api/admin/programs/${id}/progress`
+}
+
+/**
+ * Every number here comes from the same function that produces each learner's own dashboard, run once per learner, so the tracker and the dashboard cannot disagree about whether a module is complete. "Behind" means a module whose deadline has passed is not finished; somebody who joined after a module ran, and somebody an admin has given extra time that has not run out, are deliberately not counted as behind.
+ * @summary How a whole cohort is doing, module by module and person by person
+ */
+export const getCohortProgress = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<CohortProgress> => {
+
+  return customFetch<CohortProgress>(getGetCohortProgressUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetCohortProgressQueryKey = (id: number,) => {
+    return [
+    `/api/admin/programs/${id}/progress`
+    ] as const;
+    }
+
+
+export const getGetCohortProgressQueryOptions = <TData = Awaited<ReturnType<typeof getCohortProgress>>, TError = ErrorType<ApiMessage>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCohortProgress>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetCohortProgressQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getCohortProgress>>> = ({ signal }) => getCohortProgress(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getCohortProgress>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetCohortProgressQueryResult = NonNullable<Awaited<ReturnType<typeof getCohortProgress>>>
+export type GetCohortProgressQueryError = ErrorType<ApiMessage>
+
+
+/**
+ * @summary How a whole cohort is doing, module by module and person by person
+ */
+
+export function useGetCohortProgress<TData = Awaited<ReturnType<typeof getCohortProgress>>, TError = ErrorType<ApiMessage>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCohortProgress>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetCohortProgressQueryOptions(id,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

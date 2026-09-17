@@ -13,8 +13,10 @@ import {
   cohortStart, startDateFor, modulesMissed, lateEnrolmentNote, lateEnrolmentProblem,
   generateCertificateCode,
   extensionProblem, extensionNote, manyExtensionsNote, describeWhen,
+  whyBehind, cohortHeadline,
   QUIZ_PASS_MARK,
 } from "@workspace/domain";
+import { cohortProgressFor } from "../lib/cohortProgress";
 import { currentRole, founderId, requireRole, getCurrentUser } from "../lib/auth";
 import { syncAttendanceForSession } from "../lib/meetAttendanceSync";
 import { revokeInvitation, invitesConfigured } from "../lib/clerkInvites";
@@ -146,6 +148,48 @@ router.patch("/admin/users/:id/role", async (req, res) => {
   const u = outcome.row;
   logger.info({ userId: u.id, role: u.role, by: me?.id }, "Role changed");
   res.json({ id: u.id, clerkUserId: u.clerkUserId, email: u.email, name: u.name, role: u.role });
+});
+
+/* ------------------------------------------------------------------ *
+ * How the cohort is doing
+ * ------------------------------------------------------------------ */
+
+/**
+ * The whole cohort, module by module and person by person.
+ *
+ * Built after the extension controls rather than before them, which was the
+ * wrong way round and is worth saying so. The Lab gained a way to move a
+ * deadline before it had any way of seeing who needed one moved, so an admin
+ * could act on a situation the app could not show them.
+ *
+ * The one thing this endpoint guarantees is that its numbers are not a second
+ * opinion: see the note in ../lib/cohortProgress.
+ */
+router.get("/admin/programs/:id/progress", async (req, res) => {
+  const programId = Number(req.params.id);
+  if (!Number.isInteger(programId)) { res.status(400).json({ error: "That is not a programme." }); return; }
+
+  const result = await cohortProgressFor(programId);
+  if (!result) { res.status(404).json({ error: "That programme no longer exists." }); return; }
+
+  const { snapshot, modules } = result;
+  const withReason = (row: typeof snapshot.learners[number]) => ({
+    ...row,
+    // Said here so the browser never has to assemble the sentence, and so the
+    // chase list and a future reminder email cannot word it differently.
+    why: row.behind > 0 ? whyBehind(row, modules) : "",
+  });
+
+  res.json({
+    programme: result.programme,
+    headlineText: cohortHeadline(snapshot),
+    headline: snapshot.headline,
+    modules: snapshot.modules,
+    learners: snapshot.learners.map(withReason),
+    needsAttention: snapshot.needsAttention.map(withReason),
+    undatedModulesThatHaveRun: snapshot.undatedModulesThatHaveRun,
+    generatedAt: new Date().toISOString(),
+  });
 });
 
 /* ------------------------------------------------------------------ *

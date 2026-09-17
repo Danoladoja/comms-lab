@@ -2286,6 +2286,42 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiMessage"
+  /admin/programs/{id}/progress:
+    get:
+      operationId: getCohortProgress
+      tags: [admin]
+      summary: How a whole cohort is doing, module by module and person by person
+      description: >
+        Every number here comes from the same function that produces each
+        learner's own dashboard, run once per learner, so the tracker and the
+        dashboard cannot disagree about whether a module is complete. "Behind"
+        means a module whose deadline has passed is not finished; somebody who
+        joined after a module ran, and somebody an admin has given extra time
+        that has not run out, are deliberately not counted as behind.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: The cohort's standing
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CohortProgress"
+        "404":
+          description: No such programme
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
   /admin/sessions/{id}/extensions:
     get:
       operationId: listModuleExtensions
@@ -4806,6 +4842,120 @@ components:
         skipped: { type: integer }
         emailed: { type: integer }
         note: { type: string }
+    CohortProgress:
+      type: object
+      required: [programme, headline, modules, learners, needsAttention, undatedModulesThatHaveRun, generatedAt]
+      properties:
+        programme:
+          type: object
+          required: [id, title]
+          properties:
+            id: { type: integer }
+            title: { type: string }
+        # One sentence for the top of the page, written server-side so the
+        # browser cannot invent a second way of saying it.
+        headlineText: { type: string }
+        headline:
+          $ref: "#/components/schemas/CohortHeadline"
+        modules:
+          type: array
+          items:
+            $ref: "#/components/schemas/CohortModuleRollup"
+        learners:
+          type: array
+          items:
+            $ref: "#/components/schemas/CohortLearnerRow"
+        # The same rows, behind-most first. Sent rather than sorted in the
+        # browser so the order an admin works down is decided in one place.
+        needsAttention:
+          type: array
+          items:
+            $ref: "#/components/schemas/CohortLearnerRow"
+        # Modules that have run with no deadline on them. Nobody can be behind
+        # on these, so their column reads clean for ever — said out loud rather
+        # than left as a green lie.
+        undatedModulesThatHaveRun:
+          type: array
+          items:
+            type: object
+            required: [sessionId, title]
+            properties:
+              sessionId: { type: integer }
+              title: { type: string }
+        generatedAt: { type: string, format: date-time }
+    CohortHeadline:
+      type: object
+      required: [learners, onTrack, behind, onExtraTime, modulesDue, modules, completionPct]
+      properties:
+        learners: { type: integer }
+        # Nothing overdue. Not the same as finished.
+        onTrack: { type: integer }
+        behind: { type: integer }
+        onExtraTime: { type: integer }
+        modulesDue: { type: integer }
+        modules: { type: integer }
+        completionPct: { type: integer }
+    CohortModuleRollup:
+      type: object
+      required:
+        [sessionId, title, due, learners, complete, behind, onExtraTime, waived,
+         attended, viaLive, viaReplay, presenceWaived, notAttended,
+         hasQuiz, quizPassed, hasAssignment, submitted,
+         filedBeforeDeadline, filedAfterDeadline, critiquesAsked, critiquesGiven]
+      properties:
+        sessionId: { type: integer }
+        title: { type: string }
+        startsAt: { type: ["string", "null"], format: date-time }
+        dueAt: { type: ["string", "null"], format: date-time }
+        due: { type: boolean }
+        learners: { type: integer }
+        complete: { type: integer }
+        behind: { type: integer }
+        onExtraTime: { type: integer }
+        waived: { type: integer }
+        attended: { type: integer }
+        viaLive: { type: integer }
+        viaReplay: { type: integer }
+        presenceWaived: { type: integer }
+        notAttended: { type: integer }
+        hasQuiz: { type: boolean }
+        quizPassed: { type: integer }
+        hasAssignment: { type: boolean }
+        submitted: { type: integer }
+        filedBeforeDeadline: { type: integer }
+        filedAfterDeadline: { type: integer }
+        critiquesAsked: { type: integer }
+        critiquesGiven: { type: integer }
+    CohortLearnerRow:
+      type: object
+      required: [userId, name, email, cells, behind, onExtraTime, complete, askedSoFar]
+      properties:
+        userId: { type: integer }
+        name: { type: ["string", "null"] }
+        email: { type: string }
+        cells:
+          type: array
+          items:
+            $ref: "#/components/schemas/CohortCell"
+        behind: { type: integer }
+        onExtraTime: { type: integer }
+        complete: { type: integer }
+        askedSoFar: { type: integer }
+        # What they are overdue on, named. Empty when nothing is.
+        why: { type: string }
+    CohortCell:
+      type: object
+      required: [sessionId, state, progressPct, missing]
+      properties:
+        sessionId: { type: integer }
+        state:
+          type: string
+          enum: [complete, waived, notSet, extended, behind, open]
+        progressPct: { type: integer }
+        missing:
+          type: array
+          items: { type: string }
+        extendedTo: { type: ["string", "null"], format: date-time }
     ModuleExtensions:
       type: object
       required: [sessionId, title, moduleClosed, hasCoursework, learners]
