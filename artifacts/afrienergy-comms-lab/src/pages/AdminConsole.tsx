@@ -1132,7 +1132,7 @@ function CohortSection({
  * one module meant opening forty-five people one at a time.
  *
  * So: module first. Choose one, and the whole cohort's standing on it is a
- * single table — who has filed, who has not, who already has extra time. The
+ * single table — who has submitted, who has not, who already has extra time. The
  * decision an admin is actually making is visible in one place, and giving the
  * whole cohort extra time is one button rather than forty-five.
  *
@@ -1202,7 +1202,7 @@ function Extensions({ programId }: { programId: number }) {
 
   const learners = module?.learners ?? [];
   const withExtra = learners.filter(l => l.extendedTo);
-  const notFiled = learners.filter(l => !l.submitted);
+  const notSubmitted = learners.filter(l => !l.submitted);
 
   const give = (userIds: number[]) => {
     const iso = sessionDateTimeFromInput(when);
@@ -1269,9 +1269,9 @@ function Extensions({ programId }: { programId: number }) {
                   {describeModuleDeadline(module)}
                 </p>
                 <p className="mt-1 text-muted-foreground">
-                  {notFiled.length === 0
-                    ? 'Everyone has filed their written work.'
-                    : `${notFiled.length} of ${learners.length} have not filed their written work.`}
+                  {notSubmitted.length === 0
+                    ? 'Everyone has submitted their written task.'
+                    : `${notSubmitted.length} of ${learners.length} have not submitted their written task.`}
                   {withExtra.length > 0 && ` ${withExtra.length} already have extra time.`}
                 </p>
               </div>
@@ -1317,17 +1317,17 @@ function Extensions({ programId }: { programId: number }) {
                 >
                   <Users className="mr-1.5 h-3.5 w-3.5" aria-hidden />Everyone ({learners.length})
                 </Button>
-                {notFiled.length > 0 && notFiled.length < learners.length && (
+                {notSubmitted.length > 0 && notSubmitted.length < learners.length && (
                   <Button
                     size="sm"
                     variant="outline"
                     disabled={grant.isPending || !when}
                     onClick={() => {
-                      if (!confirm(`Give extra time to the ${notFiled.length} who have not filed? Each one is emailed.`)) return;
-                      give(notFiled.map(l => l.userId));
+                      if (!confirm(`Give extra time to the ${notSubmitted.length} who have not submitted their written task? Each one is emailed.`)) return;
+                      give(notSubmitted.map(l => l.userId));
                     }}
                   >
-                    Only those who have not filed ({notFiled.length})
+                    Only those who have not submitted ({notSubmitted.length})
                   </Button>
                 )}
               </div>
@@ -1344,7 +1344,8 @@ function Extensions({ programId }: { programId: number }) {
                       />
                     </th>
                     <th className="p-2">Learner</th>
-                    <th className="p-2">On this module</th>
+                    <th className="p-2">Written task</th>
+                    <th className="p-2">Quiz</th>
                     <th className="p-2">Extra time</th>
                   </tr>
                 </thead>
@@ -1363,11 +1364,18 @@ function Extensions({ programId }: { programId: number }) {
                         <p className="font-medium">{l.name || l.email}</p>
                         <p className="text-xs text-muted-foreground">{l.email}</p>
                       </td>
+                      {/* The app's own words everywhere else: a task is
+                          Submitted, a quiz is Passed. "Filed" was invented here
+                          and appears nowhere a learner ever sees. */}
                       <td className="p-2 text-xs">
                         <span className={l.submitted ? 'text-emerald-700' : 'text-amber-800'}>
-                          {l.submitted ? 'Work filed' : 'Not filed'}
+                          {l.submitted ? 'Submitted' : 'Not submitted'}
                         </span>
-                        {l.quizPassed && <span className="text-muted-foreground"> · quiz passed</span>}
+                      </td>
+                      <td className="p-2 text-xs">
+                        <span className={l.quizPassed ? 'text-emerald-700' : 'text-muted-foreground'}>
+                          {l.quizPassed ? 'Passed' : 'Not passed'}
+                        </span>
                       </td>
                       <td className="p-2 text-xs">
                         {l.extendedTo ? (
