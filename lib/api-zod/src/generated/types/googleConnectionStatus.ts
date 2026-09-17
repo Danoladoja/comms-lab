@@ -18,6 +18,7 @@ export interface GoogleConnectionStatus {
   lastError?: string | null;
   /** @nullable */
   redirectUri?: string | null;
+  calendarAuthorised?: boolean;
   /** @nullable */
   authorizeUrl?: string | null;
 }

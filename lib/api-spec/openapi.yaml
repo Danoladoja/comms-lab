@@ -1707,6 +1707,41 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiMessage"
+  /admin/sessions/{id}/meeting:
+    post:
+      operationId: createClassMeeting
+      tags: [admin]
+      summary: Have the Lab create this class's Google Meet link
+      description: >
+        Creates a calendar event carrying a Meet link and puts that link on the
+        module, so the Lab and the calendar hold one link rather than two copies
+        that can drift apart. No attendees are added and nobody is emailed.
+        Refuses if the module already has a link, because replacing one that
+        learners may already hold is how a cohort ends up in an empty room.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: The meeting
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClassMeeting"
+        "400":
+          description: Refused, with the reason and what to do
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
   /admin/sessions/{id}/transcript-from-google:
     post:
       operationId: fetchTranscriptFromGoogle
@@ -4437,6 +4472,10 @@ components:
         # value that must match Google Cloud character for character. Shown so
         # "they must match" becomes something an admin can check by eye.
         redirectUri: { type: ["string", "null"] }
+        # Whether this connection was granted permission to create meetings.
+        # A connection made before that existed has every other permission and
+        # fails only at the moment of use, which is the worst time to find out.
+        calendarAuthorised: { type: boolean }
         # Where to send the admin to grant access. Null when not configured.
         authorizeUrl: { type: ["string", "null"] }
     RecordingStatusRow:
@@ -4700,6 +4739,16 @@ components:
       required: [status]
       properties:
         status: { type: string, enum: [enrolled, waitlisted, cancelled, completed] }
+    ClassMeeting:
+      type: object
+      required: [sessionId, note]
+      properties:
+        sessionId: { type: integer }
+        # Null while Google is still attaching the link to the event.
+        meetUrl: { type: ["string", "null"] }
+        # The event itself, for an admin who wants to see it on the calendar.
+        calendarLink: { type: ["string", "null"] }
+        note: { type: string }
     TranscriptImportResult:
       type: object
       required: [sessionId, title, saved, note]

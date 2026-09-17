@@ -22,6 +22,7 @@ import {
   useUpdateWaitlistEntry,
   useListUnattachedUsers,
   useEnrolExistingAccount,
+  useCreateClassMeeting,
   useListDeadlineExtensions,
   useGrantDeadlineExtension,
   useRevokeDeadlineExtension,
@@ -80,7 +81,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { SaveAndClose } from '@/components/EditorSection';
-import { ChevronDown, ChevronUp, Plus, Trash2, CircleAlert, Pencil, Clock, Send, X, Mail } from 'lucide-react';
+import { ChevronDown, ChevronUp, Plus, Trash2, CircleAlert, Pencil, Clock, Send, X, Mail, Video } from 'lucide-react';
 import { CouldNotLoad } from '@/components/CouldNotLoad';
 
 const TABS = ['Programmes', 'Live Sessions', 'Enrolments', 'People', 'Recordings'] as const;
@@ -142,6 +143,31 @@ function SessionRow({ session, instructors, onChanged }: {
   const startsAtMs = session.startsAt ? new Date(session.startsAt as unknown as string).getTime() : null;
   const isPast = startsAtMs !== null && Date.now() > startsAtMs + session.durationMins * 60 * 1000;
   const recordingMeasurable = !!recordingUrl.trim() && isMeasurableRecording(recordingUrl.trim());
+
+  /**
+   * Have the Lab create this class's meeting.
+   *
+   * The link it stores came off the event it just made, so the Lab and the
+   * calendar hold one link rather than two copies of one. Pasting your own
+   * still works exactly as before — this is an offer, not a replacement.
+   */
+  const makeMeeting = useCreateClassMeeting({
+    mutation: {
+      onSuccess: (r) => {
+        if (r.meetUrl) setMeetUrl(r.meetUrl);
+        toast({ title: r.meetUrl ? 'Meeting created' : 'Almost there', description: r.note });
+        onChanged();
+      },
+      // Every refusal here names something specific — no date yet, a link
+      // already present, a connection made before this existed — so the
+      // server's sentence travels rather than a generic failure.
+      onError: (err) => toast({
+        title: 'Could not make the meeting',
+        description: apiReason(err, 'Try again in a moment.'),
+        variant: 'destructive',
+      }),
+    },
+  });
 
   const update = useUpdateSession({
     mutation: {
@@ -289,7 +315,30 @@ function SessionRow({ session, instructors, onChanged }: {
             placeholder="https://meet.google.com/..."
             className="text-sm"
           />
-          <p className="text-xs text-muted-foreground mt-1">Create the room, paste it here.</p>
+          {meetUrl.trim() ? (
+            <p className="text-xs text-muted-foreground mt-1">
+              Changing this after learners have it is how a cohort ends up in an empty room.
+            </p>
+          ) : (
+            <div className="mt-1">
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-7 px-2 text-xs"
+                disabled={makeMeeting.isPending || !session.startsAt}
+                onClick={() => makeMeeting.mutate({ id: session.id })}
+              >
+                <Video className="mr-1.5 h-3.5 w-3.5" aria-hidden />
+                {makeMeeting.isPending ? 'Making it…' : 'Let the Lab make one'}
+              </Button>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {session.startsAt
+                  ? 'One link on a calendar event, so the Lab and the calendar cannot drift apart. Nobody is emailed. Or paste your own.'
+                  : 'Give this module a date first, or paste a link you already have.'}
+              </p>
+            </div>
+          )}
         </div>
 
         <div>

@@ -43,7 +43,26 @@ export const GOOGLE_SCOPES = [
    * difference between "not an admin" and "has not reconnected yet".
    */
   "https://www.googleapis.com/auth/admin.reports.audit.readonly",
+  /**
+   * Making the class's meeting.
+   *
+   * `calendar.events` rather than the full `calendar` scope: it is enough to
+   * create and move events, and it cannot touch calendar settings or sharing.
+   * The narrower ask is also a shorter consent screen, which matters when the
+   * person approving it has already been through this twice.
+   *
+   * As with the reports permission, Google only grants this at the consent
+   * screen — so a connection made before this shipped has everything except
+   * this, and will fail at the moment of use rather than at connection time.
+   * `hasCalendarScope` below is how the app tells one from the other.
+   */
+  "https://www.googleapis.com/auth/calendar.events",
 ];
+
+/** Has the stored connection actually been granted permission to make meetings? */
+export function hasCalendarScope(grantedScopes: string | null | undefined): boolean {
+  return (grantedScopes ?? "").includes("calendar.events");
+}
 
 /** Has the stored connection actually been granted the reports permission? */
 export function hasReportsScope(grantedScopes: string | null | undefined): boolean {

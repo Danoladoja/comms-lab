@@ -1484,6 +1484,7 @@ export const GetGoogleConnectionResponse = zod.object({
   "connectedAt": zod.string().nullish(),
   "lastError": zod.string().nullish(),
   "redirectUri": zod.string().nullish(),
+  "calendarAuthorised": zod.boolean().optional(),
   "authorizeUrl": zod.string().nullish()
 })
 
@@ -1499,6 +1500,7 @@ export const DisconnectGoogleResponse = zod.object({
   "connectedAt": zod.string().nullish(),
   "lastError": zod.string().nullish(),
   "redirectUri": zod.string().nullish(),
+  "calendarAuthorised": zod.boolean().optional(),
   "authorizeUrl": zod.string().nullish()
 })
 
@@ -1539,6 +1541,22 @@ export const CheckGoogleHoldingsResponse = zod.object({
   "headline": zod.string(),
   "advice": zod.string(),
   "ready": zod.boolean()
+})
+
+
+/**
+ * Creates a calendar event carrying a Meet link and puts that link on the module, so the Lab and the calendar hold one link rather than two copies that can drift apart. No attendees are added and nobody is emailed. Refuses if the module already has a link, because replacing one that learners may already hold is how a cohort ends up in an empty room.
+ * @summary Have the Lab create this class's Google Meet link
+ */
+export const CreateClassMeetingParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const CreateClassMeetingResponse = zod.object({
+  "sessionId": zod.int(),
+  "meetUrl": zod.string().nullish(),
+  "calendarLink": zod.string().nullish(),
+  "note": zod.string()
 })
 
 

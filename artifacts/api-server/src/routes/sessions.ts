@@ -4,6 +4,7 @@ import { eq } from "drizzle-orm";
 import { UpdateSessionBody } from "@workspace/api-zod";
 import { getCurrentUser } from "../lib/auth";
 import { isModuleStaff, satisfiesRole, normaliseMeetUrl } from "@workspace/domain";
+import { syncMeetingTime } from "../lib/classMeetings";
 
 const router: IRouter = Router();
 
@@ -91,6 +92,18 @@ router.patch("/sessions/:id", async (req, res) => {
   if ("guestFacilitator" in data && data.guestFacilitator) data.instructorId = null;
 
   const [updated] = await db.update(sessionsTable).set(data).where(eq(sessionsTable.id, id)).returning();
+
+  // If the Lab made this class's meeting, the calendar follows the class. This
+  // is the entire point of the Lab owning the event: a date changed here and
+  // not there is the two copies of a link drifting apart again, which is the
+  // failure that cost this cohort three weeks of attendance.
+  //
+  // Not awaited, and failures do not reach the admin: they were saving a
+  // module, and a calendar briefly out of step is not a reason to tell them
+  // the save did not work. It is logged.
+  const timingChanged = "startsAt" in data || "durationMins" in data || "title" in data;
+  if (timingChanged && updated.calendarEventId) void syncMeetingTime(id);
+
   const instructor = updated.instructorId
     ? await db.select({ name: usersTable.name }).from(usersTable).where(eq(usersTable.id, updated.instructorId))
     : [];

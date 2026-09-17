@@ -17,6 +17,19 @@ export const sessionsTable = pgTable(
   startsAt: timestamp("starts_at", { withTimezone: true }),
   durationMins: integer("duration_mins").notNull().default(60),
   meetUrl: text("meet_url"),
+  /**
+   * The calendar event the Lab made for this class, when it made one.
+   *
+   * Kept so the event can be moved when the class moves, rather than a second
+   * one being created. That is the whole point of the app owning the meeting:
+   * a link in the Lab and a link in a calendar invite, maintained separately,
+   * drifted apart and cost this cohort three weeks of attendance. Remembering
+   * the event is what stops there being two things again.
+   *
+   * Empty on every module whose link was pasted in by hand, which keeps working
+   * exactly as before.
+   */
+  calendarEventId: text("calendar_event_id"),
   recordingUrl: text("recording_url"),
   /**
    * How long the recording runs, settled once for the whole cohort.

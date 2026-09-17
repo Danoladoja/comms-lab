@@ -30,6 +30,7 @@ import type {
   BulkInviteBody,
   BulkInviteResult,
   Certificate,
+  ClassMeeting,
   CohortDiscussion,
   CohortMessage,
   CohortMessageInput,
@@ -4190,6 +4191,78 @@ export function useCheckGoogleHoldings<TData = Awaited<ReturnType<typeof checkGo
 
 
 
+
+export const getCreateClassMeetingUrl = (id: number,) => {
+
+
+
+
+  return `/api/admin/sessions/${id}/meeting`
+}
+
+/**
+ * Creates a calendar event carrying a Meet link and puts that link on the module, so the Lab and the calendar hold one link rather than two copies that can drift apart. No attendees are added and nobody is emailed. Refuses if the module already has a link, because replacing one that learners may already hold is how a cohort ends up in an empty room.
+ * @summary Have the Lab create this class's Google Meet link
+ */
+export const createClassMeeting = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<ClassMeeting> => {
+
+  return customFetch<ClassMeeting>(getCreateClassMeetingUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getCreateClassMeetingMutationOptions = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createClassMeeting>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createClassMeeting>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['createClassMeeting'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createClassMeeting>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  createClassMeeting(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateClassMeetingMutationResult = NonNullable<Awaited<ReturnType<typeof createClassMeeting>>>
+
+    export type CreateClassMeetingMutationError = ErrorType<ApiMessage>
+
+    /**
+ * @summary Have the Lab create this class's Google Meet link
+ */
+export const useCreateClassMeeting = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createClassMeeting>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createClassMeeting>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getCreateClassMeetingMutationOptions(options));
+    }
 
 export const getFetchTranscriptFromGoogleUrl = (id: number,) => {
 

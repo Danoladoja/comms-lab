@@ -21,6 +21,7 @@ export * from './bulkInviteOutcome';
 export * from './bulkInviteOutcomeStatus';
 export * from './bulkInviteResult';
 export * from './certificate';
+export * from './classMeeting';
 export * from './cohortAudience';
 export * from './cohortAudienceSampleItem';
 export * from './cohortDiscussion';

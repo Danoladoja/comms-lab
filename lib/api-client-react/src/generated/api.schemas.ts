@@ -994,6 +994,7 @@ export interface GoogleConnectionStatus {
   lastError?: string | null;
   /** @nullable */
   redirectUri?: string | null;
+  calendarAuthorised?: boolean;
   /** @nullable */
   authorizeUrl?: string | null;
 }
@@ -1394,6 +1395,15 @@ export const EnrollmentUpdateStatus = {
 
 export interface EnrollmentUpdate {
   status: EnrollmentUpdateStatus;
+}
+
+export interface ClassMeeting {
+  sessionId: number;
+  /** @nullable */
+  meetUrl?: string | null;
+  /** @nullable */
+  calendarLink?: string | null;
+  note: string;
 }
 
 export interface TranscriptImportResult {

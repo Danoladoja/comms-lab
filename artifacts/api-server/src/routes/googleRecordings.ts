@@ -15,12 +15,14 @@ import {
   clearTokenCache,
   GoogleTokenError,
   getAccessToken,
+  hasCalendarScope,
   GOOGLE_SCOPES,
 } from "../lib/google/oauth";
 import { findHoldings } from "../lib/google/meetApi";
 import { tokenSecretConfigured } from "../lib/google/secrets";
 import { runRecordingSync } from "../lib/recordingSync";
 import { importTranscriptForSession } from "../lib/transcriptSync";
+import { createMeetingForSession } from "../lib/classMeetings";
 import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
@@ -68,6 +70,10 @@ async function statusPayload(userId?: number) {
     // match Google Cloud character for character. Showing it turns "they must
     // match" into something an admin can check with their eyes.
     redirectUri: env?.redirectUri ?? null,
+    // Google only grants a new permission at the consent screen, so a
+    // connection made before the Lab could create meetings has everything
+    // except this. Said here rather than left to fail at the moment of use.
+    calendarAuthorised: hasCalendarScope(connection?.scopes),
     connectedAt: connection?.createdAt?.toISOString() ?? null,
     lastError: connection?.lastError ?? null,
     authorizeUrl: url,
@@ -289,6 +295,31 @@ router.get("/admin/sessions/:id/google-holdings", requireRole("admin"), async (r
  * for the ones that already happened — and it is the same code, so a button
  * that works is also a rehearsal of the thing that runs unattended.
  */
+/**
+ * Have the Lab create this class's meeting.
+ *
+ * The link it stores came off the event it just made, so there is one link
+ * rather than two copies of one. That is the difference that matters: the
+ * pasted-by-hand arrangement it replaces is what put a cohort in a room the app
+ * could not see, for three weeks.
+ */
+router.post("/admin/sessions/:id/meeting", requireRole("admin"), async (req, res) => {
+  const sessionId = Number(req.params.id);
+  if (!Number.isInteger(sessionId)) { res.status(400).json({ error: "That is not a module." }); return; }
+
+  try {
+    const result = await createMeetingForSession(sessionId);
+    if ("error" in result) { res.status(400).json({ error: result.error }); return; }
+    res.json(result);
+  } catch (err) {
+    // The Calendar client throws sentences meant to be read, so they travel.
+    logger.error({ err, sessionId }, "Could not create the class meeting");
+    res.status(400).json({
+      error: err instanceof Error ? err.message : "Google could not create the meeting.",
+    });
+  }
+});
+
 router.post("/admin/sessions/:id/transcript-from-google", requireRole("admin"), async (req, res) => {
   const sessionId = Number(req.params.id);
   if (!Number.isInteger(sessionId)) { res.status(400).json({ error: "That is not a module." }); return; }

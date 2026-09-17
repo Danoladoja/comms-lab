@@ -46,3 +46,4 @@ export * from "./deadlineExtension";
 export * from "./googleHoldings";
 export * from "./transcriptImport";
 export * from "./schemaGap";
+export * from "./classMeeting";

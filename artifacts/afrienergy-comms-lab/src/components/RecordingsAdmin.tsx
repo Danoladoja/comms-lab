@@ -430,6 +430,22 @@ export default function RecordingsAdmin() {
               <CircleCheck className="w-4 h-4 text-emerald-600" aria-hidden />
               Connected as <span className="font-semibold">{connection.googleEmail}</span>
             </p>
+            {/* A connection made before the Lab could create meetings has every
+                other permission, and would fail only at the moment somebody
+                tried to use it. Said here instead, where it can be acted on
+                before it matters. */}
+            {connection.calendarAuthorised === false && (
+              <div className="rounded-xl border border-amber-300 bg-amber-50 p-4">
+                <p className="font-semibold text-amber-900 flex items-center gap-2 mb-1">
+                  <CircleAlert className="w-4 h-4" aria-hidden />One permission is missing
+                </p>
+                <p className="text-sm text-amber-900/80">
+                  This connection was made before the Lab could create meetings, so it has not been given
+                  permission to. Everything else works. Press <strong>Reconnect</strong> below — it is the
+                  same button, and the consent screen will ask for one extra permission.
+                </p>
+              </div>
+            )}
             {connection.lastError && (
               <div className="rounded-xl border border-red-300 bg-red-50 p-4">
                 <p className="font-semibold text-red-900 flex items-center gap-2 mb-1">

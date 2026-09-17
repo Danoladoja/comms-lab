@@ -40,7 +40,7 @@ around Google Cloud.
 3. Top bar → project dropdown → **New Project**
 4. Name it `Ananse Comms Lab` and click **Create**
 
-## Step 2 — Turn on the four APIs
+## Step 2 — Turn on the five APIs
 
 With your new project selected, go to **APIs & Services → Library** and enable
 each of these (search the name, click it, click **Enable**):
@@ -49,10 +49,20 @@ each of these (search the name, click it, click **Enable**):
 - **Google Drive API** — reads the file
 - **YouTube Data API v3** — publishes it
 - **Admin SDK API** — reads who was in the room, and for how long
+- **Google Calendar API** — makes each class's meeting and its joining link
 
-Miss the last one and everything still installs cleanly; attendance simply comes
-back empty, which looks exactly like a class nobody attended. It is worth
+Miss the Admin SDK one and everything still installs cleanly; attendance simply
+comes back empty, which looks exactly like a class nobody attended. It is worth
 checking twice.
+
+The Calendar one is what lets the Lab create a class's Meet link itself instead
+of somebody pasting one in. That matters more than the saved typing: a link in
+the Lab and a link in a calendar invite, kept separately, drifted apart once and
+cost a cohort three weeks of attendance. When the Lab makes the event, there is
+one link rather than two copies of one, and no way for them to disagree.
+
+Nobody is emailed. The event sits on the connected account's calendar and the
+Lab shows the link.
 
 ## Step 3 — Set up the consent screen
 
