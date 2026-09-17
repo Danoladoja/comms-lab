@@ -2026,8 +2026,17 @@ export const ListModuleExtensionsResponse = zod.object({
   "userId": zod.int(),
   "name": zod.string(),
   "email": zod.string(),
+  "attended": zod.boolean(),
+  "attendedVia": zod.enum(['live', 'replay', 'waived', 'none']),
+  "attendedPct": zod.int(),
   "submitted": zod.boolean(),
   "quizPassed": zod.boolean(),
+  "quizBestScore": zod.int().nullish(),
+  "hasQuiz": zod.boolean(),
+  "hasAssignment": zod.boolean(),
+  "critiquesGiven": zod.int(),
+  "critiquesRequired": zod.int(),
+  "complete": zod.boolean(),
   "extendedTo": zod.coerce.date().nullish(),
   "extensionReason": zod.string().nullish()
 }))

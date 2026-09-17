@@ -1547,12 +1547,32 @@ export interface CohortProgress {
   generatedAt: string;
 }
 
+export type ModuleLearnerStandingAttendedVia = typeof ModuleLearnerStandingAttendedVia[keyof typeof ModuleLearnerStandingAttendedVia];
+
+
+export const ModuleLearnerStandingAttendedVia = {
+  live: 'live',
+  replay: 'replay',
+  waived: 'waived',
+  none: 'none',
+} as const;
+
 export interface ModuleLearnerStanding {
   userId: number;
   name: string;
   email: string;
+  attended: boolean;
+  attendedVia: ModuleLearnerStandingAttendedVia;
+  attendedPct: number;
   submitted: boolean;
   quizPassed: boolean;
+  /** @nullable */
+  quizBestScore?: number | null;
+  hasQuiz: boolean;
+  hasAssignment: boolean;
+  critiquesGiven: number;
+  critiquesRequired: number;
+  complete: boolean;
   /** @nullable */
   extendedTo?: string | null;
   /** @nullable */

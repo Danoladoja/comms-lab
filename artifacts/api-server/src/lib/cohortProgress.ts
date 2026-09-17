@@ -44,6 +44,15 @@ export async function cohortProgressFor(programId: number): Promise<{
   programme: { id: number; title: string };
   modules: CohortModule[];
   snapshot: CohortSnapshot;
+  /**
+   * Each learner with their raw entries, for callers that need a detail the
+   * snapshot rolls up — the extensions panel wants "attended, quiz passed, task
+   * submitted, critiques given" as four separate facts about one module.
+   *
+   * Handed out rather than recomputed for the same reason the snapshot exists:
+   * a second pass over the same tables would be a second opinion.
+   */
+  learners: CohortLearner[];
 } | null> {
   const [programme] = await db
     .select({ id: programsTable.id, title: programsTable.title, progression: programsTable.progression })
@@ -288,5 +297,6 @@ export async function cohortProgressFor(programId: number): Promise<{
     programme: { id: programme.id, title: programme.title },
     modules,
     snapshot: cohortSnapshot({ modules, learners, nowMs: now }),
+    learners,
   };
 }

@@ -95,6 +95,7 @@ export * from './liveSessionStatus';
 export * from './meetAttendanceResult';
 export * from './moduleExtensions';
 export * from './moduleLearnerStanding';
+export * from './moduleLearnerStandingAttendedVia';
 export * from './moduleWork';
 export * from './moreQuestionsInput';
 export * from './myFeedback';

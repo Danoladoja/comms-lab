@@ -5,13 +5,24 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { ModuleLearnerStandingAttendedVia } from './moduleLearnerStandingAttendedVia';
 
 export interface ModuleLearnerStanding {
   userId: number;
   name: string;
   email: string;
+  attended: boolean;
+  attendedVia: ModuleLearnerStandingAttendedVia;
+  attendedPct: number;
   submitted: boolean;
   quizPassed: boolean;
+  /** @nullable */
+  quizBestScore?: number | null;
+  hasQuiz: boolean;
+  hasAssignment: boolean;
+  critiquesGiven: number;
+  critiquesRequired: number;
+  complete: boolean;
   /** @nullable */
   extendedTo?: Date | null;
   /** @nullable */

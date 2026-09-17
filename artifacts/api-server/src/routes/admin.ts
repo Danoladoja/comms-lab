@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import {
   db, enrollmentsTable, programsTable, usersTable, pendingInvitationsTable, sessionsTable,
-  assignmentsTable, assignmentSubmissionsTable, deadlineExtensionsTable, quizAttemptsTable,
+  assignmentsTable, deadlineExtensionsTable,
 } from "@workspace/db";
 import { and, asc, desc, eq, inArray, isNull, isNotNull, sql } from "drizzle-orm";
 import {
@@ -14,7 +14,6 @@ import {
   generateCertificateCode,
   extensionProblem, extensionNote, manyExtensionsNote, describeWhen,
   whyBehind, cohortHeadline,
-  QUIZ_PASS_MARK,
 } from "@workspace/domain";
 import { cohortProgressFor } from "../lib/cohortProgress";
 import { currentRole, founderId, requireRole, getCurrentUser } from "../lib/auth";
@@ -204,9 +203,17 @@ router.get("/admin/programs/:id/progress", async (req, res) => {
  * the learner-first version of this meant opening forty-five people one at a
  * time to find out who was stuck on the same module.
  *
- * Who has filed and who has passed the quiz travel with each name, because the
- * decision being made is "who still needs more time", and answering it anywhere
- * else means holding two screens in your head.
+ * Three things travel with each name — the class, the quiz, the written task —
+ * because "who still needs more time" cannot be answered by the written task
+ * alone. A module needs all three, and somebody who submitted the task and
+ * passed the quiz but never attended is not helped by a later deadline at all:
+ * they need to watch the recording. Showing only the task made that person look
+ * like everybody else on this table, and made extra time look like the remedy
+ * when it was not.
+ *
+ * The three come from the cohort loader rather than from queries written here,
+ * so this table and the Progress grid above it are the same numbers rather than
+ * two counts that agree today.
  */
 router.get("/admin/sessions/:id/extensions", async (req, res) => {
   const sessionId = Number(req.params.id);
@@ -237,30 +244,27 @@ router.get("/admin/sessions/:id/extensions", async (req, res) => {
   const quizDue = session.quizDraft ? null : session.quizDueAt?.toISOString() ?? null;
   const taskDue = !assignment || assignment.draft ? null : assignment.dueAt?.toISOString() ?? null;
 
-  const learners = await db
+  // Where everybody on this cohort stands, by the Lab's one definition of it.
+  const cohort = await cohortProgressFor(session.programId);
+  const entryFor = new Map(
+    (cohort?.learners ?? []).map((l) => [l.userId, l.entries.find((e) => e.sessionId === sessionId)]),
+  );
+
+  // The extension rows carry a reason, which the progress entries do not.
+  const extensions = await db
     .select({
-      userId: usersTable.id,
-      name: usersTable.name,
-      email: usersTable.email,
-      submittedAt: assignmentSubmissionsTable.submittedAt,
-      best: sql<number | null>`(
-        select max(${quizAttemptsTable.scorePct}) from ${quizAttemptsTable}
-        where ${quizAttemptsTable.userId} = ${usersTable.id}
-          and ${quizAttemptsTable.sessionId} = ${sessionId}
-      )`,
-      extendedTo: deadlineExtensionsTable.dueAt,
-      extensionReason: deadlineExtensionsTable.reason,
+      userId: deadlineExtensionsTable.userId,
+      dueAt: deadlineExtensionsTable.dueAt,
+      reason: deadlineExtensionsTable.reason,
     })
+    .from(deadlineExtensionsTable)
+    .where(eq(deadlineExtensionsTable.sessionId, sessionId));
+  const extensionFor = new Map(extensions.map((e) => [e.userId, e]));
+
+  const roster = await db
+    .select({ userId: usersTable.id, name: usersTable.name, email: usersTable.email })
     .from(enrollmentsTable)
     .innerJoin(usersTable, eq(usersTable.id, enrollmentsTable.userId))
-    .leftJoin(assignmentSubmissionsTable, and(
-      eq(assignmentSubmissionsTable.sessionId, sessionId),
-      eq(assignmentSubmissionsTable.userId, enrollmentsTable.userId),
-    ))
-    .leftJoin(deadlineExtensionsTable, and(
-      eq(deadlineExtensionsTable.sessionId, sessionId),
-      eq(deadlineExtensionsTable.userId, enrollmentsTable.userId),
-    ))
     .where(and(
       eq(enrollmentsTable.programId, session.programId),
       sql`${enrollmentsTable.status} in ('enrolled', 'completed')`,
@@ -280,15 +284,32 @@ router.get("/admin/sessions/:id/extensions", async (req, res) => {
     // Nothing set means nothing to extend, and the panel says so rather than
     // offering a date box that would be refused.
     hasCoursework: quizDue !== null || taskDue !== null,
-    learners: learners.map((l) => ({
+    learners: roster.map((l) => {
+      const entry = entryFor.get(l.userId);
+      const extension = extensionFor.get(l.userId);
+      return {
       userId: l.userId,
       name: l.name,
       email: l.email,
-      submitted: !!l.submittedAt,
-      quizPassed: (l.best ?? 0) >= QUIZ_PASS_MARK,
-      extendedTo: l.extendedTo?.toISOString() ?? null,
-      extensionReason: l.extendedTo ? l.extensionReason : null,
-    })),
+      // The class. First, because it is the one extra time cannot fix — the
+      // remedy for a missed class is the recording, which is never shut.
+      attended: entry?.presence.met ?? false,
+      attendedVia: entry?.presence.via ?? "none",
+      attendedPct: entry?.presence.bestPct ?? 0,
+      submitted: entry?.assignmentSubmitted ?? false,
+      quizPassed: entry?.quizPassed ?? false,
+      quizBestScore: entry?.quizBestScore ?? null,
+      hasQuiz: entry?.hasQuiz ?? false,
+      hasAssignment: entry?.hasAssignment ?? false,
+      critiquesGiven: entry?.reviewsGiven ?? 0,
+      critiquesRequired: entry?.reviewsRequired ?? 0,
+      // Whether the module is finished for them, which is the only summary of
+      // the three that matters.
+      complete: entry?.completed ?? false,
+      extendedTo: extension?.dueAt?.toISOString() ?? null,
+      extensionReason: extension ? extension.reason : null,
+      };
+    }),
   });
 });
 

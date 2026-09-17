@@ -4974,13 +4974,31 @@ components:
             $ref: "#/components/schemas/ModuleLearnerStanding"
     ModuleLearnerStanding:
       type: object
-      required: [userId, name, email, submitted, quizPassed]
+      required:
+        [userId, name, email, attended, attendedVia, attendedPct, submitted,
+         quizPassed, hasQuiz, hasAssignment, critiquesGiven, critiquesRequired, complete]
       properties:
         userId: { type: integer }
         name: { type: string }
         email: { type: string }
+        # The class. Extra time cannot fix a missed class — the recording can,
+        # and it is never shut — so this is the fact that decides whether a
+        # later deadline is the right remedy for this person at all.
+        attended: { type: boolean }
+        attendedVia:
+          type: string
+          enum: [live, replay, waived, none]
+        attendedPct: { type: integer }
         submitted: { type: boolean }
         quizPassed: { type: boolean }
+        quizBestScore: { type: ["integer", "null"] }
+        hasQuiz: { type: boolean }
+        hasAssignment: { type: boolean }
+        critiquesGiven: { type: integer }
+        critiquesRequired: { type: integer }
+        # Whether the module is finished for them, by the same rule their own
+        # dashboard uses.
+        complete: { type: boolean }
         extendedTo: { type: ["string", "null"], format: date-time }
         extensionReason: { type: ["string", "null"] }
     LateEnrolment:

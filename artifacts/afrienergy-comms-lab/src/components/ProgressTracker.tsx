@@ -133,7 +133,22 @@ function Extensions({ programId, focus }: {
 
   const learners = module?.learners ?? [];
   const withExtra = learners.filter(l => l.extendedTo);
-  const notSubmitted = learners.filter(l => !l.submitted);
+  const notDone = learners.filter(l => !l.complete);
+  /**
+   * People a later deadline will not help.
+   *
+   * They have done everything that can be handed in and are still short of the
+   * class itself. Extra time buys them nothing — the recording is what they
+   * need, and the recording was never shut. Naming them stops an admin granting
+   * extra time, watching nothing change, and concluding the feature is broken.
+   */
+  const onlyMissingTheClass = learners.filter(
+    l => !l.complete && !l.attended
+      && (!l.hasAssignment || l.submitted)
+      && (!l.hasQuiz || l.quizPassed)
+      && l.critiquesGiven >= l.critiquesRequired,
+  );
+  const anyCritiques = learners.some(l => l.critiquesRequired > 0);
 
   const give = (userIds: number[]) => {
     const iso = sessionDateTimeFromInput(when);
@@ -161,7 +176,8 @@ function Extensions({ programId, focus }: {
             <CalendarClock className="h-4 w-4 text-[#C2410C]" aria-hidden />Extensions
           </span>
           <span className="mt-0.5 block text-xs text-muted-foreground">
-            Give a learner — or the whole cohort — more time on a module whose deadline has passed.
+            Reopen a module's quiz, written task and critiques for a learner — or the whole cohort —
+            after its deadline has passed.
           </span>
         </span>
         {open ? <ChevronUp className="h-4 w-4 flex-shrink-0" /> : <ChevronDown className="h-4 w-4 flex-shrink-0" />}
@@ -200,11 +216,20 @@ function Extensions({ programId, focus }: {
                   {describeModuleDeadline(module)}
                 </p>
                 <p className="mt-1 text-muted-foreground">
-                  {notSubmitted.length === 0
-                    ? 'Everyone has submitted their written task.'
-                    : `${notSubmitted.length} of ${learners.length} have not submitted their written task.`}
+                  {notDone.length === 0
+                    ? 'Everyone has finished this module.'
+                    : `${notDone.length} of ${learners.length} have not finished this module.`}
                   {withExtra.length > 0 && ` ${withExtra.length} already have extra time.`}
                 </p>
+                {onlyMissingTheClass.length > 0 && (
+                  <p className="mt-2 text-amber-800">
+                    {onlyMissingTheClass.length === 1
+                      ? 'One of them has handed in everything and is only short of the class itself.'
+                      : `${onlyMissingTheClass.length} of them have handed in everything and are only short of the class itself.`}
+                    {' '}Extra time will not change that — they need to watch the recording, which is open to
+                    them already, locked module or not.
+                  </p>
+                )}
               </div>
 
               {/* The date first, because it is what every button below needs. */}
@@ -248,17 +273,17 @@ function Extensions({ programId, focus }: {
                 >
                   <Users className="mr-1.5 h-3.5 w-3.5" aria-hidden />Everyone ({learners.length})
                 </Button>
-                {notSubmitted.length > 0 && notSubmitted.length < learners.length && (
+                {notDone.length > 0 && notDone.length < learners.length && (
                   <Button
                     size="sm"
                     variant="outline"
                     disabled={grant.isPending || !when}
                     onClick={() => {
-                      if (!confirm(`Give extra time to the ${notSubmitted.length} who have not submitted their written task? Each one is emailed.`)) return;
-                      give(notSubmitted.map(l => l.userId));
+                      if (!confirm(`Give extra time to the ${notDone.length} who have not finished this module? Each one is emailed.`)) return;
+                      give(notDone.map(l => l.userId));
                     }}
                   >
-                    Only those who have not submitted ({notSubmitted.length})
+                    Only those who have not finished it ({notDone.length})
                   </Button>
                 )}
               </div>
@@ -275,8 +300,13 @@ function Extensions({ programId, focus }: {
                       />
                     </th>
                     <th className="p-2">Learner</th>
-                    <th className="p-2">Written task</th>
+                    {/* The class first. It is the requirement extra time cannot
+                        move, so it is the one that decides whether extra time
+                        is the right thing to give this person at all. */}
+                    <th className="p-2">The class</th>
                     <th className="p-2">Quiz</th>
+                    <th className="p-2">Written task</th>
+                    {anyCritiques && <th className="p-2">Critiques</th>}
                     <th className="p-2">Extra time</th>
                   </tr>
                 </thead>
@@ -295,19 +325,56 @@ function Extensions({ programId, focus }: {
                         <p className="font-medium">{l.name || l.email}</p>
                         <p className="text-xs text-muted-foreground">{l.email}</p>
                       </td>
+                      <td className="p-2 text-xs">
+                        {l.attended ? (
+                          <span className="text-emerald-700">
+                            {l.attendedVia === 'replay' ? 'On the replay'
+                              : l.attendedVia === 'waived' ? 'Credited'
+                              : 'In the class'}
+                          </span>
+                        ) : (
+                          // The percentage matters here in a way it does not
+                          // elsewhere: somebody at 64% has watched most of the
+                          // recording and needs a nudge, not a new deadline.
+                          <span className="text-amber-800">
+                            Not yet{l.attendedPct > 0 ? ` · ${l.attendedPct}%` : ''}
+                          </span>
+                        )}
+                      </td>
                       {/* The app's own words everywhere else: a task is
                           Submitted, a quiz is Passed. "Filed" was invented here
                           and appears nowhere a learner ever sees. */}
                       <td className="p-2 text-xs">
-                        <span className={l.submitted ? 'text-emerald-700' : 'text-amber-800'}>
-                          {l.submitted ? 'Submitted' : 'Not submitted'}
-                        </span>
+                        {!l.hasQuiz ? (
+                          <span className="text-muted-foreground">—</span>
+                        ) : (
+                          <span className={l.quizPassed ? 'text-emerald-700' : 'text-amber-800'}>
+                            {l.quizPassed
+                              ? 'Passed'
+                              : l.quizBestScore != null ? `Best ${l.quizBestScore}%` : 'Not taken'}
+                          </span>
+                        )}
                       </td>
                       <td className="p-2 text-xs">
-                        <span className={l.quizPassed ? 'text-emerald-700' : 'text-muted-foreground'}>
-                          {l.quizPassed ? 'Passed' : 'Not passed'}
-                        </span>
+                        {!l.hasAssignment ? (
+                          <span className="text-muted-foreground">—</span>
+                        ) : (
+                          <span className={l.submitted ? 'text-emerald-700' : 'text-amber-800'}>
+                            {l.submitted ? 'Submitted' : 'Not submitted'}
+                          </span>
+                        )}
                       </td>
+                      {anyCritiques && (
+                        <td className="p-2 text-xs">
+                          {l.critiquesRequired === 0 ? (
+                            <span className="text-muted-foreground">—</span>
+                          ) : (
+                            <span className={l.critiquesGiven >= l.critiquesRequired ? 'text-emerald-700' : 'text-amber-800'}>
+                              {l.critiquesGiven} of {l.critiquesRequired}
+                            </span>
+                          )}
+                        </td>
+                      )}
                       <td className="p-2 text-xs">
                         {l.extendedTo ? (
                           <span className="flex flex-wrap items-center gap-2">
@@ -335,11 +402,18 @@ function Extensions({ programId, focus }: {
                 </tbody>
               </table>
 
-              <p className="mt-3 text-xs text-muted-foreground">
-                Extra time moves both doors on this module — its quiz and its written task — for the people
-                chosen, and nobody else. It costs them no late passes, and it does not change the rules the
-                module was set under.
-              </p>
+              <div className="mt-3 space-y-1.5 text-xs text-muted-foreground">
+                <p>
+                  Extra time reopens everything on this module that is handed in — the quiz, the written
+                  task, and the critiques that follow it — for the people chosen and nobody else. It costs
+                  them no late passes, and it does not change the rules the module was set under.
+                </p>
+                <p>
+                  It does not touch the recording, because the recording is never shut. Anyone on the
+                  cohort can watch any class's replay at any time, including a class whose module is
+                  locked — watching it in full is how somebody who missed the class earns their attendance.
+                </p>
+              </div>
             </>
           )}
         </div>

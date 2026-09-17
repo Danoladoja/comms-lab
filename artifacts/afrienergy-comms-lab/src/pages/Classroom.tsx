@@ -124,6 +124,10 @@ export default function Classroom() {
   const presence = entry?.presence;
   const hasReplay = win.state === 'ended' && !!session.recordingUrl;
   const owedCritiques = Math.max(0, (entry?.reviewsRequired ?? 0) - (entry?.reviewsGiven ?? 0));
+  // The coursework is genuinely shut while the module is locked, so none of its
+  // panels open — the recording above is the only thing a locked module offers,
+  // and it is the thing that unlocks the rest.
+  const activeTab = locked ? '' : tab;
 
   return (
     <div className="container mx-auto px-4 md:px-6 py-8">
@@ -151,17 +155,36 @@ export default function Classroom() {
         </p>
       </div>
 
-      {locked ? (
-        <div className="bg-card border border-border rounded-2xl p-10 text-center max-w-xl">
-          <Lock className="w-10 h-10 text-muted-foreground mx-auto mb-3" aria-hidden />
-          <h2 className="font-bold mb-1">This module is locked</h2>
-          <p className="text-sm text-muted-foreground mb-5">
-            Finish the previous module first — attend the class or watch its recording, then complete the coursework.
-          </p>
-          <Button asChild variant="outline"><Link href="/dashboard">Back to dashboard</Link></Button>
+      {/*
+        A locked module used to replace this whole page with a padlock — the
+        recording included. That gated the ladder on already being out of the
+        hole: watching the replay in full IS how somebody who missed a class
+        earns their attendance, and attendance is one of the things standing
+        between them and the module that is locked. The server never blocked it
+        (see the note on the replay route); only this screen did.
+
+        So the padlock becomes a notice, and the recording stays on the page.
+        The coursework really is shut, and stays shut.
+      */}
+      {locked && (
+        <div className="mb-6 flex max-w-3xl gap-3 rounded-2xl border border-border bg-card p-5">
+          <Lock className="mt-0.5 h-5 w-5 flex-shrink-0 text-muted-foreground" aria-hidden />
+          <div>
+            <h2 className="text-sm font-bold">The coursework on this module is locked</h2>
+            <p className="mt-0.5 text-sm text-muted-foreground">
+              {entry?.lockedReason ?? 'Finish the module before this one to open it.'}
+            </p>
+            {hasReplay && (
+              <p className="mt-2 text-sm">
+                The recording is not locked. Watching it all the way through counts as attending this
+                class, and attending is one of the things that opens what comes next.
+              </p>
+            )}
+          </div>
         </div>
-      ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
+      )}
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
           {/* Video stage */}
           <div className="lg:col-span-2">
             <div className="rounded-2xl overflow-hidden border border-border bg-[#07111E] text-[#F4F0E8]">
@@ -173,6 +196,13 @@ export default function Classroom() {
                 />
               ) : (
                 <div className="aspect-video flex flex-col items-center justify-center text-center px-6">
+                  {/* Joining stays open on a locked module, deliberately: the server
+                      allows it for the same reason the replay is open. A lock
+                      governs the coursework, and gating attendance on it closes
+                      a circle nobody can climb out of — miss one measurement,
+                      the next module locks, and you can then neither attend it
+                      nor watch it back. Banking attendance moves nobody past
+                      anything. */}
                   {win.canJoin ? (
                     <>
                       <Radio className="w-12 h-12 text-[#F97316] mb-4 animate-pulse" aria-hidden />
@@ -265,8 +295,8 @@ export default function Classroom() {
                   <li className="flex items-center justify-between gap-2">
                     <span className="flex items-center gap-2 text-muted-foreground"><ClipboardList className="w-4 h-4" aria-hidden />File the make</span>
                     {entry?.assignmentSubmitted
-                      ? <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-900">Filed</span>
-                      : <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-muted text-muted-foreground">Not filed</span>}
+                      ? <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-900">Submitted</span>
+                      : <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-muted text-muted-foreground">Not submitted</span>}
                   </li>
                 )}
                 {(entry?.reviewsRequired ?? 0) > 0 && (
@@ -292,19 +322,20 @@ export default function Classroom() {
               </ul>
             </section>
 
-            <nav className="grid grid-cols-2 gap-2" aria-label="Module coursework">
+            {!locked && (
+          <nav className="grid grid-cols-2 gap-2" aria-label="Module coursework">
               <Button
-                variant={tab === 'assignment' ? 'default' : 'outline'}
+                variant={activeTab === 'assignment' ? 'default' : 'outline'}
                 onClick={() => setTab(t => (t === 'assignment' ? '' : 'assignment'))}
-                aria-pressed={tab === 'assignment'}
+                aria-pressed={activeTab === 'assignment'}
               >
                 <ClipboardList className="w-4 h-4 mr-1.5" aria-hidden />The make
                 {entry?.assignmentSubmitted && <CheckCircle2 className="w-3.5 h-3.5 ml-1.5 text-emerald-600" aria-hidden />}
               </Button>
               <Button
-                variant={tab === 'critique' ? 'default' : 'outline'}
+                variant={activeTab === 'critique' ? 'default' : 'outline'}
                 onClick={() => setTab(t => (t === 'critique' ? '' : 'critique'))}
-                aria-pressed={tab === 'critique'}
+                aria-pressed={activeTab === 'critique'}
               >
                 <MessagesSquare className="w-4 h-4 mr-1.5" aria-hidden />Critique
                 {owedCritiques > 0
@@ -312,9 +343,9 @@ export default function Classroom() {
                   : (entry?.reviewsRequired ?? 0) > 0 && <CheckCircle2 className="w-3.5 h-3.5 ml-1.5 text-emerald-600" aria-hidden />}
               </Button>
               <Button
-                variant={tab === 'feedback' ? 'default' : 'outline'}
+                variant={activeTab === 'feedback' ? 'default' : 'outline'}
                 onClick={() => setTab(t => (t === 'feedback' ? '' : 'feedback'))}
-                aria-pressed={tab === 'feedback'}
+                aria-pressed={activeTab === 'feedback'}
               >
                 <MessagesSquare className="w-4 h-4 mr-1.5" aria-hidden />My feedback
                 {(entry?.reviewsReceived ?? 0) > 0 && entry?.feedbackUnlocked && (
@@ -322,37 +353,38 @@ export default function Classroom() {
                 )}
               </Button>
               <Button
-                variant={tab === 'discussion' ? 'default' : 'outline'}
+                variant={activeTab === 'discussion' ? 'default' : 'outline'}
                 onClick={() => setTab(t => (t === 'discussion' ? '' : 'discussion'))}
-                aria-pressed={tab === 'discussion'}
+                aria-pressed={activeTab === 'discussion'}
               >
                 <Users className="w-4 h-4 mr-1.5" aria-hidden />Cohort room
               </Button>
               <Button
-                variant={tab === 'quiz' ? 'default' : 'outline'}
+                variant={activeTab === 'quiz' ? 'default' : 'outline'}
                 onClick={() => setTab(t => (t === 'quiz' ? '' : 'quiz'))}
-                aria-pressed={tab === 'quiz'}
+                aria-pressed={activeTab === 'quiz'}
               >
                 <FileQuestion className="w-4 h-4 mr-1.5" aria-hidden />Quiz
                 {entry?.quizPassed && <CheckCircle2 className="w-3.5 h-3.5 ml-1.5 text-emerald-600" aria-hidden />}
               </Button>
               <Button
-                variant={tab === 'reading' ? 'default' : 'outline'}
+                variant={activeTab === 'reading' ? 'default' : 'outline'}
                 onClick={() => setTab(t => (t === 'reading' ? '' : 'reading'))}
-                aria-pressed={tab === 'reading'}
+                aria-pressed={activeTab === 'reading'}
               >
                 <BookOpen className="w-4 h-4 mr-1.5" aria-hidden />Reading list
                 {readings.length > 0 && <span className="ml-1.5 text-xs font-bold">{readings.length}</span>}
               </Button>
             </nav>
+          )}
           </aside>
 
-          {tab === 'assignment' && (
+          {activeTab === 'assignment' && (
             <section className="lg:col-span-3 bg-card border border-border rounded-2xl p-6">
               <div className="flex items-center justify-between gap-2 mb-4">
                 <h2 className="font-display font-bold">The make</h2>
                 {entry?.assignmentSubmitted && (
-                  <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-900">Filed</span>
+                  <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-900">Submitted</span>
                 )}
               </div>
               {entry?.hasAssignment === false
@@ -361,7 +393,7 @@ export default function Classroom() {
             </section>
           )}
 
-          {tab === 'critique' && (
+          {activeTab === 'critique' && (
             <section className="lg:col-span-3 bg-card border border-border rounded-2xl p-6">
               <div className="mb-4">
                 <h2 className="font-display font-bold">Critique your cohort</h2>
@@ -376,7 +408,7 @@ export default function Classroom() {
             </section>
           )}
 
-          {tab === 'feedback' && (
+          {activeTab === 'feedback' && (
             <section className="lg:col-span-3 bg-card border border-border rounded-2xl p-6">
               <h2 className="font-display font-bold mb-4">What your peers said</h2>
               {entry?.hasAssignment === false
@@ -385,7 +417,7 @@ export default function Classroom() {
             </section>
           )}
 
-          {tab === 'discussion' && (
+          {activeTab === 'discussion' && (
             <section className="lg:col-span-3 bg-card border border-border rounded-2xl p-6">
               <div className="mb-4">
                 <h2 className="font-display font-bold">The cohort room</h2>
@@ -400,7 +432,7 @@ export default function Classroom() {
             </section>
           )}
 
-          {tab === 'reading' && (
+          {activeTab === 'reading' && (
             <section className="lg:col-span-3 bg-card border border-border rounded-2xl p-6">
               <div className="mb-4">
                 <h2 className="font-display font-bold">Reading list</h2>
@@ -413,7 +445,7 @@ export default function Classroom() {
             </section>
           )}
 
-          {tab === 'quiz' && (
+          {activeTab === 'quiz' && (
             <section className="lg:col-span-3 bg-card border border-border rounded-2xl p-6">
               <div className="flex items-center justify-between gap-2 mb-4">
                 <h2 className="font-display font-bold">Module quiz</h2>
@@ -429,8 +461,7 @@ export default function Classroom() {
             </section>
           )}
 
-        </div>
-      )}
+      </div>
     </div>
   );
 }
