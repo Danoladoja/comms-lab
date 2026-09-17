@@ -610,17 +610,39 @@ router.put("/sessions/:id/assignment", async (req, res) => {
   const parsed = UpsertSessionAssignmentBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
-  const rubric = parsed.data.rubric ?? DEFAULT_RUBRIC;
+  const [existing] = await db
+    .select({
+      dueAt: assignmentsTable.dueAt,
+      rubric: assignmentsTable.rubric,
+      reviewsRequired: assignmentsTable.reviewsRequired,
+    })
+    .from(assignmentsTable)
+    .where(eq(assignmentsTable.sessionId, sessionId));
+
+  /**
+   * Kept when the editor does not send them, exactly as the deadline is.
+   *
+   * They used to fall back to the house defaults instead, and the task editor
+   * has never sent either — so every save of a title, a brief or a date reset
+   * the number of critiques to two and threw away a custom rubric. Nothing on
+   * screen said so.
+   *
+   * The damage was not cosmetic. A learner whose work predates
+   * `reviewsRequiredAtSubmission` has their requirement read live from this
+   * row, so a module quietly raised from one critique to two turned everyone
+   * who had done what was asked back into "not finished" — and the next module
+   * waits on this one, so it locked them out of the following week. An edit
+   * that asked nothing new of them shut the door on them.
+   */
+  const rubric = parsed.data.rubric
+    ?? (existing?.rubric?.length ? existing.rubric : DEFAULT_RUBRIC);
   if (!isValidRubric(rubric)) {
     res.status(400).json({ error: "Rubric must have at least one criterion, each scored 2-10" });
     return;
   }
-  const reviewsRequired = parsed.data.reviewsRequired ?? DEFAULT_REVIEWS_REQUIRED;
-
-  const [existing] = await db
-    .select({ dueAt: assignmentsTable.dueAt })
-    .from(assignmentsTable)
-    .where(eq(assignmentsTable.sessionId, sessionId));
+  const reviewsRequired = parsed.data.reviewsRequired
+    ?? existing?.reviewsRequired
+    ?? DEFAULT_REVIEWS_REQUIRED;
 
   // As on the quiz: only touched when the client sends one, and null lifts it.
   let dueAt = existing?.dueAt ?? null;

@@ -10,7 +10,7 @@ import {
 import {
   originFor, resolveOrigin, MAX_QUIZ_QUESTIONS, roomForMoreQuestions, type CourseworkOrigin,
   apiReason, dueDateFromInput, dueDateInputValue,
-  MIN_TASK_WORDS, MIN_CRITIQUE_WORDS,
+  MIN_TASK_WORDS, MIN_CRITIQUE_WORDS, DEFAULT_REVIEWS_REQUIRED,
 } from '@workspace/domain';
 import { deadlineSummary } from '@/lib/dueDateText';
 import { Button } from '@/components/ui/button';
@@ -541,6 +541,15 @@ export function AssignmentEditor({ sessionId, seed, seedVersion = 0, onSaved, on
   // The drafted task this started as, so an untouched draft can be told apart
   // from one a facilitator rewrote.
   const [draftedFrom, setDraftedFrom] = useState<{ title: string; instructions: string } | null>(null);
+  /**
+   * How many critiques this module asks for.
+   *
+   * It had no control at all, and the editor sent no value — so the server
+   * filled in the house default on every save and a module deliberately set to
+   * one critique silently became two. On screen now, so it is visible before it
+   * is changed and so the save carries what is actually set.
+   */
+  const [reviews, setReviews] = useState<number | null>(null);
   const [due, setDue] = useState<string | null>(null);
   const seenSeed = useRef(0);
 
@@ -558,6 +567,7 @@ export function AssignmentEditor({ sessionId, seed, seedVersion = 0, onSaved, on
   // Same fall-back shape as the two above: what has been typed this sitting,
   // otherwise whatever is saved.
   const dueValue = due ?? dueDateInputValue(assignment ? assignment.dueAt : suggestedDueAt);
+  const reviewsValue = reviews ?? assignment?.reviewsRequired ?? DEFAULT_REVIEWS_REQUIRED;
 
   const save = useUpsertSessionAssignment({
     mutation: {
@@ -711,6 +721,28 @@ export function AssignmentEditor({ sessionId, seed, seedVersion = 0, onSaved, on
         placeholder="Instructions for the learner"
         rows={4}
       />
+      <div className="rounded-lg border border-border bg-background px-3 py-2.5">
+        <div className="flex flex-wrap items-center gap-2">
+          <label htmlFor={`assignment-reviews-${sessionId}`} className="text-xs font-medium">
+            Critiques each learner owes
+          </label>
+          <select
+            id={`assignment-reviews-${sessionId}`}
+            value={reviewsValue}
+            onChange={e => setReviews(Number(e.target.value))}
+            className="h-8 rounded-md border border-border bg-background px-2 text-sm"
+          >
+            {[0, 1, 2, 3, 4, 5].map(n => <option key={n} value={n}>{n}</option>)}
+          </select>
+        </div>
+        <p className="mt-1.5 text-xs text-muted-foreground">
+          {reviewsValue === 0
+            ? 'Nobody critiques anybody on this one.'
+            : `Filing the task and writing ${reviewsValue} critique${reviewsValue === 1 ? '' : 's'} is what completes the module.`}
+          {' '}Lowering it never un-completes anybody; raising it only applies to work filed from now on.
+        </p>
+      </div>
+
       <DueDateField
         id={`assignment-due-${sessionId}`}
         label="Submissions close"
@@ -727,6 +759,10 @@ export function AssignmentEditor({ sessionId, seed, seedVersion = 0, onSaved, on
             title: titleValue.trim(),
             instructions: instructionsValue,
             dueAt: dueDateFromInput(dueValue),
+            // Sent explicitly, so the value on screen is the value saved. The
+            // server also keeps what is there when this is missing — an older
+            // browser must not reset it either.
+            reviewsRequired: reviewsValue,
             origin: assignmentOrigin(
               { title: titleValue.trim(), instructions: instructionsValue.trim() },
               draftedFrom,

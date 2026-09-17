@@ -9,7 +9,9 @@
     "seed:rubrics": "tsx ./src/seed-default-rubrics.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "credit:attendance": "tsx ./src/credit-missed-attendance.ts",
-    "check:schema": "tsx ./src/check-schema.ts"
+    "check:schema": "tsx ./src/check-schema.ts",
+    "why:locked": "tsx ./src/why-locked.ts",
+    "freeze:critiques": "tsx ./src/freeze-critique-requirements.ts"
   },
   "devDependencies": {
     "@types/node": "catalog:",
