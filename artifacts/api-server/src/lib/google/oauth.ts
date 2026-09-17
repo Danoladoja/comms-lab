@@ -83,6 +83,25 @@ type TokenResponse = {
   scope?: string;
 };
 
+/**
+ * Google's own words about why it said no.
+ *
+ * Kept as a code rather than flattened into a sentence, because each of them
+ * has a different remedy and the person who needs to know is an administrator
+ * looking at a screen, not somebody reading server logs. `redirect_uri_mismatch`
+ * and `invalid_client` look identical from the outside and are fixed in
+ * completely different places.
+ *
+ * Neither field carries a secret: Google reports what was wrong with the
+ * request, never what was in it.
+ */
+export class GoogleTokenError extends Error {
+  constructor(readonly code: string, readonly description: string) {
+    super(`Google rejected the token request: ${description || code}`);
+    this.name = "GoogleTokenError";
+  }
+}
+
 async function postToken(body: Record<string, string>): Promise<TokenResponse> {
   const res = await fetch(TOKEN_URL, {
     method: "POST",
@@ -91,7 +110,7 @@ async function postToken(body: Record<string, string>): Promise<TokenResponse> {
   });
   const json = (await res.json()) as TokenResponse & { error?: string; error_description?: string };
   if (!res.ok) {
-    throw new Error(`Google rejected the token request: ${json.error_description ?? json.error ?? res.status}`);
+    throw new GoogleTokenError(json.error ?? String(res.status), json.error_description ?? "");
   }
   return json;
 }

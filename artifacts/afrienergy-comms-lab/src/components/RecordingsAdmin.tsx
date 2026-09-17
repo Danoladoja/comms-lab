@@ -74,13 +74,22 @@ export default function RecordingsAdmin() {
    */
   const params = new URLSearchParams(window.location.search);
   const googleResult = params.get('google');
+  const why = params.get('why') ?? '';
   const whyFailed = ({
     'no-code': 'Google sent us back without a sign-in code. Start the connection again.',
     expired: 'The connection took too long, or the server restarted part-way through. Nothing is wrong — press Connect and go straight through it.',
     'not-configured': 'The four Google settings are not all on the server. Check GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI and GOOGLE_TOKEN_SECRET in Railway.',
     'no-refresh-token': 'Google did not hand over a lasting key, which happens when this app was approved before. Remove it at myaccount.google.com → Data & privacy → Third-party apps, then connect again.',
-    'exchange-failed': 'Google refused the exchange. Nearly always the redirect address: GOOGLE_REDIRECT_URI in Railway must match the one in Google Cloud exactly — same https, same spelling, no trailing slash.',
-  } as Record<string, string>)[params.get('why') ?? ''] ?? 'Something went wrong signing in to Google. Try again.';
+    // Google's own words, each with the one place it is fixed. These four look
+    // identical from the outside — the same red screen at the same moment — and
+    // are repaired in four different places, so guessing between them is how an
+    // afternoon disappears.
+    redirect_uri_mismatch: 'The return address does not match. In Google Cloud → Credentials → your OAuth client, the "Authorised redirect URI" must be exactly the address shown below — same https, same spelling, no trailing slash. Google can take a few minutes to apply a change there.',
+    invalid_client: 'Google does not recognise the client id or secret. Check GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in Railway against Google Cloud → Credentials. A secret copied with a stray space at either end fails exactly like this.',
+    invalid_grant: 'The sign-in code had already been used or had expired. Press Connect and go straight through without going back or refreshing.',
+    unauthorized_client: 'This OAuth client is not allowed to do this. It usually means the client was created as the wrong type — it must be a "Web application" client, not Desktop or Android.',
+    'exchange-failed': 'Google refused the exchange without saying why. Nearly always the return address: GOOGLE_REDIRECT_URI in Railway must match the one in Google Cloud exactly — same https, same spelling, no trailing slash.',
+  } as Record<string, string>)[why] ?? 'Something went wrong signing in to Google. Try again.';
 
   const { data: connection, isLoading: loadingConnection } = useGetGoogleConnection({
     query: { queryKey: getGetGoogleConnectionQueryKey() },
@@ -240,6 +249,27 @@ export default function RecordingsAdmin() {
               <CircleAlert className="w-4 h-4" aria-hidden />Google did not finish connecting
             </p>
             <p className="text-sm text-red-900/80">{whyFailed}</p>
+
+            {/* The address this server actually uses, printed so it can be held
+                against the one in Google Cloud by eye. It is the single value
+                that has to match character for character, and describing it in
+                a sentence has already cost more time than showing it. */}
+            {connection?.redirectUri && (
+              <div className="mt-3 rounded-lg bg-white/70 border border-red-200 p-3">
+                <p className="text-xs font-semibold text-red-900 mb-1">
+                  This server's return address — paste this into Google Cloud exactly:
+                </p>
+                <code className="text-xs break-all text-red-900">{connection.redirectUri}</code>
+              </div>
+            )}
+
+            {/* Google's own code, for the cases nobody has written a remedy for
+                yet. Unhelpful on its own, but it is the thing worth quoting. */}
+            {why && (
+              <p className="text-xs text-red-900/60 mt-3">
+                Google's own words for this: <code className="text-xs">{why}</code>
+              </p>
+            )}
           </div>
         )}
 
@@ -328,6 +358,16 @@ export default function RecordingsAdmin() {
                   <Link2 className="w-4 h-4 mr-1.5" aria-hidden />Connect Google account
                 </a>
               </Button>
+            )}
+            {/* Shown before the attempt as well as after it. Checking one line
+                against Google Cloud takes a few seconds; discovering the
+                mismatch at the last step of the flow takes an afternoon. */}
+            {connection.redirectUri && (
+              <p className="text-xs text-muted-foreground mt-4">
+                Google Cloud → Credentials → your OAuth client must list this exact address under
+                {' '}<strong>Authorised redirect URIs</strong>:{' '}
+                <code className="text-xs break-all">{connection.redirectUri}</code>
+              </p>
             )}
           </div>
         )}

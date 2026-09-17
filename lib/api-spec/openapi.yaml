@@ -4220,6 +4220,11 @@ components:
         googleEmail: { type: ["string", "null"] }
         connectedAt: { type: ["string", "null"] }
         lastError: { type: ["string", "null"] }
+        # The return address this server actually sends to Google. Not a secret
+        # — it is the public URL Google sends people back to — and it is the one
+        # value that must match Google Cloud character for character. Shown so
+        # "they must match" becomes something an admin can check by eye.
+        redirectUri: { type: ["string", "null"] }
         # Where to send the admin to grant access. Null when not configured.
         authorizeUrl: { type: ["string", "null"] }
     RecordingStatusRow:

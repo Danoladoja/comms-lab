@@ -1483,6 +1483,7 @@ export const GetGoogleConnectionResponse = zod.object({
   "googleEmail": zod.string().nullish(),
   "connectedAt": zod.string().nullish(),
   "lastError": zod.string().nullish(),
+  "redirectUri": zod.string().nullish(),
   "authorizeUrl": zod.string().nullish()
 })
 
@@ -1497,6 +1498,7 @@ export const DisconnectGoogleResponse = zod.object({
   "googleEmail": zod.string().nullish(),
   "connectedAt": zod.string().nullish(),
   "lastError": zod.string().nullish(),
+  "redirectUri": zod.string().nullish(),
   "authorizeUrl": zod.string().nullish()
 })
 

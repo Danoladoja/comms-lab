@@ -13,6 +13,7 @@ import {
   getConnection,
   disconnect,
   clearTokenCache,
+  GoogleTokenError,
   GOOGLE_SCOPES,
 } from "../lib/google/oauth";
 import { tokenSecretConfigured } from "../lib/google/secrets";
@@ -59,6 +60,11 @@ async function statusPayload(userId?: number) {
     configured: !!env,
     secretConfigured,
     googleEmail: connection?.googleEmail ?? null,
+    // The address this server actually uses. Not a secret — it is the public
+    // URL Google sends people back to — and it is the one value that has to
+    // match Google Cloud character for character. Showing it turns "they must
+    // match" into something an admin can check with their eyes.
+    redirectUri: env?.redirectUri ?? null,
     connectedAt: connection?.createdAt?.toISOString() ?? null,
     lastError: connection?.lastError ?? null,
     authorizeUrl: url,
@@ -91,9 +97,9 @@ router.get("/google/oauth/callback", async (req, res) => {
    * standing in front of the screen having just done twenty minutes of setup,
    * and every one of these has a different next step.
    */
-  const fail = (reason: string, code: string) => {
-    logger.warn({ reason }, "Google OAuth callback rejected");
-    res.redirect(appPath(process.env.BASE_PATH, `/admin?google=error&why=${code}`));
+  const fail = (reason: string, why: string) => {
+    logger.warn({ reason, why }, "Google OAuth callback rejected");
+    res.redirect(appPath(process.env.BASE_PATH, `/admin?google=error&why=${why}`));
   };
 
   if (!code || !state) return fail("missing code or state", "no-code");
@@ -125,7 +131,15 @@ router.get("/google/oauth/callback", async (req, res) => {
     res.redirect(appPath(process.env.BASE_PATH, "/admin?google=connected"));
   } catch (err) {
     logger.error({ err }, "Google OAuth exchange failed");
-    fail("token exchange failed", "exchange-failed");
+    // Google's own code, passed through. "redirect_uri_mismatch" and
+    // "invalid_client" are indistinguishable from the outside and are fixed in
+    // completely different places, so guessing between them wastes an
+    // afternoon. Only the code travels — it is a fixed vocabulary, not text
+    // from elsewhere being echoed into a page.
+    const why = err instanceof GoogleTokenError
+      ? err.code.replace(/[^a-z_]/gi, "").slice(0, 40)
+      : "exchange-failed";
+    fail("token exchange failed", why || "exchange-failed");
   }
 });
 

@@ -17,5 +17,7 @@ export interface GoogleConnectionStatus {
   /** @nullable */
   lastError?: string | null;
   /** @nullable */
+  redirectUri?: string | null;
+  /** @nullable */
   authorizeUrl?: string | null;
 }
