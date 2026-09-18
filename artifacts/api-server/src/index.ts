@@ -13,6 +13,7 @@ import { startRecordingSync } from "./lib/recordingSync";
 import { startMeetAttendanceSync } from "./lib/meetAttendanceSync";
 import { startTranscriptSync } from "./lib/transcriptSync";
 import { startGroupSessionTicker } from "./lib/groupSessions";
+import { startSoloRunSweep } from "./routes/studioSimulations";
 
 const rawPort = process.env["PORT"];
 
@@ -122,6 +123,8 @@ async function main(): Promise<void> {
     startMeetAttendanceSync();
     startTranscriptSync();
     startGroupSessionTicker();
+    // Solo exercises end themselves too, now — not only when somebody looks.
+    startSoloRunSweep();
   });
 }
 

@@ -32,6 +32,7 @@ import {
   minutesLeft, picksOwnExercise,
 } from "@workspace/domain";
 import { getCurrentUser } from "../lib/auth";
+import { logger } from "../lib/logger";
 import { createBudget } from "../lib/rateBudget";
 import { emailConfigured, sendEmail } from "../lib/email";
 import {
@@ -613,6 +614,76 @@ async function carryOnWith(
     return { ok: false, status: 409, error: "Somebody answered while that was generating. Refresh and try again." };
   }
   return { ok: true, run: updated };
+}
+
+/* ------------------------------------------------------------------ *
+ * Finishing a solo run that nobody is watching
+ * ------------------------------------------------------------------ */
+
+const SOLO_SWEEP_EVERY_MS = 60 * 1000;
+/** How many to close per pass, so a backlog cannot become a burst of spending. */
+const SOLO_SWEEP_BATCH = 5;
+
+/**
+ * Ends solo exercises whose time is up, with nobody asking.
+ *
+ * Until now the clocks only bit when a request arrived. The reasoning was that
+ * an exercise nobody is watching is not one anybody is being timed on — which
+ * is true of the timing and false of the debrief. A learner whose clock ran out
+ * while the tab was closed, or hidden, or whose laptop shut, came back to an
+ * exercise still sitting open at the last development, no debrief, and no way
+ * to get one: the thing that writes it only ran when somebody looked, and
+ * looking is exactly what they had stopped doing.
+ *
+ * Group sessions already had this and solo runs did not, which is the whole
+ * bug. The same principle, applied to the other half of the Studio: it ends
+ * itself.
+ *
+ * A few at a time on purpose. A backlog of stuck runs — after a deploy, or a
+ * spell where generation was failing — must not become a burst of model calls
+ * nobody budgeted for.
+ */
+export function startSoloRunSweep(): void {
+  setInterval(() => void sweepFinishedSoloRuns(), SOLO_SWEEP_EVERY_MS);
+  logger.info("Solo run sweep scheduled");
+}
+
+export async function sweepFinishedSoloRuns(): Promise<number> {
+  let closed = 0;
+  try {
+    const candidates = await db
+      .select()
+      .from(simulationRunsTable)
+      .where(and(
+        eq(simulationRunsTable.status, "active"),
+        eq(simulationRunsTable.mode, "autonomous"),
+        sql`${simulationRunsTable.startedAt} is not null`,
+      ))
+      .orderBy(asc(simulationRunsTable.startedAt))
+      .limit(50);
+
+    for (const run of candidates) {
+      if (closed >= SOLO_SWEEP_BATCH) break;
+      const [definition] = await db.select().from(simulationDefinitionsTable)
+        .where(eq(simulationDefinitionsTable.id, run.definitionId));
+      const clock = clockFor(run, definition);
+      if (!clock.sessionExpired) continue;
+      // Somebody's browser may be finishing it this very second. Leave it be;
+      // the next pass will pick it up if they did not.
+      if (run.operationToken && operationLeaseIsActive(run.operationStartedAt, new Date(), operationLeaseMs)) continue;
+
+      const outcome = await finish(run.id, logger, true);
+      closed++;
+      if (!outcome.ok) {
+        logger.error({ runId: run.id, reason: outcome.error }, "Could not close an expired solo run");
+      } else {
+        logger.info({ runId: run.id }, "Closed an expired solo run and wrote its debrief");
+      }
+    }
+  } catch (err) {
+    logger.error({ err }, "Solo run sweep failed");
+  }
+  return closed;
 }
 
 /** End it and write the debrief. */
