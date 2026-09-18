@@ -121,12 +121,29 @@ export default function SimulationRun({ id }: { id?: string }) {
        */
       refetchInterval: (query) => {
         const data = query.state.data as any;
-        if (!data || data.status !== 'active') return false;
+        // Not loaded yet is not the same as nothing left to wait for. Keep
+        // asking; only a finished exercise stops the clock.
+        if (!data) return 2000;
+        if (data.status !== 'active') return false;
         if (data.working) return 1500;
         const left = data.clock?.responseSecondsLeft;
         if (typeof left === 'number' && left <= 0) return 2000;
         return 4000;
       },
+      /*
+       * Keep asking even when the tab is not the one being looked at.
+       *
+       * This is the bug behind "I answered and nothing changed on screen".
+       * React Query suspends polling whenever document.visibilityState is
+       * "hidden" unless told otherwise, so switching to another tab — to read
+       * a brief, to check a message — stops the exercise updating. It does not
+       * stop the exercise: the deadline still passes, the story still moves,
+       * the session clock still runs down. Coming back then showed a page that
+       * had sat frozen since the moment they left it.
+       *
+       * An exercise with a clock on it has to keep up with its own clock.
+       */
+      refetchIntervalInBackground: true,
     }
   });
 
@@ -163,15 +180,31 @@ export default function SimulationRun({ id }: { id?: string }) {
   // The server is writing. Say so, rather than showing a screen that looks
   // like it has stopped.
   const working = !!run?.working;
+  /*
+   * How long they have been waiting for the next development.
+   *
+   * Resets whenever the thing on the table changes. It exists because "it did
+   * not come back" and "it took forty seconds" are different problems with
+   * different fixes, and without a number on screen nobody can tell them apart
+   * — including the person waiting.
+   */
+  const hasResponded = !!(run && currentDev
+    && run.responses?.some((r: { injectId: string }) => r.injectId === currentDev.id));
+
+  const [waitingFor, setWaitingFor] = useState(0);
+  useEffect(() => { setWaitingFor(0); }, [currentDev?.id]);
+  useEffect(() => {
+    if (!hasResponded) return;
+    const id = setInterval(() => setWaitingFor((s) => s + 1), 1000);
+    return () => clearInterval(id);
+  }, [hasResponded, currentDev?.id]);
+
   const anyoneAnswered = useMemo(
     () => !!currentDev && !!run?.responses?.some((r: any) => r.injectId === currentDev.id),
     [run, currentDev],
   );
 
-  const hasRespondedToCurrent = useMemo(() => {
-    if (!run || !currentDev) return false;
-    return run.responses?.some((r: any) => r.injectId === currentDev.id);
-  }, [run, currentDev]);
+  const hasRespondedToCurrent = hasResponded;
 
   const handleSubmit = () => {
     if (!responseBody.trim()) return;
@@ -251,7 +284,17 @@ export default function SimulationRun({ id }: { id?: string }) {
         </div>
 
         <div className="flex items-center gap-3">
-          {run.status === 'active' && responseLeft !== null && (
+          {/*
+            The deadline stops mattering the moment the answer is in.
+
+            It used to keep counting down after somebody had already sent
+            theirs, which reads as "the next thing is waiting for this clock" —
+            it is not. The next development is written the moment the answer
+            lands; what follows is the newsroom writing, not the clock running.
+            Leaving the timer up made a few seconds of work look like a minute
+            of enforced waiting.
+          */}
+          {run.status === 'active' && responseLeft !== null && !hasRespondedToCurrent && (
             <div
               className={cn(
                 "flex items-center gap-2 px-3 py-1.5 border font-mono tabular-nums transition-colors",
@@ -265,6 +308,18 @@ export default function SimulationRun({ id }: { id?: string }) {
             >
               {missed ? <TimerOff className="w-3.5 h-3.5" aria-hidden /> : <Clock className="w-3.5 h-3.5" aria-hidden />}
               <span className="text-sm font-bold">{missed ? 'Deadline passed' : formatClock(responseLeft)}</span>
+            </div>
+          )}
+
+          {run.status === 'active' && hasRespondedToCurrent && (
+            <div className={cn(
+              "flex items-center gap-2 px-3 py-1.5 border font-mono",
+              t.panelBorder, t.accentText,
+            )} aria-live="polite">
+              <RefreshCw className="w-3.5 h-3.5 animate-spin" aria-hidden />
+              <span className="text-[11px] uppercase tracking-[0.15em] font-bold">
+                {working ? 'Writing' : 'Answer in'}
+              </span>
             </div>
           )}
 
@@ -354,13 +409,25 @@ export default function SimulationRun({ id }: { id?: string }) {
         </div>
 
         {/* Right Panel: Terminal */}
-        <div className={cn("w-full lg:w-[420px] shrink-0 flex flex-col z-10 shadow-2xl lg:shadow-none border-t lg:border-t-0", t.terminalBg, t.panelBorder)}>
+        {/*
+          The composer panel.
+
+          `min-h-0` matters more than it looks: without it a flex child refuses
+          to shrink below its content, so the Send button was pushed past the
+          bottom of the panel and only reachable by scrolling — on a screen
+          where nothing suggested there was anything to scroll to.
+
+          The height floor is for the stacked layout on a laptop or phone, where
+          this sits under the feed rather than beside it and would otherwise
+          collapse to the size of its text.
+        */}
+        <div className={cn("w-full lg:w-[420px] shrink-0 flex flex-col min-h-0 h-[60vh] lg:h-auto z-10 shadow-2xl lg:shadow-none border-t lg:border-t-0", t.terminalBg, t.panelBorder)}>
           <div className={cn("h-14 border-b flex items-center justify-between px-6 shrink-0", t.panelBorder)}>
             <span className={cn("text-[10px] uppercase tracking-[0.2em]", t.accentText, t.headerStyle)}>Your response</span>
             <span className="text-white/30 text-[10px] font-mono uppercase">User: {run.participantGroupId || 'Local'}</span>
           </div>
 
-          <div className="flex-1 flex flex-col p-6 overflow-y-auto">
+          <div className="flex-1 flex flex-col p-6 min-h-0">
             {isCompleted ? (
               <div className="flex-1 flex flex-col items-center justify-center text-center">
                 <CheckCircle2 className={cn("w-12 h-12 mb-6", t.accentText)} />
@@ -418,7 +485,7 @@ export default function SimulationRun({ id }: { id?: string }) {
                   <p className="text-white/40 font-mono text-xs mb-8">
                     {run.mode === 'facilitated'
                       ? `${run.responses?.filter((r: any) => r.injectId === currentDev.id).length ?? 0} answered so far.`
-                      : 'The next development is being written.'}
+                      : `The next development is being written${waitingFor > 2 ? ` — ${waitingFor}s` : ''}.`}
                   </p>
 
                   {/* An admin watching a cohort session has nothing to press and
@@ -464,8 +531,10 @@ export default function SimulationRun({ id }: { id?: string }) {
                 </div>
               </div>
             ) : (
-              <div className="flex-1 flex flex-col">
-                <div className={cn("p-5 border mb-6", missed ? "border-white/20" : t.panelBorder, "bg-white/[0.02]")}>
+              <div className="flex-1 flex flex-col min-h-0">
+                {/* Fixed height for the ask, so a long one scrolls itself
+                    rather than pushing the button off the screen. */}
+                <div className={cn("p-5 border mb-4 shrink-0 max-h-[30%] overflow-y-auto", missed ? "border-white/20" : t.panelBorder, "bg-white/[0.02]")}>
                   <h4 className={cn("text-[10px] uppercase tracking-[0.2em] mb-3 font-bold", missed ? "text-white/40" : t.accentText)}>
                     What you need to do
                   </h4>
@@ -478,7 +547,7 @@ export default function SimulationRun({ id }: { id?: string }) {
                   )}
                 </div>
 
-                <div className="flex-1 flex flex-col relative min-h-[300px]">
+                <div className="flex-1 flex flex-col relative min-h-0">
                   <Textarea
                     value={responseBody}
                     onChange={(e) => setResponseBody(e.target.value)}
@@ -488,10 +557,12 @@ export default function SimulationRun({ id }: { id?: string }) {
                       t.panelBorder, "focus-visible:ring-current", t.accentText
                     )}
                   />
+                  {/* Never scrolls away. It is the only thing on this panel
+                      somebody has to find in a hurry. */}
                   <Button
                     onClick={handleSubmit}
                     disabled={!responseBody.trim() || submitResponse.isPending || missed}
-                    className={cn("h-14 rounded-none uppercase tracking-[0.2em] text-[10px] font-bold w-full", t.btn)}
+                    className={cn("h-14 shrink-0 rounded-none uppercase tracking-[0.2em] text-[10px] font-bold w-full", t.btn)}
                   >
                     {submitResponse.isPending ? (
                       <Loader2 className="w-4 h-4 animate-spin" />

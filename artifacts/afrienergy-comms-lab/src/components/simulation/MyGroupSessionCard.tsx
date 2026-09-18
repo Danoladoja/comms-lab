@@ -33,9 +33,14 @@ export default function MyGroupSessionCard() {
        */
       refetchInterval: (query) => {
         const data = query.state.data as { state?: string } | undefined;
-        if (!data || data.state === 'finished') return false;
+        if (!data) return 60_000;
+        if (data.state === 'finished') return false;
         return data.state === 'live' ? 15_000 : 60_000;
       },
+      // The door opens on the server's clock whether this tab is the one being
+      // looked at or not, and a learner waiting for it is very likely reading
+      // something else while they wait.
+      refetchIntervalInBackground: true,
     },
   });
 
