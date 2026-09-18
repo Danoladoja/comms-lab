@@ -276,15 +276,50 @@ describe("writing for a particular cohort", () => {
     expect(prompt).toContain("Covering the continent's energy transition");
   });
 
-  it("lists the modules and asks for one of them to be the hinge", () => {
+  it("names the ground covered and asks the exercise to span it", () => {
     // Otherwise the programme is decoration: the exercise has to turn on
-    // something they were actually taught.
+    // things they were actually taught. And on more than one of them — a
+    // communicator's job is not divided into weeks, so an exercise that only
+    // tests the most recent module rehearses the timetable rather than the work.
     const prompt = scenarioUserPrompt({
       ...base,
       programme: { title: "Energy Reporting", moduleTitles: ["Reading a licensing round"] },
     });
     expect(prompt).toContain("Reading a licensing round");
-    expect(prompt).toMatch(/decides whether they handle it well/i);
+    expect(prompt).toMatch(/not about one module/i);
+    expect(prompt).toMatch(/more than one thing this programme has covered/i);
+  });
+
+  it("carries what a module taught, asked for and pointed at, not just its name", () => {
+    // Titles alone placed an exercise vaguely in the right territory and no
+    // further. The description is what was taught, the task is what was asked
+    // for, and the reading list is what they were sent to read.
+    const prompt = scenarioUserPrompt({
+      ...base,
+      programme: {
+        title: "Energy Reporting",
+        modules: [{
+          title: "Reading a licensing round",
+          description: "How award criteria are set, and who is disadvantaged by them.",
+          taskTitle: "A 600-word explainer on one award",
+          readings: ["The bid that nobody questioned"],
+        }],
+      },
+    });
+    expect(prompt).toContain("How award criteria are set");
+    expect(prompt).toContain("A 600-word explainer on one award");
+    expect(prompt).toContain("The bid that nobody questioned");
+  });
+
+  it("still works for a caller that only has module titles", () => {
+    // The shape that existed before. A programme whose modules have no
+    // descriptions must not lose its cohort section entirely.
+    const prompt = scenarioUserPrompt({
+      ...base,
+      programme: { title: "Energy Reporting", moduleTitles: ["One", "Two"] },
+    });
+    expect(prompt).toContain("One");
+    expect(prompt).toContain("Two");
   });
 
   it("tells the model not to mention the course to the learner", () => {
@@ -294,7 +329,7 @@ describe("writing for a particular cohort", () => {
       ...base,
       programme: { title: "Energy Reporting", moduleTitles: ["Reading a licensing round"] },
     });
-    expect(prompt).toMatch(/Do not name the module/i);
+    expect(prompt).toMatch(/Do not name a\s+module/i);
   });
 
   it("copes with a programme that has no modules yet", () => {

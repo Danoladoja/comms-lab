@@ -13,8 +13,6 @@ import {
   useGetStudioAccess,
   useGetMyStudioExercise,
   useInviteToStudio,
-  useListProgramSessions,
-  getListProgramSessionsQueryKey,
   useJoinSimulationRun,
   useListSimulations,
 
@@ -662,12 +660,7 @@ export default function StudioHome() {
 function InviteCohortToExercise({ programmes }: { programmes: any[] }) {
   const { toast } = useToast();
   const [programId, setProgramId] = useState('');
-  const [sessionId, setSessionId] = useState('');
   const [result, setResult] = useState<string | null>(null);
-
-  const { data: sessions = [] } = useListProgramSessions(Number(programId), {
-    query: { queryKey: getListProgramSessionsQueryKey(Number(programId)), enabled: !!programId },
-  });
 
   const invite = useInviteToStudio({
     mutation: {
@@ -690,12 +683,12 @@ function InviteCohortToExercise({ programmes }: { programmes: any[] }) {
         <Target className="w-4 h-4 text-[#f97316]" aria-hidden /> Invite a cohort to an exercise
       </h3>
       <p className="text-xs text-white/50 mb-4">
-        One run each. What they practise comes from the module; each learner gets a different
-        situation to practise it in.
+        One run each. What they practise comes from the programme as a whole, so the crisis can
+        turn on anything it has covered. Each learner gets a different situation to handle it in.
       </p>
 
       <div className="flex flex-col sm:flex-row gap-3">
-        <Select value={programId} onValueChange={(v) => { setProgramId(v); setSessionId(''); setResult(null); }}>
+        <Select value={programId} onValueChange={(v) => { setProgramId(v); setResult(null); }}>
           <SelectTrigger className="bg-[#030811] border-white/20 text-white rounded-none flex-1">
             <SelectValue placeholder="Choose a programme" />
           </SelectTrigger>
@@ -706,26 +699,10 @@ function InviteCohortToExercise({ programmes }: { programmes: any[] }) {
           </SelectContent>
         </Select>
 
-        <Select value={sessionId} onValueChange={(v) => { setSessionId(v); setResult(null); }} disabled={!programId}>
-          <SelectTrigger className="bg-[#030811] border-white/20 text-white rounded-none flex-1">
-            <SelectValue placeholder="Which module?" />
-          </SelectTrigger>
-          <SelectContent className="bg-[#0c1929] border-white/20 text-white">
-            {sessions.map((session: any) => (
-              <SelectItem key={session.id} value={String(session.id)}>{session.title}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
         <button
           type="button"
           disabled={!programId || invite.isPending}
-          onClick={() => invite.mutate({
-            data: {
-              programId: Number(programId),
-              ...(sessionId ? { sessionId: Number(sessionId) } : {}),
-            },
-          })}
+          onClick={() => invite.mutate({ data: { programId: Number(programId) } })}
           className="bg-[#f97316] text-[#030811] px-5 py-2.5 text-[11px] font-bold uppercase tracking-widest disabled:opacity-50"
         >
           {invite.isPending ? 'Sending…' : 'Invite'}

@@ -218,28 +218,37 @@ export function situationSummary(situation: Situation): string {
 /**
  * What this learner is being asked to get better at.
  *
- * The module's own words where there are any, the programme's otherwise. Not
- * invented here: an objective this file made up would be one more thing for a
- * facilitator to discover disagreeing with what they taught.
+ * The programme's, not a module's. The first version of this preferred the
+ * module description, which made every exercise about one week — and a
+ * communicator's job is not divided into weeks. Somebody handling a tariff
+ * announcement needs what module two taught about explaining a price, what
+ * module four taught about the regulator, and whatever module one said about
+ * saying the thing plainly. An exercise that only tests the most recent module
+ * rehearses the timetable rather than the work.
+ *
+ * So it is the programme's own description, and the modules are handed to the
+ * scenario generator separately as the ground it may draw on. Not invented
+ * here: an objective this file made up would be one more thing for a
+ * facilitator to find disagreeing with what they actually taught.
  */
 export function objectiveFor(facts: {
   programmeTitle: string;
   programmeDescription: string;
-  moduleTitle?: string | null;
-  moduleDescription?: string | null;
+  /** Every module on the programme, in order. Used only as a fallback. */
+  moduleTitles?: readonly string[];
 }): string {
-  const module = (facts.moduleDescription ?? "").trim();
-  if (module) return module;
-
-  const moduleTitle = (facts.moduleTitle ?? "").trim();
-  if (moduleTitle) {
-    return `Handle a live communications crisis using what ${moduleTitle} covered.`;
-  }
-
   const programme = facts.programmeDescription.trim();
   if (programme) return programme;
 
-  return `Handle a live communications crisis to the standard ${facts.programmeTitle.trim()} sets.`;
+  // Nothing written on the programme. Say what it is called and what ground it
+  // covers, which is still true and still useful, rather than inventing an aim.
+  const modules = (facts.moduleTitles ?? []).map((m) => m.trim()).filter(Boolean);
+  const title = facts.programmeTitle.trim() || "this programme";
+  if (modules.length > 0) {
+    return `Handle a live communications crisis using the whole of ${title} — `
+      + `${modules.join(", ")}.`;
+  }
+  return `Handle a live communications crisis to the standard ${title} sets.`;
 }
 
 /**
@@ -258,7 +267,7 @@ export function invitationProblem(facts: {
   if (facts.hasOpenInvitation) return "They already have an invitation they have not used.";
   if (facts.objective.trim().length < 10) {
     return "This programme has nothing written down for the learner to practise. "
-      + "Give the module a description first — it is what the exercise is built from.";
+      + "Give the programme a description first — it is what the exercise is built from.";
   }
   return null;
 }

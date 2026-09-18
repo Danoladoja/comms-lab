@@ -54,6 +54,29 @@ export type StudioProgrammeContext = {
   tag?: string | null;
   /** The modules, in order, as the cohort sees them named. */
   moduleTitles?: readonly string[];
+  /**
+   * The whole programme, rather than a list of headings.
+   *
+   * Titles alone gave the model six or eight phrases to work from — enough to
+   * place the exercise vaguely in the right territory and no more. What a
+   * module actually taught is in its description, what it asked for is in its
+   * written task, and what it pointed people at is on its reading list. All
+   * three narrow the scenario from "something about energy communications" to
+   * something this cohort will recognise.
+   *
+   * Bounded deliberately: the aim is a picture the model can hold, not a
+   * transcript of the term. Class transcripts are left out for the same
+   * reason — they are the largest thing attached to a module and the least
+   * summarised.
+   */
+  modules?: readonly {
+    title: string;
+    description?: string | null;
+    /** The written task it set, if it set one. */
+    taskTitle?: string | null;
+    /** What it pointed people at. Titles only. */
+    readings?: readonly string[];
+  }[];
 };
 
 /** How a development reaches the learner. Drives the icon and the styling. */
@@ -111,7 +134,7 @@ ${HOUSE_RULES}`;
 /** The programme block, or nothing at all when there is no programme. */
 function programmeSection(programme: StudioProgrammeContext | null | undefined): string {
   if (!programme) return "";
-  const modules = (programme.moduleTitles ?? []).filter(Boolean);
+
   const lines = [
     "",
     "This exercise is for a specific cohort, so make it theirs.",
@@ -120,18 +143,46 @@ function programmeSection(programme: StudioProgrammeContext | null | undefined):
   ];
   if (programme.tag) lines.push(`Focus: ${programme.tag}`);
   if (programme.description) lines.push(`What it covers: ${programme.description}`);
-  if (modules.length > 0) {
+
+  // The full picture when there is one, and the old list of titles when there
+  // is not — a caller written before the fuller shape existed keeps working,
+  // and a programme whose modules have no descriptions still says something.
+  const full = (programme.modules ?? []).filter((m) => m.title?.trim());
+  const titles = (programme.moduleTitles ?? []).filter(Boolean);
+
+  if (full.length > 0) {
+    lines.push("", "The ground this programme covers, module by module:");
+    for (const module of full) {
+      lines.push("", `  ${module.title.trim()}`);
+      const description = (module.description ?? "").trim();
+      if (description) lines.push(`    ${trimFor(description, 400)}`);
+      const task = (module.taskTitle ?? "").trim();
+      if (task) lines.push(`    They were asked to produce: ${trimFor(task, 160)}`);
+      const readings = (module.readings ?? []).filter((r) => r?.trim()).slice(0, 4);
+      if (readings.length > 0) lines.push(`    Pointed at: ${readings.map((r) => r.trim()).join("; ")}`);
+    }
+  } else if (titles.length > 0) {
     lines.push("", "The modules they are working through, in order:");
-    for (const title of modules) lines.push(`  ${title}`);
+    for (const title of titles) lines.push(`  ${title}`);
+  }
+
+  if (full.length > 0 || titles.length > 0) {
     lines.push(
       "",
-      "Build the scenario so that at least one of those modules is the thing",
-      "that decides whether they handle it well. Do not name the module or",
-      "mention the course. They should recognise it from the shape of the",
-      "problem, not from a label.",
+      "The exercise is not about one module. Build a situation that pulls on",
+      "more than one thing this programme has covered, so that handling it well",
+      "needs the programme rather than a single week of it. Do not name a",
+      "module or mention the course. They should recognise the ground from the",
+      "shape of the problem, not from a label.",
     );
   }
   return lines.join("\n");
+}
+
+/** Keep one field from swallowing the prompt. */
+function trimFor(text: string, max: number): string {
+  const tidy = text.replace(/\s+/g, " ").trim();
+  return tidy.length <= max ? tidy : `${tidy.slice(0, max - 1)}…`;
 }
 
 export function scenarioUserPrompt(brief: StudioBrief): string {

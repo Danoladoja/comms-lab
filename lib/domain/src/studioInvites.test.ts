@@ -116,34 +116,40 @@ describe("the situation each learner is dropped into", () => {
 });
 
 describe("what they are asked to get better at", () => {
-  it("prefers the module's own description", () => {
+  it("is the programme's, not the most recent module's", () => {
+    // The correction that matters here. A communicator's job is not divided
+    // into weeks: handling a tariff announcement wants what one module said
+    // about explaining a price and what another said about the regulator.
+    // Pinning the exercise to one module rehearsed the timetable, not the work.
     expect(objectiveFor({
-      programmeTitle: "Energy Comms", programmeDescription: "The programme blurb",
-      moduleTitle: "Module two", moduleDescription: "Explain a tariff rise without losing trust.",
-    })).toBe("Explain a tariff rise without losing trust.");
+      programmeTitle: "Energy Comms",
+      programmeDescription: "Hold the line in public when the facts are moving.",
+      moduleTitles: ["Module one", "Module two", "Module three"],
+    })).toBe("Hold the line in public when the facts are moving.");
   });
 
-  it("falls back to the module's title, then the programme", () => {
-    expect(objectiveFor({
-      programmeTitle: "Energy Comms", programmeDescription: "The programme blurb",
-      moduleTitle: "Module two", moduleDescription: "   ",
-    })).toMatch(/Module two/);
-
-    expect(objectiveFor({
-      programmeTitle: "Energy Comms", programmeDescription: "The programme blurb",
-      moduleTitle: null, moduleDescription: null,
-    })).toBe("The programme blurb");
+  it("names the ground covered when the programme says nothing about itself", () => {
+    const objective = objectiveFor({
+      programmeTitle: "Energy Comms",
+      programmeDescription: "   ",
+      moduleTitles: ["Explaining a tariff", "Facing the regulator"],
+    });
+    expect(objective).toMatch(/whole of Energy Comms/);
+    expect(objective).toMatch(/Explaining a tariff, Facing the regulator/);
   });
 
   it("never invents an objective out of nothing", () => {
     // An objective this file made up would be one more thing for a facilitator
     // to find disagreeing with what they actually taught. With nothing written
     // down it names the programme and says no more.
-    const objective = objectiveFor({
-      programmeTitle: "Energy Comms", programmeDescription: "",
-      moduleTitle: null, moduleDescription: null,
-    });
-    expect(objective).toMatch(/Energy Comms/);
+    expect(objectiveFor({
+      programmeTitle: "Energy Comms", programmeDescription: "", moduleTitles: [],
+    })).toBe("Handle a live communications crisis to the standard Energy Comms sets.");
+  });
+
+  it("copes with a programme that has no name either", () => {
+    expect(objectiveFor({ programmeTitle: "  ", programmeDescription: "" }))
+      .toMatch(/this programme/);
   });
 });
 
@@ -163,7 +169,7 @@ describe("refusing an invitation an admin should not send", () => {
 
   it("refuses when the programme says nothing to practise, and says what to fix", () => {
     expect(invitationProblem({ ...base, objective: "short" }))
-      .toMatch(/Give the module a description first/);
+      .toMatch(/Give the programme a description first/);
   });
 
   it("allows the ordinary case", () => {

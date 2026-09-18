@@ -1,8 +1,9 @@
 import { createHash, randomBytes } from "node:crypto";
 import { Router, type IRouter, type NextFunction, type Request, type Response } from "express";
-import { and, asc, eq, isNull, lt, or, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, lt, or, sql } from "drizzle-orm";
 import {
-  db, enrollmentsTable, programsTable, sessionsTable, simulationDefinitionsTable,
+  db, assignmentsTable, enrollmentsTable, programsTable, sessionReadingsTable, sessionsTable,
+  simulationDefinitionsTable,
   simulationGroupAssignmentsTable, simulationResponsesTable, simulationRunsTable, studioAccessCodesTable,
   studioInvitationsTable, usersTable,
 } from "@workspace/db";
@@ -280,18 +281,60 @@ async function enrolledProgramIds(userId: number): Promise<number[]> {
  * thing taught in week three" is only a useful instruction if week three is
  * identifiable.
  */
+/**
+ * The whole programme, as the scenario writer should see it.
+ *
+ * Module titles alone were six or eight phrases — enough to place an exercise
+ * vaguely in the right territory and no further. What a module taught is in its
+ * description, what it asked for is in its written task, and what it pointed
+ * people at is on its reading list, and all three are what turn "something
+ * about energy communications" into something this cohort recognises.
+ *
+ * Class transcripts are deliberately left out. They are the largest thing
+ * attached to a module and the least summarised, and a prompt that carries a
+ * term's worth of them is paying for length rather than for relevance.
+ */
 async function programmeContext(programId: number): Promise<StudioProgrammeContext | null> {
   const [programme] = await db.select().from(programsTable).where(eq(programsTable.id, programId));
   if (!programme) return null;
-  const modules = await db.select({ title: sessionsTable.title })
+
+  const modules = await db
+    .select({ id: sessionsTable.id, title: sessionsTable.title, description: sessionsTable.description })
     .from(sessionsTable)
     .where(eq(sessionsTable.programId, programId))
     .orderBy(asc(sessionsTable.startsAt), asc(sessionsTable.id));
+
+  const sessionIds = modules.map((m) => m.id).concat(-1);
+  const [tasks, readings] = await Promise.all([
+    // Posted tasks only. A draft is not something the cohort was asked for.
+    db.select({ sessionId: assignmentsTable.sessionId, title: assignmentsTable.title })
+      .from(assignmentsTable)
+      .where(and(inArray(assignmentsTable.sessionId, sessionIds), eq(assignmentsTable.draft, false))),
+    db.select({ sessionId: sessionReadingsTable.sessionId, title: sessionReadingsTable.title })
+      .from(sessionReadingsTable)
+      .where(inArray(sessionReadingsTable.sessionId, sessionIds))
+      .orderBy(asc(sessionReadingsTable.sortOrder)),
+  ]);
+
+  const taskFor = new Map(tasks.map((a) => [a.sessionId, a.title]));
+  const readingsFor = new Map<number, string[]>();
+  for (const reading of readings) {
+    const list = readingsFor.get(reading.sessionId) ?? [];
+    list.push(reading.title);
+    readingsFor.set(reading.sessionId, list);
+  }
+
   return {
     title: programme.title,
     description: programme.description,
     tag: programme.tag,
     moduleTitles: modules.map((m) => m.title).filter(Boolean),
+    modules: modules.filter((m) => m.title).map((m) => ({
+      title: m.title,
+      description: m.description,
+      taskTitle: taskFor.get(m.id) ?? null,
+      readings: readingsFor.get(m.id) ?? [],
+    })),
   };
 }
 
@@ -817,6 +860,19 @@ router.post("/admin/studio/invitations", async (req, res): Promise<void> => {
   const [programme] = await db.select().from(programsTable).where(eq(programsTable.id, body.data.programId));
   if (!programme) { res.status(404).json(message("Programme not found")); return; }
 
+  /*
+    The objective is the programme's, not a module's.
+
+    A communicator's job is not divided into weeks: handling a tariff
+    announcement wants what one module said about explaining a price, what
+    another said about the regulator, and whatever the first one said about
+    saying the thing plainly. Pinning the exercise to the most recent module
+    rehearsed the timetable rather than the work.
+
+    `sessionId` is still accepted so that an existing caller does not break, and
+    it is recorded on the invitation as a note of what prompted it — but it no
+    longer decides what anybody practises.
+  */
   let module: typeof sessionsTable.$inferSelect | null = null;
   if (body.data.sessionId) {
     const [found] = await db.select().from(sessionsTable).where(eq(sessionsTable.id, body.data.sessionId));
@@ -826,11 +882,18 @@ router.post("/admin/studio/invitations", async (req, res): Promise<void> => {
     module = found;
   }
 
+  const moduleTitles = (await db
+    .select({ title: sessionsTable.title })
+    .from(sessionsTable)
+    .where(eq(sessionsTable.programId, programme.id))
+    .orderBy(asc(sessionsTable.startsAt), asc(sessionsTable.id)))
+    .map((m) => m.title)
+    .filter(Boolean);
+
   const objective = objectiveFor({
     programmeTitle: programme.title,
     programmeDescription: programme.description,
-    moduleTitle: module?.title ?? null,
-    moduleDescription: module?.description ?? null,
+    moduleTitles,
   });
 
   const learners = await db
@@ -882,7 +945,7 @@ router.post("/admin/studio/invitations", async (req, res): Promise<void> => {
     note: invitationNote({
       invited: toInvite.length,
       alreadyHad: learners.length - toInvite.length,
-      moduleTitle: module?.title ?? programme.title,
+      moduleTitle: programme.title,
     }),
   }));
 });
