@@ -29,7 +29,7 @@ import { Activity, Check, Clipboard, Loader2, Users, Clock, Hash, KeyRound, Radi
 import { format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
-import { apiReason } from '@workspace/domain';
+import { apiReason, picksOwnExercise } from '@workspace/domain';
 
 const generateSchema = z.object({
   sectorTopic: z.string().min(5, "Topic must be at least 5 characters"),
@@ -70,17 +70,23 @@ export default function StudioHome() {
    * hand them.
    */
   const { data: myExercise } = useGetMyStudioExercise();
+  const invited = !!myExercise?.hasInvitation;
   /*
    * Who gets shown the machinery for making an exercise.
    *
-   * Not an invited learner: their exercise is chosen for them. And not somebody
-   * who is only in the Studio because their cohort has a group session — the
-   * server refuses them, and a form that asks for five decisions and then says
-   * no is worse than no form.
+   * Only an admin trying the Studio out, and somebody who typed a code because
+   * they are on no programme at all. Everybody on a cohort is handed theirs.
+   *
+   * Asked of the server rather than worked out here, because the answer was
+   * wrong in a way nobody could see: a cohort let in by "open the Studio to
+   * this programme" is admitted by an access-code row, so a check for an
+   * invitation read them as outsiders and put the whole five-field form back in
+   * front of them. The server refuses them now, and a form that asks for five
+   * decisions and then says no is worse than no form.
+   *
+   * Hidden while the answer is still loading, which is the safe direction.
    */
-  const invited = !!myExercise?.hasInvitation;
-  const hereForTheGroupOnly = studioAccess?.source === 'group_session';
-  const choosesNothing = invited || hereForTheGroupOnly;
+  const choosesNothing = !picksOwnExercise(studioAccess?.source ?? null);
   const { data: record } = useGetStudioRecord();
   const generateSim = useGenerateSimulation();
   const joinSim = useJoinSimulationRun();

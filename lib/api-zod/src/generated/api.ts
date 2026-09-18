@@ -2848,6 +2848,7 @@ export const GetMyGroupSessionResponse = zod.object({
  */
 export const GetMyStudioExerciseResponse = zod.object({
   "hasInvitation": zod.boolean(),
+  "awaiting": zod.boolean().optional(),
   "state": zod.enum(['ready', 'in-progress', 'spent', 'expired']).optional(),
   "objective": zod.string().optional(),
   "situation": zod.string().optional(),
@@ -2899,7 +2900,7 @@ export const InviteToStudioResponse = zod.object({
 export const GetStudioAccessResponse = zod.object({
   "allowed": zod.boolean(),
   "isAdmin": zod.boolean(),
-  "source": zod.union([zod.literal('admin'),zod.literal('invitation'),zod.literal('access_code'),zod.literal('group_session'),zod.literal(null)]).nullable()
+  "source": zod.union([zod.literal('admin'),zod.literal('invitation'),zod.literal('cohort'),zod.literal('access_code'),zod.literal('group_session'),zod.literal(null)]).nullable()
 })
 
 
@@ -2918,7 +2919,7 @@ export const RedeemStudioAccessBody = zod.object({
 export const RedeemStudioAccessResponse = zod.object({
   "allowed": zod.boolean(),
   "isAdmin": zod.boolean(),
-  "source": zod.union([zod.literal('admin'),zod.literal('invitation'),zod.literal('access_code'),zod.literal('group_session'),zod.literal(null)]).nullable()
+  "source": zod.union([zod.literal('admin'),zod.literal('invitation'),zod.literal('cohort'),zod.literal('access_code'),zod.literal('group_session'),zod.literal(null)]).nullable()
 })
 
 

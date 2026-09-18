@@ -5628,6 +5628,10 @@ components:
       required: [hasInvitation]
       properties:
         hasInvitation: { type: boolean }
+        # On a cohort, so their exercises are sent rather than written to order,
+        # and none has been sent yet. The Studio says so instead of looking
+        # empty.
+        awaiting: { type: boolean }
         state:
           type: string
           enum: [ready, in-progress, spent, expired]
@@ -5702,7 +5706,10 @@ components:
           type: ["string", "null"]
           # group_session: in for their cohort's session and nothing else. They
           # may not write exercises or start runs of their own.
-          enum: [admin, invitation, access_code, group_session, null]
+          # cohort: let in by an admin opening the Studio to a whole programme.
+          # Recorded as an access code because that is where admission lives,
+          # but it is a cohort, so their exercises are sent rather than chosen.
+          enum: [admin, invitation, cohort, access_code, group_session, null]
     StudioAccessCodeInput:
       type: object
       required: [code]

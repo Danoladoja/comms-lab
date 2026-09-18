@@ -9,6 +9,7 @@ import type { MyStudioExerciseState } from './myStudioExerciseState';
 
 export interface MyStudioExercise {
   hasInvitation: boolean;
+  awaiting?: boolean;
   state?: MyStudioExerciseState;
   objective?: string;
   situation?: string;

@@ -54,6 +54,38 @@ export function mayEnterStudio(
   return isAdmin || hasStudioInvitation || hasRedeemedCode || onCohortSession;
 }
 
+/**
+ * How somebody got into the Studio.
+ *
+ * Kept as one word because the next question — whether they choose their own
+ * exercise — has to be answerable from it alone. A route that has to re-derive
+ * "are they on a cohort" in three places will eventually disagree with itself
+ * in one of them.
+ */
+export type StudioEntry = "admin" | "invitation" | "cohort" | "group_session" | "access_code" | null;
+
+/**
+ * Who fills in the form, and who is handed their exercise.
+ *
+ * Only two kinds of person choose: an admin, who is trying the Studio out, and
+ * somebody who typed a code because they are not on a programme at all and
+ * there is no programme to choose for them.
+ *
+ * Everybody on a cohort is handed theirs. That is the whole point of the
+ * invitation — the objective comes from the programme, and a learner asked to
+ * name their own is being asked the one question the programme exists to
+ * answer. It is also the money: every submission of that form is a model call.
+ *
+ * The case this exists for is the quiet one. A cohort let in by an admin
+ * pressing "open the Studio to this programme" is admitted by an access-code
+ * row, because that is where admission is recorded. Reading that row as "typed
+ * a code" put the form back in front of an entire cohort, which is exactly what
+ * the invitation was built to take away.
+ */
+export function picksOwnExercise(entry: StudioEntry): boolean {
+  return entry === "admin" || entry === "access_code";
+}
+
 export function mayCreateStudioRun(mode: StudioMode, ownerId: number, participantId: number): boolean {
   return mode === "facilitated" || ownerId === participantId;
 }

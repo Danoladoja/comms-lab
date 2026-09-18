@@ -28,7 +28,7 @@ import {
   objectiveFor, invitationProblem, invitationNote,
   groupSessionState, approvalProblem, mayEditSession, beatApprovalNote, GROUP_SESSION_MINUTES,
   developmentsForTeam, debriefForTeam, isUnattendedRoom, mayEnterRoom, startsInMinutes, cohortNote,
-  minutesLeft,
+  minutesLeft, picksOwnExercise,
 } from "@workspace/domain";
 import { getCurrentUser } from "../lib/auth";
 import { createBudget } from "../lib/rateBudget";
@@ -80,13 +80,24 @@ async function studioAccess(user: Awaited<ReturnType<typeof getCurrentUser>>) {
   const [[invitation], [code], session] = await Promise.all([
     db.select({ id: studioInvitationsTable.id }).from(studioInvitationsTable)
       .where(eq(studioInvitationsTable.userId, user.id)).limit(1),
-    db.select({ id: studioAccessCodesTable.id }).from(studioAccessCodesTable)
-      .where(eq(studioAccessCodesTable.redeemedByUserId, user.id)).limit(1),
+    // The source matters as much as the row. A whole cohort let in by an admin
+    // pressing "open the Studio to this programme" is recorded here too, and
+    // reading that as "typed a code" hands an entire cohort the form the
+    // invitation exists to take away.
+    db.select({ id: studioAccessCodesTable.id, source: studioAccessCodesTable.source })
+      .from(studioAccessCodesTable)
+      .where(eq(studioAccessCodesTable.redeemedByUserId, user.id))
+      .orderBy(sql`case when ${studioAccessCodesTable.source} = 'cohort' then 0 else 1 end`)
+      .limit(1),
     cohortSessionFor(user.id),
   ]);
   if (mayEnterStudio(false, !!invitation, !!code, !!session)) {
     if (invitation) return { allowed: true, isAdmin: false, source: "invitation" as const };
-    if (code) return { allowed: true, isAdmin: false, source: "access_code" as const };
+    if (code) {
+      return code.source === "cohort"
+        ? { allowed: true, isAdmin: false, source: "cohort" as const }
+        : { allowed: true, isAdmin: false, source: "access_code" as const };
+    }
     return { allowed: true, isAdmin: false, source: "group_session" as const };
   }
   return { allowed: false, isAdmin: false, source: null };
@@ -175,20 +186,23 @@ async function requireStudioAccess(req: Request, res: Response, next: NextFuncti
 }
 
 /**
- * In for the group session, and only for that.
+ * Does this person fill in the form, or are they handed their exercise?
  *
- * A group session lets a whole cohort through the Studio door without anybody
- * being invited by name. That door must not also open onto the thing the
- * invitation exists to govern — writing exercises, which costs real money on
- * somebody else's meter, and running as many of them as you like.
+ * Only an admin trying the Studio out, and somebody who typed a code because
+ * they are on no programme at all. Everybody on a cohort is handed theirs —
+ * that is what the invitation is — and writing your own is the spending the
+ * invitation exists to govern.
  *
- * So: admitted for the session, refused everything else. Somebody who also has
- * an invitation or a code is unaffected, because they got in on that.
+ * Three ways onto a cohort and all three were leaking in different ways: an
+ * invited learner was stopped at run creation but not at generation; a whole
+ * cohort let in by "open the Studio to this programme" was stopped nowhere,
+ * because its admission is recorded as an access code; and a group session
+ * admits people with no invitation at all.
  */
-async function onlyHereForTheGroupSession(
+async function handedTheirExercise(
   user: NonNullable<Awaited<ReturnType<typeof getCurrentUser>>>,
 ): Promise<boolean> {
-  return (await studioAccess(user)).source === "group_session";
+  return !picksOwnExercise((await studioAccess(user)).source);
 }
 function response(row: typeof simulationResponsesTable.$inferSelect) {
   return { injectId: row.injectId, groupId: row.groupId, body: row.body, authorId: row.authorId, createdAt: row.createdAt, updatedAt: row.updatedAt };
@@ -1151,7 +1165,19 @@ router.get("/studio/my-exercise", requireStudioAccess, async (req, res): Promise
   if (!user) { res.status(401).json(message("Unauthorized")); return; }
 
   const invite = await openInvitationFor(user.id);
-  if (!invite) { res.json(GetMyStudioExerciseResponse.parse({ hasInvitation: false })); return; }
+  if (!invite) {
+    /*
+      No invitation, but on a cohort: they are waiting for one rather than
+      choosing. Said out loud, because the alternative is an empty Studio that
+      looks broken — which is what a learner on a granted cohort was getting the
+      moment the form was taken away from them.
+    */
+    res.json(GetMyStudioExerciseResponse.parse({
+      hasInvitation: false,
+      awaiting: await handedTheirExercise(user),
+    }));
+    return;
+  }
 
   const facts = inviteFacts(invite);
   const situation = situationFor(invite.situationSeed);
@@ -1438,12 +1464,12 @@ router.post("/simulations/generate", requireStudioAccess, async (req, res): Prom
     res.status(429).json(message("You have written a lot of exercises today. Try again tomorrow, or run one you already have."));
     return;
   }
-  // Admitted for their cohort's group session and nothing else. Writing
-  // exercises is the expensive thing an invitation exists to govern, and a
-  // group session invites nobody by name.
-  if (await onlyHereForTheGroupSession(user)) {
+  // On a cohort, so their exercise is chosen for them rather than written to
+  // order. This is the expensive door: every submission of that form is a model
+  // call on somebody else's meter.
+  if (await handedTheirExercise(user)) {
     res.status(403).json(message(
-      "You are in the Studio for your cohort's group session. Writing your own exercise needs an invitation.",
+      "Your exercises come from your programme. Your facilitator sends them; there is nothing to fill in.",
     ));
     return;
   }
@@ -1519,11 +1545,11 @@ router.post("/simulation-runs", requireStudioAccess, async (req, res): Promise<v
       ));
       return;
     }
-    // Same reason, one door along: somebody here only for the group session has
-    // not been given an individual exercise to run.
-    if (await onlyHereForTheGroupSession(user)) {
+    // Same reason, one door along. Somebody on a cohort runs the exercise they
+    // were sent, not one they picked off the shelf.
+    if (await handedTheirExercise(user)) {
       res.status(403).json(message(
-        "You are in the Studio for your cohort's group session, which starts on its own.",
+        "Your exercises come from your programme. Open the Studio and it will be waiting.",
       ));
       return;
     }

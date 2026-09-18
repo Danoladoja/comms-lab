@@ -99,7 +99,7 @@ vi.mock("@workspace/db", () => {
     deliveredBeatIds: "delivered_beat_ids", sessionDebrief: "session_debrief",
     createdByUserId: "created_by_user_id", createdAt: "created_at", updatedAt: "updated_at",
   }),
-  studioAccessCodesTable: table("studioAccessCodes", { id: "id", codeHash: "code_hash", createdByUserId: "created_by", redeemedByUserId: "redeemed_by", redeemedAt: "redeemed_at" }),
+  studioAccessCodesTable: table("studioAccessCodes", { id: "id", source: "source", codeHash: "code_hash", createdByUserId: "created_by", redeemedByUserId: "redeemed_by", redeemedAt: "redeemed_at" }),
   simulationDefinitionsTable: table("simulationDefinitions", { id: "id", ownerId: "owner_id", createdAt: "created_at" }),
   simulationRunsTable: table("simulationRuns", { id: "id", ownerId: "owner_id", joinCode: "join_code", status: "status", definitionId: "definition_id" }),
   simulationGroupAssignmentsTable: table("simulationGroupAssignments", { id: "id", runId: "run_id", userId: "user_id", groupId: "group_id" }),
@@ -134,6 +134,15 @@ beforeEach(async () => {
 
   const app = express();
   app.use(express.json());
+  // Stands in for pino-http, which runs ahead of every router in the real
+  // server. Without it a handler that logs throws, and the test reads an HTML
+  // 500 instead of the refusal it was checking for.
+  app.use((req, _res, next) => {
+    (req as unknown as { log: unknown }).log = {
+      info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn(),
+    };
+    next();
+  });
   app.use("/api", studioRouter);
   // Everything registered after the Studio router. If the Studio's gate ever
   // reaches past its own routes again, these stop answering.
@@ -209,6 +218,62 @@ describe("the Studio gate itself", () => {
     expect(res.status).toBe(200);
   });
 
+  it("does not put the form in front of a cohort let in by the admin", async () => {
+    /*
+     * The quiet one, and the reason this test exists.
+     *
+     * "Open the Studio to this programme" admits a whole cohort by writing an
+     * access-code row per learner, because that is where admission is recorded.
+     * Every check that asked "do they have an invitation" read those learners
+     * as outsiders who had typed a code, and handed them the five-field form —
+     * which is the unbounded spending the invitation was built to end.
+     */
+    mocks.setUser({ id: 5, role: "learner" });
+    mocks.setRows({ studioAccessCodes: [{ id: 9, source: "cohort" }] });
+    const res = await fetch(`${baseUrl}/api/simulations/generate`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        sectorTopic: "A pipeline leak", objective: "Say the hard number first",
+        difficulty: "intermediate", durationMinutes: 30,
+        participantPerspective: "Head of Communications", mode: "autonomous",
+      }),
+    });
+    expect(res.status).toBe(403);
+    expect((await res.json() as { error: string }).error).toMatch(/come from your programme/i);
+  });
+
+  it("still lets an outsider who typed a code write their own", async () => {
+    // They are on no programme, so there is no programme to choose for them.
+    // Taking the form away from them would leave them with an empty Studio.
+    mocks.setUser({ id: 5, role: "learner" });
+    mocks.setRows({ studioAccessCodes: [{ id: 9, source: "code" }] });
+    ai.generateScenario.mockResolvedValueOnce({ ok: false, error: "not today" });
+    mocks.setUpdates([]);
+    const res = await fetch(`${baseUrl}/api/simulations/generate`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        sectorTopic: "A pipeline leak", objective: "Say the hard number first",
+        difficulty: "intermediate", durationMinutes: 30,
+        participantPerspective: "Head of Communications", mode: "autonomous",
+      }),
+    });
+    // Reached the model, which is as far as this test needs it to get.
+    expect(res.status).toBe(502);
+  });
+
+  it("tells a learner on a cohort that their exercise is sent, not chosen", async () => {
+    mocks.setUser({ id: 5, role: "learner" });
+    mocks.setRows({ studioAccessCodes: [{ id: 9, source: "cohort" }] });
+    const res = await fetch(`${baseUrl}/api/studio/my-exercise`);
+    expect(res.status).toBe(200);
+    const body = await res.json() as { hasInvitation: boolean; awaiting: boolean };
+    // Without this the Studio is blank for them, which reads as broken.
+    expect(body.hasInvitation).toBe(false);
+    expect(body.awaiting).toBe(true);
+  });
+
   it("does not let that learner write an exercise of their own", async () => {
     // In for the session and nothing else. Writing exercises is the expensive
     // thing an invitation exists to govern, and nobody invited this person.
@@ -224,7 +289,7 @@ describe("the Studio gate itself", () => {
       }),
     });
     expect(res.status).toBe(403);
-    expect((await res.json() as { error: string }).error).toMatch(/group session/i);
+    expect((await res.json() as { error: string }).error).toMatch(/come from your programme/i);
   });
 
   it("asks a signed-out visitor to sign in rather than refusing them", async () => {

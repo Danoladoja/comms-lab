@@ -24,6 +24,7 @@ import {
   type CompletedRun,
   accessCodeCount,
   mayEnterStudio,
+  picksOwnExercise,
   maySeeStudioSimulation,
   maySeeConfidentialBrief,
   normaliseJoinCode,
@@ -47,6 +48,29 @@ describe("Studio admission", () => {
     // cohort is the room. Without this the learner is refused at the Studio
     // door by a rule written for the individual exercise.
     expect(mayEnterStudio(false, false, false, true)).toBe(true);
+  });
+});
+
+describe("who picks their own exercise", () => {
+  it("lets an admin and an outsider with a code choose", () => {
+    // An admin is trying the Studio out. Somebody who typed a code is on no
+    // programme, so there is no programme to choose for them.
+    expect(picksOwnExercise("admin")).toBe(true);
+    expect(picksOwnExercise("access_code")).toBe(true);
+  });
+
+  it("hands everybody on a cohort theirs instead", () => {
+    expect(picksOwnExercise("invitation")).toBe(false);
+    expect(picksOwnExercise("group_session")).toBe(false);
+    // The quiet one. A cohort let in by "open the Studio to this programme" is
+    // recorded as an access-code row, because that is where admission lives.
+    // Reading that as "typed a code" put the form back in front of a whole
+    // cohort — which is the thing the invitation was built to take away.
+    expect(picksOwnExercise("cohort")).toBe(false);
+  });
+
+  it("gives nobody a form when nobody is there", () => {
+    expect(picksOwnExercise(null)).toBe(false);
   });
 });
 

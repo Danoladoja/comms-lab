@@ -39,7 +39,27 @@ export default function MyExerciseCard() {
   });
 
   if (isLoading) return <div className="mb-8 h-64 animate-pulse bg-white/[0.03] border border-white/10" />;
-  if (!exercise?.hasInvitation) return null;
+
+  /*
+   * On a cohort, nothing sent yet.
+   *
+   * Their exercises come from the programme, so there is no form for them — and
+   * without this line the Studio is simply blank, which reads as broken rather
+   * than as waiting. It says who sends them, so there is somebody to ask.
+   */
+  if (!exercise?.hasInvitation) {
+    if (!exercise?.awaiting) return null;
+    return (
+      <div className="mb-10 border border-white/15 bg-white/[0.03] p-6">
+        <p className="text-[10px] uppercase tracking-widest text-white/40 mb-2">Your exercise</p>
+        <p className="text-sm text-white/75 leading-relaxed">
+          Nothing to set up here — your exercises come from your programme, and your facilitator
+          sends them. When one arrives it will be on this page, with the situation and what it is
+          testing already written.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <motion.div

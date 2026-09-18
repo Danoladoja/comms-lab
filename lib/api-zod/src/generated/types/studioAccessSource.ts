@@ -15,6 +15,7 @@ export type StudioAccessSource = typeof StudioAccessSource[keyof typeof StudioAc
 export const StudioAccessSource = {
   admin: 'admin',
   invitation: 'invitation',
+  cohort: 'cohort',
   access_code: 'access_code',
   group_session: 'group_session',
 } as const;
