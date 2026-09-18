@@ -3,7 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { build as esbuild } from "esbuild";
 import esbuildPluginPino from "esbuild-plugin-pino";
-import { rm } from "node:fs/promises";
+import { rm, cp } from "node:fs/promises";
 
 // Plugins (e.g. 'esbuild-plugin-pino') may use `require` to resolve dependencies
 globalThis.require = createRequire(import.meta.url);
@@ -118,6 +118,21 @@ globalThis.__dirname = __bannerPath.dirname(globalThis.__filename);
     `,
     },
   });
+
+  /*
+    The migration files travel with the bundle.
+
+    esbuild inlines JavaScript; these are .sql files read from disk at runtime,
+    so they have to be copied or the built app has nothing to apply. Resolved
+    from the bundle's own directory at runtime rather than from the monorepo
+    layout, because the layout is not guaranteed to survive a deploy and a
+    wrong path here fails silently until the first migration that matters.
+  */
+  await cp(
+    path.resolve(artifactDir, "../../lib/db/migrations"),
+    path.resolve(distDir, "migrations"),
+    { recursive: true },
+  );
 }
 
 buildAll().catch((err) => {

@@ -1,6 +1,12 @@
+import path from "node:path";
 import app from "./app";
 import { db, schemaGap } from "@workspace/db";
-import { startupVerdict } from "@workspace/domain";
+import {
+  startupVerdict,
+  shouldRunMigrations, migrationOutcomeMessage, shouldStopBooting,
+  type MigrationOutcome,
+} from "@workspace/domain";
+import { applyPendingMigrations } from "./lib/migrateAtStartup";
 import { logger } from "./lib/logger";
 import { startReminderScheduler } from "./lib/reminders";
 import { startRecordingSync } from "./lib/recordingSync";
@@ -22,16 +28,36 @@ if (Number.isNaN(port) || port <= 0) {
 }
 
 /**
+ * Bring the database up to the code, before anything is served.
+ *
+ * The step that used to be a person's errand. Twice now the code has moved and
+ * the database has not — once leaving forty-five learners looking at an error
+ * where their completed work should have been, once leaving the app in a crash
+ * loop — and both times the missing action was a single command somebody had
+ * been told about in passing. A deploy should be one thing.
+ */
+async function migrateDatabase(): Promise<MigrationOutcome> {
+  if (!shouldRunMigrations(process.env)) return { kind: "skipped" };
+
+  // Beside the bundle, put there by the build. Resolved from the running
+  // file's own directory rather than from the monorepo layout, which is not
+  // guaranteed to survive a deploy.
+  const folder = path.join(__dirname, "migrations");
+  try {
+    return await applyPendingMigrations(folder);
+  } catch (err) {
+    return { kind: "failed", error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+/**
  * Refuse to serve a database that is behind the code.
  *
- * Migrations here are applied by hand after a deploy — there is no release step
- * — so every schema change has a window where new code runs against the old
- * database. The app already explained that to whoever hit it, which turned out
- * to be the right sentence said to the wrong people at the wrong moment:
- * forty-five learners met an error where their completed work should have been,
- * while the one person who could run the command was elsewhere, hearing that
- * records had been wiped. Nothing had been wiped. The deploy had gone green an
- * hour earlier.
+ * Now a backstop rather than the only line of defence: migrations are applied
+ * above, so in the ordinary case there is nothing here to catch. It still earns
+ * its place for the cases where there would be — a skipped migration, a failed
+ * one, a database restored from an older backup, a build that shipped without
+ * its migration files.
  *
  * Checked once, here, where a failure is a deploy that visibly did not finish.
  *
@@ -69,6 +95,16 @@ async function databaseIsReady(): Promise<boolean> {
 }
 
 async function main(): Promise<void> {
+  const migration = await migrateDatabase();
+  if (shouldStopBooting(migration)) {
+    // Printed rather than logged as JSON, for the same reason as the schema
+    // verdict below: this is read by a person scanning a red deploy log.
+    console.error(migrationOutcomeMessage(migration));
+    logger.error({ outcome: migration.kind }, "Refusing to start: a database migration failed");
+    process.exit(1);
+  }
+  logger.info({ outcome: migration.kind }, migrationOutcomeMessage(migration));
+
   if (!await databaseIsReady()) {
     process.exit(1);
   }
