@@ -2849,13 +2849,14 @@ export const GetMyGroupSessionResponse = zod.object({
 export const GetMyStudioExerciseResponse = zod.object({
   "hasInvitation": zod.boolean(),
   "awaiting": zod.boolean().optional(),
-  "state": zod.enum(['ready', 'in-progress', 'spent', 'expired']).optional(),
+  "state": zod.enum(['not-yet-open', 'ready', 'in-progress', 'spent', 'expired']).optional(),
   "objective": zod.string().optional(),
   "situation": zod.string().optional(),
   "moduleTitle": zod.string().nullish(),
   "durationMinutes": zod.int().optional(),
   "difficulty": zod.string().optional(),
   "expiresAt": zod.coerce.date().nullish(),
+  "opensAt": zod.coerce.date().nullish(),
   "runId": zod.int().nullish(),
   "problem": zod.string().nullish()
 })
@@ -2886,6 +2887,7 @@ export const InviteToStudioBody = zod.object({
   "sessionId": zod.int().optional(),
   "difficulty": zod.enum(['foundation', 'intermediate', 'advanced']).optional(),
   "durationMinutes": zod.int().min(inviteToStudioBodyDurationMinutesMin).max(inviteToStudioBodyDurationMinutesMax).optional(),
+  "opensAt": zod.coerce.date().optional(),
   "expiresAt": zod.coerce.date().optional(),
   "steer": zod.string().max(inviteToStudioBodySteerMax).optional()
 })

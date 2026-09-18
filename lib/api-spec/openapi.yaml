@@ -5634,7 +5634,7 @@ components:
         awaiting: { type: boolean }
         state:
           type: string
-          enum: [ready, in-progress, spent, expired]
+          enum: [not-yet-open, ready, in-progress, spent, expired]
         # What the programme says they are practising, frozen when the
         # invitation was sent.
         objective: { type: string }
@@ -5648,6 +5648,8 @@ components:
         # a deadline nobody is told about is not a deadline, it is an invitation
         # that stops working for no visible reason.
         expiresAt: { type: ["string", "null"], format: date-time }
+        # When the door opens, when it is not open yet.
+        opensAt: { type: ["string", "null"], format: date-time }
         # Set once they have begun, so the page can send them back to it.
         runId: { type: ["integer", "null"] }
         # Why they cannot begin, when they cannot.
@@ -5692,6 +5694,10 @@ components:
         sessionId: { type: integer }
         difficulty: { type: string, enum: [foundation, intermediate, advanced] }
         durationMinutes: { type: integer, minimum: 5, maximum: 240 }
+        # The window it is good for. Both optional; both empty means open from
+        # the moment it is sent until it is used, which is what every
+        # invitation before this meant.
+        opensAt: { type: string, format: date-time }
         expiresAt: { type: string, format: date-time }
         # One sentence tilting the crisis. The real cap is 240 and lives in the
         # domain rules, which refuse a longer one in words an admin can act on.

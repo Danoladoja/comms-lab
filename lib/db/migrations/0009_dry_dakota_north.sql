@@ -1,0 +1,1 @@
+ALTER TABLE "studio_invitations" ADD COLUMN "opens_at" timestamp with time zone;

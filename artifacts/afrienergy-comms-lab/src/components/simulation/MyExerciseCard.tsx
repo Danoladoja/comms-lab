@@ -5,7 +5,8 @@ import {
   useBeginStudioExercise,
   type MyStudioExercise,
 } from '@workspace/api-client-react';
-import { apiReason, timeLeftNote } from '@workspace/domain';
+import { apiReason, timeLeftNote, opensInNote } from '@workspace/domain';
+import { formatDeadline as when } from '@/lib/dueDateText';
 import { useToast } from '@/hooks/use-toast';
 import { Target, Play, RotateCcw, CheckCircle2, Clock } from 'lucide-react';
 
@@ -97,16 +98,24 @@ export default function MyExerciseCard() {
         Saturday to find Friday's exercise gone has been caught out rather than
         held to anything.
       */}
+      {exercise.state === 'not-yet-open' && exercise.opensAt && (
+        <p className="flex items-start gap-2 text-xs text-white/60 mb-6">
+          <Clock className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" aria-hidden />
+          <span>
+            {opensInNote(exercise.opensAt as unknown as string, Date.now())}
+            {' '}You can start it from{' '}
+            {when(exercise.opensAt as unknown as string)}.
+          </span>
+        </p>
+      )}
+
       {exercise.expiresAt && exercise.state === 'ready' && (
         <p className="flex items-start gap-2 text-xs text-amber-200/80 mb-6">
           <Clock className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" aria-hidden />
           <span>
             {timeLeftNote(exercise.expiresAt as unknown as string, Date.now())}
             {' '}Use it by{' '}
-            {new Date(exercise.expiresAt as unknown as string).toLocaleString(undefined, {
-              weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit',
-            })}
-            .
+            {when(exercise.expiresAt as unknown as string)}.
           </span>
         </p>
       )}
@@ -167,6 +176,16 @@ function Action({ exercise, pending, onBegin, onResume }: {
 
   if (exercise.state === 'expired') {
     return <p className="text-sm text-amber-300/80">{exercise.problem}</p>;
+  }
+
+  // Not open yet: the button would only refuse, and a button that refuses
+  // teaches somebody the Studio is broken rather than that they are early.
+  if (exercise.state === 'not-yet-open') {
+    return (
+      <p className="text-sm text-white/60">
+        Nothing to do yet — it opens on its own, and this page will show the button when it does.
+      </p>
+    );
   }
 
   return (

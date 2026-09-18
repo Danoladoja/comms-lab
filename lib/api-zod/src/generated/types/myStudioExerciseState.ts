@@ -10,6 +10,7 @@ export type MyStudioExerciseState = typeof MyStudioExerciseState[keyof typeof My
 
 
 export const MyStudioExerciseState = {
+  'not-yet-open': 'not-yet-open',
   ready: 'ready',
   'in-progress': 'in-progress',
   spent: 'spent',

@@ -13,6 +13,7 @@ import {
   MIN_TASK_WORDS, MIN_CRITIQUE_WORDS, DEFAULT_REVIEWS_REQUIRED,
 } from '@workspace/domain';
 import { deadlineSummary } from '@/lib/dueDateText';
+import DateTimeField from '@/components/DateTimeField';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -20,47 +21,6 @@ import { useToast } from '@/hooks/use-toast';
 import { SaveAndClose } from '@/components/EditorSection';
 import { Plus, Trash2, RefreshCw, Loader, Sparkles, X, CalendarClock } from 'lucide-react';
 
-/**
- * The deadline box.
- *
- * Empty means no deadline, which is what everything has by default and what
- * most modules should keep. Clearing it is also the way to let somebody back in
- * after they have missed one, so "Clear" sits right beside the date rather than
- * being hidden behind a menu.
- */
-function DueDateField({ id, label, value, onChange }: {
-  id: string;
-  label: string;
-  /** The date-and-time box's own format, or '' for none. */
-  value: string;
-  onChange: (next: string) => void;
-}) {
-  return (
-    <div className="rounded-lg border border-border bg-background px-3 py-2.5">
-      <div className="flex flex-wrap items-center gap-2">
-        <label htmlFor={id} className="flex items-center gap-1.5 text-xs font-medium">
-          <CalendarClock className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
-          {label}
-        </label>
-        <Input
-          id={id}
-          type="datetime-local"
-          value={value}
-          onChange={e => onChange(e.target.value)}
-          className="h-8 w-auto text-sm"
-        />
-        {value && (
-          <Button variant="ghost" size="sm" className="h-8 text-muted-foreground" onClick={() => onChange('')}>
-            Clear
-          </Button>
-        )}
-      </div>
-      <p className="mt-1.5 text-xs text-muted-foreground">
-        {deadlineSummary(dueDateFromInput(value))}
-      </p>
-    </div>
-  );
-}
 
 type Seed = { prompt: string; options: string[]; correctIndex: number };
 
@@ -372,11 +332,12 @@ export function QuizEditor({ sessionId, seed, seedVersion = 0, onSaved, onDrafte
         Multiple choice, learners need 70% to pass and can retake freely. Tick the correct answer for each question.
       </p>
 
-      <DueDateField
+      <DateTimeField
         id={`quiz-due-${sessionId}`}
         label="Answers close"
         value={dueValue}
         onChange={setDue}
+        summary={deadlineSummary(dueDateFromInput(dueValue))}
       />
       {questions.map((q, i) => (
         <div key={q.id} className="space-y-2">
@@ -743,11 +704,12 @@ export function AssignmentEditor({ sessionId, seed, seedVersion = 0, onSaved, on
         </p>
       </div>
 
-      <DueDateField
+      <DateTimeField
         id={`assignment-due-${sessionId}`}
         label="Submissions close"
         value={dueValue}
         onChange={setDue}
+        summary={deadlineSummary(dueDateFromInput(dueValue))}
       />
       <SaveAndClose
         saving={save.isPending}

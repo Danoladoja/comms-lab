@@ -12,13 +12,13 @@ import {
   SITUATION_COMBINATIONS,
   steerProblem,
   standaloneProblem,
-  expiryProblem,
   levelNote,
   lengthNote,
   exerciseSubject,
   MAX_STEER_CHARS,
-  expiryFromInputs,
-  expiryIntent,
+  type StudioInviteFacts,
+  validityProblem,
+  opensInNote,
   timeLeftNote,
 } from "./studioInvites";
 
@@ -227,15 +227,6 @@ describe("the dials an admin turns", () => {
     })).toBeNull();
   });
 
-  it("refuses an expiry date that has already gone", () => {
-    // Dead on arrival reads to a learner as the Studio being broken.
-    expect(expiryProblem(new Date(NOW - DAY).toISOString(), NOW)).toMatch(/has gone/i);
-    expect(expiryProblem(new Date(NOW + 7 * DAY).toISOString(), NOW)).toBeNull();
-    expect(expiryProblem(null, NOW)).toBeNull();
-    expect(expiryProblem("whenever", NOW)).toMatch(/not a date/i);
-    expect(expiryProblem(new Date(NOW + 400 * DAY).toISOString(), NOW)).toMatch(/not really a deadline/i);
-  });
-
   it("says what each dial actually does", () => {
     // A dial whose effect nobody can predict is a guess with extra steps.
     expect(levelNote("foundation")).toMatch(/one thing going wrong/i);
@@ -264,39 +255,69 @@ describe("the dials an admin turns", () => {
   });
 });
 
-describe("a deadline with an hour on it", () => {
+
+describe("a validity window rather than a deadline", () => {
   const NOW = Date.parse("2026-09-18T09:00:00Z");
+  const DAY = 24 * 60 * 60 * 1000;
+  const at = (ms: number) => new Date(NOW + ms).toISOString();
 
-  it("takes the hour when one is given", () => {
-    expect(expiryFromInputs("2026-09-30", "17:00")).toBe("2026-09-30T17:00:00");
+  const facts = (over: Partial<StudioInviteFacts> = {}): StudioInviteFacts => ({
+    runId: null, startedAt: null, completedAt: null, opensAt: null, expiresAt: null, ...over,
   });
 
-  it("gives them all of the last day when no hour is given", () => {
-    // "Use it by the 30th" has to include the 30th.
-    expect(expiryFromInputs("2026-09-30", "")).toBe("2026-09-30T23:59:59");
+  it("holds an invitation shut until its hour comes", () => {
+    // The case this exists for: an admin preparing next week's exercise on a
+    // Friday, who does not want the keen half of the cohort doing it that
+    // afternoon, before they have sat through Tuesday's module.
+    expect(inviteState(facts({ opensAt: at(2 * DAY) }), NOW)).toBe("not-yet-open");
+    expect(beginProblem(facts({ opensAt: at(2 * DAY) }), NOW)).toMatch(/has not opened/i);
+    expect(inviteState(facts({ opensAt: at(-DAY) }), NOW)).toBe("ready");
   });
 
-  it("is no deadline at all without a date", () => {
-    expect(expiryFromInputs("", "17:00")).toBeNull();
-    expect(expiryFromInputs("", "")).toBeNull();
+  it("does not hold shut something already in progress or finished", () => {
+    // Somebody who began is past the question, and a window reopening behind
+    // them must not take their run away.
+    expect(inviteState(facts({ opensAt: at(2 * DAY), runId: 7 }), NOW)).toBe("in-progress");
+    expect(inviteState(facts({ opensAt: at(2 * DAY), completedAt: at(-DAY) }), NOW)).toBe("spent");
   });
 
-  it("says which of those three the admin is about to do", () => {
-    // The end-of-day assumption was being made silently before, and was
-    // sometimes wrong: "by Friday" often means before Friday's class.
-    expect(expiryIntent("2026-09-30", "17:00")).toMatch(/at that time/);
-    expect(expiryIntent("2026-09-30", "")).toMatch(/end of that day/);
-    expect(expiryIntent("", "")).toMatch(/No deadline/);
+  it("reads a backwards window as closed rather than as forever pending", () => {
+    // Both ends wrong. "Come back later" for something that can never open is
+    // the worse of the two lies.
+    const backwards = facts({ opensAt: at(2 * DAY), expiresAt: at(-DAY) });
+    expect(inviteState(backwards, NOW)).toBe("expired");
   });
 
-  it("tells the learner how long they have, in the unit they would use", () => {
-    const iso = (h: number) => new Date(NOW + h * 60 * 60 * 1000).toISOString();
-    expect(timeLeftNote(iso(0.25), NOW)).toMatch(/Less than an hour/);
-    expect(timeLeftNote(iso(5), NOW)).toBe("5 hours left to start it.");
-    expect(timeLeftNote(iso(25), NOW)).toBe("One day left to start it.");
-    expect(timeLeftNote(iso(24 * 4), NOW)).toBe("4 days left to start it.");
-    expect(timeLeftNote(iso(-1), NOW)).toMatch(/expired/);
-    // No deadline is not a deadline of zero.
-    expect(timeLeftNote(null, NOW)).toBeNull();
+  it("refuses the three ways a window goes wrong", () => {
+    expect(validityProblem({ opensAt: null, expiresAt: at(-DAY) }, NOW)).toMatch(/has gone/i);
+    expect(validityProblem({ opensAt: at(5 * DAY), expiresAt: at(2 * DAY) }, NOW))
+      .toMatch(/closes before it opens/i);
+    // A mistyped year opens an exercise nobody can ever start.
+    expect(validityProblem({ opensAt: at(400 * DAY), expiresAt: null }, NOW)).toMatch(/check the year/i);
+    expect(validityProblem({ opensAt: null, expiresAt: at(400 * DAY) }, NOW))
+      .toMatch(/not really a deadline/i);
+  });
+
+  it("accepts a window, one end of a window, or neither", () => {
+    expect(validityProblem({ opensAt: at(DAY), expiresAt: at(3 * DAY) }, NOW)).toBeNull();
+    expect(validityProblem({ opensAt: at(DAY), expiresAt: null }, NOW)).toBeNull();
+    expect(validityProblem({ opensAt: null, expiresAt: at(DAY) }, NOW)).toBeNull();
+    // Both empty is the old behaviour: open from the moment it is sent.
+    expect(validityProblem({ opensAt: null, expiresAt: null }, NOW)).toBeNull();
+  });
+
+  it("refuses a date that is not a date, at either end", () => {
+    expect(validityProblem({ opensAt: "soon", expiresAt: null }, NOW)).toMatch(/opening date is not/i);
+    expect(validityProblem({ opensAt: null, expiresAt: "later" }, NOW)).toMatch(/closing date is not/i);
+  });
+
+  it("says how long until it opens, and nothing once it has", () => {
+    expect(opensInNote(at(30 * 60_000), NOW)).toMatch(/Opens in 30 minutes/);
+    expect(opensInNote(at(5 * 60 * 60_000), NOW)).toBe("Opens in 5 hours.");
+    expect(opensInNote(at(DAY + 60_000), NOW)).toBe("Opens tomorrow.");
+    expect(opensInNote(at(4 * DAY), NOW)).toBe("Opens in 4 days.");
+    // Already open, or never shut: nothing to say.
+    expect(opensInNote(at(-DAY), NOW)).toBeNull();
+    expect(opensInNote(null, NOW)).toBeNull();
   });
 });

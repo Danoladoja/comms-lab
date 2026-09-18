@@ -26,7 +26,7 @@ import {
   satisfiesRole, studioInviteLetter, whatTheClockSays, type StudioProgrammeContext,
   inviteState, beginProblem, situationFor, situationBrief, situationSummary,
   objectiveFor, invitationProblem, invitationNote,
-  steerProblem, standaloneProblem, expiryProblem, exerciseSubject,
+  steerProblem, standaloneProblem, validityProblem, exerciseSubject,
   groupSessionState, approvalProblem, mayEditSession, beatApprovalNote, GROUP_SESSION_MINUTES,
   developmentsForTeam, debriefForTeam, isUnattendedRoom, mayEnterRoom, startsInMinutes, cohortNote,
   minutesLeft, picksOwnExercise,
@@ -134,12 +134,23 @@ async function cohortSessionFor(userId: number) {
 
 /** The four facts the invitation rules read, out of a full row. */
 function inviteFacts(invite: {
-  runId: number | null; startedAt: Date | null; completedAt: Date | null; expiresAt: Date | null;
+  runId: number | null; startedAt: Date | null; completedAt: Date | null;
+  /*
+    Required rather than optional, which is the whole point of it being here.
+
+    A caller that selects a few columns and forgets this one would get "ready"
+    for an invitation that has not opened, and nothing would complain — the
+    filters downstream only ask whether it is spent or expired, so the mistake
+    would be invisible until a cohort started a week early. Making it required
+    turns that into a compile error instead.
+  */
+  opensAt: Date | null; expiresAt: Date | null;
 }) {
   return {
     runId: invite.runId,
     startedAt: invite.startedAt?.toISOString() ?? null,
     completedAt: invite.completedAt?.toISOString() ?? null,
+    opensAt: invite.opensAt?.toISOString() ?? null,
     expiresAt: invite.expiresAt?.toISOString() ?? null,
   };
 }
@@ -1272,6 +1283,7 @@ router.get("/studio/my-exercise", requireStudioAccess, async (req, res): Promise
     situation: invite.subject.trim() || situationSummary(situation),
     moduleTitle: await moduleTitleFor(invite.sessionId),
     expiresAt: invite.expiresAt?.toISOString() ?? null,
+    opensAt: invite.opensAt?.toISOString() ?? null,
     durationMinutes: invite.durationMinutes,
     difficulty: invite.difficulty,
     runId: invite.runId,
@@ -1435,8 +1447,11 @@ router.post("/admin/studio/invitations", async (req, res): Promise<void> => {
   // rather than mistakes.
   const badSteer = steerProblem(body.data.steer);
   if (badSteer) { res.status(400).json(message(badSteer)); return; }
-  const badExpiry = expiryProblem(body.data.expiresAt?.toISOString() ?? null, Date.now());
-  if (badExpiry) { res.status(400).json(message(badExpiry)); return; }
+  const badWindow = validityProblem({
+    opensAt: body.data.opensAt?.toISOString() ?? null,
+    expiresAt: body.data.expiresAt?.toISOString() ?? null,
+  }, Date.now());
+  if (badWindow) { res.status(400).json(message(badWindow)); return; }
 
   const [programme] = await db.select().from(programsTable).where(eq(programsTable.id, body.data.programId));
   if (!programme) { res.status(404).json(message("Programme not found")); return; }
@@ -1490,7 +1505,11 @@ router.post("/admin/studio/invitations", async (req, res): Promise<void> => {
   // out a second run, and the quiet version of that is a token bill nobody can
   // account for.
   const open = await db
-    .select({ userId: studioInvitationsTable.userId, runId: studioInvitationsTable.runId, startedAt: studioInvitationsTable.startedAt, completedAt: studioInvitationsTable.completedAt, expiresAt: studioInvitationsTable.expiresAt })
+    .select({
+      userId: studioInvitationsTable.userId, runId: studioInvitationsTable.runId,
+      startedAt: studioInvitationsTable.startedAt, completedAt: studioInvitationsTable.completedAt,
+      opensAt: studioInvitationsTable.opensAt, expiresAt: studioInvitationsTable.expiresAt,
+    })
     .from(studioInvitationsTable)
     .where(eq(studioInvitationsTable.programId, programme.id));
   const holdsOne = new Set(
@@ -1515,6 +1534,7 @@ router.post("/admin/studio/invitations", async (req, res): Promise<void> => {
       difficulty: body.data.difficulty ?? "intermediate",
       durationMinutes: body.data.durationMinutes ?? 30,
       invitedByUserId: user.id,
+      opensAt: body.data.opensAt ? new Date(body.data.opensAt) : null,
       expiresAt: body.data.expiresAt ? new Date(body.data.expiresAt) : null,
     })));
   }

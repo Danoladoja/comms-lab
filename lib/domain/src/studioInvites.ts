@@ -35,10 +35,23 @@ export type StudioInviteFacts = {
   runId: number | null;
   startedAt: string | null;
   completedAt: string | null;
+  /**
+   * The window the invitation is good for.
+   *
+   * `opensAt` was added because "use it by" only ever answered half the
+   * question. An admin preparing next week's exercise on a Friday had no way to
+   * stop the keen half of the cohort doing it that afternoon, which is not the
+   * same exercise: everybody was supposed to arrive at it having sat through
+   * Tuesday's module. Both ends are optional, and both empty is the old
+   * behaviour — open from the moment it is sent until it is used.
+   */
+  opensAt: string | null;
   expiresAt: string | null;
 };
 
 export type InviteState =
+  /** Sent, but its window has not opened yet. */
+  | "not-yet-open"
   /** Sent, not yet started. The one state in which a run may begin. */
   | "ready"
   /** Started and not finished. They go back to the run they left. */
@@ -55,6 +68,10 @@ export function inviteState(invite: StudioInviteFacts, nowMs: number): InviteSta
   // session's own clock ends the run soon enough anyway.
   if (invite.runId || invite.startedAt) return "in-progress";
   if (invite.expiresAt && new Date(invite.expiresAt).getTime() < nowMs) return "expired";
+  // Asked after expiry on purpose. A window whose two ends have been set the
+  // wrong way round should read as closed rather than as forever pending —
+  // "come back later" for something that can never open is the worse lie.
+  if (invite.opensAt && new Date(invite.opensAt).getTime() > nowMs) return "not-yet-open";
   return "ready";
 }
 
@@ -69,6 +86,11 @@ export function beginProblem(invite: StudioInviteFacts, nowMs: number): string |
   switch (inviteState(invite, nowMs)) {
     case "ready":
       return null;
+    case "not-yet-open":
+      // Deliberately does not name the hour. Only the browser knows what time
+      // it is where the learner is sitting, and it puts the moment on screen
+      // beside this.
+      return "This exercise has not opened yet.";
     case "in-progress":
       // Not an error the learner should be stopped by — the caller sends them
       // to the run instead. It is here so that a second press of Begin can
@@ -356,21 +378,70 @@ export function standaloneProblem(facts: {
 }
 
 /**
- * An expiry date, or a reason it is not one.
+ * The validity window, or the reason it is not one.
  *
- * A date in the past would send an invitation that is dead on arrival, which
- * looks to a learner exactly like the Studio being broken.
+ * Replaces a lone expiry check, which could only catch one of the three ways a
+ * window goes wrong. The other two are the interesting ones: an admin who fills
+ * the boxes in the order they think of them ends up with a window that closes
+ * before it opens, and one who mistypes a year ends up with an exercise that
+ * opens in 2027. Neither refuses at the door — they both just quietly produce a
+ * cohort that can never start.
  */
-export function expiryProblem(expiresAt: string | null | undefined, nowMs: number): string | null {
-  if (!expiresAt) return null;
-  const at = new Date(expiresAt).getTime();
-  if (!Number.isFinite(at)) return "That is not a date.";
-  if (at <= nowMs) return "That date has gone. An invitation that expires before it arrives cannot be used.";
-  if (at - nowMs > MAX_EXPIRY_DAYS * 24 * 60 * 60 * 1000) {
+export function validityProblem(
+  window: { opensAt: string | null | undefined; expiresAt: string | null | undefined },
+  nowMs: number,
+): string | null {
+  const opens = moment(window.opensAt);
+  const closes = moment(window.expiresAt);
+
+  if (window.opensAt && opens === null) return "The opening date is not a date.";
+  if (window.expiresAt && closes === null) return "The closing date is not a date.";
+
+  if (closes !== null && closes <= nowMs) {
+    return "That closing time has gone. An invitation that expires before it arrives cannot be used.";
+  }
+  if (opens !== null && closes !== null && closes <= opens) {
+    return "It closes before it opens. Give it a closing time after the opening one, "
+      + "or clear one of them.";
+  }
+  if (opens !== null && opens - nowMs > MAX_EXPIRY_DAYS * 24 * 60 * 60 * 1000) {
+    return `That opens more than ${MAX_EXPIRY_DAYS} days from now. Check the year.`;
+  }
+  if (closes !== null && closes - nowMs > MAX_EXPIRY_DAYS * 24 * 60 * 60 * 1000) {
     return `That is more than ${MAX_EXPIRY_DAYS} days away, which is not really a deadline. `
       + "Leave it empty if you do not want one.";
   }
   return null;
+}
+
+function moment(value: string | null | undefined): number | null {
+  if (!value) return null;
+  const at = new Date(value).getTime();
+  return Number.isFinite(at) ? at : null;
+}
+
+/**
+ * When the door opens, said the way somebody would say it.
+ *
+ * The absolute moment goes on screen beside this, formatted by the browser in
+ * the learner's own clock. This is the part that tells them whether to wait or
+ * to go and do something else.
+ */
+export function opensInNote(opensAt: string | null | undefined, nowMs: number): string | null {
+  const at = moment(opensAt);
+  if (at === null) return null;
+
+  const until = at - nowMs;
+  if (until <= 0) return null;
+
+  const hours = Math.floor(until / (60 * 60 * 1000));
+  if (hours < 1) {
+    const minutes = Math.max(1, Math.floor(until / 60_000));
+    return `Opens in ${minutes} ${minutes === 1 ? "minute" : "minutes"}.`;
+  }
+  if (hours < 24) return `Opens in ${hours} ${hours === 1 ? "hour" : "hours"}.`;
+  const days = Math.floor(hours / 24);
+  return days === 1 ? "Opens tomorrow." : `Opens in ${days} days.`;
 }
 
 /**
@@ -422,48 +493,6 @@ export function exerciseSubject(facts: {
   if (!subject) return facts.drawn;
   if (!facts.hasProgramme) return subject;
   return `${facts.drawn} The exercise should concern ${subject}.`;
-}
-
-/**
- * A deadline out of a date box and a time box.
- *
- * The date alone was doing this before, with the end of that day assumed. That
- * assumption was invisible and sometimes wrong: "use it by Friday" often means
- * before Friday's class, not just before Friday's midnight, and an admin who
- * meant five o'clock had no way to say so.
- *
- * So the time is optional and the assumption is stated rather than hidden. No
- * date at all means no deadline, which is what leaving both boxes empty has
- * always meant.
- *
- * Deliberately naive rather than UTC. Both boxes are filled in by a person
- * looking at their own clock, so `2026-09-30T17:00` is five in the afternoon
- * where they are — which the browser resolves when it turns this into an
- * instant, and the server never has to guess at.
- */
-export function expiryFromInputs(date: string, time: string): string | null {
-  const day = date.trim();
-  if (!day) return null;
-  const at = time.trim();
-  // End of the day when no time is given: the deadline is "by the 30th", so the
-  // 30th itself has to still count.
-  return at ? `${day}T${at}:00` : `${day}T23:59:59`;
-}
-
-/**
- * What the admin is about to impose, in their own words, before they impose it.
- *
- * Named the hour explicitly when they chose one, and says the assumption out
- * loud when they did not.
- */
-export function expiryIntent(date: string, time: string): string {
-  if (!date.trim()) {
-    return "No deadline. The invitation sits open until it is used, which is what "
-      + "every invitation sent so far has done.";
-  }
-  return time.trim()
-    ? "It goes dead at that time, on that day."
-    : "No time given, so the end of that day — they have all of it.";
 }
 
 /**

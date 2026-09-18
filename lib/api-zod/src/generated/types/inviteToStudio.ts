@@ -16,6 +16,7 @@ export interface InviteToStudio {
      * @maximum 240
      */
   durationMinutes?: number;
+  opensAt?: Date;
   expiresAt?: Date;
   /** @maxLength 2000 */
   steer?: string;

@@ -20,6 +20,8 @@ export interface MyStudioExercise {
   /** @nullable */
   expiresAt?: Date | null;
   /** @nullable */
+  opensAt?: Date | null;
+  /** @nullable */
   runId?: number | null;
   /** @nullable */
   problem?: string | null;

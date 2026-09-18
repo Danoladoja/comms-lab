@@ -277,6 +277,17 @@ export const studioInvitationsTable = pgTable("studio_invitations", {
   difficulty: text("difficulty").notNull().default("intermediate"),
   durationMinutes: integer("duration_minutes").notNull().default(30),
 
+  /**
+   * When the door opens.
+   *
+   * Null means the moment it was sent, which is what every invitation before
+   * this meant. Set, it holds the exercise shut until then — the case being an
+   * admin preparing next week's on a Friday, who does not want the keen half of
+   * the cohort doing it that afternoon, before they have sat through Tuesday's
+   * module.
+   */
+  opensAt: timestamp("opens_at", { withTimezone: true }),
+
   invitedByUserId: integer("invited_by_user_id").notNull().references(() => usersTable.id, { onDelete: "restrict" }),
 
   /**

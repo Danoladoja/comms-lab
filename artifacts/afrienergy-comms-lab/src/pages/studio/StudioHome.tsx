@@ -31,8 +31,10 @@ import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import {
   apiReason, picksOwnExercise, levelNote, lengthNote, MAX_STEER_CHARS,
-  expiryFromInputs, expiryIntent,
+  validityProblem, dueDateFromInput,
 } from '@workspace/domain';
+import DateTimeField from '@/components/DateTimeField';
+import { deadlineSummary, openingSummary } from '@/lib/dueDateText';
 
 const generateSchema = z.object({
   sectorTopic: z.string().min(5, "Topic must be at least 5 characters"),
@@ -808,8 +810,11 @@ function InviteCohortToExercise({ programmes }: { programmes: any[] }) {
   const [programId, setProgramId] = useState('');
   const [difficulty, setDifficulty] = useState<'foundation' | 'intermediate' | 'advanced'>('intermediate');
   const [minutes, setMinutes] = useState(30);
-  const [expiresAt, setExpiresAt] = useState('');
-  const [expiresTime, setExpiresTime] = useState('');
+  // The browser's own date-and-time format, as every other date box in the Lab
+  // keeps it. Converted at the edge by dueDateFromInput, which reads the
+  // admin's own clock rather than slicing characters off a string.
+  const [opensAt, setOpensAt] = useState('');
+  const [closesAt, setClosesAt] = useState('');
   const [steer, setSteer] = useState('');
   const [result, setResult] = useState<string | null>(null);
 
@@ -828,6 +833,11 @@ function InviteCohortToExercise({ programmes }: { programmes: any[] }) {
   });
 
   const tooLong = steer.trim().length > MAX_STEER_CHARS;
+  // Said on the screen before the press rather than as a refusal after it.
+  const windowProblem = validityProblem(
+    { opensAt: dueDateFromInput(opensAt), expiresAt: dueDateFromInput(closesAt) },
+    Date.now(),
+  );
 
   return (
     <div className="p-5 bg-white/[0.02] border border-white/10 relative">
@@ -910,52 +920,47 @@ function InviteCohortToExercise({ programmes }: { programmes: any[] }) {
         </span>
       </label>
 
-      <div className="mt-4">
-        <span className="block text-[10px] uppercase tracking-widest text-white/40 mb-1.5">
-          Use it by — optional
-        </span>
-        <div className="flex flex-wrap items-center gap-2">
-          <input
-            type="date"
-            aria-label="The day the invitation goes dead"
-            className="bg-[#030811] border border-white/20 text-white px-3 py-2 text-sm"
-            value={expiresAt}
-            onChange={(e) => setExpiresAt(e.target.value)}
-          />
-          {/*
-            The hour, beside the day.
+      {/*
+        When it is good for.
 
-            The day alone was assuming the end of it, silently — and that
-            assumption is often wrong, because "use it by Friday" usually means
-            before Friday's class rather than before Friday's midnight. The
-            assumption is still the default and is now said out loud instead.
-          */}
-          <input
-            type="time"
-            aria-label="The time of day it goes dead"
-            disabled={!expiresAt}
-            className="bg-[#030811] border border-white/20 text-white px-3 py-2 text-sm disabled:opacity-40"
-            value={expiresTime}
-            onChange={(e) => setExpiresTime(e.target.value)}
-          />
-          {(expiresAt || expiresTime) && (
-            <button
-              type="button"
-              onClick={() => { setExpiresAt(''); setExpiresTime(''); }}
-              className="text-[11px] uppercase tracking-widest text-white/40 hover:text-white/70 px-2 py-2"
-            >
-              Clear
-            </button>
-          )}
-        </div>
-        <span className="block text-[11px] text-white/45 mt-1.5 leading-relaxed">
-          {expiryIntent(expiresAt, expiresTime)}
+        Two of the Lab's own date-and-time controls rather than a pair of boxes
+        invented here. This was a date on its own, silently assuming midnight,
+        and it answered only half the question — an admin preparing next week's
+        exercise on a Friday had no way to stop the keen half of the cohort
+        doing it that afternoon, before they had sat through Tuesday's module.
+
+        Both ends optional. Both empty is what every invitation before this did:
+        open from the moment it is sent until it is used.
+      */}
+      <div className="mt-5 space-y-3">
+        <span className="block text-[10px] uppercase tracking-widest text-white/40">
+          When they can do it — optional
         </span>
+        <DateTimeField
+          id="studio-invite-opens"
+          label="Opens"
+          tone="dark"
+          value={opensAt}
+          onChange={setOpensAt}
+          summary={openingSummary(dueDateFromInput(opensAt))}
+        />
+        <DateTimeField
+          id="studio-invite-closes"
+          label="Closes"
+          tone="dark"
+          value={closesAt}
+          min={opensAt || undefined}
+          onChange={setClosesAt}
+          summary={deadlineSummary(dueDateFromInput(closesAt))}
+        />
+        {windowProblem && (
+          <p className="text-[11px] text-amber-300 leading-relaxed">{windowProblem}</p>
+        )}
       </div>
 
       <button
         type="button"
-        disabled={!programId || invite.isPending || tooLong}
+        disabled={!programId || invite.isPending || tooLong || !!windowProblem}
         onClick={() => invite.mutate({
           data: {
             programId: Number(programId),
@@ -965,10 +970,8 @@ function InviteCohortToExercise({ programmes }: { programmes: any[] }) {
             // Read in the admin's own clock: both boxes are filled in by
             // somebody looking at their own, so five o'clock means five o'clock
             // where they are.
-            ...(() => {
-              const local = expiryFromInputs(expiresAt, expiresTime);
-              return local ? { expiresAt: new Date(local).toISOString() } : {};
-            })(),
+            ...(dueDateFromInput(opensAt) ? { opensAt: dueDateFromInput(opensAt)! } : {}),
+            ...(dueDateFromInput(closesAt) ? { expiresAt: dueDateFromInput(closesAt)! } : {}),
           },
         })}
         className="mt-5 bg-[#f97316] text-[#030811] px-5 py-2.5 text-[11px] font-bold uppercase tracking-widest disabled:opacity-50"

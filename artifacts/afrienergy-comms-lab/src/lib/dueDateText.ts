@@ -44,3 +44,20 @@ export function deadlineSummary(dueAt: string | null | undefined): string {
     ? `Closed since ${when}. Clear or move this date to let people back in.`
     : `Closes ${when}.`;
 }
+
+/**
+ * The line an admin reads beside an opening date.
+ *
+ * The mirror of `deadlineSummary`, and worded so the empty case says what
+ * empty actually does rather than leaving them to guess. An invitation with no
+ * opening time is not broken — it is open now, which is what every invitation
+ * the Lab has ever sent has been.
+ */
+export function openingSummary(opensAt: string | null | undefined): string {
+  const when = formatDeadline(opensAt);
+  if (!when) return 'Open as soon as it is sent.';
+  const at = new Date(opensAt as string).getTime();
+  return at > Date.now()
+    ? `They cannot start before ${when}.`
+    : `Opened ${when}.`;
+}

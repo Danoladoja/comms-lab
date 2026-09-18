@@ -1920,6 +1920,7 @@ export type MyStudioExerciseState = typeof MyStudioExerciseState[keyof typeof My
 
 
 export const MyStudioExerciseState = {
+  'not-yet-open': 'not-yet-open',
   ready: 'ready',
   'in-progress': 'in-progress',
   spent: 'spent',
@@ -1938,6 +1939,8 @@ export interface MyStudioExercise {
   difficulty?: string;
   /** @nullable */
   expiresAt?: string | null;
+  /** @nullable */
+  opensAt?: string | null;
   /** @nullable */
   runId?: number | null;
   /** @nullable */
@@ -1993,6 +1996,7 @@ export interface InviteToStudio {
      * @maximum 240
      */
   durationMinutes?: number;
+  opensAt?: string;
   expiresAt?: string;
   /** @maxLength 2000 */
   steer?: string;
