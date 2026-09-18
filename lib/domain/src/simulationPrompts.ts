@@ -44,6 +44,15 @@ export type StudioBrief = {
    * three, and the debrief can hold them to it.
    */
   programme?: StudioProgrammeContext | null;
+  /**
+   * One sentence from the admin who sent it, tilting the crisis.
+   *
+   * Placed after the subject and before the programme, and said to be a steer
+   * rather than the subject, because it is neither: it is a lean. An admin
+   * writing "make them face a community meeting" wants the exercise the
+   * programme would have produced, pointed one way.
+   */
+  steer?: string | null;
 };
 
 export type StudioProgrammeContext = {
@@ -185,6 +194,22 @@ function trimFor(text: string, max: number): string {
   return tidy.length <= max ? tidy : `${tidy.slice(0, max - 1)}…`;
 }
 
+/**
+ * The admin's lean, said as a lean.
+ *
+ * Deliberately not presented as the subject. An admin who writes "lean on the
+ * regulator" is not changing what the exercise is about; they are saying which
+ * way it should point, and a model told otherwise will drop everything the
+ * programme asked for and write about regulators.
+ */
+function steerSection(steer: string | null | undefined): string {
+  const text = (steer ?? "").replace(/\s+/g, " ").trim();
+  if (!text) return "";
+  return `
+The person setting this exercise has asked for one thing in particular: ${text}
+Let that steer the situation. It does not replace anything above it.`;
+}
+
 export function scenarioUserPrompt(brief: StudioBrief): string {
   const minutes = Math.max(5, Math.round(brief.durationMinutes || 30));
   return `Write one simulation.
@@ -194,6 +219,7 @@ What the participant should get better at: ${brief.objective}
 The participant is: ${brief.participantPerspective}
 Level: ${brief.difficulty}
 They have about ${minutes} minutes.
+${steerSection(brief.steer)}
 
 The opening brief should be four to six sentences and read like something handed
 to you as you walk into the office. Say what has happened, what is already

@@ -5638,7 +5638,8 @@ components:
         # What the programme says they are practising, frozen when the
         # invitation was sent.
         objective: { type: string }
-        # Their own crisis, in one sentence. Different for every learner.
+        # Their own crisis, in one sentence. Different for every learner on a
+        # programme; the admin's own words on a standalone exercise.
         situation: { type: string }
         moduleTitle: { type: ["string", "null"] }
         durationMinutes: { type: integer }
@@ -5688,6 +5689,11 @@ components:
         difficulty: { type: string, enum: [foundation, intermediate, advanced] }
         durationMinutes: { type: integer, minimum: 5, maximum: 240 }
         expiresAt: { type: string, format: date-time }
+        # One sentence tilting the crisis. The real cap is 240 and lives in the
+        # domain rules, which refuse a longer one in words an admin can act on.
+        # The bound here is only a sanity limit: a schema refusal arrives as an
+        # unreadable blob, and a length choice deserves a sentence.
+        steer: { type: string, maxLength: 2000 }
     InviteToStudioResult:
       type: object
       required: [invited, alreadyHad, objective, note]
@@ -5719,6 +5725,20 @@ components:
       type: object
       properties:
         count: { type: integer, minimum: 1, maximum: 50, default: 1 }
+        # An exercise travelling with the codes, for a workshop with nobody
+        # enrolled. Whoever redeems one is handed this, exactly as a learner on
+        # a programme is handed theirs. Omitted, the code just opens the door
+        # and they choose their own.
+        exercise:
+          type: object
+          required: [subject, objective]
+          properties:
+            subject: { type: string, minLength: 5, maxLength: 200 }
+            objective: { type: string, minLength: 10, maxLength: 500 }
+            # Same as above: the readable 240-character rule lives in the domain.
+            steer: { type: string, maxLength: 2000 }
+            difficulty: { type: string, enum: [foundation, intermediate, advanced] }
+            durationMinutes: { type: integer, minimum: 5, maximum: 240 }
     StudioAccessCode:
       type: object
       required: [code, codes]

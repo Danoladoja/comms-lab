@@ -204,6 +204,8 @@ export * from './studioAccess';
 export * from './studioAccessCode';
 export * from './studioAccessCodeInput';
 export * from './studioAccessCodeRequest';
+export * from './studioAccessCodeRequestExercise';
+export * from './studioAccessCodeRequestExerciseDifficulty';
 export * from './studioAccessGrantSummary';
 export * from './studioAccessSource';
 export * from './studioDevelopment';

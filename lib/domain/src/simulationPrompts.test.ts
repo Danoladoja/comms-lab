@@ -501,3 +501,27 @@ describe("figures on a development", () => {
     expect(JSON.stringify(developmentSchema())).toMatch(/Leave it out otherwise/i);
   });
 });
+
+describe("the admin's steer in the prompt", () => {
+  const brief = {
+    sectorTopic: "A tariff rise", objective: "Say the hard number first",
+    difficulty: "intermediate", durationMinutes: 30,
+    participantPerspective: "Head of Communications", mode: "autonomous",
+  };
+
+  it("says nothing at all when nothing was asked for", () => {
+    const prompt = scenarioUserPrompt(brief);
+    expect(prompt).not.toMatch(/in particular/);
+    expect(scenarioUserPrompt({ ...brief, steer: "   " })).not.toMatch(/in particular/);
+  });
+
+  it("carries the steer, and says it is a steer", () => {
+    // The word matters. A model told this is the subject drops everything the
+    // programme asked for and writes about regulators instead.
+    const prompt = scenarioUserPrompt({ ...brief, steer: "Lean on the regulator side of it." });
+    expect(prompt).toContain("Lean on the regulator side of it.");
+    expect(prompt).toMatch(/does not replace anything above it/);
+    // Still asked for what it was always asked for.
+    expect(prompt).toContain("Say the hard number first");
+  });
+});

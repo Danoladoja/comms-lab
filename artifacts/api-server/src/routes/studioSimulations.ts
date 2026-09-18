@@ -14,7 +14,7 @@ import {
   GetSimulationParams, GetSimulationResponse, GetSimulationRunParams, GetSimulationRunResponse,
   JoinSimulationRunBody, JoinSimulationRunResponse, ListSimulationsResponse, SubmitSimulationResponseBody,
   SubmitSimulationResponseParams, SubmitSimulationResponseResponse, GetStudioAccessResponse,
-  RedeemStudioAccessBody, RedeemStudioAccessResponse,
+  RedeemStudioAccessBody, RedeemStudioAccessResponse, CreateStudioAccessCodeBody,
   GetMyStudioExerciseResponse, BeginStudioExerciseResponse, GetMyGroupSessionResponse,
   InviteToStudioBody, InviteToStudioResponse,
   PlanGroupSessionBody, EditGroupSessionBody, GetGroupSessionResponse, ListGroupSessionsResponse,
@@ -26,6 +26,7 @@ import {
   satisfiesRole, studioInviteLetter, whatTheClockSays, type StudioProgrammeContext,
   inviteState, beginProblem, situationFor, situationBrief, situationSummary,
   objectiveFor, invitationProblem, invitationNote,
+  steerProblem, standaloneProblem, expiryProblem, exerciseSubject,
   groupSessionState, approvalProblem, mayEditSession, beatApprovalNote, GROUP_SESSION_MINUTES,
   developmentsForTeam, debriefForTeam, isUnattendedRoom, mayEnterRoom, startsInMinutes, cohortNote,
   minutesLeft, picksOwnExercise,
@@ -202,6 +203,15 @@ async function requireStudioAccess(req: Request, res: Response, next: NextFuncti
 async function handedTheirExercise(
   user: NonNullable<Awaited<ReturnType<typeof getCurrentUser>>>,
 ): Promise<boolean> {
+  /*
+    One question, asked of how they got in.
+
+    Worth noting what this already covers without a second check: somebody who
+    redeems a workshop code is admitted as an access code, but the redemption
+    mints them an invitation, and an invitation is what `studioAccess` reports
+    from then on. So they are handed their exercise from the moment they have
+    one, and are not also left the form to ignore.
+  */
   return !picksOwnExercise((await studioAccess(user)).source);
 }
 function response(row: typeof simulationResponsesTable.$inferSelect) {
@@ -659,7 +669,34 @@ router.post("/studio/access/redeem", async (req, res): Promise<void> => {
       .set({ redeemedByUserId: user.id, redeemedAt: new Date() })
       .where(and(eq(studioAccessCodesTable.id, code.id), isNull(studioAccessCodesTable.redeemedAt)))
       .returning({ id: studioAccessCodesTable.id });
-    return !!updated;
+    if (!updated) return false;
+
+    /*
+      The code was carrying an exercise, so they are handed it now.
+
+      Inside the same transaction as the redemption. Redeeming a workshop code
+      and not getting the exercise it was minted for would leave somebody
+      admitted to a Studio with nothing in it and no way to ask for the thing
+      they were promised — and the code is spent, so they cannot try again.
+
+      Frozen onto the invitation exactly as a cohort's is, so an admin editing
+      the batch later cannot change what somebody was already asked to do.
+    */
+    if (code.exercise) {
+      await tx.insert(studioInvitationsTable).values({
+        userId: user.id,
+        programId: null,
+        sessionId: null,
+        objective: code.exercise.objective,
+        subject: code.exercise.subject,
+        steer: code.exercise.steer,
+        situationSeed: `code:${code.id}:${user.id}:${randomBytes(4).toString("hex")}`,
+        difficulty: code.exercise.difficulty,
+        durationMinutes: code.exercise.durationMinutes,
+        invitedByUserId: code.createdByUserId,
+      });
+    }
+    return true;
   });
   if (!redeemed) { res.status(404).json(message("This Studio access code is invalid or has already been used")); return; }
   res.json(RedeemStudioAccessResponse.parse(await studioAccess(user)));
@@ -679,11 +716,48 @@ router.post("/studio/access-codes", async (req, res): Promise<void> => {
   if (!satisfiesRole(user.role, ["admin"])) { res.status(403).json(message("Only admins can create Studio access codes")); return; }
 
   const wanted = accessCodeCount((req.body as { count?: unknown } | undefined)?.count ?? 1);
+
+  /*
+    An exercise can travel with the codes.
+
+    This is the standalone case: a partner workshop, a staff session, twenty
+    people with no programme between them. The cohort invitation could not
+    reach them — it starts from an enrolment — and a bare code left each of
+    them filling in the same five-field form and practising twenty different
+    things. Attaching one exercise to the batch makes it one workshop.
+  */
+  const asked = (req.body as { exercise?: unknown } | undefined)?.exercise;
+  let exercise: {
+    subject: string; objective: string; steer: string; difficulty: string; durationMinutes: number;
+  } | null = null;
+
+  if (asked) {
+    const parsed = CreateStudioAccessCodeBody.safeParse(req.body);
+    if (!parsed.success) { res.status(400).json(message(parsed.error.message)); return; }
+    const wantedExercise = parsed.data.exercise;
+    if (wantedExercise) {
+      const bad = standaloneProblem({
+        subject: wantedExercise.subject ?? "",
+        objective: wantedExercise.objective ?? "",
+      }) ?? steerProblem(wantedExercise.steer);
+      if (bad) { res.status(400).json(message(bad)); return; }
+      exercise = {
+        subject: wantedExercise.subject.trim(),
+        objective: wantedExercise.objective.trim(),
+        steer: (wantedExercise.steer ?? "").trim(),
+        difficulty: wantedExercise.difficulty ?? "intermediate",
+        durationMinutes: wantedExercise.durationMinutes ?? 30,
+      };
+    }
+  }
+
   const codes: string[] = [];
   for (let i = 0; i < wanted; i++) codes.push(newAccessCode());
 
   await db.insert(studioAccessCodesTable)
-    .values(codes.map((code) => ({ codeHash: accessCodeHash(code), createdByUserId: user.id, source: "code" })))
+    .values(codes.map((code) => ({
+      codeHash: accessCodeHash(code), createdByUserId: user.id, source: "code", exercise,
+    })))
     .onConflictDoNothing();
 
   req.log.info({ count: codes.length, by: user.id }, "Created Studio access codes");
@@ -1187,7 +1261,15 @@ router.get("/studio/my-exercise", requireStudioAccess, async (req, res): Promise
     hasInvitation: true,
     state,
     objective: invite.objective,
-    situation: situationSummary(situation),
+    // On a programme the situation is drawn, so that no two people on a cohort
+    // get the same crisis. On a standalone there is no cohort to differentiate,
+    // and the admin's own words are the only thing that says what this is.
+    /*
+      The steer is not shown. It is the admin's instruction to the model, and a
+      learner reading "make them face a community meeting" has been told what
+      the crisis will turn on before it turns.
+    */
+    situation: invite.subject.trim() || situationSummary(situation),
     moduleTitle: await moduleTitleFor(invite.sessionId),
     durationMinutes: invite.durationMinutes,
     difficulty: invite.difficulty,
@@ -1264,15 +1346,21 @@ router.post("/studio/my-exercise/begin", requireStudioAccess, async (req, res): 
 
   try {
     const situation = situationFor(invite.situationSeed);
-    const programme = await programmeContext(invite.programId);
+    // Null on a standalone exercise, which has no programme behind it at all.
+    const programme = invite.programId ? await programmeContext(invite.programId) : null;
 
     const generated = await generateScenario({
-      sectorTopic: situationBrief(situation),
+      sectorTopic: exerciseSubject({
+        subject: invite.subject,
+        drawn: situationBrief(situation),
+        hasProgramme: !!invite.programId,
+      }),
       objective: invite.objective,
       participantPerspective: "Head of Communications",
       mode: "autonomous",
       difficulty: invite.difficulty as "foundation" | "intermediate" | "advanced",
       durationMinutes: invite.durationMinutes,
+      steer: invite.steer,
       programme,
     });
     if (!generated.ok) {
@@ -1340,6 +1428,14 @@ router.post("/admin/studio/invitations", async (req, res): Promise<void> => {
 
   const body = InviteToStudioBody.safeParse(req.body);
   if (!body.success) { res.status(400).json(message(body.error.message)); return; }
+
+  // The dials, checked before anything is written. Said back in the admin's
+  // own terms rather than as a validation error, because these are choices
+  // rather than mistakes.
+  const badSteer = steerProblem(body.data.steer);
+  if (badSteer) { res.status(400).json(message(badSteer)); return; }
+  const badExpiry = expiryProblem(body.data.expiresAt?.toISOString() ?? null, Date.now());
+  if (badExpiry) { res.status(400).json(message(badExpiry)); return; }
 
   const [programme] = await db.select().from(programsTable).where(eq(programsTable.id, body.data.programId));
   if (!programme) { res.status(404).json(message("Programme not found")); return; }
@@ -1414,6 +1510,7 @@ router.post("/admin/studio/invitations", async (req, res): Promise<void> => {
       // Unique per learner per invitation, so two people on the same module
       // get different crises and one person re-invited later gets a new one.
       situationSeed: `${programme.id}:${module?.id ?? 0}:${l.id}:${randomBytes(4).toString("hex")}`,
+      steer: (body.data.steer ?? "").trim(),
       difficulty: body.data.difficulty ?? "intermediate",
       durationMinutes: body.data.durationMinutes ?? 30,
       invitedByUserId: user.id,

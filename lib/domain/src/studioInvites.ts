@@ -289,3 +289,137 @@ export function invitationNote(facts: {
     : "";
   return `${who} can now run ${facts.moduleTitle} in the Studio, once each.${tail}`;
 }
+
+/* ------------------------------------------------------------------ *
+ * The dials an admin turns
+ * ------------------------------------------------------------------ */
+
+/**
+ * Everything below exists because the first version of this decided too much.
+ *
+ * The invitation took the five-field form away from learners, which was right,
+ * and then quietly answered all five itself: intermediate, thirty minutes, no
+ * expiry, whatever the programme description happened to say. Nobody chose
+ * those. They were fallbacks that became policy because no screen ever sent
+ * anything else.
+ *
+ * So the dials come back, but to the person who should have had them. The
+ * learner still chooses nothing. The admin chooses how hard, how long, how long
+ * the invitation lives, and — in one sentence — what to lean on.
+ */
+
+/** Long enough to steer a crisis, too short to write one. */
+export const MAX_STEER_CHARS = 240;
+/** What a standalone exercise is about, when there is no programme to ask. */
+export const MAX_EXERCISE_SUBJECT_CHARS = 200;
+/** Beyond this an invitation is not a deadline, it is a filing cabinet. */
+export const MAX_EXPIRY_DAYS = 180;
+
+export type StudioLevel = "foundation" | "intermediate" | "advanced";
+
+/**
+ * A line of steer, or a reason it will not do.
+ *
+ * The length cap is the whole rule, and it is deliberate rather than arbitrary.
+ * A sentence tilts the crisis; three paragraphs are an admin writing the brief
+ * by hand, which is the thing the Studio exists to stop them having to do — and
+ * a brief written by hand drifts from the programme the moment somebody is in a
+ * hurry.
+ */
+export function steerProblem(steer: string | null | undefined): string | null {
+  const text = (steer ?? "").trim();
+  if (!text) return null;
+  if (text.length > MAX_STEER_CHARS) {
+    return `That is ${text.length} characters. Keep the steer under ${MAX_STEER_CHARS} — a sentence `
+      + "tilts the crisis, a paragraph writes it for the model and drifts from the programme.";
+  }
+  return null;
+}
+
+/** What an exercise with no programme behind it needs before it can be sent. */
+export function standaloneProblem(facts: {
+  subject: string;
+  objective: string;
+}): string | null {
+  const subject = facts.subject.trim();
+  const objective = facts.objective.trim();
+  if (subject.length < 5) {
+    return "Say what the exercise is about. There is no programme behind this one to say it for you.";
+  }
+  if (subject.length > MAX_EXERCISE_SUBJECT_CHARS) {
+    return `Keep the subject under ${MAX_EXERCISE_SUBJECT_CHARS} characters.`;
+  }
+  if (objective.length < 10) {
+    return "Say what they should get better at. Without a programme, nothing else can answer that.";
+  }
+  return null;
+}
+
+/**
+ * An expiry date, or a reason it is not one.
+ *
+ * A date in the past would send an invitation that is dead on arrival, which
+ * looks to a learner exactly like the Studio being broken.
+ */
+export function expiryProblem(expiresAt: string | null | undefined, nowMs: number): string | null {
+  if (!expiresAt) return null;
+  const at = new Date(expiresAt).getTime();
+  if (!Number.isFinite(at)) return "That is not a date.";
+  if (at <= nowMs) return "That date has gone. An invitation that expires before it arrives cannot be used.";
+  if (at - nowMs > MAX_EXPIRY_DAYS * 24 * 60 * 60 * 1000) {
+    return `That is more than ${MAX_EXPIRY_DAYS} days away, which is not really a deadline. `
+      + "Leave it empty if you do not want one.";
+  }
+  return null;
+}
+
+/**
+ * What each level actually changes, said on the screen where it is chosen.
+ *
+ * The honest version of "leave room for human moderation": a dial nobody can
+ * predict the effect of is not control, it is a guess with extra steps.
+ */
+export function levelNote(level: StudioLevel): string {
+  if (level === "foundation") {
+    return "One thing going wrong at a time, and the right answer is usually reachable. "
+      + "For a cohort still finding their feet.";
+  }
+  if (level === "advanced") {
+    return "Competing pressures with no clean answer, and the situation punishes hedging. "
+      + "For people who have handled one of these before.";
+  }
+  return "A real situation with a defensible answer and several wrong ones. The usual choice.";
+}
+
+/** What the length buys, in turns rather than in minutes. */
+export function lengthNote(minutes: number): string {
+  if (minutes <= 15) {
+    return "Short. One or two things happen — enough to test a first response and not much after it.";
+  }
+  if (minutes >= 60) {
+    return "Long. The story has room to turn against an early answer, which is where most of the "
+      + "learning is — but it is an hour of somebody's day.";
+  }
+  return "Enough for the situation to develop two or three times and for an early mistake to come back.";
+}
+
+/**
+ * What the exercise is about: the admin's words when they gave any, otherwise
+ * the situation drawn for this learner.
+ *
+ * A standalone exercise has no programme and no cohort, so the subject is the
+ * only thing that says what it is. On a programme the drawn situation is what
+ * makes forty-five learners' crises different from one another, so an admin's
+ * subject would flatten all of them into the same one — which is why on a
+ * programme it steers rather than replaces.
+ */
+export function exerciseSubject(facts: {
+  subject: string | null | undefined;
+  drawn: string;
+  hasProgramme: boolean;
+}): string {
+  const subject = (facts.subject ?? "").trim();
+  if (!subject) return facts.drawn;
+  if (!facts.hasProgramme) return subject;
+  return `${facts.drawn} The exercise should concern ${subject}.`;
+}

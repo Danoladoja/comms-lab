@@ -57,6 +57,13 @@
       "when": 1789741011260,
       "tag": "0007_graceful_killer_shrike",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1789743363475,
+      "tag": "0008_exotic_silver_surfer",
+      "breakpoints": true
     }
   ]
 }

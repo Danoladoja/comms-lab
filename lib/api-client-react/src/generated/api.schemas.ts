@@ -1992,6 +1992,8 @@ export interface InviteToStudio {
      */
   durationMinutes?: number;
   expiresAt?: string;
+  /** @maxLength 2000 */
+  steer?: string;
 }
 
 export interface InviteToStudioResult {
@@ -2030,12 +2032,43 @@ export interface StudioAccessCodeInput {
   code: string;
 }
 
+export type StudioAccessCodeRequestExerciseDifficulty = typeof StudioAccessCodeRequestExerciseDifficulty[keyof typeof StudioAccessCodeRequestExerciseDifficulty];
+
+
+export const StudioAccessCodeRequestExerciseDifficulty = {
+  foundation: 'foundation',
+  intermediate: 'intermediate',
+  advanced: 'advanced',
+} as const;
+
+export type StudioAccessCodeRequestExercise = {
+  /**
+     * @minLength 5
+     * @maxLength 200
+     */
+  subject: string;
+  /**
+     * @minLength 10
+     * @maxLength 500
+     */
+  objective: string;
+  /** @maxLength 2000 */
+  steer?: string;
+  difficulty?: StudioAccessCodeRequestExerciseDifficulty;
+  /**
+     * @minimum 5
+     * @maximum 240
+     */
+  durationMinutes?: number;
+};
+
 export interface StudioAccessCodeRequest {
   /**
      * @minimum 1
      * @maximum 50
      */
   count?: number;
+  exercise?: StudioAccessCodeRequestExercise;
 }
 
 export interface StudioAccessCode {

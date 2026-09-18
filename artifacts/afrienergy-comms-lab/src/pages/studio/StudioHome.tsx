@@ -29,7 +29,7 @@ import { Activity, Check, Clipboard, Loader2, Users, Clock, Hash, KeyRound, Radi
 import { format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
-import { apiReason, picksOwnExercise } from '@workspace/domain';
+import { apiReason, picksOwnExercise, levelNote, lengthNote, MAX_STEER_CHARS } from '@workspace/domain';
 
 const generateSchema = z.object({
   sectorTopic: z.string().min(5, "Topic must be at least 5 characters"),
@@ -58,6 +58,20 @@ export default function StudioHome() {
   const [activeTab, setActiveTab] = useState<'new' | 'join'>('new');
   const [createdAccessCodes, setCreatedAccessCodes] = useState<string[]>([]);
   const [codeCount, setCodeCount] = useState(5);
+  /*
+   * An exercise travelling with the codes.
+   *
+   * The standalone case: a partner workshop, a staff session, twenty people
+   * with no programme between them. The cohort invitation cannot reach them —
+   * it starts from an enrolment — and a bare code left each of them filling in
+   * the same five-field form and practising twenty different things.
+   */
+  const [attachExercise, setAttachExercise] = useState(false);
+  const [codeSubject, setCodeSubject] = useState('');
+  const [codeObjective, setCodeObjective] = useState('');
+  const [codeSteer, setCodeSteer] = useState('');
+  const [codeLevel, setCodeLevel] = useState<'foundation' | 'intermediate' | 'advanced'>('intermediate');
+  const [codeMinutes, setCodeMinutes] = useState(30);
   const [copied, setCopied] = useState(false);
   const [cohortProgramId, setCohortProgramId] = useState('');
 
@@ -140,7 +154,17 @@ export default function StudioHome() {
   }
 
   function handleCreateAccessCodes() {
-    createAccessCode.mutate({ data: { count: codeCount } }, {
+    const exercise = attachExercise
+      ? {
+        subject: codeSubject.trim(),
+        objective: codeObjective.trim(),
+        difficulty: codeLevel,
+        durationMinutes: codeMinutes,
+        ...(codeSteer.trim() ? { steer: codeSteer.trim() } : {}),
+      }
+      : undefined;
+
+    createAccessCode.mutate({ data: { count: codeCount, ...(exercise ? { exercise } : {}) } }, {
       onSuccess: ({ codes, code }) => {
         // Shown once. Only a digest is kept, so there is no screen that can
         // show them again: the admin has to copy them now.
@@ -245,6 +269,96 @@ export default function StudioHome() {
                     For anybody not on a programme. Each code lets one person in, once. They are shown here once and cannot be looked up again.
                   </p>
 
+                  {/*
+                    The one-off workshop. Ticking this turns a handful of codes
+                    into a prepared session: everybody who redeems one is handed
+                    the same exercise, with nothing to fill in, exactly as a
+                    learner on a cohort is. Left unticked the codes behave as
+                    they always have — the door opens and they choose.
+                  */}
+                  <label className="flex items-start gap-2.5 mb-4 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      className="mt-0.5"
+                      checked={attachExercise}
+                      onChange={(e) => setAttachExercise(e.target.checked)}
+                    />
+                    <span>
+                      <span className="block text-sm text-white">Send them all the same exercise</span>
+                      <span className="block text-xs text-white/45 mt-0.5 leading-relaxed">
+                        For a workshop with nobody enrolled. Whoever uses a code is handed this one
+                        and gets one run of it. Leave it off and each of them picks their own.
+                      </span>
+                    </span>
+                  </label>
+
+                  {attachExercise && (
+                    <div className="mb-4 space-y-3 border-l-2 border-white/10 pl-4">
+                      <label className="block">
+                        <span className="block text-[10px] uppercase tracking-widest text-white/40 mb-1.5">
+                          What it is about
+                        </span>
+                        <Input
+                          value={codeSubject}
+                          onChange={(e) => setCodeSubject(e.target.value)}
+                          placeholder="A tariff rise at a distribution company"
+                          className="bg-[#030811] border-white/20 text-white rounded-none"
+                        />
+                      </label>
+                      <label className="block">
+                        <span className="block text-[10px] uppercase tracking-widest text-white/40 mb-1.5">
+                          What they should get better at
+                        </span>
+                        <Textarea
+                          value={codeObjective}
+                          onChange={(e) => setCodeObjective(e.target.value)}
+                          placeholder="Explaining a price increase without hiding the number."
+                          className="bg-[#030811] border-white/20 text-white rounded-none min-h-[72px]"
+                        />
+                        <span className="block text-[11px] text-white/45 mt-1.5 leading-relaxed">
+                          There is no programme behind this one, so nothing else can answer this.
+                        </span>
+                      </label>
+                      <div className="grid sm:grid-cols-2 gap-3">
+                        <label className="block">
+                          <span className="block text-[10px] uppercase tracking-widest text-white/40 mb-1.5">Level</span>
+                          <select
+                            className="w-full bg-[#030811] border border-white/20 text-white px-3 py-2 text-sm"
+                            value={codeLevel}
+                            onChange={(e) => setCodeLevel(e.target.value as typeof codeLevel)}
+                          >
+                            <option value="foundation">Foundation</option>
+                            <option value="intermediate">Intermediate</option>
+                            <option value="advanced">Advanced</option>
+                          </select>
+                          <span className="block text-[11px] text-white/45 mt-1.5 leading-relaxed">{levelNote(codeLevel)}</span>
+                        </label>
+                        <label className="block">
+                          <span className="block text-[10px] uppercase tracking-widest text-white/40 mb-1.5">
+                            How long, in minutes
+                          </span>
+                          <Input
+                            type="number" min={5} max={240} value={codeMinutes}
+                            onChange={(e) => setCodeMinutes(Number(e.target.value))}
+                            className="bg-[#030811] border-white/20 text-white rounded-none"
+                          />
+                          <span className="block text-[11px] text-white/45 mt-1.5 leading-relaxed">{lengthNote(codeMinutes)}</span>
+                        </label>
+                      </div>
+                      <label className="block">
+                        <span className="block text-[10px] uppercase tracking-widest text-white/40 mb-1.5">
+                          Anything to lean on — optional
+                        </span>
+                        <Input
+                          value={codeSteer}
+                          onChange={(e) => setCodeSteer(e.target.value)}
+                          placeholder="Make them face a community meeting, not just the press"
+                          className="bg-[#030811] border-white/20 text-white rounded-none"
+                        />
+                      </label>
+                    </div>
+                  )}
+
                   <div className="flex flex-col sm:flex-row gap-3">
                     <div className="flex items-center gap-2">
                       <label htmlFor="code-count" className="text-[10px] uppercase tracking-widest text-white/40 font-bold">How many</label>
@@ -256,7 +370,11 @@ export default function StudioHome() {
                     </div>
                     <Button
                       onClick={handleCreateAccessCodes}
-                      disabled={createAccessCode.isPending}
+                      disabled={
+                        createAccessCode.isPending
+                        || (attachExercise && (codeSubject.trim().length < 5 || codeObjective.trim().length < 10))
+                        || codeSteer.trim().length > MAX_STEER_CHARS
+                      }
                       className="bg-white/10 text-white hover:bg-white/20 rounded-none uppercase tracking-wider text-xs h-10 px-6"
                     >
                       {createAccessCode.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden /> : <Plus className="mr-2 h-4 w-4" aria-hidden />}
@@ -685,6 +803,10 @@ export default function StudioHome() {
 function InviteCohortToExercise({ programmes }: { programmes: any[] }) {
   const { toast } = useToast();
   const [programId, setProgramId] = useState('');
+  const [difficulty, setDifficulty] = useState<'foundation' | 'intermediate' | 'advanced'>('intermediate');
+  const [minutes, setMinutes] = useState(30);
+  const [expiresAt, setExpiresAt] = useState('');
+  const [steer, setSteer] = useState('');
   const [result, setResult] = useState<string | null>(null);
 
   const invite = useInviteToStudio({
@@ -701,6 +823,8 @@ function InviteCohortToExercise({ programmes }: { programmes: any[] }) {
     },
   });
 
+  const tooLong = steer.trim().length > MAX_STEER_CHARS;
+
   return (
     <div className="p-5 bg-white/[0.02] border border-white/10 relative">
       <div className="absolute top-0 left-0 w-1 h-full bg-[#f97316]" />
@@ -712,27 +836,110 @@ function InviteCohortToExercise({ programmes }: { programmes: any[] }) {
         turn on anything it has covered. Each learner gets a different situation to handle it in.
       </p>
 
-      <div className="flex flex-col sm:flex-row gap-3">
-        <Select value={programId} onValueChange={(v) => { setProgramId(v); setResult(null); }}>
-          <SelectTrigger className="bg-[#030811] border-white/20 text-white rounded-none flex-1">
-            <SelectValue placeholder="Choose a programme" />
-          </SelectTrigger>
-          <SelectContent className="bg-[#0c1929] border-white/20 text-white">
-            {programmes.map((programme: any) => (
-              <SelectItem key={programme.id} value={String(programme.id)}>{programme.title}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+      <Select value={programId} onValueChange={(v) => { setProgramId(v); setResult(null); }}>
+        <SelectTrigger className="bg-[#030811] border-white/20 text-white rounded-none w-full">
+          <SelectValue placeholder="Choose a programme" />
+        </SelectTrigger>
+        <SelectContent className="bg-[#0c1929] border-white/20 text-white">
+          {programmes.map((programme: any) => (
+            <SelectItem key={programme.id} value={String(programme.id)}>{programme.title}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
 
-        <button
-          type="button"
-          disabled={!programId || invite.isPending}
-          onClick={() => invite.mutate({ data: { programId: Number(programId) } })}
-          className="bg-[#f97316] text-[#030811] px-5 py-2.5 text-[11px] font-bold uppercase tracking-widest disabled:opacity-50"
-        >
-          {invite.isPending ? 'Sending…' : 'Invite'}
-        </button>
+      {/*
+        The dials.
+
+        Every one of these was already accepted by the server and never sent by
+        this screen, so the defaults quietly became policy: intermediate, thirty
+        minutes, no expiry, for everybody, for ever. Each says what it actually
+        changes, because a dial whose effect nobody can predict is a guess with
+        extra steps rather than control.
+      */}
+      <div className="grid sm:grid-cols-2 gap-4 mt-4">
+        <label className="block">
+          <span className="block text-[10px] uppercase tracking-widest text-white/40 mb-1.5">Level</span>
+          <select
+            className="w-full bg-[#030811] border border-white/20 text-white px-3 py-2 text-sm"
+            value={difficulty}
+            onChange={(e) => setDifficulty(e.target.value as typeof difficulty)}
+          >
+            <option value="foundation">Foundation</option>
+            <option value="intermediate">Intermediate</option>
+            <option value="advanced">Advanced</option>
+          </select>
+          <span className="block text-[11px] text-white/45 mt-1.5 leading-relaxed">{levelNote(difficulty)}</span>
+        </label>
+
+        <label className="block">
+          <span className="block text-[10px] uppercase tracking-widest text-white/40 mb-1.5">
+            How long, in minutes
+          </span>
+          <input
+            type="number"
+            min={5}
+            max={240}
+            className="w-full bg-[#030811] border border-white/20 text-white px-3 py-2 text-sm"
+            value={minutes}
+            onChange={(e) => setMinutes(Number(e.target.value))}
+          />
+          <span className="block text-[11px] text-white/45 mt-1.5 leading-relaxed">{lengthNote(minutes)}</span>
+        </label>
       </div>
+
+      <label className="block mt-4">
+        <span className="block text-[10px] uppercase tracking-widest text-white/40 mb-1.5">
+          Anything to lean on — optional
+        </span>
+        <input
+          type="text"
+          maxLength={MAX_STEER_CHARS + 40}
+          placeholder="e.g. make them face a community meeting, not just the press"
+          className="w-full bg-[#030811] border border-white/20 text-white px-3 py-2 text-sm placeholder:text-white/25"
+          value={steer}
+          onChange={(e) => setSteer(e.target.value)}
+        />
+        <span className={cn('block text-[11px] mt-1.5 leading-relaxed', tooLong ? 'text-amber-300' : 'text-white/45')}>
+          {tooLong
+            ? `${steer.trim().length} characters. Keep it under ${MAX_STEER_CHARS} — a sentence tilts the crisis, a paragraph writes it.`
+            : 'One sentence. It steers the situation; it does not replace what the programme asked for.'}
+        </span>
+      </label>
+
+      <label className="block mt-4">
+        <span className="block text-[10px] uppercase tracking-widest text-white/40 mb-1.5">
+          Use it by — optional
+        </span>
+        <input
+          type="date"
+          className="bg-[#030811] border border-white/20 text-white px-3 py-2 text-sm"
+          value={expiresAt}
+          onChange={(e) => setExpiresAt(e.target.value)}
+        />
+        <span className="block text-[11px] text-white/45 mt-1.5 leading-relaxed">
+          After this the invitation goes dead. Leave it empty and it sits open indefinitely, which
+          is what every invitation sent so far has done.
+        </span>
+      </label>
+
+      <button
+        type="button"
+        disabled={!programId || invite.isPending || tooLong}
+        onClick={() => invite.mutate({
+          data: {
+            programId: Number(programId),
+            difficulty,
+            durationMinutes: minutes,
+            ...(steer.trim() ? { steer: steer.trim() } : {}),
+            // End of that day rather than its first second, so "use it by the
+            // 30th" means the whole of the 30th.
+            ...(expiresAt ? { expiresAt: new Date(`${expiresAt}T23:59:59`).toISOString() } : {}),
+          },
+        })}
+        className="mt-5 bg-[#f97316] text-[#030811] px-5 py-2.5 text-[11px] font-bold uppercase tracking-widest disabled:opacity-50"
+      >
+        {invite.isPending ? 'Sending…' : 'Invite'}
+      </button>
 
       {/* Left on screen rather than shown as a toast that slides away: the
           sentence says how many people can now spend a model call, which is

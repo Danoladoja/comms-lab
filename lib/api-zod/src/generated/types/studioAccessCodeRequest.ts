@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { StudioAccessCodeRequestExercise } from './studioAccessCodeRequestExercise';
 
 export interface StudioAccessCodeRequest {
   /**
@@ -12,4 +13,5 @@ export interface StudioAccessCodeRequest {
      * @maximum 50
      */
   count?: number;
+  exercise?: StudioAccessCodeRequestExercise;
 }

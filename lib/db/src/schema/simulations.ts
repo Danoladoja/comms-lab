@@ -171,6 +171,25 @@ export const studioAccessCodesTable = pgTable("studio_access_codes", {
    * one place.
    */
   source: text("source").notNull().default("code"),
+  /**
+   * An exercise travelling with the code.
+   *
+   * A plain code admits somebody and leaves them to choose their own exercise,
+   * which is right for an outsider on no programme. But an admin running a
+   * partner workshop wants twenty people doing the same prepared thing, and
+   * had no way to arrange it: the invitation could only be sent to a cohort.
+   *
+   * So the code can carry one. Whoever redeems it is handed an invitation built
+   * from this, exactly as a learner on a programme is — one run, nothing to
+   * fill in. Null is the old behaviour and remains the default.
+   */
+  exercise: jsonb("exercise").$type<{
+    subject: string;
+    objective: string;
+    steer: string;
+    difficulty: string;
+    durationMinutes: number;
+  } | null>(),
   codeHash: text("code_hash").notNull(),
   createdByUserId: integer("created_by_user_id").notNull().references(() => usersTable.id, { onDelete: "cascade" }),
   redeemedByUserId: integer("redeemed_by_user_id").references(() => usersTable.id, { onDelete: "set null" }),
@@ -204,7 +223,14 @@ export type SimulationDefinition = typeof simulationDefinitionsTable.$inferSelec
 export const studioInvitationsTable = pgTable("studio_invitations", {
   id: serial("id").primaryKey(),
   userId: integer("user_id").notNull().references(() => usersTable.id, { onDelete: "cascade" }),
-  programId: integer("program_id").notNull().references(() => programsTable.id, { onDelete: "cascade" }),
+  /**
+   * The programme this belongs to, when it belongs to one.
+   *
+   * Null is a standalone exercise: a partner workshop, a staff session, a
+   * one-off with nobody enrolled and no cohort behind it. Those carry their own
+   * subject, because there is no programme to ask what the exercise is about.
+   */
+  programId: integer("program_id").references(() => programsTable.id, { onDelete: "cascade" }),
   /** The module this practises, when it was sent for one. */
   sessionId: integer("session_id").references(() => sessionsTable.id, { onDelete: "set null" }),
 
@@ -228,6 +254,25 @@ export const studioInvitationsTable = pgTable("studio_invitations", {
    * two people comparing notes find they were genuinely given different work.
    */
   situationSeed: text("situation_seed").notNull(),
+
+  /**
+   * One sentence from the admin, tilting the crisis without writing it.
+   *
+   * "Lean on the regulator side of it." "Make them face a community meeting."
+   * Capped short on purpose: a paragraph here is an admin writing the brief by
+   * hand, and a brief written by hand drifts from the programme the first time
+   * somebody is in a hurry.
+   */
+  steer: text("steer").notNull().default(""),
+
+  /**
+   * What this one is about, when nothing else can say.
+   *
+   * Empty on a programme exercise, where the situation is drawn per learner so
+   * that no two people on a cohort get the same crisis. Filled on a standalone,
+   * where the admin's words are the only thing that says what it is.
+   */
+  subject: text("subject").notNull().default(""),
 
   difficulty: text("difficulty").notNull().default("intermediate"),
   durationMinutes: integer("duration_minutes").notNull().default(30),

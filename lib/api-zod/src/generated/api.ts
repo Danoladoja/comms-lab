@@ -2876,6 +2876,8 @@ export const BeginStudioExerciseResponse = zod.object({
 export const inviteToStudioBodyDurationMinutesMin = 5;
 export const inviteToStudioBodyDurationMinutesMax = 240;
 
+export const inviteToStudioBodySteerMax = 2000;
+
 
 
 export const InviteToStudioBody = zod.object({
@@ -2883,7 +2885,8 @@ export const InviteToStudioBody = zod.object({
   "sessionId": zod.int().optional(),
   "difficulty": zod.enum(['foundation', 'intermediate', 'advanced']).optional(),
   "durationMinutes": zod.int().min(inviteToStudioBodyDurationMinutesMin).max(inviteToStudioBodyDurationMinutesMax).optional(),
-  "expiresAt": zod.coerce.date().optional()
+  "expiresAt": zod.coerce.date().optional(),
+  "steer": zod.string().max(inviteToStudioBodySteerMax).optional()
 })
 
 export const InviteToStudioResponse = zod.object({
@@ -3156,10 +3159,28 @@ export const GetStudioRecordResponse = zod.object({
 export const createStudioAccessCodeBodyCountDefault = 1;
 export const createStudioAccessCodeBodyCountMax = 50;
 
+export const createStudioAccessCodeBodyExerciseSubjectMin = 5;
+export const createStudioAccessCodeBodyExerciseSubjectMax = 200;
+
+export const createStudioAccessCodeBodyExerciseObjectiveMin = 10;
+export const createStudioAccessCodeBodyExerciseObjectiveMax = 500;
+
+export const createStudioAccessCodeBodyExerciseSteerMax = 2000;
+
+export const createStudioAccessCodeBodyExerciseDurationMinutesMin = 5;
+export const createStudioAccessCodeBodyExerciseDurationMinutesMax = 240;
+
 
 
 export const CreateStudioAccessCodeBody = zod.object({
-  "count": zod.int().min(1).max(createStudioAccessCodeBodyCountMax).default(createStudioAccessCodeBodyCountDefault)
+  "count": zod.int().min(1).max(createStudioAccessCodeBodyCountMax).default(createStudioAccessCodeBodyCountDefault),
+  "exercise": zod.object({
+  "subject": zod.string().min(createStudioAccessCodeBodyExerciseSubjectMin).max(createStudioAccessCodeBodyExerciseSubjectMax),
+  "objective": zod.string().min(createStudioAccessCodeBodyExerciseObjectiveMin).max(createStudioAccessCodeBodyExerciseObjectiveMax),
+  "steer": zod.string().max(createStudioAccessCodeBodyExerciseSteerMax).optional(),
+  "difficulty": zod.enum(['foundation', 'intermediate', 'advanced']).optional(),
+  "durationMinutes": zod.int().min(createStudioAccessCodeBodyExerciseDurationMinutesMin).max(createStudioAccessCodeBodyExerciseDurationMinutesMax).optional()
+}).optional()
 })
 
 export const createStudioAccessCodeResponseCodeMin = 6;

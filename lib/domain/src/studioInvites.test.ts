@@ -10,6 +10,13 @@ import {
   invitationProblem,
   invitationNote,
   SITUATION_COMBINATIONS,
+  steerProblem,
+  standaloneProblem,
+  expiryProblem,
+  levelNote,
+  lengthNote,
+  exerciseSubject,
+  MAX_STEER_CHARS,
 } from "./studioInvites";
 
 const NOW = Date.parse("2026-09-18T12:00:00Z");
@@ -191,5 +198,65 @@ describe("what the admin reads back", () => {
   it("says plainly when it did nothing, and why", () => {
     expect(invitationNote({ invited: 0, alreadyHad: 12, moduleTitle: "Module two" }))
       .toMatch(/all of them already have an unused invitation/);
+  });
+});
+
+describe("the dials an admin turns", () => {
+  const NOW = Date.parse("2026-09-18T09:00:00Z");
+  const DAY = 24 * 60 * 60 * 1000;
+
+  it("takes a sentence of steer and refuses a brief", () => {
+    expect(steerProblem("Lean on the regulator side of it.")).toBeNull();
+    expect(steerProblem("")).toBeNull();
+    expect(steerProblem(null)).toBeNull();
+    // A paragraph is an admin writing the brief by hand, which drifts from the
+    // programme the moment anybody is in a hurry.
+    expect(steerProblem("x".repeat(MAX_STEER_CHARS + 1))).toMatch(/under 240/);
+  });
+
+  it("will not send an exercise with no programme and nothing to go on", () => {
+    expect(standaloneProblem({ subject: "", objective: "" })).toMatch(/what the exercise is about/i);
+    expect(standaloneProblem({ subject: "A tariff rise at a partner utility", objective: "" }))
+      .toMatch(/get better at/i);
+    expect(standaloneProblem({
+      subject: "A tariff rise at a partner utility",
+      objective: "Explaining a price increase without hiding the number.",
+    })).toBeNull();
+  });
+
+  it("refuses an expiry date that has already gone", () => {
+    // Dead on arrival reads to a learner as the Studio being broken.
+    expect(expiryProblem(new Date(NOW - DAY).toISOString(), NOW)).toMatch(/has gone/i);
+    expect(expiryProblem(new Date(NOW + 7 * DAY).toISOString(), NOW)).toBeNull();
+    expect(expiryProblem(null, NOW)).toBeNull();
+    expect(expiryProblem("whenever", NOW)).toMatch(/not a date/i);
+    expect(expiryProblem(new Date(NOW + 400 * DAY).toISOString(), NOW)).toMatch(/not really a deadline/i);
+  });
+
+  it("says what each dial actually does", () => {
+    // A dial whose effect nobody can predict is a guess with extra steps.
+    expect(levelNote("foundation")).toMatch(/one thing going wrong/i);
+    expect(levelNote("advanced")).toMatch(/no clean answer/i);
+    expect(lengthNote(10)).toMatch(/short/i);
+    expect(lengthNote(90)).toMatch(/hour of somebody's day/i);
+    expect(lengthNote(30)).toMatch(/two or three times/i);
+  });
+
+  it("lets a subject replace the drawn situation only when there is no programme", () => {
+    const drawn = "A refinery outage during a heatwave.";
+
+    // Standalone: the subject is the only thing saying what this is.
+    expect(exerciseSubject({ subject: "A partner's tariff rise", drawn, hasProgramme: false }))
+      .toBe("A partner's tariff rise");
+
+    // On a programme it steers instead, because the drawn situation is what
+    // makes forty-five learners' crises different from one another. Replacing
+    // it would flatten the whole cohort into one exercise.
+    const steered = exerciseSubject({ subject: "the regulator", drawn, hasProgramme: true });
+    expect(steered).toContain(drawn);
+    expect(steered).toContain("the regulator");
+
+    // Nothing typed: the drawn situation, untouched.
+    expect(exerciseSubject({ subject: "", drawn, hasProgramme: true })).toBe(drawn);
   });
 });
