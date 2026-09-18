@@ -264,3 +264,178 @@ export function wentLiveNote(facts: {
     + `nobody in ${facts.empty.length === 1 ? "it" : "them"}: ${facts.empty.join(", ")}. `
     + "The exercise runs anyway, and the other teams will be answering nobody on that side.";
 }
+
+/* ------------------------------------------------------------------ *
+ * What each team sees of a shared run
+ * ------------------------------------------------------------------ */
+
+/**
+ * The developments this team is entitled to.
+ *
+ * One run carries the whole session, so the feed has to be filtered rather than
+ * duplicated — a beat aimed at the regulator must not appear on the operator's
+ * screen, and a beat aimed at everybody must appear on all of them. Absent means
+ * everybody, which is also what every run written before group sessions existed
+ * means by it.
+ */
+export function developmentsForTeam<T extends { teamId?: string }>(
+  developments: readonly T[],
+  teamId: string | null,
+): T[] {
+  return developments.filter((d) => !d.teamId || d.teamId === teamId);
+}
+
+/**
+ * What the ticker should do to this session right now.
+ *
+ * One function rather than a chain of ifs inside the timer, because the timer
+ * runs unattended every few seconds and the thing it must never do is two of
+ * these at once — start a session and immediately end it, or deliver a beat to
+ * a session that has already finished.
+ */
+export type TickAction =
+  | { do: "nothing" }
+  | { do: "start" }
+  | { do: "deliver"; beats: GroupBeat[] }
+  | { do: "finish" };
+
+export function whatTheTickerShouldDo(args: {
+  facts: GroupSessionFacts;
+  beats: readonly GroupBeat[];
+  delivered: readonly string[];
+  nowMs: number;
+}): TickAction {
+  const state = groupSessionState(args.facts, args.nowMs);
+
+  if (state === "finished") return { do: "nothing" };
+
+  if (state === "scheduled") {
+    if (!args.facts.scheduledAt) return { do: "nothing" };
+    const startsAt = new Date(args.facts.scheduledAt).getTime();
+    return Number.isFinite(startsAt) && args.nowMs >= startsAt ? { do: "start" } : { do: "nothing" };
+  }
+
+  if (state === "live" && args.facts.startedAt) {
+    const startedAtMs = new Date(args.facts.startedAt).getTime();
+    const due = beatsDue({ beats: args.beats, startedAtMs, nowMs: args.nowMs, delivered: args.delivered });
+    if (due.length > 0) return { do: "deliver", beats: due };
+    return { do: "nothing" };
+  }
+
+  // Live by the dates but past its end: `groupSessionState` has already said
+  // "finished" for that, so reaching here means a session whose clock ran out
+  // without anybody closing it. The caller writes the debriefs.
+  return { do: "nothing" };
+}
+
+/**
+ * A session that is over but has not been closed.
+ *
+ * Separate from the tick action because closing one is expensive — a debrief per
+ * team plus a shared one — and the timer must be able to ask the cheap question
+ * on every pass and the expensive one only when the answer is yes.
+ */
+export function needsClosing(facts: GroupSessionFacts, nowMs: number): boolean {
+  if (facts.endedAt || !facts.startedAt) return false;
+  return groupSessionState(facts, nowMs) === "finished";
+}
+
+/* ------------------------------------------------------------------ *
+ * What a learner on the cohort is told
+ * ------------------------------------------------------------------ */
+
+/**
+ * The room is open.
+ *
+ * Only while it is live. Before that there is nothing to walk into — teams do
+ * not exist until the session starts, because they are decided from who is
+ * actually enrolled at that moment. After it, the door is the debrief rather
+ * than the room.
+ */
+export function mayEnterRoom(state: GroupSessionState): boolean {
+  return state === "live";
+}
+
+/** How long until it starts, in whole minutes. Null when nothing is scheduled. */
+export function startsInMinutes(scheduledAt: string | null, nowMs: number): number | null {
+  if (!scheduledAt) return null;
+  const at = new Date(scheduledAt).getTime();
+  if (!Number.isFinite(at)) return null;
+  return Math.ceil((at - nowMs) / 60_000);
+}
+
+/**
+ * The one sentence a learner reads about their cohort's session.
+ *
+ * Written to be true at every point on the clock, including the two awkward
+ * ones: the minute before it starts, when there is no team to name because
+ * nobody has been put in one yet, and the minute after it ends, when the room
+ * is gone but the debrief is not.
+ *
+ * It says "it does not wait for you" on purpose. A learner who believes the
+ * exercise pauses for them will treat a late arrival as free, and the thing
+ * being practised here is precisely what happens when it is not.
+ */
+export function cohortNote(args: {
+  state: GroupSessionState;
+  startsIn: number | null;
+  teamName: string | null;
+  durationMinutes: number;
+  minutesLeft: number | null;
+}): string {
+  if (args.state === "finished") {
+    return "This one has finished. Your team's debrief is below.";
+  }
+
+  if (args.state === "live") {
+    const team = args.teamName
+      ? `You are on ${args.teamName}.`
+      : "You are being put in a team now.";
+    const left = args.minutesLeft !== null && args.minutesLeft > 0
+      ? `${args.minutesLeft} ${args.minutesLeft === 1 ? "minute" : "minutes"} left.`
+      : "It is about to end.";
+    return `${team} ${left} Go in — it does not wait for you.`;
+  }
+
+  const runs = `It runs for ${args.durationMinutes} minutes and teams are decided when it starts.`;
+  if (args.startsIn === null) return `Your cohort has a group exercise coming. ${runs}`;
+  if (args.startsIn <= 0) return `It is starting now. ${runs}`;
+  if (args.startsIn < 60) {
+    return `Starts in ${args.startsIn} ${args.startsIn === 1 ? "minute" : "minutes"}. ${runs}`;
+  }
+  const hours = Math.round(args.startsIn / 60);
+  if (hours < 48) {
+    return `Starts in about ${hours} ${hours === 1 ? "hour" : "hours"}. ${runs}`;
+  }
+  const days = Math.round(hours / 24);
+  return `Starts in about ${days} days. ${runs}`;
+}
+
+/**
+ * This team's debrief, out of the set written for the room.
+ *
+ * Each team only ever saw its own side of the crisis, so each team is judged on
+ * its own side of it. Null rather than a fallback to somebody else's: a learner
+ * reading another team's verdict on their own screen is worse than a learner
+ * reading nothing.
+ */
+export function debriefForTeam<T extends { teamId: string }>(
+  debriefs: readonly T[] | null | undefined,
+  teamId: string | null,
+): T | null {
+  if (!debriefs || !teamId) return null;
+  return debriefs.find((d) => d.teamId === teamId) ?? null;
+}
+
+/**
+ * A run nobody is driving.
+ *
+ * A facilitated run made by an admin has a code they read out to the room; a
+ * cohort session has none, because the cohort *is* the room and a code would be
+ * a way in for somebody who is not on it. So the absence of the code is the
+ * fact that tells the screen there is no facilitator to wait for — which
+ * matters, because the old room screen told participants to wait for one.
+ */
+export function isUnattendedRoom(run: { mode: string; joinCode: string | null }): boolean {
+  return run.mode === "facilitated" && !run.joinCode;
+}

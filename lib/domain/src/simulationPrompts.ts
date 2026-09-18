@@ -861,3 +861,186 @@ export function validateGroupPlan(input: unknown, durationMinutes: number): {
 
   return { plan: { objectives, beats }, problem: "" };
 }
+
+/* ------------------------------------------------------------------ *
+ * A beat aimed at one team, written while the session runs
+ * ------------------------------------------------------------------ */
+
+/**
+ * The wording an admin could not approve in advance.
+ *
+ * A team beat exists because of what that team just did, so it quotes a learner
+ * who had not answered when the session was vetted. What was approved is the
+ * intent — "the regulator is asked to confirm what the operator actually said" —
+ * and this is where that becomes a sentence.
+ *
+ * It carries what other teams have published, because a regulator who cannot
+ * read the operator's statement is not in the same crisis. It does NOT carry
+ * anybody's confidential brief, and it does not report that a team has said
+ * nothing: silence is a thing a real counterpart has to work out for
+ * themselves, and handing it over removes the judgement being practised.
+ */
+export function teamBeatUserPrompt(args: {
+  openingBrief: string;
+  teamName: string;
+  teamRole: string;
+  /** What the admin approved this beat for. */
+  intent: string;
+  responsePrompt: string;
+  /** What this team has said so far, oldest first. */
+  ownAnswers: readonly string[];
+  /** What other teams have put into the world. */
+  published: readonly { teamName: string; body: string }[];
+  minutesLeft: number;
+}): string {
+  const own = args.ownAnswers.length > 0
+    ? args.ownAnswers.map((a, i) => `  ${i + 1}. ${a}`).join("\n")
+    : "  They have said nothing yet.";
+
+  const others = args.published.length > 0
+    ? args.published.map((p) => `  ${p.teamName} said: ${p.body}`).join("\n")
+    : "  Nothing from anybody else has reached them yet.";
+
+  return `A development lands on one team only.
+
+The crisis:
+${args.openingBrief}
+
+The team it lands on: ${args.teamName} (${args.teamRole})
+
+What this development is for:
+${args.intent}
+
+What this team has said so far:
+${own}
+
+What other teams have put into the world, which this team can see:
+${others}
+
+There are ${args.minutesLeft} minutes left in the exercise.
+
+Write what actually reaches them. It has to follow from what they have done — if
+they said something specific, this is the consequence of having said that, in
+somebody else's words. Quote them where quoting them is the point.
+
+Then say what they have to answer: ${args.responsePrompt}`;
+}
+
+/* ------------------------------------------------------------------ *
+ * The debrief across a whole session
+ * ------------------------------------------------------------------ */
+
+/**
+ * One debrief for the admin, across every team.
+ *
+ * Each team gets its own, written the way an individual's is. This is the other
+ * one: what happened across the room, where the teams contradicted each other,
+ * and which of the approved objectives the session actually showed. It is the
+ * thing a facilitator would talk through afterwards, and it is the only view in
+ * the Studio that reads across teams — which is why it is an admin's alone.
+ */
+export function sessionDebriefSystemPrompt(): string {
+  return `${WHO_WE_ARE}
+
+You are writing the facilitator's debrief for a group exercise that has just
+finished. Several teams handled the same crisis from different positions, and
+nobody was running it.
+
+Be useful rather than kind. Name what actually happened, quote what was actually
+said, and say where the teams' versions of events did not line up — that gap is
+usually the most instructive thing in the room and the participants cannot see
+it, because each of them only saw their own side.
+
+Judge the session against the objectives you are given and nothing else.
+
+${HOUSE_RULES}`;
+}
+
+export function sessionDebriefUserPrompt(args: {
+  openingBrief: string;
+  objectives: readonly string[];
+  teams: readonly { name: string; roleName: string; answers: readonly string[] }[];
+  durationMinutes: number;
+}): string {
+  const objectives = args.objectives.map((o) => `  ${o}`).join("\n");
+  const teams = args.teams.map((t) => {
+    const said = t.answers.length > 0
+      ? t.answers.map((a, i) => `    ${i + 1}. ${a}`).join("\n")
+      : "    Said nothing at all.";
+    return `  ${t.name} (${t.roleName}):\n${said}`;
+  }).join("\n\n");
+
+  return `A ${args.durationMinutes}-minute group exercise has just finished.
+
+The crisis they were in:
+${args.openingBrief}
+
+What this session set out to show:
+${objectives}
+
+What each team actually did:
+
+${teams}
+
+Write the debrief the person who set this up needs.`;
+}
+
+export function sessionDebriefSchema() {
+  return {
+    type: "object",
+    required: ["headline", "whatHappened", "contradictions", "byObjective", "recommendations"],
+    properties: {
+      headline: { type: "string", description: "One sentence on how the room handled it." },
+      whatHappened: { type: "string", description: "Three to six sentences. The shape of the session." },
+      contradictions: {
+        type: "array", maxItems: 4, items: { type: "string" },
+        description: "Where two teams' versions did not line up, quoting both. Empty if they genuinely did.",
+      },
+      byObjective: {
+        type: "array", minItems: 1,
+        items: {
+          type: "object",
+          required: ["objective", "verdict"],
+          properties: {
+            objective: { type: "string", description: "Named exactly as it was given." },
+            verdict: { type: "string", description: "What the session showed about it, with evidence." },
+          },
+        },
+      },
+      recommendations: {
+        type: "array", minItems: 1, maxItems: 4, items: { type: "string" },
+        description: "What to teach next, on this evidence.",
+      },
+    },
+  };
+}
+
+export type SessionDebrief = {
+  headline: string;
+  whatHappened: string;
+  contradictions: string[];
+  byObjective: { objective: string; verdict: string }[];
+  recommendations: string[];
+};
+
+export function validateSessionDebrief(input: unknown): SessionDebrief | null {
+  const raw = input as Partial<SessionDebrief> | null;
+  const text = (v: unknown) => (typeof v === "string" ? v.trim() : "");
+  const list = (v: unknown) => (Array.isArray(v) ? v.map(text).filter(Boolean) : []);
+
+  const byObjective = Array.isArray(raw?.byObjective)
+    ? raw.byObjective
+      .map((o) => ({ objective: text(o?.objective), verdict: text(o?.verdict) }))
+      .filter((o) => o.objective && o.verdict)
+    : [];
+
+  if (!text(raw?.headline) || byObjective.length === 0) return null;
+
+  return {
+    headline: text(raw?.headline),
+    whatHappened: text(raw?.whatHappened),
+    contradictions: list(raw?.contradictions),
+    byObjective,
+    recommendations: list(raw?.recommendations),
+  };
+}

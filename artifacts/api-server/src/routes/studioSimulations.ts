@@ -15,7 +15,7 @@ import {
   JoinSimulationRunBody, JoinSimulationRunResponse, ListSimulationsResponse, SubmitSimulationResponseBody,
   SubmitSimulationResponseParams, SubmitSimulationResponseResponse, GetStudioAccessResponse,
   RedeemStudioAccessBody, RedeemStudioAccessResponse,
-  GetMyStudioExerciseResponse, BeginStudioExerciseResponse,
+  GetMyStudioExerciseResponse, BeginStudioExerciseResponse, GetMyGroupSessionResponse,
   InviteToStudioBody, InviteToStudioResponse,
   PlanGroupSessionBody, EditGroupSessionBody, GetGroupSessionResponse, ListGroupSessionsResponse,
 } from "@workspace/api-zod";
@@ -27,6 +27,8 @@ import {
   inviteState, beginProblem, situationFor, situationBrief, situationSummary,
   objectiveFor, invitationProblem, invitationNote,
   groupSessionState, approvalProblem, mayEditSession, beatApprovalNote, GROUP_SESSION_MINUTES,
+  developmentsForTeam, debriefForTeam, isUnattendedRoom, mayEnterRoom, startsInMinutes, cohortNote,
+  minutesLeft,
 } from "@workspace/domain";
 import { getCurrentUser } from "../lib/auth";
 import { createBudget } from "../lib/rateBudget";
@@ -75,18 +77,47 @@ function newAccessCode(): string {
 async function studioAccess(user: Awaited<ReturnType<typeof getCurrentUser>>) {
   if (!user) return { allowed: false, isAdmin: false, source: null };
   if (satisfiesRole(user.role, ["admin"])) return { allowed: true, isAdmin: true, source: "admin" as const };
-  const [[invitation], [code]] = await Promise.all([
+  const [[invitation], [code], session] = await Promise.all([
     db.select({ id: studioInvitationsTable.id }).from(studioInvitationsTable)
       .where(eq(studioInvitationsTable.userId, user.id)).limit(1),
     db.select({ id: studioAccessCodesTable.id }).from(studioAccessCodesTable)
       .where(eq(studioAccessCodesTable.redeemedByUserId, user.id)).limit(1),
+    cohortSessionFor(user.id),
   ]);
-  if (mayEnterStudio(false, !!invitation, !!code)) {
-    return invitation
-      ? { allowed: true, isAdmin: false, source: "invitation" as const }
-      : { allowed: true, isAdmin: false, source: "access_code" as const };
+  if (mayEnterStudio(false, !!invitation, !!code, !!session)) {
+    if (invitation) return { allowed: true, isAdmin: false, source: "invitation" as const };
+    if (code) return { allowed: true, isAdmin: false, source: "access_code" as const };
+    return { allowed: true, isAdmin: false, source: "group_session" as const };
   }
   return { allowed: false, isAdmin: false, source: null };
+}
+
+/**
+ * The group session this learner's cohort is turning up to, if there is one.
+ *
+ * Approved, not yet closed, on a programme they are enrolled in. This is what
+ * stands in for an invitation: a group session invites nobody by name, so the
+ * approval is the invitation and being on the cohort is the ticket.
+ *
+ * Newest first, because a cohort with two planned sessions is turning up to the
+ * one that was planned most recently.
+ */
+async function cohortSessionFor(userId: number) {
+  const [found] = await db
+    .select({ session: studioGroupSessionsTable })
+    .from(studioGroupSessionsTable)
+    .innerJoin(enrollmentsTable, and(
+      eq(enrollmentsTable.programId, studioGroupSessionsTable.programId),
+      eq(enrollmentsTable.userId, userId),
+      sql`${enrollmentsTable.status} in ('enrolled', 'completed')`,
+    ))
+    // A closed session still counts. The team's debrief lives on it, and a
+    // learner shut out of the Studio the minute the exercise ends is a learner
+    // who never reads what they were told about how they did.
+    .where(sql`${studioGroupSessionsTable.approvedAt} is not null`)
+    .orderBy(sql`${studioGroupSessionsTable.createdAt} desc`)
+    .limit(1);
+  return found?.session ?? null;
 }
 
 /** The four facts the invitation rules read, out of a full row. */
@@ -142,6 +173,23 @@ async function requireStudioAccess(req: Request, res: Response, next: NextFuncti
   }
   next();
 }
+
+/**
+ * In for the group session, and only for that.
+ *
+ * A group session lets a whole cohort through the Studio door without anybody
+ * being invited by name. That door must not also open onto the thing the
+ * invitation exists to govern — writing exercises, which costs real money on
+ * somebody else's meter, and running as many of them as you like.
+ *
+ * So: admitted for the session, refused everything else. Somebody who also has
+ * an invitation or a code is unaffected, because they got in on that.
+ */
+async function onlyHereForTheGroupSession(
+  user: NonNullable<Awaited<ReturnType<typeof getCurrentUser>>>,
+): Promise<boolean> {
+  return (await studioAccess(user)).source === "group_session";
+}
 function response(row: typeof simulationResponsesTable.$inferSelect) {
   return { injectId: row.injectId, groupId: row.groupId, body: row.body, authorId: row.authorId, createdAt: row.createdAt, updatedAt: row.updatedAt };
 }
@@ -169,9 +217,39 @@ async function runView(run: typeof simulationRunsTable.$inferSelect, userId: num
   const safeGroups = isOwner ? definition.groups : definition.groups.filter((group) => group.id === participantGroupId);
   return {
     id: run.id, simulationId: definition.id, mode: run.mode as "autonomous" | "facilitated", status: run.status as "active" | "completed",
-    joinCode: isOwner ? run.joinCode : null, isOwner, currentDevelopment: run.currentDevelopment,
-    developments: run.developments, responses: (isOwner ? allResponses : allResponses.filter((item) => item.groupId === participantGroupId)).map(response),
-    debrief: run.debrief, openingBrief: definition.openingBrief, stakeholderGroups: safeGroups, participantGroupId,
+    joinCode: isOwner ? run.joinCode : null, isOwner,
+    currentDevelopment: run.currentDevelopment,
+    /*
+      A group session is one run carrying every team's feed, so a beat aimed at
+      the regulator would otherwise appear on the operator's screen. Filtering
+      here is the only thing between them. A development with no team is
+      everybody's, which is what every run written before group sessions existed
+      means by it — so nothing else changes.
+    */
+    developments: isOwner ? run.developments : developmentsForTeam(run.developments, participantGroupId),
+    responses: (isOwner ? allResponses : allResponses.filter((item) => item.groupId === participantGroupId)).map(response),
+    /*
+      Each team is judged on the feed it actually had, so each team gets its own
+      debrief. A solo run has none of these and `debrief` is the whole answer,
+      which is also true of every run finished before group sessions existed.
+
+      The owner of a group run is an admin who was not in any team. They are
+      given the run's own debrief — which for a cohort session is empty — rather
+      than one team's, because the cross-team read they actually want is on the
+      session in the console, and showing them team one's verdict as though it
+      were the room's would be a lie in the shape of an answer.
+    */
+    debrief: isOwner
+      ? run.debrief
+      : debriefForTeam(run.teamDebriefs, assignment?.groupId ?? null)?.debrief ?? run.debrief,
+    /*
+      Nobody is driving this one. The room screen used to tell participants to
+      wait for the facilitator, which in a cohort session is a wait for somebody
+      who does not exist.
+    */
+    unattended: isUnattendedRoom(run),
+    teamName: definition.groups.find((group) => group.id === participantGroupId)?.name ?? null,
+    openingBrief: definition.openingBrief, stakeholderGroups: safeGroups, participantGroupId,
     clock: clockFor(run, definition),
     // Something is being written right now. The browser uses this to keep
     // asking, and to say so, rather than leaving the person looking at a
@@ -747,6 +825,9 @@ async function groupSessionView(session: typeof studioGroupSessionsTable.$inferS
       })
       : null,
     runId: session.runId,
+    // Only ever reaches an admin: this route is admin-only, and it is the one
+    // view in the Studio that reads across teams.
+    sessionDebrief: session.sessionDebrief,
   };
 }
 
@@ -966,6 +1047,90 @@ router.get("/admin/studio/group-sessions", async (req, res): Promise<void> => {
     .orderBy(sql`${studioGroupSessionsTable.createdAt} desc`)
     .limit(30);
   res.json(ListGroupSessionsResponse.parse(await Promise.all(sessions.map(groupSessionView))));
+});
+
+/* ------------------------------------------------------------------ *
+ * The cohort's group session, as a learner sees it
+ * ------------------------------------------------------------------ */
+
+/**
+ * What my cohort is turning up to, and whether the door is open yet.
+ *
+ * A group session has no join code and no individual invitation, which is the
+ * whole design: the cohort is the room. That leaves one problem this route
+ * exists to solve — nothing anywhere told the learner. The ticker was putting
+ * people in teams at three o'clock and none of them had a way to find out.
+ *
+ * Deliberately says almost nothing before it starts. Not the crisis, not the
+ * teams, not what it is testing: a cohort that reads the brief the night before
+ * is not being tested on composure, it is being tested on preparation, which is
+ * a different exercise and one they can already practise alone.
+ */
+router.get("/studio/my-group-session", requireStudioAccess, async (req, res): Promise<void> => {
+  const user = await getCurrentUser(req);
+  if (!user) { res.status(401).json(message("Unauthorized")); return; }
+
+  const session = await cohortSessionFor(user.id);
+  if (!session) { res.json(GetMyGroupSessionResponse.parse({ hasSession: false })); return; }
+
+  const now = Date.now();
+  const state = groupSessionState(sessionFacts(session), now);
+  // Draft never reaches here — `cohortSessionFor` asks for approved ones — but
+  // if it ever did, a learner must not be shown a session nobody has read.
+  if (state === "draft") { res.json(GetMyGroupSessionResponse.parse({ hasSession: false })); return; }
+
+  // Which team they are on, once the ticker has decided. Before it starts there
+  // is no answer, because the teams are made from who is actually enrolled at
+  // the moment it begins rather than from who was enrolled when it was planned.
+  let teamName: string | null = null;
+  if (session.runId) {
+    const [assignment] = await db
+      .select({ groupId: simulationGroupAssignmentsTable.groupId })
+      .from(simulationGroupAssignmentsTable)
+      .where(and(
+        eq(simulationGroupAssignmentsTable.runId, session.runId),
+        eq(simulationGroupAssignmentsTable.userId, user.id),
+      ));
+    if (assignment) {
+      const [definition] = await db.select({ groups: simulationDefinitionsTable.groups })
+        .from(simulationDefinitionsTable)
+        .where(eq(simulationDefinitionsTable.id, session.definitionId));
+      teamName = definition?.groups.find((g) => g.id === assignment.groupId)?.name ?? null;
+    }
+  }
+
+  const left = session.startedAt
+    ? minutesLeft({
+      startedAtMs: session.startedAt.getTime(),
+      durationMinutes: session.durationMinutes,
+      nowMs: now,
+    })
+    : null;
+
+  res.json(GetMyGroupSessionResponse.parse({
+    hasSession: true,
+    id: session.id,
+    title: session.title,
+    state,
+    scheduledAt: session.scheduledAt?.toISOString() ?? null,
+    durationMinutes: session.durationMinutes,
+    teamName,
+    // The room, whenever there is one. Before the session starts there is no
+    // run at all, so there is nothing to withhold; afterwards this is where the
+    // team's debrief lives, which is the only reason to go back.
+    runId: session.runId,
+    // Whether the door is open, which is a different question. A finished
+    // session still has a run, and "Go in" on a session that ended an hour ago
+    // is the kind of small lie a screen never recovers from.
+    mayEnter: mayEnterRoom(state) && !!session.runId,
+    note: cohortNote({
+      state,
+      startsIn: startsInMinutes(session.scheduledAt?.toISOString() ?? null, now),
+      teamName,
+      durationMinutes: session.durationMinutes,
+      minutesLeft: left,
+    }),
+  }));
 });
 
 /* ------------------------------------------------------------------ *
@@ -1273,6 +1438,15 @@ router.post("/simulations/generate", requireStudioAccess, async (req, res): Prom
     res.status(429).json(message("You have written a lot of exercises today. Try again tomorrow, or run one you already have."));
     return;
   }
+  // Admitted for their cohort's group session and nothing else. Writing
+  // exercises is the expensive thing an invitation exists to govern, and a
+  // group session invites nobody by name.
+  if (await onlyHereForTheGroupSession(user)) {
+    res.status(403).json(message(
+      "You are in the Studio for your cohort's group session. Writing your own exercise needs an invitation.",
+    ));
+    return;
+  }
 
   // A programme turns a competent generic exercise into one the cohort
   // recognises, so it is looked up before the scenario is written, not after.
@@ -1342,6 +1516,14 @@ router.post("/simulation-runs", requireStudioAccess, async (req, res): Promise<v
     if (invite) {
       res.status(403).json(message(
         "Your exercise is the one you were invited to. Open the Studio and press Begin.",
+      ));
+      return;
+    }
+    // Same reason, one door along: somebody here only for the group session has
+    // not been given an individual exercise to run.
+    if (await onlyHereForTheGroupSession(user)) {
+      res.status(403).json(message(
+        "You are in the Studio for your cohort's group session, which starts on its own.",
       ));
       return;
     }

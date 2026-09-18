@@ -12,6 +12,7 @@ import { startReminderScheduler } from "./lib/reminders";
 import { startRecordingSync } from "./lib/recordingSync";
 import { startMeetAttendanceSync } from "./lib/meetAttendanceSync";
 import { startTranscriptSync } from "./lib/transcriptSync";
+import { startGroupSessionTicker } from "./lib/groupSessions";
 
 const rawPort = process.env["PORT"];
 
@@ -120,6 +121,7 @@ async function main(): Promise<void> {
     startRecordingSync();
     startMeetAttendanceSync();
     startTranscriptSync();
+    startGroupSessionTicker();
   });
 }
 

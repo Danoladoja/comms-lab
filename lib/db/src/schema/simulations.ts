@@ -23,6 +23,14 @@ export type SimulationDevelopment = {
   id: string; title: string; content: string; responsePrompt: string;
   source?: string; channel?: string;
   /**
+   * Which team this landed on, when it landed on only one.
+   *
+   * Absent on everything written before group sessions existed, and on every
+   * beat that lands on the whole room — so absent means "everybody", which is
+   * what every existing run means by it.
+   */
+  teamId?: string;
+  /**
    * How long they get to answer, and when that runs out.
    *
    * `dueAt` is written when the development is put on the table, so the
@@ -106,6 +114,17 @@ export const simulationRunsTable = pgTable("simulation_runs", {
   currentDevelopment: jsonb("current_development").$type<SimulationDevelopment | null>(),
   developments: jsonb("developments").$type<SimulationDevelopment[]>().notNull().default([]),
   debrief: jsonb("debrief").$type<SimulationDebrief | null>(),
+  /**
+   * One debrief per team, for a run that had teams.
+   *
+   * A group session is one run carrying several teams' feeds, and each team
+   * only ever saw its own side of the crisis. Judging them all against a single
+   * debrief would mark most of them on evidence they never had. Empty on every
+   * solo run and on every run written before group sessions existed, where
+   * `debrief` above is the whole answer.
+   */
+  teamDebriefs: jsonb("team_debriefs")
+    .$type<{ teamId: string; debrief: SimulationDebrief }[]>().notNull().default([]),
   startedAt: timestamp("started_at", { withTimezone: true }),
   debriefAt: timestamp("debrief_at", { withTimezone: true }),
   endedAt: timestamp("ended_at", { withTimezone: true }),
@@ -299,6 +318,22 @@ export const studioGroupSessionsTable = pgTable("studio_group_sessions", {
 
   /** Beat ids already on the table, so the ticker never delivers one twice. */
   deliveredBeatIds: jsonb("delivered_beat_ids").$type<string[]>().notNull().default([]),
+
+  /**
+   * The debrief across the whole room, for whoever set the session up.
+   *
+   * Each team gets its own, written the way an individual's is. This is the
+   * other one, and it is the genuinely new thing a group exercise produces:
+   * every participant saw only their own side, so where two teams' versions of
+   * events failed to line up is invisible to all of them.
+   */
+  sessionDebrief: jsonb("session_debrief").$type<{
+    headline: string;
+    whatHappened: string;
+    contradictions: string[];
+    byObjective: { objective: string; verdict: string }[];
+    recommendations: string[];
+  } | null>(),
 
   createdByUserId: integer("created_by_user_id").notNull().references(() => usersTable.id, { onDelete: "restrict" }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

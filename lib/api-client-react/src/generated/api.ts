@@ -82,6 +82,7 @@ import type {
   ModuleWork,
   MoreQuestionsInput,
   MyFeedback,
+  MyGroupSession,
   MyStudioExercise,
   NotFoundResponse,
   PartnershipEnquiryInput,
@@ -7466,6 +7467,84 @@ export const useApproveGroupSession = <TError = ErrorType<ApiMessage>,
       > => {
       return useMutation(getApproveGroupSessionMutationOptions(options));
     }
+
+export const getGetMyGroupSessionUrl = () => {
+
+
+
+
+  return `/api/studio/my-group-session`
+}
+
+/**
+ * A group session invites nobody by name — the cohort is the room, which is why it has no join code. This is the only thing that tells a learner one exists. It says almost nothing before it starts: a cohort that reads the crisis the night before is being tested on preparation rather than on composure.
+ * @summary The group session this learner's cohort is turning up to
+ */
+export const getMyGroupSession = async ( options?: Parameters<typeof customFetch>[1]): Promise<MyGroupSession> => {
+
+  return customFetch<MyGroupSession>(getGetMyGroupSessionUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMyGroupSessionQueryKey = () => {
+    return [
+    `/api/studio/my-group-session`
+    ] as const;
+    }
+
+
+export const getGetMyGroupSessionQueryOptions = <TData = Awaited<ReturnType<typeof getMyGroupSession>>, TError = ErrorType<ApiMessage>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMyGroupSession>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMyGroupSessionQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMyGroupSession>>> = ({ signal }) => getMyGroupSession({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMyGroupSession>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetMyGroupSessionQueryResult = NonNullable<Awaited<ReturnType<typeof getMyGroupSession>>>
+export type GetMyGroupSessionQueryError = ErrorType<ApiMessage>
+
+
+/**
+ * @summary The group session this learner's cohort is turning up to
+ */
+
+export function useGetMyGroupSession<TData = Awaited<ReturnType<typeof getMyGroupSession>>, TError = ErrorType<ApiMessage>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMyGroupSession>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetMyGroupSessionQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getGetMyStudioExerciseUrl = () => {
 

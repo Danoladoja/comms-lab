@@ -1877,6 +1877,22 @@ export type GroupSessionTeamsItem = {
   roleName: string;
 };
 
+export type GroupSessionSessionDebriefByObjectiveItem = {
+  objective: string;
+  verdict: string;
+};
+
+/**
+ * @nullable
+ */
+export type GroupSessionSessionDebrief = {
+  headline: string;
+  whatHappened: string;
+  contradictions: string[];
+  byObjective: GroupSessionSessionDebriefByObjectiveItem[];
+  recommendations: string[];
+} | null;
+
 export interface GroupSession {
   id: number;
   programId: number;
@@ -1896,6 +1912,8 @@ export interface GroupSession {
   problem?: string | null;
   /** @nullable */
   runId?: number | null;
+  /** @nullable */
+  sessionDebrief?: GroupSessionSessionDebrief;
 }
 
 export type MyStudioExerciseState = typeof MyStudioExerciseState[keyof typeof MyStudioExerciseState];
@@ -1921,6 +1939,32 @@ export interface MyStudioExercise {
   runId?: number | null;
   /** @nullable */
   problem?: string | null;
+}
+
+export type MyGroupSessionState = typeof MyGroupSessionState[keyof typeof MyGroupSessionState];
+
+
+export const MyGroupSessionState = {
+  draft: 'draft',
+  scheduled: 'scheduled',
+  live: 'live',
+  finished: 'finished',
+} as const;
+
+export interface MyGroupSession {
+  hasSession: boolean;
+  id?: number;
+  title?: string;
+  state?: MyGroupSessionState;
+  /** @nullable */
+  scheduledAt?: string | null;
+  durationMinutes?: number;
+  /** @nullable */
+  teamName?: string | null;
+  /** @nullable */
+  runId?: number | null;
+  mayEnter?: boolean;
+  note?: string;
 }
 
 export interface BeginStudioExercise {
@@ -1966,6 +2010,7 @@ export const StudioAccessSource = {
   admin: 'admin',
   invitation: 'invitation',
   access_code: 'access_code',
+  group_session: 'group_session',
 } as const;
 
 export interface StudioAccess {
@@ -2211,6 +2256,9 @@ export interface StudioSimulationRun {
   stakeholderGroups: StudioStakeholderGroup[];
   /** @nullable */
   participantGroupId: string | null;
+  unattended: boolean;
+  /** @nullable */
+  teamName: string | null;
 }
 
 /**

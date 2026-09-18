@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import MyExerciseCard from '@/components/simulation/MyExerciseCard';
+import MyGroupSessionCard from '@/components/simulation/MyGroupSessionCard';
 import GroupSessionApproval from '@/components/simulation/GroupSessionApproval';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -69,7 +70,17 @@ export default function StudioHome() {
    * hand them.
    */
   const { data: myExercise } = useGetMyStudioExercise();
+  /*
+   * Who gets shown the machinery for making an exercise.
+   *
+   * Not an invited learner: their exercise is chosen for them. And not somebody
+   * who is only in the Studio because their cohort has a group session — the
+   * server refuses them, and a form that asks for five decisions and then says
+   * no is worse than no form.
+   */
   const invited = !!myExercise?.hasInvitation;
+  const hereForTheGroupOnly = studioAccess?.source === 'group_session';
+  const choosesNothing = invited || hereForTheGroupOnly;
   const { data: record } = useGetStudioRecord();
   const generateSim = useGenerateSimulation();
   const joinSim = useJoinSimulationRun();
@@ -335,9 +346,14 @@ export default function StudioHome() {
               </motion.div>
             )}
 
+            {/* The cohort's session first. It has a time on it and the
+                individual exercise does not, so it is the one with a deadline
+                attached to somebody else's clock. */}
+            <MyGroupSessionCard />
+
             <MyExerciseCard />
 
-            <div className={cn("flex bg-white/5 p-1 rounded-none border border-white/10 w-fit mb-8", invited && "hidden")}>
+            <div className={cn("flex bg-white/5 p-1 rounded-none border border-white/10 w-fit mb-8", choosesNothing && "hidden")}>
               <button
                 onClick={() => setActiveTab('new')}
                 className={cn("px-6 py-2.5 text-[11px] font-bold uppercase tracking-widest transition-all rounded-none", activeTab === 'new' ? 'bg-[#f97316] text-[#030811]' : 'text-white/50 hover:text-white')}
@@ -353,7 +369,7 @@ export default function StudioHome() {
             </div>
 
             <AnimatePresence mode="wait">
-              {!invited && activeTab === 'new' && (
+              {!choosesNothing && activeTab === 'new' && (
                 <motion.div key="new" {...FADE_UP}>
                   <Form {...form}>
                     <form onSubmit={form.handleSubmit(onSubmitGenerate)} className="space-y-6">
@@ -517,7 +533,7 @@ export default function StudioHome() {
                 </motion.div>
               )}
 
-              {!invited && activeTab === 'join' && (
+              {!choosesNothing && activeTab === 'join' && (
                 <motion.div key="join" {...FADE_UP} className="max-w-md">
                   <div className="bg-[#030811] border border-[#f97316]/30 p-8 relative shadow-[0_0_30px_rgba(249,115,22,0.05)]">
                     <div className="absolute top-0 left-0 w-2 h-2 border-t border-l border-[#f97316]" />

@@ -41,6 +41,13 @@ describe("Studio admission", () => {
     expect(mayEnterStudio(false, true, false)).toBe(true);
     expect(mayEnterStudio(false, false, true)).toBe(true);
   });
+
+  it("lets a learner in for their cohort's group session, which invites nobody by name", () => {
+    // A group session has no join code and no individual invitations: the
+    // cohort is the room. Without this the learner is refused at the Studio
+    // door by a rule written for the individual exercise.
+    expect(mayEnterStudio(false, false, false, true)).toBe(true);
+  });
 });
 
 describe("who may do what to a run", () => {

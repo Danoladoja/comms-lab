@@ -283,6 +283,67 @@ function SessionSheet({ session, onChanged }: { session: GroupSession; onChanged
         <Clock className="w-3.5 h-3.5" aria-hidden />
         Runs for {session.durationMinutes} minutes and ends itself. No one has to be there to drive it.
       </p>
+
+      {session.sessionDebrief && <SharedDebrief debrief={session.sessionDebrief} />}
+    </div>
+  );
+}
+
+/**
+ * The read across every team, which only an admin gets.
+ *
+ * This is the genuinely new thing a group exercise produces. Each team saw one
+ * side of the crisis and is judged on that side; nobody who was in the room can
+ * see where two teams' versions of events failed to line up, because nobody was
+ * in more than one team. That gap is where the teaching is, so it is given the
+ * most room on the page rather than being tucked under a heading.
+ */
+function SharedDebrief({ debrief }: { debrief: NonNullable<GroupSession['sessionDebrief']> }) {
+  return (
+    <div className="border-t border-white/10 pt-6">
+      <p className="text-[10px] uppercase tracking-widest text-[#f97316] mb-2">
+        Across the whole room · yours alone
+      </p>
+      <h4 className="text-base font-bold text-white leading-snug mb-3">{debrief.headline}</h4>
+      {debrief.whatHappened && (
+        <p className="text-sm text-white/75 leading-relaxed mb-6">{debrief.whatHappened}</p>
+      )}
+
+      {debrief.contradictions.length > 0 && (
+        <div className="mb-6 border border-amber-400/30 bg-amber-400/[0.06] p-4">
+          <p className="text-[10px] uppercase tracking-widest text-amber-300 mb-2">
+            Where two teams did not tell the same story
+          </p>
+          <ul className="space-y-2">
+            {debrief.contradictions.map((line, i) => (
+              <li key={i} className="text-sm text-amber-100/85 leading-relaxed">{line}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      <div className="mb-6">
+        <p className="text-[10px] uppercase tracking-widest text-white/40 mb-2">Against what it tested</p>
+        <ul className="space-y-3">
+          {debrief.byObjective.map((item, i) => (
+            <li key={i} className="border-l-2 border-white/15 pl-3">
+              <p className="text-sm font-medium text-white">{item.objective}</p>
+              <p className="text-sm text-white/65 leading-relaxed mt-0.5">{item.verdict}</p>
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      {debrief.recommendations.length > 0 && (
+        <div>
+          <p className="text-[10px] uppercase tracking-widest text-white/40 mb-2">What to teach next</p>
+          <ul className="space-y-1.5">
+            {debrief.recommendations.map((line, i) => (
+              <li key={i} className="text-sm text-white/75 leading-relaxed">— {line}</li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }

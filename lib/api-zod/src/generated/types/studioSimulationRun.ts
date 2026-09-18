@@ -31,4 +31,7 @@ export interface StudioSimulationRun {
   stakeholderGroups: StudioStakeholderGroup[];
   /** @nullable */
   participantGroupId: string | null;
+  unattended: boolean;
+  /** @nullable */
+  teamName: string | null;
 }

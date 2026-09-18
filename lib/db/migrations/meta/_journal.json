@@ -43,6 +43,20 @@
       "when": 1789739404169,
       "tag": "0005_goofy_switch",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1789740519644,
+      "tag": "0006_wakeful_songbird",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1789741011260,
+      "tag": "0007_graceful_killer_shrike",
+      "breakpoints": true
     }
   ]
 }

@@ -88,6 +88,17 @@ vi.mock("@workspace/db", () => {
     definitionId: "definition_id", runId: "run_id", startedAt: "started_at",
     completedAt: "completed_at", expiresAt: "expires_at", createdAt: "created_at",
   }),
+  // The fourth way into the Studio: being on the cohort of an approved group
+  // session, which invites nobody by name. Every column the gate reads is here,
+  // because a missing one in a mock reads as a 500 rather than as a refusal.
+  studioGroupSessionsTable: table("studioGroupSessions", {
+    id: "id", programId: "program_id", definitionId: "definition_id", title: "title",
+    objectives: "objectives", beats: "beats", scheduledAt: "scheduled_at",
+    durationMinutes: "duration_minutes", approvedByUserId: "approved_by_user_id",
+    approvedAt: "approved_at", runId: "run_id", startedAt: "started_at", endedAt: "ended_at",
+    deliveredBeatIds: "delivered_beat_ids", sessionDebrief: "session_debrief",
+    createdByUserId: "created_by_user_id", createdAt: "created_at", updatedAt: "updated_at",
+  }),
   studioAccessCodesTable: table("studioAccessCodes", { id: "id", codeHash: "code_hash", createdByUserId: "created_by", redeemedByUserId: "redeemed_by", redeemedAt: "redeemed_at" }),
   simulationDefinitionsTable: table("simulationDefinitions", { id: "id", ownerId: "owner_id", createdAt: "created_at" }),
   simulationRunsTable: table("simulationRuns", { id: "id", ownerId: "owner_id", joinCode: "join_code", status: "status", definitionId: "definition_id" }),
@@ -185,6 +196,35 @@ describe("the Studio gate itself", () => {
     mocks.setRows({ studioAccessCodes: [{ id: 9 }] });
     const res = await fetch(`${baseUrl}/api/simulations`);
     expect(res.status).toBe(200);
+  });
+
+  it("lets a learner in for their cohort's group session, which invites nobody by name", async () => {
+    // The fourth door. A group session has no join code and sends no individual
+    // invitation — the cohort is the room — so the approval is the invitation.
+    // Without this the ticker puts somebody in a team and the Studio then
+    // refuses them at the door.
+    mocks.setUser({ id: 5, role: "learner" });
+    mocks.setRows({ studioGroupSessions: [{ session: { id: 3, approvedAt: new Date() } }] });
+    const res = await fetch(`${baseUrl}/api/simulations`);
+    expect(res.status).toBe(200);
+  });
+
+  it("does not let that learner write an exercise of their own", async () => {
+    // In for the session and nothing else. Writing exercises is the expensive
+    // thing an invitation exists to govern, and nobody invited this person.
+    mocks.setUser({ id: 5, role: "learner" });
+    mocks.setRows({ studioGroupSessions: [{ session: { id: 3, approvedAt: new Date() } }] });
+    const res = await fetch(`${baseUrl}/api/simulations/generate`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        sectorTopic: "A pipeline leak", objective: "Say the hard number first",
+        difficulty: "intermediate", durationMinutes: 30,
+        participantPerspective: "Head of Communications", mode: "autonomous",
+      }),
+    });
+    expect(res.status).toBe(403);
+    expect((await res.json() as { error: string }).error).toMatch(/group session/i);
   });
 
   it("asks a signed-out visitor to sign in rather than refusing them", async () => {

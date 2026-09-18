@@ -16,4 +16,5 @@ export const StudioAccessSource = {
   admin: 'admin',
   invitation: 'invitation',
   access_code: 'access_code',
+  group_session: 'group_session',
 } as const;

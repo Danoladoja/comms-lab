@@ -7,6 +7,7 @@
  */
 import type { GroupSessionBeat } from './groupSessionBeat';
 import type { GroupSessionObjective } from './groupSessionObjective';
+import type { GroupSessionSessionDebrief } from './groupSessionSessionDebrief';
 import type { GroupSessionState } from './groupSessionState';
 import type { GroupSessionTeamsItem } from './groupSessionTeamsItem';
 
@@ -29,4 +30,6 @@ export interface GroupSession {
   problem?: string | null;
   /** @nullable */
   runId?: number | null;
+  /** @nullable */
+  sessionDebrief?: GroupSessionSessionDebrief;
 }

@@ -37,8 +37,21 @@ export type StudioRunStatus = "active" | "completed";
  * run are two questions, and conflating them would take a learner's own record
  * away from them the moment they used it.
  */
-export function mayEnterStudio(isAdmin: boolean, hasStudioInvitation: boolean, hasRedeemedCode: boolean): boolean {
-  return isAdmin || hasStudioInvitation || hasRedeemedCode;
+export function mayEnterStudio(
+  isAdmin: boolean,
+  hasStudioInvitation: boolean,
+  hasRedeemedCode: boolean,
+  /**
+   * On the cohort of a group session an admin has approved.
+   *
+   * A group session invites nobody individually — the cohort is the room, which
+   * is why it has no join code. So the approval is the invitation, and without
+   * this a learner turns up to a session they are enrolled in and is refused at
+   * the door of the Studio by a rule written for the individual exercise.
+   */
+  onCohortSession = false,
+): boolean {
+  return isAdmin || hasStudioInvitation || hasRedeemedCode || onCohortSession;
 }
 
 export function mayCreateStudioRun(mode: StudioMode, ownerId: number, participantId: number): boolean {

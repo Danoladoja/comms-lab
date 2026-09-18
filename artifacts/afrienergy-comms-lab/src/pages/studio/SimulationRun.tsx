@@ -144,6 +144,16 @@ export default function SimulationRun({ id }: { id?: string }) {
   const isCompleted = run?.status === 'completed';
   const currentDev = run?.currentDevelopment;
   const isOwner = !!run?.isOwner;
+  /*
+   * Nobody is driving this room.
+   *
+   * A cohort session has no facilitator and no join code — the timer moves it,
+   * every team is on its own clock, and it ends itself. This screen was written
+   * for the other kind of room and told participants to wait for a person who
+   * does not exist, and offered that person's controls to the admin who owns it.
+   * Both are corrected from this one fact.
+   */
+  const unattended = !!run?.unattended;
   const sessionLeft = useTicking(run?.clock?.sessionSecondsLeft);
   const responseLeft = useTicking(run?.clock?.responseSecondsLeft);
   // Under a minute is when people start typing faster. It is the only moment
@@ -268,7 +278,10 @@ export default function SimulationRun({ id }: { id?: string }) {
 
           {run.mode === 'facilitated' && (
             <div className={cn("px-3 py-1 text-[9px] uppercase tracking-[0.2em] font-bold border", t.panelBorder, t.accentText)}>
-              Room
+              {/* Which team you are, rather than the word "Room". In a session
+                  with four teams inside one crisis it is the thing you most need
+                  on screen at all times. */}
+              {run.teamName || 'Room'}
             </div>
           )}
         </div>
@@ -324,7 +337,14 @@ export default function SimulationRun({ id }: { id?: string }) {
             {hasRespondedToCurrent && !isOwner && run.mode === 'facilitated' && run.status === 'active' && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className={cn("flex flex-col items-center justify-center p-12 border border-dashed", t.panelBorder)}>
                 <RefreshCw className={cn("w-6 h-6 animate-spin mb-4", t.accentText)} />
-                <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-white/50 text-center">Waiting for the facilitator</p>
+                <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-white/50 text-center">
+                  {unattended ? 'The story is still moving' : 'Waiting for the facilitator'}
+                </p>
+                {unattended && (
+                  <p className="mt-3 text-xs text-white/40 text-center max-w-xs leading-relaxed">
+                    The next thing arrives on the clock. It is not waiting for anybody, including you.
+                  </p>
+                )}
               </motion.div>
             )}
 
@@ -345,10 +365,25 @@ export default function SimulationRun({ id }: { id?: string }) {
               <div className="flex-1 flex flex-col items-center justify-center text-center">
                 <CheckCircle2 className={cn("w-12 h-12 mb-6", t.accentText)} />
                 <h3 className={cn("text-lg mb-2", t.headerStyle)}>Exercise finished</h3>
-                <p className="text-white/40 font-mono text-xs mb-8">Your debrief is ready.</p>
-                <Button onClick={() => refetch()} className={cn("uppercase tracking-widest text-xs rounded-none h-12 w-full", t.btn)}>
-                  See the debrief
-                </Button>
+                {/*
+                  An admin watching a cohort session is in no team, so there is
+                  no debrief here for them — theirs reads across all of them and
+                  is on the session in the console. A button promising one would
+                  refetch for ever and never produce it.
+                */}
+                {isOwner && unattended && !run.debrief ? (
+                  <p className="text-white/50 text-xs leading-relaxed">
+                    Each team's debrief has been written and is on their own screens. The read across
+                    the whole room is on this session in the console.
+                  </p>
+                ) : (
+                  <>
+                    <p className="text-white/40 font-mono text-xs mb-8">Your debrief is ready.</p>
+                    <Button onClick={() => refetch()} className={cn("uppercase tracking-widest text-xs rounded-none h-12 w-full", t.btn)}>
+                      See the debrief
+                    </Button>
+                  </>
+                )}
               </div>
             ) : !currentDev ? (
                <div className="flex-1 flex flex-col items-center justify-center text-center">
@@ -374,7 +409,9 @@ export default function SimulationRun({ id }: { id?: string }) {
                   ) : (
                     <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="mb-8">
                       <Users className={cn("w-12 h-12 mx-auto mb-4", t.accentText)} />
-                      <p className={cn("text-sm", t.headerStyle)}>You are running this room</p>
+                      <p className={cn("text-sm", t.headerStyle)}>
+                        {unattended ? 'This room runs itself' : 'You are running this room'}
+                      </p>
                     </motion.div>
                   )}
 
@@ -384,13 +421,26 @@ export default function SimulationRun({ id }: { id?: string }) {
                       : 'The next development is being written.'}
                   </p>
 
+                  {/* An admin watching a cohort session has nothing to press and
+                      should be told so, rather than left looking for the button
+                      this screen used to have. */}
+                  {isOwner && unattended && (
+                    <p className="text-white/50 text-xs leading-relaxed mb-8">
+                      Beats land on their own minutes and the session ends itself. When it does, each
+                      team gets its own debrief and the read across all of them appears on the session
+                      in the console.
+                    </p>
+                  )}
+
                   {/*
-                    A room still waits for the person running it. A solo run
-                    does not: the server writes the next development the moment
-                    the answer lands, so there is nothing here to press. The
-                    only control left is the one that ends it early.
+                    A room with a facilitator in it still waits for them. A solo
+                    run does not: the server writes the next development the
+                    moment the answer lands. A cohort session does not either —
+                    the timer moves it — and an admin who pressed "what happens
+                    next" there would be overtaking the running order they
+                    approved.
                   */}
-                  {isOwner && run.mode === 'facilitated' && (
+                  {isOwner && run.mode === 'facilitated' && !unattended && (
                     <div className="space-y-3 mt-auto">
                       <Button
                         onClick={handleAdvance}

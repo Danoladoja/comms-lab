@@ -2574,7 +2574,17 @@ export const ListGroupSessionsResponseItem = zod.object({
   "learners": zod.int(),
   "mayEdit": zod.boolean(),
   "problem": zod.string().nullish(),
-  "runId": zod.int().nullish()
+  "runId": zod.int().nullish(),
+  "sessionDebrief": zod.object({
+  "headline": zod.string(),
+  "whatHappened": zod.string(),
+  "contradictions": zod.array(zod.string()),
+  "byObjective": zod.array(zod.object({
+  "objective": zod.string(),
+  "verdict": zod.string()
+})),
+  "recommendations": zod.array(zod.string())
+}).nullish()
 })
 export const ListGroupSessionsResponse = zod.array(ListGroupSessionsResponseItem)
 
@@ -2628,7 +2638,17 @@ export const PlanGroupSessionResponse = zod.object({
   "learners": zod.int(),
   "mayEdit": zod.boolean(),
   "problem": zod.string().nullish(),
-  "runId": zod.int().nullish()
+  "runId": zod.int().nullish(),
+  "sessionDebrief": zod.object({
+  "headline": zod.string(),
+  "whatHappened": zod.string(),
+  "contradictions": zod.array(zod.string()),
+  "byObjective": zod.array(zod.object({
+  "objective": zod.string(),
+  "verdict": zod.string()
+})),
+  "recommendations": zod.array(zod.string())
+}).nullish()
 })
 
 
@@ -2672,7 +2692,17 @@ export const GetGroupSessionResponse = zod.object({
   "learners": zod.int(),
   "mayEdit": zod.boolean(),
   "problem": zod.string().nullish(),
-  "runId": zod.int().nullish()
+  "runId": zod.int().nullish(),
+  "sessionDebrief": zod.object({
+  "headline": zod.string(),
+  "whatHappened": zod.string(),
+  "contradictions": zod.array(zod.string()),
+  "byObjective": zod.array(zod.object({
+  "objective": zod.string(),
+  "verdict": zod.string()
+})),
+  "recommendations": zod.array(zod.string())
+}).nullish()
 })
 
 
@@ -2726,7 +2756,17 @@ export const EditGroupSessionResponse = zod.object({
   "learners": zod.int(),
   "mayEdit": zod.boolean(),
   "problem": zod.string().nullish(),
-  "runId": zod.int().nullish()
+  "runId": zod.int().nullish(),
+  "sessionDebrief": zod.object({
+  "headline": zod.string(),
+  "whatHappened": zod.string(),
+  "contradictions": zod.array(zod.string()),
+  "byObjective": zod.array(zod.object({
+  "objective": zod.string(),
+  "verdict": zod.string()
+})),
+  "recommendations": zod.array(zod.string())
+}).nullish()
 })
 
 
@@ -2770,7 +2810,35 @@ export const ApproveGroupSessionResponse = zod.object({
   "learners": zod.int(),
   "mayEdit": zod.boolean(),
   "problem": zod.string().nullish(),
-  "runId": zod.int().nullish()
+  "runId": zod.int().nullish(),
+  "sessionDebrief": zod.object({
+  "headline": zod.string(),
+  "whatHappened": zod.string(),
+  "contradictions": zod.array(zod.string()),
+  "byObjective": zod.array(zod.object({
+  "objective": zod.string(),
+  "verdict": zod.string()
+})),
+  "recommendations": zod.array(zod.string())
+}).nullish()
+})
+
+
+/**
+ * A group session invites nobody by name — the cohort is the room, which is why it has no join code. This is the only thing that tells a learner one exists. It says almost nothing before it starts: a cohort that reads the crisis the night before is being tested on preparation rather than on composure.
+ * @summary The group session this learner's cohort is turning up to
+ */
+export const GetMyGroupSessionResponse = zod.object({
+  "hasSession": zod.boolean(),
+  "id": zod.int().optional(),
+  "title": zod.string().optional(),
+  "state": zod.enum(['draft', 'scheduled', 'live', 'finished']).optional(),
+  "scheduledAt": zod.coerce.date().nullish(),
+  "durationMinutes": zod.int().optional(),
+  "teamName": zod.string().nullish(),
+  "runId": zod.int().nullish(),
+  "mayEnter": zod.boolean().optional(),
+  "note": zod.string().optional()
 })
 
 
@@ -2831,7 +2899,7 @@ export const InviteToStudioResponse = zod.object({
 export const GetStudioAccessResponse = zod.object({
   "allowed": zod.boolean(),
   "isAdmin": zod.boolean(),
-  "source": zod.union([zod.literal('admin'),zod.literal('invitation'),zod.literal('access_code'),zod.literal(null)]).nullable()
+  "source": zod.union([zod.literal('admin'),zod.literal('invitation'),zod.literal('access_code'),zod.literal('group_session'),zod.literal(null)]).nullable()
 })
 
 
@@ -2850,7 +2918,7 @@ export const RedeemStudioAccessBody = zod.object({
 export const RedeemStudioAccessResponse = zod.object({
   "allowed": zod.boolean(),
   "isAdmin": zod.boolean(),
-  "source": zod.union([zod.literal('admin'),zod.literal('invitation'),zod.literal('access_code'),zod.literal(null)]).nullable()
+  "source": zod.union([zod.literal('admin'),zod.literal('invitation'),zod.literal('access_code'),zod.literal('group_session'),zod.literal(null)]).nullable()
 })
 
 
@@ -3386,7 +3454,9 @@ export const CreateSimulationRunResponse = zod.object({
   "roleName": zod.string().min(1),
   "confidentialBrief": zod.string()
 })),
-  "participantGroupId": zod.string().nullable()
+  "participantGroupId": zod.string().nullable(),
+  "unattended": zod.boolean(),
+  "teamName": zod.string().nullable()
 })
 
 
@@ -3506,7 +3576,9 @@ export const JoinSimulationRunResponse = zod.object({
   "roleName": zod.string().min(1),
   "confidentialBrief": zod.string()
 })),
-  "participantGroupId": zod.string().nullable()
+  "participantGroupId": zod.string().nullable(),
+  "unattended": zod.boolean(),
+  "teamName": zod.string().nullable()
 })
 
 
@@ -3622,7 +3694,9 @@ export const GetSimulationRunResponse = zod.object({
   "roleName": zod.string().min(1),
   "confidentialBrief": zod.string()
 })),
-  "participantGroupId": zod.string().nullable()
+  "participantGroupId": zod.string().nullable(),
+  "unattended": zod.boolean(),
+  "teamName": zod.string().nullable()
 })
 
 
@@ -3745,7 +3819,9 @@ export const SubmitSimulationResponseResponse = zod.object({
   "roleName": zod.string().min(1),
   "confidentialBrief": zod.string()
 })),
-  "participantGroupId": zod.string().nullable()
+  "participantGroupId": zod.string().nullable(),
+  "unattended": zod.boolean(),
+  "teamName": zod.string().nullable()
 })
 
 
@@ -3861,7 +3937,9 @@ export const AdvanceSimulationRunResponse = zod.object({
   "roleName": zod.string().min(1),
   "confidentialBrief": zod.string()
 })),
-  "participantGroupId": zod.string().nullable()
+  "participantGroupId": zod.string().nullable(),
+  "unattended": zod.boolean(),
+  "teamName": zod.string().nullable()
 })
 
 
@@ -3977,7 +4055,9 @@ export const CompleteSimulationRunResponse = zod.object({
   "roleName": zod.string().min(1),
   "confidentialBrief": zod.string()
 })),
-  "participantGroupId": zod.string().nullable()
+  "participantGroupId": zod.string().nullable(),
+  "unattended": zod.boolean(),
+  "teamName": zod.string().nullable()
 })
 
 

@@ -3110,6 +3110,30 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiMessage"
+  /studio/my-group-session:
+    get:
+      operationId: getMyGroupSession
+      tags: [studio]
+      summary: The group session this learner's cohort is turning up to
+      description: >
+        A group session invites nobody by name — the cohort is the room, which
+        is why it has no join code. This is the only thing that tells a learner
+        one exists. It says almost nothing before it starts: a cohort that reads
+        the crisis the night before is being tested on preparation rather than
+        on composure.
+      responses:
+        "200":
+          description: Their cohort's session, or none
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MyGroupSession"
+        "403":
+          description: Not admitted to the Studio
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
   /studio/my-exercise:
     get:
       operationId: getMyStudioExercise
@@ -5573,6 +5597,32 @@ components:
         # Why it cannot go live yet, shown before the button is reached.
         problem: { type: ["string", "null"] }
         runId: { type: ["integer", "null"] }
+        # Written when the session closes. The only view in the Studio that
+        # reads across teams, and an admin's alone — every participant saw only
+        # their own side, so where two teams' versions failed to line up is
+        # invisible to all of them.
+        sessionDebrief:
+          type: ["object", "null"]
+          # All five are written together or the debrief is rejected on the
+          # server, so a screen reading this never has to guard each one.
+          required: [headline, whatHappened, contradictions, byObjective, recommendations]
+          properties:
+            headline: { type: string }
+            whatHappened: { type: string }
+            contradictions:
+              type: array
+              items: { type: string }
+            byObjective:
+              type: array
+              items:
+                type: object
+                required: [objective, verdict]
+                properties:
+                  objective: { type: string }
+                  verdict: { type: string }
+            recommendations:
+              type: array
+              items: { type: string }
     MyStudioExercise:
       type: object
       required: [hasInvitation]
@@ -5593,6 +5643,28 @@ components:
         runId: { type: ["integer", "null"] }
         # Why they cannot begin, when they cannot.
         problem: { type: ["string", "null"] }
+    MyGroupSession:
+      type: object
+      required: [hasSession]
+      properties:
+        hasSession: { type: boolean }
+        id: { type: integer }
+        title: { type: string }
+        state:
+          type: string
+          enum: [draft, scheduled, live, finished]
+        scheduledAt: { type: ["string", "null"], format: date-time }
+        durationMinutes: { type: integer }
+        # Only once the session has started and the teams have been made.
+        teamName: { type: ["string", "null"] }
+        # The room. Null until the session starts; afterwards it is where the
+        # team's debrief lives.
+        runId: { type: ["integer", "null"] }
+        # Whether the door is open, which is a different question from whether
+        # there is a room: a finished session still has one.
+        mayEnter: { type: boolean }
+        # The one sentence the learner reads, true at every point on the clock.
+        note: { type: string }
     BeginStudioExercise:
       type: object
       required: [runId, resumed]
@@ -5628,7 +5700,9 @@ components:
         isAdmin: { type: boolean }
         source:
           type: ["string", "null"]
-          enum: [admin, invitation, access_code, null]
+          # group_session: in for their cohort's session and nothing else. They
+          # may not write exercises or start runs of their own.
+          enum: [admin, invitation, access_code, group_session, null]
     StudioAccessCodeInput:
       type: object
       required: [code]
@@ -5789,7 +5863,7 @@ components:
         responseExpired: { type: boolean }
     StudioSimulationRun:
       type: object
-      required: [id, simulationId, mode, status, joinCode, isOwner, clock, working, currentDevelopment, developments, responses, debrief, openingBrief, stakeholderGroups, participantGroupId]
+      required: [id, simulationId, mode, status, joinCode, isOwner, clock, working, currentDevelopment, developments, responses, debrief, openingBrief, stakeholderGroups, participantGroupId, unattended, teamName]
       properties:
         id: { type: integer }
         simulationId: { type: integer }
@@ -5819,3 +5893,10 @@ components:
         openingBrief: { type: string }
         stakeholderGroups: { type: array, items: { $ref: "#/components/schemas/StudioStakeholderGroup" } }
         participantGroupId: { type: ["string", "null"] }
+        # Nobody is driving this room. A cohort session has no join code
+        # because the cohort is the room, and the screen must not tell anybody
+        # to wait for a facilitator who does not exist.
+        unattended: { type: boolean }
+        # The team this person is on, named. Null for a solo exercise and for
+        # the admin who owns a cohort session, who is in no team.
+        teamName: { type: ["string", "null"] }

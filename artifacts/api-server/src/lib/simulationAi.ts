@@ -21,6 +21,12 @@ import {
   validateGroupPlan,
   type ValidatedGroupPlan,
   type StudioProgrammeContext,
+  teamBeatUserPrompt,
+  sessionDebriefSystemPrompt,
+  sessionDebriefUserPrompt,
+  sessionDebriefSchema,
+  validateSessionDebrief,
+  type SessionDebrief,
 } from "@workspace/domain";
 import { anthropicConfigured, askClaude } from "./anthropic";
 
@@ -131,4 +137,49 @@ export async function generateGroupPlan(args: {
   const { plan, problem } = validateGroupPlan(answer.input, args.durationMinutes);
   if (!plan) return { ok: false, error: problem };
   return { ok: true, value: plan };
+}
+
+/** Write what actually reaches one team, from what they and the others did. */
+export async function generateTeamBeat(
+  args: Parameters<typeof teamBeatUserPrompt>[0] & { beatId: string },
+): Promise<AiResult<ValidatedDevelopment>> {
+  const answer = await askClaude({
+    system: developmentSystemPrompt(),
+    user: teamBeatUserPrompt(args),
+    toolName: "submit_development",
+    toolDescription: "Return what reaches this team.",
+    schema: developmentSchema(),
+    maxTokens: 1200,
+    fast: true,
+    timeoutMs: 60_000,
+    label: "studio-team-beat",
+  });
+  if ("error" in answer) return { ok: false, error: answer.error };
+
+  // The beat's own id, so the ticker's record of what it has delivered matches
+  // what is on the table. A generated id here would let the same beat fire on
+  // every pass, because the session would never recognise it as delivered.
+  const development = validateDevelopment(answer.input, args.beatId);
+  if (!development) return { ok: false, error: "The development came back unusable." };
+  return { ok: true, value: development };
+}
+
+/** The facilitator's debrief, across every team. */
+export async function generateSessionDebrief(
+  args: Parameters<typeof sessionDebriefUserPrompt>[0],
+): Promise<AiResult<SessionDebrief>> {
+  const answer = await askClaude({
+    system: sessionDebriefSystemPrompt(),
+    user: sessionDebriefUserPrompt(args),
+    toolName: "submit_session_debrief",
+    toolDescription: "Return the debrief for the whole session.",
+    schema: sessionDebriefSchema(),
+    maxTokens: 3000,
+    label: "studio-session-debrief",
+  });
+  if ("error" in answer) return { ok: false, error: answer.error };
+
+  const debrief = validateSessionDebrief(answer.input);
+  if (!debrief) return { ok: false, error: "The session debrief came back unusable." };
+  return { ok: true, value: debrief };
 }
