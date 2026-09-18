@@ -463,15 +463,57 @@ export function levelNote(level: StudioLevel): string {
 }
 
 /** What the length buys, in turns rather than in minutes. */
-export function lengthNote(minutes: number): string {
-  if (minutes <= 15) {
-    return "Short. One or two things happen — enough to test a first response and not much after it.";
+/**
+ * How long an exercise may be set to run.
+ *
+ * Both ends are load-bearing, and both were found by working the arithmetic
+ * through rather than by picking round numbers.
+ *
+ * The floor is the one that matters. An exercise is never planned for fewer
+ * than three turns, and a turn is a development to read and a considered answer
+ * to write — call it four minutes, and the scenario itself may ask for up to
+ * fifteen. Below a quarter of an hour the wall stops the exercise before those
+ * three turns can happen, so the learner is cut off part-way and then handed a
+ * debrief judging them on turns they never saw. That is worse than no exercise.
+ *
+ * The ceiling is honesty rather than safety. Turns are capped at six, so beyond
+ * about an hour and a half the extra time buys nothing at all: the exercise
+ * still ends after six turns, and an admin who set four hours would be told a
+ * number that never happens.
+ */
+export const STUDIO_MIN_MINUTES = 15;
+export const STUDIO_MAX_MINUTES = 90;
+
+export function durationProblem(minutes: unknown): string | null {
+  const n = typeof minutes === "number" ? minutes : Number.parseInt(String(minutes ?? ""), 10);
+  if (!Number.isFinite(n)) return "That is not a number of minutes.";
+  if (n < STUDIO_MIN_MINUTES) {
+    return `${n} minutes is too short. An exercise runs at least three turns, and below `
+      + `${STUDIO_MIN_MINUTES} minutes the clock stops it part-way — the learner is cut off and `
+      + "then judged on turns they never saw.";
   }
-  if (minutes >= 60) {
-    return "Long. The story has room to turn against an early answer, which is where most of the "
-      + "learning is — but it is an hour of somebody's day.";
+  if (n > STUDIO_MAX_MINUTES) {
+    return `${n} minutes is longer than an exercise can use. It ends after six turns whatever the `
+      + `clock says, so anything past ${STUDIO_MAX_MINUTES} minutes is a number that never happens.`;
   }
-  return "Enough for the situation to develop two or three times and for an early mistake to come back.";
+  return null;
+}
+
+/**
+ * What the length buys, in turns rather than in minutes.
+ *
+ * Says the turn count out loud because that is the thing the number actually
+ * changes, and it is not guessable from the minutes: the same three turns come
+ * out of fifteen minutes and of twenty-four.
+ */
+export function lengthNote(minutes: number, turns: number): string {
+  const shape = turns <= 3
+    ? "Enough to test a first response and one consequence of it."
+    : turns >= 6
+      ? "Room for the story to turn against an early answer twice over, which is where most of the "
+        + "learning is."
+      : "Enough for the situation to develop a few times and for an early mistake to come back.";
+  return `About ${turns} turns. ${shape}`;
 }
 
 /**

@@ -26,7 +26,7 @@ import {
   satisfiesRole, studioInviteLetter, whatTheClockSays, type StudioProgrammeContext,
   inviteState, beginProblem, situationFor, situationBrief, situationSummary,
   objectiveFor, invitationProblem, invitationNote,
-  steerProblem, standaloneProblem, validityProblem, exerciseSubject,
+  steerProblem, standaloneProblem, validityProblem, exerciseSubject, durationProblem,
   groupSessionState, approvalProblem, mayEditSession, beatApprovalNote, GROUP_SESSION_MINUTES,
   developmentsForTeam, debriefForTeam, isUnattendedRoom, mayEnterRoom, startsInMinutes, cohortNote,
   minutesLeft, picksOwnExercise,
@@ -473,6 +473,21 @@ function labLogoUrl(): string | null {
  * ten minutes wakes to a deadline that has passed, which is what would have
  * happened in the real thing.
  */
+/**
+ * The opening development, as a stored inject.
+ *
+ * `responseMinutes` used to be set to the whole session duration here, in all
+ * three places that write one. Nothing read it — a solo run's deadline comes
+ * from `responseSeconds`, which the scenario sets per development — so it
+ * changed nothing, and it read as though the first turn lasted the entire
+ * exercise. A stored row that contradicts itself is a bug waiting for somebody
+ * to trust it, so it now says the same thing the deadline does.
+ */
+function openingInject<T extends { responseSeconds?: number }>(development: T) {
+  const seconds = clampResponseSeconds(development.responseSeconds);
+  return { ...development, responseSeconds: seconds, responseMinutes: Math.round(seconds / 60) };
+}
+
 function withDeadline<T extends { responseSeconds?: number }>(development: T, now = new Date()): T & { dueAt: string; at: string } {
   const seconds = clampResponseSeconds(development.responseSeconds);
   return {
@@ -750,7 +765,9 @@ router.post("/studio/access-codes", async (req, res): Promise<void> => {
       const bad = standaloneProblem({
         subject: wantedExercise.subject ?? "",
         objective: wantedExercise.objective ?? "",
-      }) ?? steerProblem(wantedExercise.steer);
+      })
+        ?? steerProblem(wantedExercise.steer)
+        ?? durationProblem(wantedExercise.durationMinutes ?? 30);
       if (bad) { res.status(400).json(message(bad)); return; }
       exercise = {
         subject: wantedExercise.subject.trim(),
@@ -1010,7 +1027,7 @@ router.post("/admin/studio/group-sessions", async (req, res): Promise<void> => {
     learningObjective: objective, difficulty: body.data.difficulty ?? "intermediate",
     durationMinutes, participantPerspective: "Head of Communications",
     openingBrief: scenario.value.openingBrief, groups: scenario.value.stakeholderGroups,
-    injects: [{ ...scenario.value.initialDevelopment, responseMinutes: durationMinutes }],
+    injects: [openingInject(scenario.value.initialDevelopment)],
     evaluationDimensions: scenario.value.evaluationDimensions,
     debriefQuestions: scenario.value.debriefQuestions,
   }).returning();
@@ -1393,7 +1410,7 @@ router.post("/studio/my-exercise/begin", requireStudioAccess, async (req, res): 
       difficulty: invite.difficulty, durationMinutes: invite.durationMinutes,
       participantPerspective: "Head of Communications", openingBrief: scenario.openingBrief,
       groups: scenario.stakeholderGroups,
-      injects: [{ ...scenario.initialDevelopment, responseMinutes: invite.durationMinutes }],
+      injects: [openingInject(scenario.initialDevelopment)],
       evaluationDimensions: scenario.evaluationDimensions, debriefQuestions: scenario.debriefQuestions,
     }).returning();
 
@@ -1447,6 +1464,8 @@ router.post("/admin/studio/invitations", async (req, res): Promise<void> => {
   // rather than mistakes.
   const badSteer = steerProblem(body.data.steer);
   if (badSteer) { res.status(400).json(message(badSteer)); return; }
+  const badLength = durationProblem(body.data.durationMinutes ?? 30);
+  if (badLength) { res.status(400).json(message(badLength)); return; }
   const badWindow = validityProblem({
     opensAt: body.data.opensAt?.toISOString() ?? null,
     expiresAt: body.data.expiresAt?.toISOString() ?? null,
@@ -1610,7 +1629,7 @@ router.post("/simulations/generate", requireStudioAccess, async (req, res): Prom
     mode: body.data.mode, title: scenario.title, context: body.data.sectorTopic,
     learningObjective: body.data.objective, difficulty: body.data.difficulty, durationMinutes: body.data.durationMinutes,
     participantPerspective: body.data.participantPerspective, openingBrief: scenario.openingBrief, groups: scenario.stakeholderGroups,
-    injects: [{ ...scenario.initialDevelopment, responseMinutes: body.data.durationMinutes }], evaluationDimensions: scenario.evaluationDimensions,
+    injects: [openingInject(scenario.initialDevelopment)], evaluationDimensions: scenario.evaluationDimensions,
     debriefQuestions: scenario.debriefQuestions,
   }).returning();
   req.log.info({ simulationId: saved.id }, "Generated standalone simulation");

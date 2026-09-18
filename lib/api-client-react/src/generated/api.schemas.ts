@@ -1696,8 +1696,8 @@ export interface SimulationLaunchBrief {
   objective: string;
   difficulty: SimulationLaunchBriefDifficulty;
   /**
-     * @minimum 5
-     * @maximum 240
+     * @minimum 1
+     * @maximum 1440
      */
   durationMinutes: number;
   /** @minLength 1 */
@@ -1992,8 +1992,8 @@ export interface InviteToStudio {
   sessionId?: number;
   difficulty?: InviteToStudioDifficulty;
   /**
-     * @minimum 5
-     * @maximum 240
+     * @minimum 1
+     * @maximum 1440
      */
   durationMinutes?: number;
   opensAt?: string;
@@ -2062,8 +2062,8 @@ export type StudioAccessCodeRequestExercise = {
   steer?: string;
   difficulty?: StudioAccessCodeRequestExerciseDifficulty;
   /**
-     * @minimum 5
-     * @maximum 240
+     * @minimum 1
+     * @maximum 1440
      */
   durationMinutes?: number;
 };

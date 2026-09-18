@@ -14,6 +14,9 @@ import {
   standaloneProblem,
   levelNote,
   lengthNote,
+  durationProblem,
+  STUDIO_MIN_MINUTES,
+  STUDIO_MAX_MINUTES,
   exerciseSubject,
   MAX_STEER_CHARS,
   type StudioInviteFacts,
@@ -21,6 +24,7 @@ import {
   opensInNote,
   timeLeftNote,
 } from "./studioInvites";
+import { plannedTurns } from "./simulations";
 
 const NOW = Date.parse("2026-09-18T12:00:00Z");
 const PAST = "2026-09-10T12:00:00Z";
@@ -231,9 +235,12 @@ describe("the dials an admin turns", () => {
     // A dial whose effect nobody can predict is a guess with extra steps.
     expect(levelNote("foundation")).toMatch(/one thing going wrong/i);
     expect(levelNote("advanced")).toMatch(/no clean answer/i);
-    expect(lengthNote(10)).toMatch(/short/i);
-    expect(lengthNote(90)).toMatch(/hour of somebody's day/i);
-    expect(lengthNote(30)).toMatch(/two or three times/i);
+    // Says the turn count, because that is the thing the number actually
+    // changes — and it is not guessable: fifteen minutes and twenty-four both
+    // buy three turns.
+    expect(lengthNote(15, 3)).toMatch(/About 3 turns/);
+    expect(lengthNote(30, 4)).toMatch(/About 4 turns/);
+    expect(lengthNote(90, 6)).toMatch(/twice over/i);
   });
 
   it("lets a subject replace the drawn situation only when there is no programme", () => {
@@ -319,5 +326,37 @@ describe("a validity window rather than a deadline", () => {
     // Already open, or never shut: nothing to say.
     expect(opensInNote(at(-DAY), NOW)).toBeNull();
     expect(opensInNote(null, NOW)).toBeNull();
+  });
+});
+
+describe("how long an exercise may be set to run", () => {
+  it("refuses a length the exercise cannot fit into", () => {
+    // The harmful end. Three turns is the floor, and below a quarter of an hour
+    // the wall stops the exercise part-way — the learner is cut off and then
+    // handed a debrief judging turns they never saw.
+    expect(durationProblem(5)).toMatch(/too short/i);
+    expect(durationProblem(10)).toMatch(/cut off/i);
+    expect(durationProblem(STUDIO_MIN_MINUTES)).toBeNull();
+  });
+
+  it("refuses a length that buys nothing", () => {
+    // Turns are capped at six, so past this the extra time is a number that
+    // never happens.
+    expect(durationProblem(240)).toMatch(/never happens/i);
+    expect(durationProblem(STUDIO_MAX_MINUTES)).toBeNull();
+  });
+
+  it("refuses something that is not a number of minutes", () => {
+    expect(durationProblem("soon")).toMatch(/not a number/i);
+    expect(durationProblem(null)).toMatch(/not a number/i);
+  });
+
+  it("keeps the whole allowed range inside what the turns can use", () => {
+    // The guarantee the two bounds exist for: at every length an admin may
+    // choose, the planned turns fit inside the clock at four minutes each.
+    for (let m = STUDIO_MIN_MINUTES; m <= STUDIO_MAX_MINUTES; m++) {
+      const turns = plannedTurns(m);
+      expect(turns * 4, `${m} minutes plans ${turns} turns`).toBeLessThanOrEqual(m + 1);
+    }
   });
 });

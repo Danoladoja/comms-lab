@@ -5438,7 +5438,14 @@ components:
         sectorTopic: { type: string, minLength: 1 }
         objective: { type: string, minLength: 1 }
         difficulty: { type: string, enum: [foundation, intermediate, advanced] }
-        durationMinutes: { type: integer, minimum: 5, maximum: 240 }
+        # The real rule is 15 to 90 and lives in the domain, which refuses
+        # anything outside it in words an admin can act on: below 15 the clock
+        # stops the exercise before its three turns can happen, and above 90 the
+        # extra minutes buy nothing because a run ends after six turns whatever
+        # the clock says. The bound here is only a sanity limit — a schema
+        # refusal arrives as an unreadable blob, and a length choice deserves a
+        # sentence.
+        durationMinutes: { type: integer, minimum: 1, maximum: 1440 }
         participantPerspective: { type: string, minLength: 1 }
         mode: { type: string, enum: [autonomous, facilitated] }
         # Written for a cohort. The programme and its modules go to the
@@ -5693,7 +5700,14 @@ components:
         # description is used.
         sessionId: { type: integer }
         difficulty: { type: string, enum: [foundation, intermediate, advanced] }
-        durationMinutes: { type: integer, minimum: 5, maximum: 240 }
+        # The real rule is 15 to 90 and lives in the domain, which refuses
+        # anything outside it in words an admin can act on: below 15 the clock
+        # stops the exercise before its three turns can happen, and above 90 the
+        # extra minutes buy nothing because a run ends after six turns whatever
+        # the clock says. The bound here is only a sanity limit — a schema
+        # refusal arrives as an unreadable blob, and a length choice deserves a
+        # sentence.
+        durationMinutes: { type: integer, minimum: 1, maximum: 1440 }
         # The window it is good for. Both optional; both empty means open from
         # the moment it is sent until it is used, which is what every
         # invitation before this meant.
@@ -5748,7 +5762,8 @@ components:
             # Same as above: the readable 240-character rule lives in the domain.
             steer: { type: string, maxLength: 2000 }
             difficulty: { type: string, enum: [foundation, intermediate, advanced] }
-            durationMinutes: { type: integer, minimum: 5, maximum: 240 }
+            # Same as above: the readable 15-to-90 rule lives in the domain.
+            durationMinutes: { type: integer, minimum: 1, maximum: 1440 }
     StudioAccessCode:
       type: object
       required: [code, codes]

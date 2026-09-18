@@ -15,8 +15,8 @@ export interface SimulationLaunchBrief {
   objective: string;
   difficulty: SimulationLaunchBriefDifficulty;
   /**
-     * @minimum 5
-     * @maximum 240
+     * @minimum 1
+     * @maximum 1440
      */
   durationMinutes: number;
   /** @minLength 1 */

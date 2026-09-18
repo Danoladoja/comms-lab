@@ -2875,8 +2875,7 @@ export const BeginStudioExerciseResponse = zod.object({
 /**
  * @summary Invite a module's learners to run it once each
  */
-export const inviteToStudioBodyDurationMinutesMin = 5;
-export const inviteToStudioBodyDurationMinutesMax = 240;
+export const inviteToStudioBodyDurationMinutesMax = 1440;
 
 export const inviteToStudioBodySteerMax = 2000;
 
@@ -2886,7 +2885,7 @@ export const InviteToStudioBody = zod.object({
   "programId": zod.int(),
   "sessionId": zod.int().optional(),
   "difficulty": zod.enum(['foundation', 'intermediate', 'advanced']).optional(),
-  "durationMinutes": zod.int().min(inviteToStudioBodyDurationMinutesMin).max(inviteToStudioBodyDurationMinutesMax).optional(),
+  "durationMinutes": zod.int().min(1).max(inviteToStudioBodyDurationMinutesMax).optional(),
   "opensAt": zod.coerce.date().optional(),
   "expiresAt": zod.coerce.date().optional(),
   "steer": zod.string().max(inviteToStudioBodySteerMax).optional()
@@ -3170,8 +3169,7 @@ export const createStudioAccessCodeBodyExerciseObjectiveMax = 500;
 
 export const createStudioAccessCodeBodyExerciseSteerMax = 2000;
 
-export const createStudioAccessCodeBodyExerciseDurationMinutesMin = 5;
-export const createStudioAccessCodeBodyExerciseDurationMinutesMax = 240;
+export const createStudioAccessCodeBodyExerciseDurationMinutesMax = 1440;
 
 
 
@@ -3182,7 +3180,7 @@ export const CreateStudioAccessCodeBody = zod.object({
   "objective": zod.string().min(createStudioAccessCodeBodyExerciseObjectiveMin).max(createStudioAccessCodeBodyExerciseObjectiveMax),
   "steer": zod.string().max(createStudioAccessCodeBodyExerciseSteerMax).optional(),
   "difficulty": zod.enum(['foundation', 'intermediate', 'advanced']).optional(),
-  "durationMinutes": zod.int().min(createStudioAccessCodeBodyExerciseDurationMinutesMin).max(createStudioAccessCodeBodyExerciseDurationMinutesMax).optional()
+  "durationMinutes": zod.int().min(1).max(createStudioAccessCodeBodyExerciseDurationMinutesMax).optional()
 }).optional()
 })
 
@@ -3222,8 +3220,7 @@ export const GrantStudioAccessToProgrammeResponse = zod.object({
  */
 
 
-export const generateSimulationBodyDurationMinutesMin = 5;
-export const generateSimulationBodyDurationMinutesMax = 240;
+export const generateSimulationBodyDurationMinutesMax = 1440;
 
 
 
@@ -3232,7 +3229,7 @@ export const GenerateSimulationBody = zod.object({
   "sectorTopic": zod.string().min(1),
   "objective": zod.string().min(1),
   "difficulty": zod.enum(['foundation', 'intermediate', 'advanced']),
-  "durationMinutes": zod.int().min(generateSimulationBodyDurationMinutesMin).max(generateSimulationBodyDurationMinutesMax),
+  "durationMinutes": zod.int().min(1).max(generateSimulationBodyDurationMinutesMax),
   "participantPerspective": zod.string().min(1),
   "mode": zod.enum(['autonomous', 'facilitated']),
   "programId": zod.int().optional()

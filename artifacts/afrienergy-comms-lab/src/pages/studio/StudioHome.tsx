@@ -31,7 +31,8 @@ import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import {
   apiReason, picksOwnExercise, levelNote, lengthNote, MAX_STEER_CHARS,
-  validityProblem, dueDateFromInput,
+  validityProblem, dueDateFromInput, plannedTurns, durationProblem,
+  STUDIO_MIN_MINUTES, STUDIO_MAX_MINUTES,
 } from '@workspace/domain';
 import DateTimeField from '@/components/DateTimeField';
 import { deadlineSummary, openingSummary } from '@/lib/dueDateText';
@@ -343,11 +344,17 @@ export default function StudioHome() {
                             How long, in minutes
                           </span>
                           <Input
-                            type="number" min={5} max={240} value={codeMinutes}
+                            type="number" min={STUDIO_MIN_MINUTES} max={STUDIO_MAX_MINUTES}
+                            value={codeMinutes}
                             onChange={(e) => setCodeMinutes(Number(e.target.value))}
                             className="bg-[#030811] border-white/20 text-white rounded-none"
                           />
-                          <span className="block text-[11px] text-white/45 mt-1.5 leading-relaxed">{lengthNote(codeMinutes)}</span>
+                          <span className={cn(
+                            'block text-[11px] mt-1.5 leading-relaxed',
+                            durationProblem(codeMinutes) ? 'text-amber-300' : 'text-white/45',
+                          )}>
+                            {durationProblem(codeMinutes) ?? lengthNote(codeMinutes, plannedTurns(codeMinutes))}
+                          </span>
                         </label>
                       </div>
                       <label className="block">
@@ -379,6 +386,7 @@ export default function StudioHome() {
                         createAccessCode.isPending
                         || (attachExercise && (codeSubject.trim().length < 5 || codeObjective.trim().length < 10))
                         || codeSteer.trim().length > MAX_STEER_CHARS
+                        || (attachExercise && !!durationProblem(codeMinutes))
                       }
                       className="bg-white/10 text-white hover:bg-white/20 rounded-none uppercase tracking-wider text-xs h-10 px-6"
                     >
@@ -834,6 +842,7 @@ function InviteCohortToExercise({ programmes }: { programmes: any[] }) {
 
   const tooLong = steer.trim().length > MAX_STEER_CHARS;
   // Said on the screen before the press rather than as a refusal after it.
+  const lengthProblem = durationProblem(minutes);
   const windowProblem = validityProblem(
     { opensAt: dueDateFromInput(opensAt), expiresAt: dueDateFromInput(closesAt) },
     Date.now(),
@@ -891,13 +900,18 @@ function InviteCohortToExercise({ programmes }: { programmes: any[] }) {
           </span>
           <input
             type="number"
-            min={5}
-            max={240}
+            min={STUDIO_MIN_MINUTES}
+            max={STUDIO_MAX_MINUTES}
             className="w-full bg-[#030811] border border-white/20 text-white px-3 py-2 text-sm"
             value={minutes}
             onChange={(e) => setMinutes(Number(e.target.value))}
           />
-          <span className="block text-[11px] text-white/45 mt-1.5 leading-relaxed">{lengthNote(minutes)}</span>
+          <span className={cn(
+            'block text-[11px] mt-1.5 leading-relaxed',
+            lengthProblem ? 'text-amber-300' : 'text-white/45',
+          )}>
+            {lengthProblem ?? lengthNote(minutes, plannedTurns(minutes))}
+          </span>
         </label>
       </div>
 
@@ -960,7 +974,7 @@ function InviteCohortToExercise({ programmes }: { programmes: any[] }) {
 
       <button
         type="button"
-        disabled={!programId || invite.isPending || tooLong || !!windowProblem}
+        disabled={!programId || invite.isPending || tooLong || !!windowProblem || !!lengthProblem}
         onClick={() => invite.mutate({
           data: {
             programId: Number(programId),
