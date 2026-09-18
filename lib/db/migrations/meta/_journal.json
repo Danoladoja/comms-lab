@@ -36,6 +36,13 @@
       "when": 1789735873929,
       "tag": "0004_careless_darwin",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1789739404169,
+      "tag": "0005_goofy_switch",
+      "breakpoints": true
     }
   ]
 }

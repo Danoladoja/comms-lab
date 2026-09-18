@@ -5,7 +5,7 @@ import {
   db, assignmentsTable, enrollmentsTable, programsTable, sessionReadingsTable, sessionsTable,
   simulationDefinitionsTable,
   simulationGroupAssignmentsTable, simulationResponsesTable, simulationRunsTable, studioAccessCodesTable,
-  studioInvitationsTable, usersTable,
+  studioGroupSessionsTable, studioInvitationsTable, usersTable,
 } from "@workspace/db";
 import {
   AdvanceSimulationRunParams, AdvanceSimulationRunResponse, CompleteSimulationRunParams, CompleteSimulationRunResponse,
@@ -17,6 +17,7 @@ import {
   RedeemStudioAccessBody, RedeemStudioAccessResponse,
   GetMyStudioExerciseResponse, BeginStudioExerciseResponse,
   InviteToStudioBody, InviteToStudioResponse,
+  PlanGroupSessionBody, EditGroupSessionBody, GetGroupSessionResponse, ListGroupSessionsResponse,
 } from "@workspace/api-zod";
 import {
   JOIN_CODE_ALPHABET, JOIN_CODE_LENGTH, accessCodeCount, mayAdvanceStudioRun, mayCompleteStudioRun,
@@ -25,11 +26,14 @@ import {
   satisfiesRole, studioInviteLetter, whatTheClockSays, type StudioProgrammeContext,
   inviteState, beginProblem, situationFor, situationBrief, situationSummary,
   objectiveFor, invitationProblem, invitationNote,
+  groupSessionState, approvalProblem, mayEditSession, beatApprovalNote, GROUP_SESSION_MINUTES,
 } from "@workspace/domain";
 import { getCurrentUser } from "../lib/auth";
 import { createBudget } from "../lib/rateBudget";
 import { emailConfigured, sendEmail } from "../lib/email";
-import { generateDebrief, generateDevelopment, generateScenario, simulationAiConfigured } from "../lib/simulationAi";
+import {
+  generateDebrief, generateDevelopment, generateGroupPlan, generateScenario, simulationAiConfigured,
+} from "../lib/simulationAi";
 
 /**
  * Writing an exercise is the one thing here that costs real money on somebody
@@ -673,6 +677,295 @@ router.post("/studio/access/programme/:programId", async (req, res): Promise<voi
     emailFailed: failed.length,
     emailConfigured: emailConfigured(),
   }));
+});
+
+/** One session, or nothing. */
+async function groupSession(id: number) {
+  if (!Number.isInteger(id)) return null;
+  const [found] = await db.select().from(studioGroupSessionsTable).where(eq(studioGroupSessionsTable.id, id));
+  return found ?? null;
+}
+
+/** The four dates the state machine reads, out of a full row. */
+function sessionFacts(session: typeof studioGroupSessionsTable.$inferSelect) {
+  return {
+    scheduledAt: session.scheduledAt?.toISOString() ?? null,
+    approvedAt: session.approvedAt?.toISOString() ?? null,
+    startedAt: session.startedAt?.toISOString() ?? null,
+    endedAt: session.endedAt?.toISOString() ?? null,
+    durationMinutes: session.durationMinutes,
+  };
+}
+
+/**
+ * A session as the approval screen needs it.
+ *
+ * Each beat carries the sentence that says how far it was actually vetted. A
+ * screen that showed every beat the same way would imply an admin had read
+ * wording that cannot exist yet, because a team beat quotes a learner who has
+ * not answered.
+ */
+async function groupSessionView(session: typeof studioGroupSessionsTable.$inferSelect) {
+  const [definition] = await db.select().from(simulationDefinitionsTable)
+    .where(eq(simulationDefinitionsTable.id, session.definitionId));
+  const [{ learners }] = await db
+    .select({ learners: sql<number>`count(*)::int` })
+    .from(enrollmentsTable)
+    .where(and(
+      eq(enrollmentsTable.programId, session.programId),
+      sql`${enrollmentsTable.status} in ('enrolled', 'completed')`,
+    ));
+
+  const state = groupSessionState(sessionFacts(session), Date.now());
+  const teams = definition?.groups ?? [];
+
+  return {
+    id: session.id,
+    programId: session.programId,
+    title: session.title,
+    state,
+    openingBrief: definition?.openingBrief ?? "",
+    objective: definition?.learningObjective ?? "",
+    teams: teams.map((g) => ({ id: g.id, name: g.name, roleName: g.roleName })),
+    objectives: session.objectives,
+    beats: session.beats.map((beat) => ({ ...beat, approvalNote: beatApprovalNote(beat) })),
+    scheduledAt: session.scheduledAt?.toISOString() ?? null,
+    durationMinutes: session.durationMinutes,
+    learners,
+    mayEdit: mayEditSession(state),
+    // Said on the screen rather than only on the press, so an admin can fix it
+    // before they reach for the button.
+    problem: state === "draft"
+      ? approvalProblem({
+        objectives: session.objectives,
+        beats: session.beats,
+        scheduledAt: session.scheduledAt?.toISOString() ?? null,
+        durationMinutes: session.durationMinutes,
+        nowMs: Date.now(),
+        learners,
+        teams: teams.length,
+      })
+      : null,
+    runId: session.runId,
+  };
+}
+
+/* ------------------------------------------------------------------ *
+ * Group sessions: written, then read, then live
+ * ------------------------------------------------------------------ */
+
+/**
+ * Write a group session, and stop.
+ *
+ * The scenario and the running order are generated here and nothing else
+ * happens. No learner can see it, no team exists, nothing is scheduled. It sits
+ * in draft until an admin has read what it tests and what it does, which is the
+ * whole point of having a gate: an unfacilitated session cannot be steered once
+ * it starts, so the reading has to happen before rather than during.
+ */
+router.post("/admin/studio/group-sessions", async (req, res): Promise<void> => {
+  const user = await getCurrentUser(req);
+  if (!user) { res.status(401).json(message("Unauthorized")); return; }
+  if (!satisfiesRole(user.role, ["admin"])) { res.status(403).json(message("Only admins can plan a group session")); return; }
+
+  const body = PlanGroupSessionBody.safeParse(req.body);
+  if (!body.success) { res.status(400).json(message(body.error.message)); return; }
+  if (!simulationAiConfigured()) {
+    res.status(503).json(message("The Studio needs an AI key on the server before it can plan a session."));
+    return;
+  }
+
+  const programme = await programmeContext(body.data.programId);
+  if (!programme) { res.status(404).json(message("Programme not found")); return; }
+
+  const [row] = await db.select().from(programsTable).where(eq(programsTable.id, body.data.programId));
+  const moduleTitles = programme.moduleTitles ?? [];
+  const objective = objectiveFor({
+    programmeTitle: row.title,
+    programmeDescription: row.description,
+    moduleTitles,
+  });
+  const durationMinutes = body.data.durationMinutes ?? GROUP_SESSION_MINUTES;
+
+  // The situation is drawn the same way an individual's is, from a seed — so a
+  // second session on the same programme is a different crisis rather than the
+  // same one again.
+  const seed = `group:${body.data.programId}:${randomBytes(6).toString("hex")}`;
+  const situation = situationFor(seed);
+
+  const scenario = await generateScenario({
+    sectorTopic: situationBrief(situation),
+    objective,
+    participantPerspective: "Head of Communications",
+    mode: "facilitated",
+    difficulty: body.data.difficulty ?? "intermediate",
+    durationMinutes,
+    programme,
+  });
+  if (!scenario.ok) {
+    req.log.error({ reason: scenario.error, by: user.id }, "Group scenario generation failed");
+    res.status(502).json(message(scenario.error));
+    return;
+  }
+
+  const plan = await generateGroupPlan({
+    openingBrief: scenario.value.openingBrief,
+    teams: scenario.value.stakeholderGroups.map((g) => ({ id: g.id, name: g.name, roleName: g.roleName })),
+    objective,
+    durationMinutes,
+    programme,
+  });
+  if (!plan.ok) {
+    req.log.error({ reason: plan.error, by: user.id }, "Group plan generation failed");
+    res.status(502).json(message(plan.error));
+    return;
+  }
+
+  const [definition] = await db.insert(simulationDefinitionsTable).values({
+    ownerId: user.id, programId: body.data.programId,
+    // Not published. A group scenario is not something a learner opens on their
+    // own — they reach it only through the session, when it goes live.
+    published: false,
+    mode: "facilitated", title: scenario.value.title, context: situationBrief(situation),
+    learningObjective: objective, difficulty: body.data.difficulty ?? "intermediate",
+    durationMinutes, participantPerspective: "Head of Communications",
+    openingBrief: scenario.value.openingBrief, groups: scenario.value.stakeholderGroups,
+    injects: [{ ...scenario.value.initialDevelopment, responseMinutes: durationMinutes }],
+    evaluationDimensions: scenario.value.evaluationDimensions,
+    debriefQuestions: scenario.value.debriefQuestions,
+  }).returning();
+
+  const [session] = await db.insert(studioGroupSessionsTable).values({
+    programId: body.data.programId,
+    definitionId: definition.id,
+    title: scenario.value.title,
+    objectives: plan.value.objectives,
+    beats: plan.value.beats.map((b) => ({
+      id: b.id, atMinute: b.atMinute, scope: b.scope, title: b.title,
+      content: b.content, responsePrompt: b.responsePrompt, responseMinutes: b.responseMinutes,
+    })),
+    scheduledAt: body.data.scheduledAt ? new Date(body.data.scheduledAt) : null,
+    durationMinutes,
+    createdByUserId: user.id,
+  }).returning();
+
+  req.log.info({ sessionId: session.id, programId: body.data.programId, by: user.id }, "Group session drafted");
+  res.status(201).json(GetGroupSessionResponse.parse(await groupSessionView(session)));
+});
+
+/** Read one, to approve it. */
+router.get("/admin/studio/group-sessions/:id", async (req, res): Promise<void> => {
+  const user = await getCurrentUser(req);
+  if (!user) { res.status(401).json(message("Unauthorized")); return; }
+  if (!satisfiesRole(user.role, ["admin"])) { res.status(403).json(message("Only admins can read a group session")); return; }
+
+  const session = await groupSession(Number(req.params.id));
+  if (!session) { res.status(404).json(message("Session not found")); return; }
+  res.json(GetGroupSessionResponse.parse(await groupSessionView(session)));
+});
+
+/**
+ * Change what it tests, or when it runs.
+ *
+ * Only while it is a draft. Once approved the cohort has been told what they are
+ * turning up to, and editing the exercise underneath them is not an edit.
+ */
+router.patch("/admin/studio/group-sessions/:id", async (req, res): Promise<void> => {
+  const user = await getCurrentUser(req);
+  if (!user) { res.status(401).json(message("Unauthorized")); return; }
+  if (!satisfiesRole(user.role, ["admin"])) { res.status(403).json(message("Only admins can edit a group session")); return; }
+
+  const body = EditGroupSessionBody.safeParse(req.body);
+  if (!body.success) { res.status(400).json(message(body.error.message)); return; }
+
+  const session = await groupSession(Number(req.params.id));
+  if (!session) { res.status(404).json(message("Session not found")); return; }
+  if (!mayEditSession(groupSessionState(sessionFacts(session), Date.now()))) {
+    res.status(409).json(message(
+      "This session has already been approved, and the cohort has been told what they are turning up "
+      + "to. Cancel it and plan another rather than changing this one underneath them.",
+    ));
+    return;
+  }
+
+  const objectives = body.data.objectives
+    ? session.objectives.map((existing) => {
+      const edit = body.data.objectives!.find((o) => o.id === existing.id);
+      return edit ? { ...existing, text: edit.text ?? existing.text, enabled: edit.enabled ?? existing.enabled } : existing;
+    })
+    : session.objectives;
+
+  const [updated] = await db.update(studioGroupSessionsTable)
+    .set({
+      objectives,
+      ...(body.data.scheduledAt !== undefined
+        ? { scheduledAt: body.data.scheduledAt ? new Date(body.data.scheduledAt) : null }
+        : {}),
+    })
+    .where(eq(studioGroupSessionsTable.id, session.id))
+    .returning();
+
+  res.json(GetGroupSessionResponse.parse(await groupSessionView(updated)));
+});
+
+/**
+ * Make it live.
+ *
+ * The one irreversible press on this screen, so everything that could refuse it
+ * refuses here rather than after the cohort has been told.
+ */
+router.post("/admin/studio/group-sessions/:id/approve", async (req, res): Promise<void> => {
+  const user = await getCurrentUser(req);
+  if (!user) { res.status(401).json(message("Unauthorized")); return; }
+  if (!satisfiesRole(user.role, ["admin"])) { res.status(403).json(message("Only admins can approve a group session")); return; }
+
+  const session = await groupSession(Number(req.params.id));
+  if (!session) { res.status(404).json(message("Session not found")); return; }
+  if (groupSessionState(sessionFacts(session), Date.now()) !== "draft") {
+    res.status(409).json(message("This session has already been approved.")); return;
+  }
+
+  const [definition] = await db.select().from(simulationDefinitionsTable)
+    .where(eq(simulationDefinitionsTable.id, session.definitionId));
+  const [{ learners }] = await db
+    .select({ learners: sql<number>`count(*)::int` })
+    .from(enrollmentsTable)
+    .where(and(
+      eq(enrollmentsTable.programId, session.programId),
+      sql`${enrollmentsTable.status} in ('enrolled', 'completed')`,
+    ));
+
+  const problem = approvalProblem({
+    objectives: session.objectives,
+    beats: session.beats,
+    scheduledAt: session.scheduledAt?.toISOString() ?? null,
+    durationMinutes: session.durationMinutes,
+    nowMs: Date.now(),
+    learners,
+    teams: definition?.groups.length ?? 0,
+  });
+  if (problem) { res.status(400).json(message(problem)); return; }
+
+  const [approved] = await db.update(studioGroupSessionsTable)
+    .set({ approvedByUserId: user.id, approvedAt: new Date() })
+    .where(and(eq(studioGroupSessionsTable.id, session.id), isNull(studioGroupSessionsTable.approvedAt)))
+    .returning();
+  if (!approved) { res.status(409).json(message("Somebody approved this a moment ago.")); return; }
+
+  req.log.info({ sessionId: session.id, by: user.id }, "Group session approved");
+  res.json(GetGroupSessionResponse.parse(await groupSessionView(approved)));
+});
+
+/** Every session on a programme, newest first. */
+router.get("/admin/studio/group-sessions", async (req, res): Promise<void> => {
+  const user = await getCurrentUser(req);
+  if (!user) { res.status(401).json(message("Unauthorized")); return; }
+  if (!satisfiesRole(user.role, ["admin"])) { res.status(403).json(message("Only admins can list group sessions")); return; }
+
+  const sessions = await db.select().from(studioGroupSessionsTable)
+    .orderBy(sql`${studioGroupSessionsTable.createdAt} desc`)
+    .limit(30);
+  res.json(ListGroupSessionsResponse.parse(await Promise.all(sessions.map(groupSessionView))));
 });
 
 /* ------------------------------------------------------------------ *

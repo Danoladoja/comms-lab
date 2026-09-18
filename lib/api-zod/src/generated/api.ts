@@ -2539,6 +2539,242 @@ export const ListSimulationsResponse = zod.array(ListSimulationsResponseItem)
 
 
 /**
+ * @summary Group sessions, newest first
+ */
+export const ListGroupSessionsResponseItem = zod.object({
+  "id": zod.int(),
+  "programId": zod.int(),
+  "title": zod.string(),
+  "state": zod.enum(['draft', 'scheduled', 'live', 'finished']),
+  "openingBrief": zod.string(),
+  "objective": zod.string(),
+  "teams": zod.array(zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "roleName": zod.string()
+})),
+  "objectives": zod.array(zod.object({
+  "id": zod.string(),
+  "text": zod.string(),
+  "note": zod.string(),
+  "enabled": zod.boolean()
+})),
+  "beats": zod.array(zod.object({
+  "id": zod.string(),
+  "atMinute": zod.int(),
+  "scope": zod.enum(['all', 'team']),
+  "title": zod.string(),
+  "content": zod.string(),
+  "responsePrompt": zod.string(),
+  "responseMinutes": zod.int(),
+  "approvalNote": zod.string()
+})),
+  "scheduledAt": zod.coerce.date().nullish(),
+  "durationMinutes": zod.int(),
+  "learners": zod.int(),
+  "mayEdit": zod.boolean(),
+  "problem": zod.string().nullish(),
+  "runId": zod.int().nullish()
+})
+export const ListGroupSessionsResponse = zod.array(ListGroupSessionsResponseItem)
+
+
+/**
+ * Generates the scenario and the running order and leaves both in draft. No learner can see it, no team exists and nothing is scheduled until an admin has read it and approved it — an unfacilitated session cannot be steered once it starts, so the reading happens before rather than during.
+ * @summary Write a group session, and stop
+ */
+export const planGroupSessionBodyDurationMinutesMin = 15;
+export const planGroupSessionBodyDurationMinutesMax = 180;
+
+
+
+export const PlanGroupSessionBody = zod.object({
+  "programId": zod.int(),
+  "scheduledAt": zod.coerce.date().optional(),
+  "durationMinutes": zod.int().min(planGroupSessionBodyDurationMinutesMin).max(planGroupSessionBodyDurationMinutesMax).optional(),
+  "difficulty": zod.enum(['foundation', 'intermediate', 'advanced']).optional()
+})
+
+export const PlanGroupSessionResponse = zod.object({
+  "id": zod.int(),
+  "programId": zod.int(),
+  "title": zod.string(),
+  "state": zod.enum(['draft', 'scheduled', 'live', 'finished']),
+  "openingBrief": zod.string(),
+  "objective": zod.string(),
+  "teams": zod.array(zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "roleName": zod.string()
+})),
+  "objectives": zod.array(zod.object({
+  "id": zod.string(),
+  "text": zod.string(),
+  "note": zod.string(),
+  "enabled": zod.boolean()
+})),
+  "beats": zod.array(zod.object({
+  "id": zod.string(),
+  "atMinute": zod.int(),
+  "scope": zod.enum(['all', 'team']),
+  "title": zod.string(),
+  "content": zod.string(),
+  "responsePrompt": zod.string(),
+  "responseMinutes": zod.int(),
+  "approvalNote": zod.string()
+})),
+  "scheduledAt": zod.coerce.date().nullish(),
+  "durationMinutes": zod.int(),
+  "learners": zod.int(),
+  "mayEdit": zod.boolean(),
+  "problem": zod.string().nullish(),
+  "runId": zod.int().nullish()
+})
+
+
+/**
+ * @summary One group session, to approve it
+ */
+export const GetGroupSessionParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const GetGroupSessionResponse = zod.object({
+  "id": zod.int(),
+  "programId": zod.int(),
+  "title": zod.string(),
+  "state": zod.enum(['draft', 'scheduled', 'live', 'finished']),
+  "openingBrief": zod.string(),
+  "objective": zod.string(),
+  "teams": zod.array(zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "roleName": zod.string()
+})),
+  "objectives": zod.array(zod.object({
+  "id": zod.string(),
+  "text": zod.string(),
+  "note": zod.string(),
+  "enabled": zod.boolean()
+})),
+  "beats": zod.array(zod.object({
+  "id": zod.string(),
+  "atMinute": zod.int(),
+  "scope": zod.enum(['all', 'team']),
+  "title": zod.string(),
+  "content": zod.string(),
+  "responsePrompt": zod.string(),
+  "responseMinutes": zod.int(),
+  "approvalNote": zod.string()
+})),
+  "scheduledAt": zod.coerce.date().nullish(),
+  "durationMinutes": zod.int(),
+  "learners": zod.int(),
+  "mayEdit": zod.boolean(),
+  "problem": zod.string().nullish(),
+  "runId": zod.int().nullish()
+})
+
+
+/**
+ * Only while it is a draft. Once approved the cohort has been told what they are turning up to.
+ * @summary Change what it tests, or when it runs
+ */
+export const EditGroupSessionParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const EditGroupSessionBody = zod.object({
+  "scheduledAt": zod.coerce.date().nullish(),
+  "objectives": zod.array(zod.object({
+  "id": zod.string(),
+  "text": zod.string().optional(),
+  "enabled": zod.boolean().optional()
+})).optional()
+})
+
+export const EditGroupSessionResponse = zod.object({
+  "id": zod.int(),
+  "programId": zod.int(),
+  "title": zod.string(),
+  "state": zod.enum(['draft', 'scheduled', 'live', 'finished']),
+  "openingBrief": zod.string(),
+  "objective": zod.string(),
+  "teams": zod.array(zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "roleName": zod.string()
+})),
+  "objectives": zod.array(zod.object({
+  "id": zod.string(),
+  "text": zod.string(),
+  "note": zod.string(),
+  "enabled": zod.boolean()
+})),
+  "beats": zod.array(zod.object({
+  "id": zod.string(),
+  "atMinute": zod.int(),
+  "scope": zod.enum(['all', 'team']),
+  "title": zod.string(),
+  "content": zod.string(),
+  "responsePrompt": zod.string(),
+  "responseMinutes": zod.int(),
+  "approvalNote": zod.string()
+})),
+  "scheduledAt": zod.coerce.date().nullish(),
+  "durationMinutes": zod.int(),
+  "learners": zod.int(),
+  "mayEdit": zod.boolean(),
+  "problem": zod.string().nullish(),
+  "runId": zod.int().nullish()
+})
+
+
+/**
+ * @summary Make it live
+ */
+export const ApproveGroupSessionParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const ApproveGroupSessionResponse = zod.object({
+  "id": zod.int(),
+  "programId": zod.int(),
+  "title": zod.string(),
+  "state": zod.enum(['draft', 'scheduled', 'live', 'finished']),
+  "openingBrief": zod.string(),
+  "objective": zod.string(),
+  "teams": zod.array(zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "roleName": zod.string()
+})),
+  "objectives": zod.array(zod.object({
+  "id": zod.string(),
+  "text": zod.string(),
+  "note": zod.string(),
+  "enabled": zod.boolean()
+})),
+  "beats": zod.array(zod.object({
+  "id": zod.string(),
+  "atMinute": zod.int(),
+  "scope": zod.enum(['all', 'team']),
+  "title": zod.string(),
+  "content": zod.string(),
+  "responsePrompt": zod.string(),
+  "responseMinutes": zod.int(),
+  "approvalNote": zod.string()
+})),
+  "scheduledAt": zod.coerce.date().nullish(),
+  "durationMinutes": zod.int(),
+  "learners": zod.int(),
+  "mayEdit": zod.boolean(),
+  "problem": zod.string().nullish(),
+  "runId": zod.int().nullish()
+})
+
+
+/**
  * Everything needed to begin, and nothing to fill in. The objective comes from the programme; the situation comes from the invitation, and differs from every other learner's. Returns hasInvitation false for admins and for people who got in on an access code, who choose their own.
  * @summary The exercise this learner has been invited to run
  */

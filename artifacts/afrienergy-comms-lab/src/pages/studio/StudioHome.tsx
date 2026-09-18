@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import MyExerciseCard from '@/components/simulation/MyExerciseCard';
+import GroupSessionApproval from '@/components/simulation/GroupSessionApproval';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -181,6 +182,8 @@ export default function StudioHome() {
               <motion.div {...FADE_UP} className="mb-10 space-y-4">
 
                 <InviteCohortToExercise programmes={programmes} />
+
+                <GroupSessionApproval programmes={programmes} />
 
                 {/* One press: everybody on a programme gets in, and hears about it. */}
                 <div className="p-5 bg-white/[0.02] border border-white/10 relative">

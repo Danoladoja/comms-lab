@@ -2973,6 +2973,143 @@ paths:
           content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/StudioSimulation" } } } }
         "401": { $ref: "#/components/responses/Unauthorized" }
         "403": { $ref: "#/components/responses/Forbidden" }
+  /admin/studio/group-sessions:
+    get:
+      operationId: listGroupSessions
+      tags: [admin]
+      summary: Group sessions, newest first
+      responses:
+        "200":
+          description: The sessions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/GroupSession"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+    post:
+      operationId: planGroupSession
+      tags: [admin]
+      summary: Write a group session, and stop
+      description: >
+        Generates the scenario and the running order and leaves both in draft.
+        No learner can see it, no team exists and nothing is scheduled until an
+        admin has read it and approved it — an unfacilitated session cannot be
+        steered once it starts, so the reading happens before rather than during.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PlanGroupSession"
+      responses:
+        "201":
+          description: Drafted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GroupSession"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "502":
+          description: The scenario or the plan could not be written
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+  /admin/studio/group-sessions/{id}:
+    get:
+      operationId: getGroupSession
+      tags: [admin]
+      summary: One group session, to approve it
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: The session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GroupSession"
+        "404":
+          description: No such session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+    patch:
+      operationId: editGroupSession
+      tags: [admin]
+      summary: Change what it tests, or when it runs
+      description: >
+        Only while it is a draft. Once approved the cohort has been told what
+        they are turning up to.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EditGroupSession"
+      responses:
+        "200":
+          description: Changed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GroupSession"
+        "409":
+          description: Already approved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+  /admin/studio/group-sessions/{id}/approve:
+    post:
+      operationId: approveGroupSession
+      tags: [admin]
+      summary: Make it live
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Approved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GroupSession"
+        "400":
+          description: Refused, with what is wrong
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "409":
+          description: Already approved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
   /studio/my-exercise:
     get:
       operationId: getMyStudioExercise
@@ -5354,6 +5491,88 @@ components:
         evaluationDimensions: { type: array, items: { $ref: "#/components/schemas/SimulationEvaluationDimension" } }
         debriefQuestions: { type: array, items: { type: string } }
         createdAt: { type: string, format: date-time }
+    PlanGroupSession:
+      type: object
+      required: [programId]
+      properties:
+        programId: { type: integer }
+        scheduledAt: { type: string, format: date-time }
+        durationMinutes: { type: integer, minimum: 15, maximum: 180 }
+        difficulty: { type: string, enum: [foundation, intermediate, advanced] }
+    EditGroupSession:
+      type: object
+      properties:
+        scheduledAt: { type: ["string", "null"], format: date-time }
+        objectives:
+          type: array
+          items:
+            type: object
+            required: [id]
+            properties:
+              id: { type: string }
+              text: { type: string }
+              enabled: { type: boolean }
+    GroupSessionObjective:
+      type: object
+      required: [id, text, note, enabled]
+      properties:
+        id: { type: string }
+        text: { type: string }
+        note: { type: string }
+        enabled: { type: boolean }
+    GroupSessionBeat:
+      type: object
+      required: [id, atMinute, scope, title, content, responsePrompt, responseMinutes, approvalNote]
+      properties:
+        id: { type: string }
+        atMinute: { type: integer }
+        scope: { type: string, enum: [all, team] }
+        title: { type: string }
+        content: { type: string }
+        responsePrompt: { type: string }
+        responseMinutes: { type: integer }
+        # How far this beat was actually vetted. A shared beat is approved word
+        # for word; a team beat is approved for what it is for, because its
+        # wording quotes a learner who has not answered yet.
+        approvalNote: { type: string }
+    GroupSession:
+      type: object
+      required:
+        [id, programId, title, state, openingBrief, objective, teams, objectives,
+         beats, durationMinutes, learners, mayEdit]
+      properties:
+        id: { type: integer }
+        programId: { type: integer }
+        title: { type: string }
+        state:
+          type: string
+          enum: [draft, scheduled, live, finished]
+        openingBrief: { type: string }
+        objective: { type: string }
+        teams:
+          type: array
+          items:
+            type: object
+            required: [id, name, roleName]
+            properties:
+              id: { type: string }
+              name: { type: string }
+              roleName: { type: string }
+        objectives:
+          type: array
+          items:
+            $ref: "#/components/schemas/GroupSessionObjective"
+        beats:
+          type: array
+          items:
+            $ref: "#/components/schemas/GroupSessionBeat"
+        scheduledAt: { type: ["string", "null"], format: date-time }
+        durationMinutes: { type: integer }
+        learners: { type: integer }
+        mayEdit: { type: boolean }
+        # Why it cannot go live yet, shown before the button is reached.
+        problem: { type: ["string", "null"] }
+        runId: { type: ["integer", "null"] }
     MyStudioExercise:
       type: object
       required: [hasInvitation]

@@ -52,3 +52,4 @@ export * from "./attendanceCredit";
 export * from "./googleCalendarError";
 export * from "./startupMigrations";
 export * from "./studioInvites";
+export * from "./groupSession";

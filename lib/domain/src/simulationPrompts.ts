@@ -683,3 +683,181 @@ export function validateDebrief(raw: unknown): ValidatedDebrief | null {
     recommendations: list(r.recommendations, 4),
   };
 }
+
+/* ------------------------------------------------------------------ *
+ * The running order of a group session
+ * ------------------------------------------------------------------ */
+
+/**
+ * What we ask for when a group session is planned.
+ *
+ * Separate from writing the scenario, and after it, because the two answer
+ * different questions. The scenario says what the crisis is and who the teams
+ * are. This says what happens, to whom, and when — a timetable a server can run
+ * without anybody at the front of the room.
+ *
+ * The distinction the whole design rests on is asked for explicitly: a beat that
+ * lands on every team is written here in full and will be read by an admin word
+ * for word, and a beat that lands on one team is a consequence of what that team
+ * did and cannot be written yet. Asking the model to mark which is which is how
+ * the approval screen can be honest about what was actually vetted.
+ */
+export function groupPlanSystemPrompt(): string {
+  return `${WHO_WE_ARE}
+
+You are planning a group exercise: one crisis, several stakeholder teams inside
+it, no facilitator. It runs on a clock and ends itself.
+
+What makes a good running order:
+
+- It starts with something that lands on everybody at minute zero, so the teams
+  are demonstrably in the same crisis.
+- It alternates. A beat that hits everyone moves the story; a beat that hits one
+  team is that team living with what it just did. A running order that is all
+  shared beats is a broadcast, and one that is all team beats is four people in
+  four separate rooms.
+- It escalates. What lands at minute thirty should be harder than what landed at
+  minute five, and should be harder *because* of what the teams have been doing.
+- It leaves room to answer. Nothing lands on top of something else.
+
+${HOUSE_RULES}`;
+}
+
+export function groupPlanUserPrompt(args: {
+  openingBrief: string;
+  teams: readonly { id: string; name: string; roleName: string }[];
+  objective: string;
+  durationMinutes: number;
+  programme?: StudioProgrammeContext | null;
+}): string {
+  const teams = args.teams.map((t) => `  ${t.id} — ${t.name} (${t.roleName})`).join("\n");
+  return `Plan one group exercise.
+
+The crisis, already written:
+${args.openingBrief}
+
+The teams in it:
+${teams}
+
+What this cohort is practising: ${args.objective}
+
+It runs for ${args.durationMinutes} minutes.
+
+Give me two things.
+
+First, three or four objectives: the specific things this session will show about
+how these people work. Each one is what a debrief could be written against, not a
+virtue. "Whether they lead with the figure that hurts" rather than "clear
+communication".
+
+Second, the running order. For each beat: the minute it lands, whether it lands
+on every team or on one, what it says, and what it asks for.
+
+For a beat that lands on everyone, write what it actually says — an admin will
+read those words before this runs.
+
+For a beat that lands on one team, write what it is FOR in one or two sentences,
+because its real wording depends on what that team has just done and cannot be
+known yet. Say which team it lands on by its id.${programmeSection(args.programme)}`;
+}
+
+export function groupPlanSchema() {
+  return {
+    type: "object",
+    required: ["objectives", "beats"],
+    properties: {
+      objectives: {
+        type: "array", minItems: 2, maxItems: 5,
+        items: {
+          type: "object",
+          required: ["text", "note"],
+          properties: {
+            text: { type: "string", description: "The thing this session will show. One line." },
+            note: { type: "string", description: "What separates doing it well from doing it badly. One or two sentences." },
+          },
+        },
+      },
+      beats: {
+        type: "array", minItems: 3, maxItems: 10,
+        items: {
+          type: "object",
+          required: ["atMinute", "scope", "title", "content", "responsePrompt"],
+          properties: {
+            atMinute: { type: "integer", description: "Minutes from the start." },
+            scope: { type: "string", enum: ["all", "team"], description: "Every team, or one." },
+            teamId: { type: "string", description: "For scope 'team', which team it lands on." },
+            title: { type: "string", description: "A few words. What this is." },
+            content: { type: "string", description: "For 'all', what it says. For 'team', what it is for." },
+            responsePrompt: { type: "string", description: "What the team has to answer." },
+            responseMinutes: { type: "integer", description: "How long they get." },
+          },
+        },
+      },
+    },
+  };
+}
+
+export type ValidatedGroupPlan = {
+  objectives: { id: string; text: string; note: string; enabled: boolean }[];
+  beats: {
+    id: string; atMinute: number; scope: "all" | "team"; teamId?: string;
+    title: string; content: string; responsePrompt: string; responseMinutes: number;
+  }[];
+};
+
+/**
+ * Make the plan safe to store and to run.
+ *
+ * Every number is clamped and every beat is given an id here rather than
+ * trusted from the model, because these are read by a timer that will deliver
+ * whatever it is handed: a beat at minute 9999 never fires, one at minute -3
+ * fires immediately and repeatedly, and two beats sharing an id means the
+ * second is silently treated as already delivered.
+ */
+export function validateGroupPlan(input: unknown, durationMinutes: number): {
+  plan: ValidatedGroupPlan | null;
+  problem: string;
+} {
+  const raw = input as {
+    objectives?: { text?: unknown; note?: unknown }[];
+    beats?: {
+      atMinute?: unknown; scope?: unknown; teamId?: unknown; title?: unknown;
+      content?: unknown; responsePrompt?: unknown; responseMinutes?: unknown;
+    }[];
+  } | null;
+
+  const text = (value: unknown): string => (typeof value === "string" ? value.trim() : "");
+
+  const objectives = (raw?.objectives ?? [])
+    .map((o, i) => ({ id: `obj-${i + 1}`, text: text(o?.text), note: text(o?.note), enabled: true }))
+    .filter((o) => o.text.length > 0);
+  if (objectives.length === 0) return { plan: null, problem: "The plan came back with no objectives." };
+
+  const beats = (raw?.beats ?? [])
+    .map((b, i) => {
+      const minute = Number(b?.atMinute);
+      const scope = b?.scope === "team" ? "team" as const : "all" as const;
+      const response = Number(b?.responseMinutes);
+      return {
+        id: `beat-${i + 1}`,
+        // Inside the session, and never negative. A beat past the end never
+        // fires; one before the start fires the instant it begins.
+        atMinute: Number.isFinite(minute) ? Math.min(Math.max(0, Math.round(minute)), durationMinutes - 1) : 0,
+        scope,
+        ...(scope === "team" && text(b?.teamId) ? { teamId: text(b?.teamId) } : {}),
+        title: text(b?.title) || "A development",
+        content: text(b?.content),
+        responsePrompt: text(b?.responsePrompt) || "What do you do?",
+        responseMinutes: Number.isFinite(response) ? Math.min(Math.max(2, Math.round(response)), 15) : 5,
+      };
+    })
+    .filter((b) => b.content.length > 0)
+    .sort((a, b) => a.atMinute - b.atMinute);
+
+  if (beats.length === 0) return { plan: null, problem: "The plan came back with nothing happening in it." };
+  if (!beats.some((b) => b.scope === "all")) {
+    return { plan: null, problem: "The plan came back with nothing that happens to every team." };
+  }
+
+  return { plan: { objectives, beats }, problem: "" };
+}

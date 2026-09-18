@@ -242,3 +242,70 @@ export const studioInvitationsTable = pgTable("studio_invitations", {
 ]);
 
 export type StudioInvitation = typeof studioInvitationsTable.$inferSelect;
+
+export type GroupSessionObjective = { id: string; text: string; note: string; enabled: boolean };
+export type GroupSessionBeat = {
+  id: string; atMinute: number; scope: "all" | "team";
+  title: string; content: string; responsePrompt: string; responseMinutes: number;
+};
+
+/**
+ * A group simulation, scheduled, with nobody at the front of the room.
+ *
+ * The facilitated mode this replaces needed a person to press "what happens
+ * next" at every beat — so a room without that person stalled after the opening
+ * development, and the person pressing it was running the exercise rather than
+ * watching it. This one runs on a clock.
+ *
+ * The row exists from the moment the Lab writes the scenario, in draft, so an
+ * admin can read the objectives and the running order before a single learner
+ * knows the session exists. Nothing about it reaches a cohort until `approvedAt`
+ * is set, and after that nothing about it can be edited: the cohort has been
+ * told what they are turning up to.
+ */
+export const studioGroupSessionsTable = pgTable("studio_group_sessions", {
+  id: serial("id").primaryKey(),
+  programId: integer("program_id").notNull().references(() => programsTable.id, { onDelete: "cascade" }),
+  /** The scenario, written when the draft was created. */
+  definitionId: integer("definition_id").notNull().references(() => simulationDefinitionsTable.id, { onDelete: "restrict" }),
+  title: text("title").notNull().default(""),
+
+  /**
+   * What the debriefs will be written against, after the admin has edited and
+   * switched off whatever this cohort has not covered.
+   */
+  objectives: jsonb("objectives").$type<GroupSessionObjective[]>().notNull().default([]),
+
+  /**
+   * The running order: what happens, to whom, at which minute.
+   *
+   * A beat with scope "all" is written here in full and approved word for word.
+   * A beat with scope "team" holds its *intent* — its wording is written during
+   * the session from what that team has just done, and cannot exist in advance
+   * because it quotes a learner who has not answered yet.
+   */
+  beats: jsonb("beats").$type<GroupSessionBeat[]>().notNull().default([]),
+
+  scheduledAt: timestamp("scheduled_at", { withTimezone: true }),
+  durationMinutes: integer("duration_minutes").notNull().default(45),
+
+  approvedByUserId: integer("approved_by_user_id").references(() => usersTable.id, { onDelete: "set null" }),
+  approvedAt: timestamp("approved_at", { withTimezone: true }),
+
+  /** The one run every team shares. Written when it goes live. */
+  runId: integer("run_id").references(() => simulationRunsTable.id, { onDelete: "set null" }),
+  startedAt: timestamp("started_at", { withTimezone: true }),
+  endedAt: timestamp("ended_at", { withTimezone: true }),
+
+  /** Beat ids already on the table, so the ticker never delivers one twice. */
+  deliveredBeatIds: jsonb("delivered_beat_ids").$type<string[]>().notNull().default([]),
+
+  createdByUserId: integer("created_by_user_id").notNull().references(() => usersTable.id, { onDelete: "restrict" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+}, (t) => [
+  index("studio_group_sessions_program_idx").on(t.programId),
+  uniqueIndex("studio_group_sessions_run_unique").on(t.runId),
+]);
+
+export type StudioGroupSession = typeof studioGroupSessionsTable.$inferSelect;

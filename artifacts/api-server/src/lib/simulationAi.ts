@@ -15,6 +15,12 @@ import {
   type ValidatedDebrief,
   type ValidatedDevelopment,
   type ValidatedScenario,
+  groupPlanSystemPrompt,
+  groupPlanUserPrompt,
+  groupPlanSchema,
+  validateGroupPlan,
+  type ValidatedGroupPlan,
+  type StudioProgrammeContext,
 } from "@workspace/domain";
 import { anthropicConfigured, askClaude } from "./anthropic";
 
@@ -101,4 +107,28 @@ export async function generateDebrief(input: {
   const debrief = validateDebrief(answer.input);
   if (!debrief) return { ok: false, error: "The debrief came back unusable. Try again." };
   return { ok: true, value: debrief };
+}
+
+/** Plan a group session: what it tests, and what happens when. */
+export async function generateGroupPlan(args: {
+  openingBrief: string;
+  teams: readonly { id: string; name: string; roleName: string }[];
+  objective: string;
+  durationMinutes: number;
+  programme?: StudioProgrammeContext | null;
+}): Promise<AiResult<ValidatedGroupPlan>> {
+  const answer = await askClaude({
+    system: groupPlanSystemPrompt(),
+    user: groupPlanUserPrompt(args),
+    toolName: "submit_plan",
+    toolDescription: "Return the objectives and the running order.",
+    schema: groupPlanSchema(),
+    maxTokens: 4000,
+    label: "studio-group-plan",
+  });
+  if ("error" in answer) return { ok: false, error: answer.error };
+
+  const { plan, problem } = validateGroupPlan(answer.input, args.durationMinutes);
+  if (!plan) return { ok: false, error: problem };
+  return { ok: true, value: plan };
 }

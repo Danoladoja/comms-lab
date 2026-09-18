@@ -1803,6 +1803,101 @@ export interface StudioSimulation {
   createdAt: string;
 }
 
+export type PlanGroupSessionDifficulty = typeof PlanGroupSessionDifficulty[keyof typeof PlanGroupSessionDifficulty];
+
+
+export const PlanGroupSessionDifficulty = {
+  foundation: 'foundation',
+  intermediate: 'intermediate',
+  advanced: 'advanced',
+} as const;
+
+export interface PlanGroupSession {
+  programId: number;
+  scheduledAt?: string;
+  /**
+     * @minimum 15
+     * @maximum 180
+     */
+  durationMinutes?: number;
+  difficulty?: PlanGroupSessionDifficulty;
+}
+
+export type EditGroupSessionObjectivesItem = {
+  id: string;
+  text?: string;
+  enabled?: boolean;
+};
+
+export interface EditGroupSession {
+  /** @nullable */
+  scheduledAt?: string | null;
+  objectives?: EditGroupSessionObjectivesItem[];
+}
+
+export interface GroupSessionObjective {
+  id: string;
+  text: string;
+  note: string;
+  enabled: boolean;
+}
+
+export type GroupSessionBeatScope = typeof GroupSessionBeatScope[keyof typeof GroupSessionBeatScope];
+
+
+export const GroupSessionBeatScope = {
+  all: 'all',
+  team: 'team',
+} as const;
+
+export interface GroupSessionBeat {
+  id: string;
+  atMinute: number;
+  scope: GroupSessionBeatScope;
+  title: string;
+  content: string;
+  responsePrompt: string;
+  responseMinutes: number;
+  approvalNote: string;
+}
+
+export type GroupSessionState = typeof GroupSessionState[keyof typeof GroupSessionState];
+
+
+export const GroupSessionState = {
+  draft: 'draft',
+  scheduled: 'scheduled',
+  live: 'live',
+  finished: 'finished',
+} as const;
+
+export type GroupSessionTeamsItem = {
+  id: string;
+  name: string;
+  roleName: string;
+};
+
+export interface GroupSession {
+  id: number;
+  programId: number;
+  title: string;
+  state: GroupSessionState;
+  openingBrief: string;
+  objective: string;
+  teams: GroupSessionTeamsItem[];
+  objectives: GroupSessionObjective[];
+  beats: GroupSessionBeat[];
+  /** @nullable */
+  scheduledAt?: string | null;
+  durationMinutes: number;
+  learners: number;
+  mayEdit: boolean;
+  /** @nullable */
+  problem?: string | null;
+  /** @nullable */
+  runId?: number | null;
+}
+
 export type MyStudioExerciseState = typeof MyStudioExerciseState[keyof typeof MyStudioExerciseState];
 
 

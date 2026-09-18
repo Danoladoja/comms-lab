@@ -49,6 +49,7 @@ import type {
   DeadlineExtensionGrant,
   DeadlineExtensionResult,
   DeadlineExtensionSubject,
+  EditGroupSession,
   Enrollment,
   EnrollmentDetail,
   EnrollmentUpdate,
@@ -57,6 +58,7 @@ import type {
   ForumThread,
   GoogleConnectionStatus,
   GoogleHoldings,
+  GroupSession,
   HealthStatus,
   HeartbeatResult,
   Invitation,
@@ -86,6 +88,7 @@ import type {
   PartnershipEnquiryProblems,
   PinInput,
   PlainMessage,
+  PlanGroupSession,
   PortfolioVisibilityInput,
   PostInput,
   Program,
@@ -7093,6 +7096,376 @@ export function useListSimulations<TData = Awaited<ReturnType<typeof listSimulat
 
 
 
+
+export const getListGroupSessionsUrl = () => {
+
+
+
+
+  return `/api/admin/studio/group-sessions`
+}
+
+/**
+ * @summary Group sessions, newest first
+ */
+export const listGroupSessions = async ( options?: Parameters<typeof customFetch>[1]): Promise<GroupSession[]> => {
+
+  return customFetch<GroupSession[]>(getListGroupSessionsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListGroupSessionsQueryKey = () => {
+    return [
+    `/api/admin/studio/group-sessions`
+    ] as const;
+    }
+
+
+export const getListGroupSessionsQueryOptions = <TData = Awaited<ReturnType<typeof listGroupSessions>>, TError = ErrorType<ApiMessage>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listGroupSessions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListGroupSessionsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listGroupSessions>>> = ({ signal }) => listGroupSessions({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listGroupSessions>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListGroupSessionsQueryResult = NonNullable<Awaited<ReturnType<typeof listGroupSessions>>>
+export type ListGroupSessionsQueryError = ErrorType<ApiMessage>
+
+
+/**
+ * @summary Group sessions, newest first
+ */
+
+export function useListGroupSessions<TData = Awaited<ReturnType<typeof listGroupSessions>>, TError = ErrorType<ApiMessage>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listGroupSessions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListGroupSessionsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getPlanGroupSessionUrl = () => {
+
+
+
+
+  return `/api/admin/studio/group-sessions`
+}
+
+/**
+ * Generates the scenario and the running order and leaves both in draft. No learner can see it, no team exists and nothing is scheduled until an admin has read it and approved it — an unfacilitated session cannot be steered once it starts, so the reading happens before rather than during.
+ * @summary Write a group session, and stop
+ */
+export const planGroupSession = async (planGroupSession: PlanGroupSession, options?: Parameters<typeof customFetch>[1]): Promise<GroupSession> => {
+
+  return customFetch<GroupSession>(getPlanGroupSessionUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(planGroupSession)
+  }
+);}
+
+
+
+
+
+export const getPlanGroupSessionMutationOptions = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof planGroupSession>>, TError,{data: BodyType<PlanGroupSession>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof planGroupSession>>, TError,{data: BodyType<PlanGroupSession>}, TContext> => {
+
+const mutationKey = ['planGroupSession'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof planGroupSession>>, {data: BodyType<PlanGroupSession>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  planGroupSession(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PlanGroupSessionMutationResult = NonNullable<Awaited<ReturnType<typeof planGroupSession>>>
+    export type PlanGroupSessionMutationBody = BodyType<PlanGroupSession>
+    export type PlanGroupSessionMutationError = ErrorType<ApiMessage>
+
+    /**
+ * @summary Write a group session, and stop
+ */
+export const usePlanGroupSession = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof planGroupSession>>, TError,{data: BodyType<PlanGroupSession>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof planGroupSession>>,
+        TError,
+        {data: BodyType<PlanGroupSession>},
+        TContext
+      > => {
+      return useMutation(getPlanGroupSessionMutationOptions(options));
+    }
+
+export const getGetGroupSessionUrl = (id: number,) => {
+
+
+
+
+  return `/api/admin/studio/group-sessions/${id}`
+}
+
+/**
+ * @summary One group session, to approve it
+ */
+export const getGroupSession = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<GroupSession> => {
+
+  return customFetch<GroupSession>(getGetGroupSessionUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetGroupSessionQueryKey = (id: number,) => {
+    return [
+    `/api/admin/studio/group-sessions/${id}`
+    ] as const;
+    }
+
+
+export const getGetGroupSessionQueryOptions = <TData = Awaited<ReturnType<typeof getGroupSession>>, TError = ErrorType<ApiMessage>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getGroupSession>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetGroupSessionQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getGroupSession>>> = ({ signal }) => getGroupSession(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getGroupSession>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetGroupSessionQueryResult = NonNullable<Awaited<ReturnType<typeof getGroupSession>>>
+export type GetGroupSessionQueryError = ErrorType<ApiMessage>
+
+
+/**
+ * @summary One group session, to approve it
+ */
+
+export function useGetGroupSession<TData = Awaited<ReturnType<typeof getGroupSession>>, TError = ErrorType<ApiMessage>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getGroupSession>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetGroupSessionQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getEditGroupSessionUrl = (id: number,) => {
+
+
+
+
+  return `/api/admin/studio/group-sessions/${id}`
+}
+
+/**
+ * Only while it is a draft. Once approved the cohort has been told what they are turning up to.
+ * @summary Change what it tests, or when it runs
+ */
+export const editGroupSession = async (id: number,
+    editGroupSession: EditGroupSession, options?: Parameters<typeof customFetch>[1]): Promise<GroupSession> => {
+
+  return customFetch<GroupSession>(getEditGroupSessionUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(editGroupSession)
+  }
+);}
+
+
+
+
+
+export const getEditGroupSessionMutationOptions = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof editGroupSession>>, TError,{id: number;data: BodyType<EditGroupSession>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof editGroupSession>>, TError,{id: number;data: BodyType<EditGroupSession>}, TContext> => {
+
+const mutationKey = ['editGroupSession'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof editGroupSession>>, {id: number;data: BodyType<EditGroupSession>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  editGroupSession(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type EditGroupSessionMutationResult = NonNullable<Awaited<ReturnType<typeof editGroupSession>>>
+    export type EditGroupSessionMutationBody = BodyType<EditGroupSession>
+    export type EditGroupSessionMutationError = ErrorType<ApiMessage>
+
+    /**
+ * @summary Change what it tests, or when it runs
+ */
+export const useEditGroupSession = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof editGroupSession>>, TError,{id: number;data: BodyType<EditGroupSession>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof editGroupSession>>,
+        TError,
+        {id: number;data: BodyType<EditGroupSession>},
+        TContext
+      > => {
+      return useMutation(getEditGroupSessionMutationOptions(options));
+    }
+
+export const getApproveGroupSessionUrl = (id: number,) => {
+
+
+
+
+  return `/api/admin/studio/group-sessions/${id}/approve`
+}
+
+/**
+ * @summary Make it live
+ */
+export const approveGroupSession = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<GroupSession> => {
+
+  return customFetch<GroupSession>(getApproveGroupSessionUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getApproveGroupSessionMutationOptions = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof approveGroupSession>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof approveGroupSession>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['approveGroupSession'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof approveGroupSession>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  approveGroupSession(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ApproveGroupSessionMutationResult = NonNullable<Awaited<ReturnType<typeof approveGroupSession>>>
+
+    export type ApproveGroupSessionMutationError = ErrorType<ApiMessage>
+
+    /**
+ * @summary Make it live
+ */
+export const useApproveGroupSession = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof approveGroupSession>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof approveGroupSession>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getApproveGroupSessionMutationOptions(options));
+    }
 
 export const getGetMyStudioExerciseUrl = () => {
 
