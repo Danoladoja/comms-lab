@@ -23,6 +23,7 @@ import { tokenSecretConfigured } from "../lib/google/secrets";
 import { runRecordingSync } from "../lib/recordingSync";
 import { importTranscriptForSession } from "../lib/transcriptSync";
 import { createMeetingForSession } from "../lib/classMeetings";
+import { CalendarRefused } from "../lib/google/calendarApi";
 import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
@@ -312,10 +313,12 @@ router.post("/admin/sessions/:id/meeting", requireRole("admin"), async (req, res
     if ("error" in result) { res.status(400).json({ error: result.error }); return; }
     res.json(result);
   } catch (err) {
-    // The Calendar client throws sentences meant to be read, so they travel.
+    // The Calendar client throws sentences meant to be read, so they travel —
+    // and, when Google named the page that fixes it, so does that.
     logger.error({ err, sessionId }, "Could not create the class meeting");
     res.status(400).json({
       error: err instanceof Error ? err.message : "Google could not create the meeting.",
+      helpUrl: err instanceof CalendarRefused ? err.helpUrl : null,
     });
   }
 });

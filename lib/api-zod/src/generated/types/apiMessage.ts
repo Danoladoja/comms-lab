@@ -8,4 +8,6 @@
 
 export interface ApiMessage {
   error: string;
+  /** @nullable */
+  helpUrl?: string | null;
 }

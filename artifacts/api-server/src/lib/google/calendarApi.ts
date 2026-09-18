@@ -14,7 +14,10 @@
  * adjusts a date that is still being decided.
  */
 import { logger } from "../logger";
-import { meetLinkFrom, conferenceProgress } from "@workspace/domain";
+import {
+  meetLinkFrom, conferenceProgress,
+  classifyCalendarError, calendarRefusalMessage, calendarHelpLink,
+} from "@workspace/domain";
 
 const CALENDAR_API = "https://www.googleapis.com/calendar/v3";
 
@@ -34,6 +37,25 @@ type EventResponse = {
   htmlLink?: string;
   conferenceData?: unknown;
 };
+
+/**
+ * A refusal from Google, with what kind of refusal it was.
+ *
+ * A plain Error would carry only the sentence. The kind travels so the route
+ * can decide a status code — a rate limit is worth retrying and a disabled API
+ * is not — and the help link travels so the browser can offer the exact page
+ * that fixes it rather than printing a URL mid-paragraph.
+ */
+export class CalendarRefused extends Error {
+  constructor(
+    message: string,
+    readonly kind: ReturnType<typeof classifyCalendarError>,
+    readonly helpUrl: string | null,
+  ) {
+    super(message);
+    this.name = "CalendarRefused";
+  }
+}
 
 async function calendarFetch<T>(args: {
   accessToken: string;
@@ -56,17 +78,32 @@ async function calendarFetch<T>(args: {
 
   if (!res.ok) {
     const said = await res.text();
-    logger.error({ status: res.status, body: said.slice(0, 400), path: args.path }, "Calendar API call failed");
-    if (res.status === 403) {
-      throw new Error(
-        "Google refused to create the meeting. The connected account needs permission to manage its "
-        + "calendar — reconnect Google to grant it.",
-      );
-    }
-    if (res.status === 401) {
-      throw new Error("Google rejected the connection. Reconnect Google in the admin console.");
-    }
-    throw new Error(`Google could not create the meeting (${res.status}).`);
+    const kind = classifyCalendarError(res.status, said);
+    logger.error(
+      { status: res.status, kind, body: said.slice(0, 400), path: args.path },
+      "Calendar API call failed",
+    );
+
+    /*
+      Google's own reason, not this file's guess at it.
+
+      This used to flatten every 403 into "the connected account needs
+      permission to manage its calendar — reconnect Google", which is one of at
+      least five reasons Google returns 403 here. For four of them reconnecting
+      does nothing, so an admin who had already reconnected was told to
+      reconnect, and the app looked broken rather than uninformed.
+
+      It is the second time that mistake has been made in this codebase: the
+      OAuth exchange did the same thing with `invalid_client` and cost two days.
+      Hence a named error carrying the classification and Google's own words, so
+      neither the browser nor the next person reading a log has to guess.
+    */
+    const error = new CalendarRefused(
+      calendarRefusalMessage(kind, said),
+      kind,
+      calendarHelpLink(said),
+    );
+    throw error;
   }
   return (await res.json()) as T;
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { apiReason } from "./apiFailure";
+import { apiReason, helpUrlFrom } from "./apiFailure";
 
 const FALLBACK = "Try again.";
 
@@ -87,5 +87,24 @@ describe("apiReason", () => {
   it("flattens the newlines a stack trace or wrapped body brings with it", () => {
     expect(apiReason(apiError(400, { error: "Line one.\n\n  Line two." }), FALLBACK))
       .toBe("Line one. Line two.");
+  });
+});
+
+describe("the page that fixes it", () => {
+  it("passes on a link the server sent", () => {
+    expect(helpUrlFrom({ data: { error: "x", helpUrl: "https://console.cloud.google.com/apis" } }))
+      .toBe("https://console.cloud.google.com/apis");
+  });
+
+  it("is null when there is none, which is most of the time", () => {
+    expect(helpUrlFrom({ data: { error: "x" } })).toBeNull();
+    expect(helpUrlFrom(null)).toBeNull();
+    expect(helpUrlFrom("a string")).toBeNull();
+  });
+
+  it("refuses anything that is not plainly a secure link", () => {
+    // A link rendered into an admin console is a link somebody will press.
+    expect(helpUrlFrom({ data: { helpUrl: "javascript:alert(1)" } })).toBeNull();
+    expect(helpUrlFrom({ data: { helpUrl: "http://console.example.com" } })).toBeNull();
   });
 });

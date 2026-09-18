@@ -315,6 +315,8 @@ export interface InvitationInput {
 
 export interface ApiMessage {
   error: string;
+  /** @nullable */
+  helpUrl?: string | null;
 }
 
 export type UserRole = typeof UserRole[keyof typeof UserRole];

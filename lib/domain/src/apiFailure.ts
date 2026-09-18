@@ -127,3 +127,19 @@ export function isNotFound(error: unknown): boolean {
   const status = (error as { status?: unknown }).status;
   return status === 404;
 }
+
+/**
+ * The page the upstream service said would fix this, if it named one.
+ *
+ * Lives beside `apiReason` because it comes off the same error object and no
+ * call site should have to know its shape. Only ever a link the service itself
+ * supplied and the server chose to pass on — this never builds one, because a
+ * console URL assembled from a guess sends an admin into the wrong project's
+ * settings, which is worse than no link at all.
+ */
+export function helpUrlFrom(error: unknown): string | null {
+  if (!error || typeof error !== "object") return null;
+  const body = (error as { data?: unknown }).data;
+  const url = field(body, "helpUrl") || field(error, "helpUrl");
+  return url.startsWith("https://") ? url : null;
+}

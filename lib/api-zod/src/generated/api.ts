@@ -1580,7 +1580,8 @@ export const FetchTranscriptFromGoogleResponse = zod.object({
  * @summary Run the recording transfer immediately instead of waiting
  */
 export const SyncRecordingsNowResponse = zod.object({
-  "error": zod.string()
+  "error": zod.string(),
+  "helpUrl": zod.string().nullish()
 })
 
 
@@ -2146,7 +2147,8 @@ export const RevokeDeadlineExtensionBody = zod.object({
 })
 
 export const RevokeDeadlineExtensionResponse = zod.object({
-  "error": zod.string()
+  "error": zod.string(),
+  "helpUrl": zod.string().nullish()
 })
 
 
@@ -2466,7 +2468,8 @@ export const SubmitPartnershipEnquiryBody = zod.object({
 })
 
 export const SubmitPartnershipEnquiryResponse = zod.object({
-  "error": zod.string()
+  "error": zod.string(),
+  "helpUrl": zod.string().nullish()
 })
 
 

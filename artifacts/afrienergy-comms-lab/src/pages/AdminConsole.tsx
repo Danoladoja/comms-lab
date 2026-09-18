@@ -60,6 +60,7 @@ import {
   sessionDateTimeInput,
   sessionMinutes,
   apiReason,
+  helpUrlFrom,
   isMeasurableRecording,
 } from '@workspace/domain';
 import CourseworkStudio, { confirmLosingDraft } from '@/components/CourseworkStudio';
@@ -151,21 +152,37 @@ function SessionRow({ session, instructors, onChanged }: {
    * calendar hold one link rather than two copies of one. Pasting your own
    * still works exactly as before — this is an offer, not a replacement.
    */
+  /**
+   * The last refusal from Google, kept until it is fixed or another is tried.
+   */
+  const [meetingProblem, setMeetingProblem] = useState<{ message: string; helpUrl: string | null } | null>(null);
+
   const makeMeeting = useCreateClassMeeting({
     mutation: {
       onSuccess: (r) => {
         if (r.meetUrl) setMeetUrl(r.meetUrl);
+        setMeetingProblem(null);
         toast({ title: r.meetUrl ? 'Meeting created' : 'Almost there', description: r.note });
         onChanged();
       },
       // Every refusal here names something specific — no date yet, a link
       // already present, a connection made before this existed — so the
       // server's sentence travels rather than a generic failure.
-      onError: (err) => toast({
-        title: 'Could not make the meeting',
-        description: apiReason(err, 'Try again in a moment.'),
-        variant: 'destructive',
-      }),
+      /*
+        Left on screen rather than shown as a toast that slides away.
+
+        These refusals now name a console to open and a switch to press, and a
+        four-second toast is the wrong home for an instruction somebody has to
+        act on in another browser tab. The same reasoning as the enrolment
+        result: if the sentence is the point, it has to stay still.
+      */
+      onError: (err) => {
+        setMeetingProblem({
+          message: apiReason(err, 'Try again in a moment.'),
+          helpUrl: helpUrlFrom(err),
+        });
+        toast({ title: 'Could not make the meeting', variant: 'destructive' });
+      },
     },
   });
 
@@ -327,7 +344,7 @@ function SessionRow({ session, instructors, onChanged }: {
                 variant="outline"
                 className="h-7 px-2 text-xs"
                 disabled={makeMeeting.isPending || !session.startsAt}
-                onClick={() => makeMeeting.mutate({ id: session.id })}
+                onClick={() => { setMeetingProblem(null); makeMeeting.mutate({ id: session.id }); }}
               >
                 <Video className="mr-1.5 h-3.5 w-3.5" aria-hidden />
                 {makeMeeting.isPending ? 'Making it…' : 'Let the Lab make one'}
@@ -337,6 +354,29 @@ function SessionRow({ session, instructors, onChanged }: {
                   ? 'One link on a calendar event, so the Lab and the calendar cannot drift apart. Nobody is emailed. Or paste your own.'
                   : 'Give this module a date first, or paste a link you already have.'}
               </p>
+
+              {meetingProblem && (
+                <div className="mt-2 rounded-lg border border-rose-300 bg-rose-50 p-3 text-xs text-rose-900">
+                  <p className="whitespace-pre-line">{meetingProblem.message}</p>
+                  {meetingProblem.helpUrl && (
+                    <a
+                      href={meetingProblem.helpUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="mt-2 inline-block font-medium underline underline-offset-2"
+                    >
+                      Open the exact page in Google that fixes this
+                    </a>
+                  )}
+                  <button
+                    type="button"
+                    className="mt-2 block underline underline-offset-2 text-rose-700"
+                    onClick={() => setMeetingProblem(null)}
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </div>

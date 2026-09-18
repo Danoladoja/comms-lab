@@ -3718,6 +3718,11 @@ components:
       type: object
       properties:
         error: { type: string }
+        # The exact page that fixes this, when the upstream service named one.
+        # Only ever a link the service itself supplied — a console URL this app
+        # assembled would carry a guessed project number and send an admin into
+        # somebody else's settings.
+        helpUrl: { type: ["string", "null"] }
       required: [error]
     User:
       type: object
