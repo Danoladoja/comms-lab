@@ -423,3 +423,70 @@ export function exerciseSubject(facts: {
   if (!facts.hasProgramme) return subject;
   return `${facts.drawn} The exercise should concern ${subject}.`;
 }
+
+/**
+ * A deadline out of a date box and a time box.
+ *
+ * The date alone was doing this before, with the end of that day assumed. That
+ * assumption was invisible and sometimes wrong: "use it by Friday" often means
+ * before Friday's class, not just before Friday's midnight, and an admin who
+ * meant five o'clock had no way to say so.
+ *
+ * So the time is optional and the assumption is stated rather than hidden. No
+ * date at all means no deadline, which is what leaving both boxes empty has
+ * always meant.
+ *
+ * Deliberately naive rather than UTC. Both boxes are filled in by a person
+ * looking at their own clock, so `2026-09-30T17:00` is five in the afternoon
+ * where they are — which the browser resolves when it turns this into an
+ * instant, and the server never has to guess at.
+ */
+export function expiryFromInputs(date: string, time: string): string | null {
+  const day = date.trim();
+  if (!day) return null;
+  const at = time.trim();
+  // End of the day when no time is given: the deadline is "by the 30th", so the
+  // 30th itself has to still count.
+  return at ? `${day}T${at}:00` : `${day}T23:59:59`;
+}
+
+/**
+ * What the admin is about to impose, in their own words, before they impose it.
+ *
+ * Named the hour explicitly when they chose one, and says the assumption out
+ * loud when they did not.
+ */
+export function expiryIntent(date: string, time: string): string {
+  if (!date.trim()) {
+    return "No deadline. The invitation sits open until it is used, which is what "
+      + "every invitation sent so far has done.";
+  }
+  return time.trim()
+    ? "It goes dead at that time, on that day."
+    : "No time given, so the end of that day — they have all of it.";
+}
+
+/**
+ * How long a learner has left, said the way somebody would say it.
+ *
+ * Shown to the learner, because a deadline nobody is told about is not a
+ * deadline: it is an invitation that stops working for no visible reason.
+ */
+export function timeLeftNote(expiresAt: string | null | undefined, nowMs: number): string | null {
+  if (!expiresAt) return null;
+  const at = new Date(expiresAt).getTime();
+  if (!Number.isFinite(at)) return null;
+
+  const left = at - nowMs;
+  if (left <= 0) return "This one has expired.";
+
+  const hours = Math.floor(left / (60 * 60 * 1000));
+  if (hours < 1) {
+    const minutes = Math.max(1, Math.floor(left / 60_000));
+    return `Less than an hour left — ${minutes} ${minutes === 1 ? "minute" : "minutes"}.`;
+  }
+  if (hours < 24) return `${hours} ${hours === 1 ? "hour" : "hours"} left to start it.`;
+  const days = Math.floor(hours / 24);
+  if (days === 1) return "One day left to start it.";
+  return `${days} days left to start it.`;
+}

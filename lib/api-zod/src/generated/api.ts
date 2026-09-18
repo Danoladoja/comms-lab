@@ -2855,6 +2855,7 @@ export const GetMyStudioExerciseResponse = zod.object({
   "moduleTitle": zod.string().nullish(),
   "durationMinutes": zod.int().optional(),
   "difficulty": zod.string().optional(),
+  "expiresAt": zod.coerce.date().nullish(),
   "runId": zod.int().nullish(),
   "problem": zod.string().nullish()
 })

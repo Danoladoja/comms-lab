@@ -29,7 +29,10 @@ import { Activity, Check, Clipboard, Loader2, Users, Clock, Hash, KeyRound, Radi
 import { format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
-import { apiReason, picksOwnExercise, levelNote, lengthNote, MAX_STEER_CHARS } from '@workspace/domain';
+import {
+  apiReason, picksOwnExercise, levelNote, lengthNote, MAX_STEER_CHARS,
+  expiryFromInputs, expiryIntent,
+} from '@workspace/domain';
 
 const generateSchema = z.object({
   sectorTopic: z.string().min(5, "Topic must be at least 5 characters"),
@@ -806,6 +809,7 @@ function InviteCohortToExercise({ programmes }: { programmes: any[] }) {
   const [difficulty, setDifficulty] = useState<'foundation' | 'intermediate' | 'advanced'>('intermediate');
   const [minutes, setMinutes] = useState(30);
   const [expiresAt, setExpiresAt] = useState('');
+  const [expiresTime, setExpiresTime] = useState('');
   const [steer, setSteer] = useState('');
   const [result, setResult] = useState<string | null>(null);
 
@@ -906,21 +910,48 @@ function InviteCohortToExercise({ programmes }: { programmes: any[] }) {
         </span>
       </label>
 
-      <label className="block mt-4">
+      <div className="mt-4">
         <span className="block text-[10px] uppercase tracking-widest text-white/40 mb-1.5">
           Use it by — optional
         </span>
-        <input
-          type="date"
-          className="bg-[#030811] border border-white/20 text-white px-3 py-2 text-sm"
-          value={expiresAt}
-          onChange={(e) => setExpiresAt(e.target.value)}
-        />
+        <div className="flex flex-wrap items-center gap-2">
+          <input
+            type="date"
+            aria-label="The day the invitation goes dead"
+            className="bg-[#030811] border border-white/20 text-white px-3 py-2 text-sm"
+            value={expiresAt}
+            onChange={(e) => setExpiresAt(e.target.value)}
+          />
+          {/*
+            The hour, beside the day.
+
+            The day alone was assuming the end of it, silently — and that
+            assumption is often wrong, because "use it by Friday" usually means
+            before Friday's class rather than before Friday's midnight. The
+            assumption is still the default and is now said out loud instead.
+          */}
+          <input
+            type="time"
+            aria-label="The time of day it goes dead"
+            disabled={!expiresAt}
+            className="bg-[#030811] border border-white/20 text-white px-3 py-2 text-sm disabled:opacity-40"
+            value={expiresTime}
+            onChange={(e) => setExpiresTime(e.target.value)}
+          />
+          {(expiresAt || expiresTime) && (
+            <button
+              type="button"
+              onClick={() => { setExpiresAt(''); setExpiresTime(''); }}
+              className="text-[11px] uppercase tracking-widest text-white/40 hover:text-white/70 px-2 py-2"
+            >
+              Clear
+            </button>
+          )}
+        </div>
         <span className="block text-[11px] text-white/45 mt-1.5 leading-relaxed">
-          After this the invitation goes dead. Leave it empty and it sits open indefinitely, which
-          is what every invitation sent so far has done.
+          {expiryIntent(expiresAt, expiresTime)}
         </span>
-      </label>
+      </div>
 
       <button
         type="button"
@@ -931,9 +962,13 @@ function InviteCohortToExercise({ programmes }: { programmes: any[] }) {
             difficulty,
             durationMinutes: minutes,
             ...(steer.trim() ? { steer: steer.trim() } : {}),
-            // End of that day rather than its first second, so "use it by the
-            // 30th" means the whole of the 30th.
-            ...(expiresAt ? { expiresAt: new Date(`${expiresAt}T23:59:59`).toISOString() } : {}),
+            // Read in the admin's own clock: both boxes are filled in by
+            // somebody looking at their own, so five o'clock means five o'clock
+            // where they are.
+            ...(() => {
+              const local = expiryFromInputs(expiresAt, expiresTime);
+              return local ? { expiresAt: new Date(local).toISOString() } : {};
+            })(),
           },
         })}
         className="mt-5 bg-[#f97316] text-[#030811] px-5 py-2.5 text-[11px] font-bold uppercase tracking-widest disabled:opacity-50"

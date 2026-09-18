@@ -5,7 +5,7 @@ import {
   useBeginStudioExercise,
   type MyStudioExercise,
 } from '@workspace/api-client-react';
-import { apiReason } from '@workspace/domain';
+import { apiReason, timeLeftNote } from '@workspace/domain';
 import { useToast } from '@/hooks/use-toast';
 import { Target, Play, RotateCcw, CheckCircle2, Clock } from 'lucide-react';
 
@@ -87,6 +87,29 @@ export default function MyExerciseCard() {
         {exercise.durationMinutes} minutes · {exercise.difficulty} · everyone on your cohort is
         practising the same thing in a different crisis.
       </p>
+
+      {/*
+        The deadline, said to the person it applies to.
+
+        An invitation can now be given a day and an hour after which it stops
+        working. Told to nobody, that is not a deadline — it is an invitation
+        that dies for no visible reason, and a learner who opens the Studio on
+        Saturday to find Friday's exercise gone has been caught out rather than
+        held to anything.
+      */}
+      {exercise.expiresAt && exercise.state === 'ready' && (
+        <p className="flex items-start gap-2 text-xs text-amber-200/80 mb-6">
+          <Clock className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" aria-hidden />
+          <span>
+            {timeLeftNote(exercise.expiresAt as unknown as string, Date.now())}
+            {' '}Use it by{' '}
+            {new Date(exercise.expiresAt as unknown as string).toLocaleString(undefined, {
+              weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit',
+            })}
+            .
+          </span>
+        </p>
+      )}
 
       <Action exercise={exercise} pending={begin.isPending} onBegin={() => begin.mutate()} onResume={
         () => exercise.runId && navigate(`/studio/run/${exercise.runId}`)

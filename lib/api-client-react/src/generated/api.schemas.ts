@@ -1937,6 +1937,8 @@ export interface MyStudioExercise {
   durationMinutes?: number;
   difficulty?: string;
   /** @nullable */
+  expiresAt?: string | null;
+  /** @nullable */
   runId?: number | null;
   /** @nullable */
   problem?: string | null;

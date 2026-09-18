@@ -5644,6 +5644,10 @@ components:
         moduleTitle: { type: ["string", "null"] }
         durationMinutes: { type: integer }
         difficulty: { type: string }
+        # When it goes dead, when somebody set a deadline. Shown to the learner:
+        # a deadline nobody is told about is not a deadline, it is an invitation
+        # that stops working for no visible reason.
+        expiresAt: { type: ["string", "null"], format: date-time }
         # Set once they have begun, so the page can send them back to it.
         runId: { type: ["integer", "null"] }
         # Why they cannot begin, when they cannot.

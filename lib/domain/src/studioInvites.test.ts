@@ -17,6 +17,9 @@ import {
   lengthNote,
   exerciseSubject,
   MAX_STEER_CHARS,
+  expiryFromInputs,
+  expiryIntent,
+  timeLeftNote,
 } from "./studioInvites";
 
 const NOW = Date.parse("2026-09-18T12:00:00Z");
@@ -258,5 +261,42 @@ describe("the dials an admin turns", () => {
 
     // Nothing typed: the drawn situation, untouched.
     expect(exerciseSubject({ subject: "", drawn, hasProgramme: true })).toBe(drawn);
+  });
+});
+
+describe("a deadline with an hour on it", () => {
+  const NOW = Date.parse("2026-09-18T09:00:00Z");
+
+  it("takes the hour when one is given", () => {
+    expect(expiryFromInputs("2026-09-30", "17:00")).toBe("2026-09-30T17:00:00");
+  });
+
+  it("gives them all of the last day when no hour is given", () => {
+    // "Use it by the 30th" has to include the 30th.
+    expect(expiryFromInputs("2026-09-30", "")).toBe("2026-09-30T23:59:59");
+  });
+
+  it("is no deadline at all without a date", () => {
+    expect(expiryFromInputs("", "17:00")).toBeNull();
+    expect(expiryFromInputs("", "")).toBeNull();
+  });
+
+  it("says which of those three the admin is about to do", () => {
+    // The end-of-day assumption was being made silently before, and was
+    // sometimes wrong: "by Friday" often means before Friday's class.
+    expect(expiryIntent("2026-09-30", "17:00")).toMatch(/at that time/);
+    expect(expiryIntent("2026-09-30", "")).toMatch(/end of that day/);
+    expect(expiryIntent("", "")).toMatch(/No deadline/);
+  });
+
+  it("tells the learner how long they have, in the unit they would use", () => {
+    const iso = (h: number) => new Date(NOW + h * 60 * 60 * 1000).toISOString();
+    expect(timeLeftNote(iso(0.25), NOW)).toMatch(/Less than an hour/);
+    expect(timeLeftNote(iso(5), NOW)).toBe("5 hours left to start it.");
+    expect(timeLeftNote(iso(25), NOW)).toBe("One day left to start it.");
+    expect(timeLeftNote(iso(24 * 4), NOW)).toBe("4 days left to start it.");
+    expect(timeLeftNote(iso(-1), NOW)).toMatch(/expired/);
+    // No deadline is not a deadline of zero.
+    expect(timeLeftNote(null, NOW)).toBeNull();
   });
 });

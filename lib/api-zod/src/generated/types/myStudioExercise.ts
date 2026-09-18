@@ -18,6 +18,8 @@ export interface MyStudioExercise {
   durationMinutes?: number;
   difficulty?: string;
   /** @nullable */
+  expiresAt?: Date | null;
+  /** @nullable */
   runId?: number | null;
   /** @nullable */
   problem?: string | null;

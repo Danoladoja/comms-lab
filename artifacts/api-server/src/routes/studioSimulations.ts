@@ -1271,6 +1271,7 @@ router.get("/studio/my-exercise", requireStudioAccess, async (req, res): Promise
     */
     situation: invite.subject.trim() || situationSummary(situation),
     moduleTitle: await moduleTitleFor(invite.sessionId),
+    expiresAt: invite.expiresAt?.toISOString() ?? null,
     durationMinutes: invite.durationMinutes,
     difficulty: invite.difficulty,
     runId: invite.runId,
