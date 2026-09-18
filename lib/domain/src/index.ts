@@ -48,3 +48,4 @@ export * from "./transcriptImport";
 export * from "./schemaGap";
 export * from "./classMeeting";
 export * from "./cohortProgress";
+export * from "./attendanceCredit";

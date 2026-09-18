@@ -7,6 +7,8 @@ import {
   useListModuleExtensions,
   useGrantDeadlineExtension,
   useRevokeDeadlineExtension,
+  useCreditClassAttendance,
+  useRevokeClassAttendance,
   getListProgramsQueryKey,
   getListProgramSessionsQueryKey,
   getGetCohortProgressQueryKey,
@@ -17,11 +19,11 @@ import {
   type CohortModuleRollup,
   type CohortCell,
 } from '@workspace/api-client-react';
-import { apiReason, sessionDateTimeFromInput } from '@workspace/domain';
+import { apiReason, sessionDateTimeFromInput, SUGGESTED_REASON, takeBackWarning } from '@workspace/domain';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { CouldNotLoad } from '@/components/CouldNotLoad';
-import { CalendarClock, ChevronDown, ChevronUp, Users, AlertTriangle } from 'lucide-react';
+import { CalendarClock, ChevronDown, ChevronUp, Users, AlertTriangle, Lock, UserCheck } from 'lucide-react';
 
 
 /**
@@ -64,6 +66,8 @@ function Extensions({ programId, focus }: {
   const [reason, setReason] = useState('');
   /** Who the next grant applies to. Empty means nobody has been picked yet. */
   const [chosen, setChosen] = useState<Set<number>>(new Set());
+  /** Why attendance is being credited. Goes on the record beside each name. */
+  const [creditReason, setCreditReason] = useState(SUGGESTED_REASON);
 
   // Arriving from a square in the grid, or from the chase list: open on that
   // module with that learner already ticked, so the admin's next action is
@@ -120,6 +124,32 @@ function Extensions({ programId, focus }: {
     },
   });
 
+  const credit = useCreditClassAttendance({
+    mutation: {
+      onSuccess: (r) => {
+        toast({ title: r.changed > 0 ? 'Attendance credited' : 'Nothing to credit', description: r.note });
+        setChosen(new Set());
+        refresh();
+      },
+      onError: (err) => toast({
+        title: 'Could not credit the class',
+        description: apiReason(err, 'Try again in a moment.'),
+        variant: 'destructive',
+      }),
+    },
+  });
+
+  const uncredit = useRevokeClassAttendance({
+    mutation: {
+      onSuccess: (r) => { toast({ title: 'Credit removed', description: r.note }); refresh(); },
+      onError: (err) => toast({
+        title: 'Could not take it back',
+        description: apiReason(err, 'Try again in a moment.'),
+        variant: 'destructive',
+      }),
+    },
+  });
+
   const revoke = useRevokeDeadlineExtension({
     mutation: {
       onSuccess: () => { toast({ title: 'Extra time taken back' }); refresh(); },
@@ -149,6 +179,15 @@ function Extensions({ programId, focus }: {
       && l.critiquesGiven >= l.critiquesRequired,
   );
   const anyCritiques = learners.some(l => l.critiquesRequired > 0);
+  /** Nobody has any attendance for this module — the modules-one-and-two case. */
+  const needCredit = learners.filter(l => !l.attended);
+  /**
+   * People extra time cannot reach.
+   *
+   * A lock is checked before any deadline, so granting them more time succeeds
+   * and changes nothing. This is why extensions looked broken.
+   */
+  const lockedOut = learners.filter(l => l.locked);
 
   const give = (userIds: number[]) => {
     const iso = sessionDateTimeFromInput(when);
@@ -229,6 +268,89 @@ function Extensions({ programId, focus }: {
                     {' '}Extra time will not change that — they need to watch the recording, which is open to
                     them already, locked module or not.
                   </p>
+                )}
+              </div>
+
+              {lockedOut.length > 0 && (
+                <div className="mt-4 flex gap-2 rounded-lg border border-rose-300 bg-rose-50 p-3 text-xs text-rose-900">
+                  <Lock className="mt-0.5 h-4 w-4 flex-shrink-0" aria-hidden />
+                  <div>
+                    <p className="font-medium">
+                      Extra time will not reach {lockedOut.length === 1 ? '1 learner' : `${lockedOut.length} learners`} on
+                      this module.
+                    </p>
+                    <p className="mt-0.5">
+                      This module is still shut for them by an earlier one, and a lock is checked before any
+                      deadline — so extra time is granted and nothing changes. Finish or credit the module
+                      named against each of them below first.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/*
+                Attendance, above the date box, because it is the requirement a
+                later deadline cannot move. For the weeks the Lab was not
+                recording it is also the only thing standing between a cohort
+                and every module after it.
+              */}
+              <div className="mt-4 rounded-lg border border-border p-3">
+                <p className="flex items-center gap-2 text-xs font-semibold">
+                  <UserCheck className="h-4 w-4 text-[#C2410C]" aria-hidden />The class itself
+                </p>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  {needCredit.length === 0
+                    ? 'Everyone has attended this class, live or on the replay.'
+                    : `${needCredit.length} of ${learners.length} have neither attended nor watched it back.`}
+                </p>
+
+                {needCredit.length > 0 && (
+                  <>
+                    <label className="mt-3 block text-xs text-muted-foreground">
+                      Why you are crediting it (goes on the record beside each name)
+                      <input
+                        className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground"
+                        value={creditReason}
+                        onChange={e => setCreditReason(e.target.value)}
+                      />
+                    </label>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={credit.isPending}
+                        onClick={() => {
+                          if (!confirm(
+                            `Credit ${module.title} to the ${needCredit.length} who have no attendance for it? `
+                            + 'This records that you judged them to have been there — it does not invent minutes '
+                            + 'watched, and it does not complete the module on its own.',
+                          )) return;
+                          credit.mutate({ id: sessionId, data: { userIds: needCredit.map(l => l.userId), reason: creditReason } });
+                        }}
+                      >
+                        <Users className="mr-1.5 h-3.5 w-3.5" aria-hidden />
+                        Credit the class for the {needCredit.length} missing it
+                      </Button>
+                      {chosen.size > 0 && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={credit.isPending}
+                          onClick={() => credit.mutate({
+                            id: sessionId,
+                            data: { userIds: [...chosen], reason: creditReason },
+                          })}
+                        >
+                          Credit the {chosen.size} selected
+                        </Button>
+                      )}
+                    </div>
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      Anyone who attended, or watched the recording, is left untouched. Crediting records
+                      that attendance could not be measured and that you judged them present — not a number
+                      of minutes nobody observed.
+                    </p>
+                  </>
                 )}
               </div>
 
@@ -324,20 +446,59 @@ function Extensions({ programId, focus }: {
                       <td className="p-2">
                         <p className="font-medium">{l.name || l.email}</p>
                         <p className="text-xs text-muted-foreground">{l.email}</p>
+                        {l.lockedReason && (
+                          <p className="mt-0.5 flex items-start gap-1 text-xs text-rose-700">
+                            <Lock className="mt-0.5 h-3 w-3 flex-shrink-0" aria-hidden />
+                            {l.lockedReason}
+                          </p>
+                        )}
                       </td>
                       <td className="p-2 text-xs">
                         {l.attended ? (
-                          <span className="text-emerald-700">
-                            {l.attendedVia === 'replay' ? 'On the replay'
-                              : l.attendedVia === 'waived' ? 'Credited'
-                              : 'In the class'}
+                          <span className="flex flex-wrap items-center gap-2">
+                            <span className="text-emerald-700">
+                              {l.attendedVia === 'replay' ? 'On the replay'
+                                : l.attendedVia === 'waived' ? 'Credited'
+                                : 'In the class'}
+                            </span>
+                            {l.attendanceCredited && (
+                              <button
+                                type="button"
+                                className="underline underline-offset-2 text-muted-foreground"
+                                title={l.attendanceCreditReason ?? undefined}
+                                disabled={uncredit.isPending}
+                                onClick={() => {
+                                  if (!confirm(takeBackWarning({
+                                    learnerName: l.name || l.email,
+                                    moduleTitle: module.title,
+                                    hasOwnMeasurement: l.hasOwnMeasurement,
+                                  }))) return;
+                                  uncredit.mutate({ id: sessionId, data: { userIds: [l.userId] } });
+                                }}
+                              >
+                                take back
+                              </button>
+                            )}
                           </span>
                         ) : (
                           // The percentage matters here in a way it does not
                           // elsewhere: somebody at 64% has watched most of the
                           // recording and needs a nudge, not a new deadline.
-                          <span className="text-amber-800">
-                            Not yet{l.attendedPct > 0 ? ` · ${l.attendedPct}%` : ''}
+                          <span className="flex flex-wrap items-center gap-2">
+                            <span className="text-amber-800">
+                              Not yet{l.attendedPct > 0 ? ` · ${l.attendedPct}%` : ''}
+                            </span>
+                            <button
+                              type="button"
+                              className="underline underline-offset-2 text-muted-foreground"
+                              disabled={credit.isPending}
+                              onClick={() => credit.mutate({
+                                id: sessionId,
+                                data: { userIds: [l.userId], reason: creditReason },
+                              })}
+                            >
+                              credit
+                            </button>
                           </span>
                         )}
                       </td>
@@ -412,6 +573,11 @@ function Extensions({ programId, focus }: {
                   It does not touch the recording, because the recording is never shut. Anyone on the
                   cohort can watch any class's replay at any time, including a class whose module is
                   locked — watching it in full is how somebody who missed the class earns their attendance.
+                </p>
+                <p>
+                  It also cannot open a module that is locked. A lock decides whether a module is theirs
+                  to open yet; a deadline decides when work is accepted. Anybody in that position is
+                  marked above with what is blocking them.
                 </p>
               </div>
             </>

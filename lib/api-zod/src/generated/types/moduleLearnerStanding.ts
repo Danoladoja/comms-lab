@@ -23,6 +23,13 @@ export interface ModuleLearnerStanding {
   critiquesGiven: number;
   critiquesRequired: number;
   complete: boolean;
+  locked: boolean;
+  /** @nullable */
+  lockedReason?: string | null;
+  attendanceCredited: boolean;
+  /** @nullable */
+  attendanceCreditReason?: string | null;
+  hasOwnMeasurement: boolean;
   /** @nullable */
   extendedTo?: Date | null;
   /** @nullable */

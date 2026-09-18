@@ -26,6 +26,9 @@ import type {
   AssignmentInput,
   AssignmentSubmission,
   AssignmentSubmissionInput,
+  AttendanceCredit,
+  AttendanceCreditResult,
+  AttendanceRevoke,
   BadRequestResponse,
   BulkInviteBody,
   BulkInviteResult,
@@ -5764,6 +5767,152 @@ export function useListModuleExtensions<TData = Awaited<ReturnType<typeof listMo
 
 
 
+
+export const getCreditClassAttendanceUrl = (id: number,) => {
+
+
+
+
+  return `/api/admin/sessions/${id}/attendance`
+}
+
+/**
+ * Records that a named person judged these learners to have been in the class, and why. It writes a waiver — "this could not be measured" — rather than a number of minutes nobody observed, so the register goes on saying what was actually seen. Learners who already attended, by either route, are left untouched.
+ * @summary Credit a class the app could not measure
+ */
+export const creditClassAttendance = async (id: number,
+    attendanceCredit: AttendanceCredit, options?: Parameters<typeof customFetch>[1]): Promise<AttendanceCreditResult> => {
+
+  return customFetch<AttendanceCreditResult>(getCreditClassAttendanceUrl(id),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(attendanceCredit)
+  }
+);}
+
+
+
+
+
+export const getCreditClassAttendanceMutationOptions = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof creditClassAttendance>>, TError,{id: number;data: BodyType<AttendanceCredit>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof creditClassAttendance>>, TError,{id: number;data: BodyType<AttendanceCredit>}, TContext> => {
+
+const mutationKey = ['creditClassAttendance'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof creditClassAttendance>>, {id: number;data: BodyType<AttendanceCredit>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  creditClassAttendance(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreditClassAttendanceMutationResult = NonNullable<Awaited<ReturnType<typeof creditClassAttendance>>>
+    export type CreditClassAttendanceMutationBody = BodyType<AttendanceCredit>
+    export type CreditClassAttendanceMutationError = ErrorType<ApiMessage>
+
+    /**
+ * @summary Credit a class the app could not measure
+ */
+export const useCreditClassAttendance = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof creditClassAttendance>>, TError,{id: number;data: BodyType<AttendanceCredit>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof creditClassAttendance>>,
+        TError,
+        {id: number;data: BodyType<AttendanceCredit>},
+        TContext
+      > => {
+      return useMutation(getCreditClassAttendanceMutationOptions(options));
+    }
+
+export const getRevokeClassAttendanceUrl = (id: number,) => {
+
+
+
+
+  return `/api/admin/sessions/${id}/attendance`
+}
+
+/**
+ * Clears the credit only. Attendance the app measured itself is left standing, and nothing the learner has submitted is touched — but a learner carried solely by the credit will have this module unfinished again, and anything waiting on it will shut.
+ * @summary Take back a credited class
+ */
+export const revokeClassAttendance = async (id: number,
+    attendanceRevoke: AttendanceRevoke, options?: Parameters<typeof customFetch>[1]): Promise<AttendanceCreditResult> => {
+
+  return customFetch<AttendanceCreditResult>(getRevokeClassAttendanceUrl(id),
+  {
+    ...options,
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(attendanceRevoke)
+  }
+);}
+
+
+
+
+
+export const getRevokeClassAttendanceMutationOptions = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof revokeClassAttendance>>, TError,{id: number;data: BodyType<AttendanceRevoke>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof revokeClassAttendance>>, TError,{id: number;data: BodyType<AttendanceRevoke>}, TContext> => {
+
+const mutationKey = ['revokeClassAttendance'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof revokeClassAttendance>>, {id: number;data: BodyType<AttendanceRevoke>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  revokeClassAttendance(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RevokeClassAttendanceMutationResult = NonNullable<Awaited<ReturnType<typeof revokeClassAttendance>>>
+    export type RevokeClassAttendanceMutationBody = BodyType<AttendanceRevoke>
+    export type RevokeClassAttendanceMutationError = ErrorType<ApiMessage>
+
+    /**
+ * @summary Take back a credited class
+ */
+export const useRevokeClassAttendance = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof revokeClassAttendance>>, TError,{id: number;data: BodyType<AttendanceRevoke>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof revokeClassAttendance>>,
+        TError,
+        {id: number;data: BodyType<AttendanceRevoke>},
+        TContext
+      > => {
+      return useMutation(getRevokeClassAttendanceMutationOptions(options));
+    }
 
 export const getGrantDeadlineExtensionUrl = (id: number,) => {
 

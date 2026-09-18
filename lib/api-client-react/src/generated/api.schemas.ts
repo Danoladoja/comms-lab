@@ -1434,6 +1434,32 @@ export interface DeadlineExtensionSubject {
   userIds: number[];
 }
 
+export interface AttendanceCredit {
+  /**
+     * @minItems 1
+     * @maxItems 500
+     */
+  userIds: number[];
+  /** @minLength 4 */
+  reason: string;
+}
+
+export interface AttendanceRevoke {
+  /**
+     * @minItems 1
+     * @maxItems 500
+     */
+  userIds: number[];
+}
+
+export interface AttendanceCreditResult {
+  sessionId: number;
+  changed: number;
+  alreadyAttended: number;
+  alreadyCredited: number;
+  note: string;
+}
+
 export interface DeadlineExtensionGrant {
   /**
      * @minItems 1
@@ -1573,6 +1599,13 @@ export interface ModuleLearnerStanding {
   critiquesGiven: number;
   critiquesRequired: number;
   complete: boolean;
+  locked: boolean;
+  /** @nullable */
+  lockedReason?: string | null;
+  attendanceCredited: boolean;
+  /** @nullable */
+  attendanceCreditReason?: string | null;
+  hasOwnMeasurement: boolean;
   /** @nullable */
   extendedTo?: string | null;
   /** @nullable */

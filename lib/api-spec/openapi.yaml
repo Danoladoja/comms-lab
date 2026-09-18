@@ -2350,6 +2350,86 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiMessage"
+  /admin/sessions/{id}/attendance:
+    put:
+      operationId: creditClassAttendance
+      tags: [admin]
+      summary: Credit a class the app could not measure
+      description: >
+        Records that a named person judged these learners to have been in the
+        class, and why. It writes a waiver — "this could not be measured" —
+        rather than a number of minutes nobody observed, so the register goes on
+        saying what was actually seen. Learners who already attended, by either
+        route, are left untouched.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AttendanceCredit"
+      responses:
+        "200":
+          description: Credited
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AttendanceCreditResult"
+        "400":
+          description: Refused, with what is wrong
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+    delete:
+      operationId: revokeClassAttendance
+      tags: [admin]
+      summary: Take back a credited class
+      description: >
+        Clears the credit only. Attendance the app measured itself is left
+        standing, and nothing the learner has submitted is touched — but a
+        learner carried solely by the credit will have this module unfinished
+        again, and anything waiting on it will shut.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AttendanceRevoke"
+      responses:
+        "200":
+          description: Taken back
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AttendanceCreditResult"
+        "400":
+          description: Refused
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
   /admin/sessions/{id}/deadline-extension:
     put:
       operationId: grantDeadlineExtension
@@ -4816,6 +4896,38 @@ components:
           items: { type: integer }
           minItems: 1
           maxItems: 500
+    AttendanceCredit:
+      type: object
+      required: [userIds, reason]
+      properties:
+        userIds:
+          type: array
+          items: { type: integer }
+          minItems: 1
+          maxItems: 500
+        # Goes on the record beside each name. Required, because it is the only
+        # thing that will explain this row to whoever reads it next year.
+        reason: { type: string, minLength: 4 }
+    AttendanceRevoke:
+      type: object
+      required: [userIds]
+      properties:
+        userIds:
+          type: array
+          items: { type: integer }
+          minItems: 1
+          maxItems: 500
+    AttendanceCreditResult:
+      type: object
+      required: [sessionId, changed, alreadyAttended, alreadyCredited, note]
+      properties:
+        sessionId: { type: integer }
+        changed: { type: integer }
+        # Named, because an admin who asked for 45 and got 31 wants to know
+        # where the other 14 went rather than work it out by subtraction.
+        alreadyAttended: { type: integer }
+        alreadyCredited: { type: integer }
+        note: { type: string }
     DeadlineExtensionGrant:
       type: object
       required: [userIds, dueAt]
@@ -4976,7 +5088,8 @@ components:
       type: object
       required:
         [userId, name, email, attended, attendedVia, attendedPct, submitted,
-         quizPassed, hasQuiz, hasAssignment, critiquesGiven, critiquesRequired, complete]
+         quizPassed, hasQuiz, hasAssignment, critiquesGiven, critiquesRequired, complete,
+         locked, attendanceCredited, hasOwnMeasurement]
       properties:
         userId: { type: integer }
         name: { type: string }
@@ -4999,6 +5112,17 @@ components:
         # Whether the module is finished for them, by the same rule their own
         # dashboard uses.
         complete: { type: boolean }
+        # Whether this module is still shut for them by an earlier one. A lock
+        # is checked before any deadline, so extra time cannot reach a locked
+        # learner — which looked exactly like extensions being broken.
+        locked: { type: boolean }
+        lockedReason: { type: ["string", "null"] }
+        # Attendance credited by hand, and the record of why.
+        attendanceCredited: { type: boolean }
+        attendanceCreditReason: { type: ["string", "null"] }
+        # Whether the app measured any attendance of its own for them, which
+        # decides what taking a credit back would cost.
+        hasOwnMeasurement: { type: boolean }
         extendedTo: { type: ["string", "null"], format: date-time }
         extensionReason: { type: ["string", "null"] }
     LateEnrolment:

@@ -1,12 +1,13 @@
 import { Router, type IRouter } from "express";
 import {
   db, enrollmentsTable, programsTable, usersTable, pendingInvitationsTable, sessionsTable,
-  assignmentsTable, deadlineExtensionsTable,
+  assignmentsTable, deadlineExtensionsTable, attendanceTable,
 } from "@workspace/db";
 import { and, asc, desc, eq, inArray, isNull, isNotNull, sql } from "drizzle-orm";
 import {
   UpdateUserRoleBody, UpdateEnrollmentBody, InviteFacilitatorBody, EnrolExistingAccountBody,
   GrantDeadlineExtensionBody, RevokeDeadlineExtensionBody,
+  CreditClassAttendanceBody, RevokeClassAttendanceBody,
 } from "@workspace/api-zod";
 import {
   checkRoleChange, validateInvite, describeInvite, mayResendInvitation, MAX_RESEND_AT_ONCE,
@@ -14,6 +15,7 @@ import {
   generateCertificateCode,
   extensionProblem, extensionNote, manyExtensionsNote, describeWhen,
   whyBehind, cohortHeadline,
+  creditProblem, creditStanding, creditRecord, creditNote, takeBackProblem, extraTimeBlocked,
 } from "@workspace/domain";
 import { cohortProgressFor } from "../lib/cohortProgress";
 import { currentRole, founderId, requireRole, getCurrentUser } from "../lib/auth";
@@ -250,6 +252,19 @@ router.get("/admin/sessions/:id/extensions", async (req, res) => {
     (cohort?.learners ?? []).map((l) => [l.userId, l.entries.find((e) => e.sessionId === sessionId)]),
   );
 
+  // The attendance rows carry two things the progress entries do not: whether
+  // the credit was given by hand, and the reason written beside it.
+  const attendanceRows = await db
+    .select({
+      userId: attendanceTable.userId,
+      waivedAt: attendanceTable.presenceWaivedAt,
+      waivedReason: attendanceTable.presenceWaivedReason,
+      liveSeconds: attendanceTable.liveSeconds,
+    })
+    .from(attendanceTable)
+    .where(eq(attendanceTable.sessionId, sessionId));
+  const attendanceFor = new Map(attendanceRows.map((a) => [a.userId, a]));
+
   // The extension rows carry a reason, which the progress entries do not.
   const extensions = await db
     .select({
@@ -287,6 +302,7 @@ router.get("/admin/sessions/:id/extensions", async (req, res) => {
     learners: roster.map((l) => {
       const entry = entryFor.get(l.userId);
       const extension = extensionFor.get(l.userId);
+      const attendance = attendanceFor.get(l.userId);
       return {
       userId: l.userId,
       name: l.name,
@@ -306,10 +322,220 @@ router.get("/admin/sessions/:id/extensions", async (req, res) => {
       // Whether the module is finished for them, which is the only summary of
       // the three that matters.
       complete: entry?.completed ?? false,
+      // The fact that made extra time look broken. A lock is checked before any
+      // deadline is, so a locked learner cannot open the quiz however much time
+      // they are given — and nothing on this screen used to say so.
+      locked: entry?.locked ?? false,
+      lockedReason: entry?.locked ? extraTimeBlocked({
+        locked: true,
+        lockedReason: entry.lockedReason,
+      }) : null,
+      attendanceCredited: !!attendance?.waivedAt,
+      attendanceCreditReason: attendance?.waivedAt ? attendance.waivedReason : null,
+      // Whether anything would still carry them if the credit were removed.
+      hasOwnMeasurement: (attendance?.liveSeconds ?? 0) > 0
+        || (entry?.presence.replayPct ?? 0) > 0,
       extendedTo: extension?.dueAt?.toISOString() ?? null,
       extensionReason: extension ? extension.reason : null,
       };
     }),
+  });
+});
+
+/* ------------------------------------------------------------------ *
+ * Attendance the app could not measure
+ * ------------------------------------------------------------------ */
+
+/**
+ * Credit a class to learners the app has no measurement for.
+ *
+ * This should have existed from the day modules one and two ran with Google
+ * Workspace unconnected and the classroom heartbeat silent. Those classes
+ * happened; the app saw nothing; and a module cannot be completed without
+ * attendance. So the people who sat through them were held short of a
+ * requirement by a failure that was entirely ours, the next module stayed shut
+ * behind it, and — because a lock is checked before any deadline — neither an
+ * extension nor a late pass could reach them. That is one fault with three
+ * symptoms, and this is the fix for all three.
+ *
+ * It writes a waiver rather than invented minutes. See the note in
+ * @workspace/domain/attendanceCredit for why that distinction is worth the
+ * extra column, and why the admin's name goes into the reason rather than into
+ * a new one.
+ */
+router.put("/admin/sessions/:id/attendance", async (req, res) => {
+  const sessionId = Number(req.params.id);
+  if (!Number.isInteger(sessionId)) { res.status(400).json({ error: "That is not a module." }); return; }
+
+  const parsed = CreditClassAttendanceBody.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
+
+  const [session] = await db
+    .select({
+      id: sessionsTable.id,
+      title: sessionsTable.title,
+      programId: sessionsTable.programId,
+      startsAt: sessionsTable.startsAt,
+      durationMins: sessionsTable.durationMins,
+    })
+    .from(sessionsTable)
+    .where(eq(sessionsTable.id, sessionId));
+  if (!session) { res.status(404).json({ error: "That module no longer exists." }); return; }
+
+  const problem = creditProblem({
+    startsAtMs: session.startsAt?.getTime() ?? null,
+    durationMins: session.durationMins,
+    nowMs: Date.now(),
+    reason: parsed.data.reason,
+    count: parsed.data.userIds.length,
+  });
+  if (problem) { res.status(400).json({ error: problem }); return; }
+
+  // Only people actually on this cohort. A user id in a request body is a
+  // claim, not a fact, and crediting somebody a module they are not enrolled on
+  // would write a row nothing else in the app can explain.
+  const enrolled = await db
+    .select({ userId: enrollmentsTable.userId })
+    .from(enrollmentsTable)
+    .where(and(
+      eq(enrollmentsTable.programId, session.programId),
+      sql`${enrollmentsTable.status} in ('enrolled', 'completed')`,
+    ));
+  const onCohort = new Set(enrolled.map((e) => e.userId));
+  const asked = parsed.data.userIds.filter((id) => onCohort.has(id));
+  if (asked.length === 0) {
+    res.status(400).json({ error: "None of those learners are on this programme." });
+    return;
+  }
+
+  // Where each of them already stands, by the Lab's own definition of
+  // attending — not by whether a row happens to exist.
+  const cohort = await cohortProgressFor(session.programId);
+  const entryFor = new Map(
+    (cohort?.learners ?? []).map((l) => [l.userId, l.entries.find((e) => e.sessionId === sessionId)]),
+  );
+  const existing = await db
+    .select({ userId: attendanceTable.userId, waivedAt: attendanceTable.presenceWaivedAt })
+    .from(attendanceTable)
+    .where(and(eq(attendanceTable.sessionId, sessionId), inArray(attendanceTable.userId, asked)));
+  const waived = new Set(existing.filter((r) => r.waivedAt).map((r) => r.userId));
+  const hasRow = new Set(existing.map((r) => r.userId));
+
+  let alreadyAttended = 0;
+  let alreadyCredited = 0;
+  const toCredit: number[] = [];
+  for (const userId of asked) {
+    const standing = creditStanding({
+      presenceMet: entryFor.get(userId)?.presence.met ?? false,
+      alreadyWaived: waived.has(userId),
+    });
+    if (standing === "already-credited") { alreadyCredited += 1; continue; }
+    if (standing === "attended") { alreadyAttended += 1; continue; }
+    toCredit.push(userId);
+  }
+
+  const me = await getCurrentUser(req);
+  const now = new Date();
+  const record = creditRecord({
+    reason: parsed.data.reason,
+    byName: me?.name ?? "",
+    whenIso: now.toISOString(),
+  });
+
+  for (const userId of toCredit) {
+    if (hasRow.has(userId)) {
+      await db
+        .update(attendanceTable)
+        .set({ presenceWaivedAt: now, presenceWaivedReason: record })
+        .where(and(eq(attendanceTable.sessionId, sessionId), eq(attendanceTable.userId, userId)));
+    } else {
+      // No row at all — the commonest case for these two modules, because
+      // people joined from the calendar invite and never opened the classroom.
+      // `joinedAt` is the class's own start rather than now: it is the closest
+      // honest answer, and writing today's date would put a learner in a room
+      // that closed a fortnight ago.
+      await db
+        .insert(attendanceTable)
+        .values({
+          userId,
+          sessionId,
+          joinedAt: session.startsAt ?? now,
+          liveSeconds: 0,
+          presenceWaivedAt: now,
+          presenceWaivedReason: record,
+        })
+        .onConflictDoUpdate({
+          target: [attendanceTable.userId, attendanceTable.sessionId],
+          set: { presenceWaivedAt: now, presenceWaivedReason: record },
+        });
+    }
+  }
+
+  logger.info(
+    { sessionId, credited: toCredit.length, by: me?.id },
+    "Class attendance credited by hand",
+  );
+
+  res.json({
+    sessionId,
+    changed: toCredit.length,
+    alreadyAttended,
+    alreadyCredited,
+    note: creditNote({
+      credited: toCredit.length,
+      alreadyAttended,
+      alreadyCredited,
+      moduleTitle: session.title,
+    }),
+  });
+});
+
+/**
+ * Take a credit back.
+ *
+ * Clears the waiver and nothing else. Attendance the app measured itself stays,
+ * and no submitted work is touched — but somebody carried solely by the credit
+ * loses the module again, and everything behind it shuts. The browser says so
+ * before anybody presses it; this end simply does what it was asked.
+ */
+router.delete("/admin/sessions/:id/attendance", async (req, res) => {
+  const sessionId = Number(req.params.id);
+  if (!Number.isInteger(sessionId)) { res.status(400).json({ error: "That is not a module." }); return; }
+
+  const parsed = RevokeClassAttendanceBody.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
+
+  const problem = takeBackProblem({ count: parsed.data.userIds.length });
+  if (problem) { res.status(400).json({ error: problem }); return; }
+
+  const [session] = await db
+    .select({ id: sessionsTable.id, title: sessionsTable.title })
+    .from(sessionsTable)
+    .where(eq(sessionsTable.id, sessionId));
+  if (!session) { res.status(404).json({ error: "That module no longer exists." }); return; }
+
+  const cleared = await db
+    .update(attendanceTable)
+    .set({ presenceWaivedAt: null, presenceWaivedReason: "" })
+    .where(and(
+      eq(attendanceTable.sessionId, sessionId),
+      inArray(attendanceTable.userId, parsed.data.userIds),
+      isNotNull(attendanceTable.presenceWaivedAt),
+    ))
+    .returning({ userId: attendanceTable.userId });
+
+  const me = await getCurrentUser(req);
+  logger.info({ sessionId, cleared: cleared.length, by: me?.id }, "Credited attendance taken back");
+
+  res.json({
+    sessionId,
+    changed: cleared.length,
+    alreadyAttended: 0,
+    alreadyCredited: 0,
+    note: cleared.length === 0
+      ? "None of those learners had credited attendance on this module."
+      : `Credited attendance removed from ${cleared.length === 1 ? "1 learner" : `${cleared.length} learners`} `
+        + `on ${session.title}. Nothing they submitted has been touched.`,
   });
 });
 

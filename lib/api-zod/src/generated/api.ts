@@ -2037,9 +2037,67 @@ export const ListModuleExtensionsResponse = zod.object({
   "critiquesGiven": zod.int(),
   "critiquesRequired": zod.int(),
   "complete": zod.boolean(),
+  "locked": zod.boolean(),
+  "lockedReason": zod.string().nullish(),
+  "attendanceCredited": zod.boolean(),
+  "attendanceCreditReason": zod.string().nullish(),
+  "hasOwnMeasurement": zod.boolean(),
   "extendedTo": zod.coerce.date().nullish(),
   "extensionReason": zod.string().nullish()
 }))
+})
+
+
+/**
+ * Records that a named person judged these learners to have been in the class, and why. It writes a waiver — "this could not be measured" — rather than a number of minutes nobody observed, so the register goes on saying what was actually seen. Learners who already attended, by either route, are left untouched.
+ * @summary Credit a class the app could not measure
+ */
+export const CreditClassAttendanceParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const creditClassAttendanceBodyUserIdsMax = 500;
+
+export const creditClassAttendanceBodyReasonMin = 4;
+
+
+
+export const CreditClassAttendanceBody = zod.object({
+  "userIds": zod.array(zod.int()).min(1).max(creditClassAttendanceBodyUserIdsMax),
+  "reason": zod.string().min(creditClassAttendanceBodyReasonMin)
+})
+
+export const CreditClassAttendanceResponse = zod.object({
+  "sessionId": zod.int(),
+  "changed": zod.int(),
+  "alreadyAttended": zod.int(),
+  "alreadyCredited": zod.int(),
+  "note": zod.string()
+})
+
+
+/**
+ * Clears the credit only. Attendance the app measured itself is left standing, and nothing the learner has submitted is touched — but a learner carried solely by the credit will have this module unfinished again, and anything waiting on it will shut.
+ * @summary Take back a credited class
+ */
+export const RevokeClassAttendanceParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const revokeClassAttendanceBodyUserIdsMax = 500;
+
+
+
+export const RevokeClassAttendanceBody = zod.object({
+  "userIds": zod.array(zod.int()).min(1).max(revokeClassAttendanceBodyUserIdsMax)
+})
+
+export const RevokeClassAttendanceResponse = zod.object({
+  "sessionId": zod.int(),
+  "changed": zod.int(),
+  "alreadyAttended": zod.int(),
+  "alreadyCredited": zod.int(),
+  "note": zod.string()
 })
 
 
