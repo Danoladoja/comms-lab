@@ -78,6 +78,16 @@ vi.mock("@workspace/db", () => {
   return ({
   db: mocks.db,
   pendingInvitationsTable: table("pendingInvitations", { id: "id", acceptedByUserId: "accepted_by_user_id", role: "role" }),
+  // Admission now turns on a Studio invitation rather than on having once been
+  // invited to the Lab. Everything on the row the rules read is here, because
+  // a missing column in a mock reads as a 500 rather than as a refusal.
+  studioInvitationsTable: table("studioInvitations", {
+    id: "id", userId: "user_id", programId: "program_id", sessionId: "session_id",
+    objective: "objective", situationSeed: "situation_seed", difficulty: "difficulty",
+    durationMinutes: "duration_minutes", invitedByUserId: "invited_by_user_id",
+    definitionId: "definition_id", runId: "run_id", startedAt: "started_at",
+    completedAt: "completed_at", expiresAt: "expires_at", createdAt: "created_at",
+  }),
   studioAccessCodesTable: table("studioAccessCodes", { id: "id", codeHash: "code_hash", createdByUserId: "created_by", redeemedByUserId: "redeemed_by", redeemedAt: "redeemed_at" }),
   simulationDefinitionsTable: table("simulationDefinitions", { id: "id", ownerId: "owner_id", createdAt: "created_at" }),
   simulationRunsTable: table("simulationRuns", { id: "id", ownerId: "owner_id", joinCode: "join_code", status: "status", definitionId: "definition_id" }),
@@ -147,7 +157,7 @@ describe("the Studio gate stays inside the Studio", () => {
 });
 
 describe("the Studio gate itself", () => {
-  it("refuses a learner with no invitation and no code", async () => {
+  it("refuses an enrolled learner with no Studio invitation and no code", async () => {
     mocks.setUser({ id: 5, role: "learner" });
     mocks.setRows({});
     const res = await fetch(`${baseUrl}/api/simulations`);

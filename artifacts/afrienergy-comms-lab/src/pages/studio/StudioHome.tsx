@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import MyExerciseCard from '@/components/simulation/MyExerciseCard';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -10,6 +11,10 @@ import {
   useListPrograms,
   useGenerateSimulation,
   useGetStudioAccess,
+  useGetMyStudioExercise,
+  useInviteToStudio,
+  useListProgramSessions,
+  getListProgramSessionsQueryKey,
   useJoinSimulationRun,
   useListSimulations,
 
@@ -20,7 +25,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
-import { Activity, Check, Clipboard, Loader2, Users, Clock, Hash, KeyRound, Radio, RefreshCw, Zap, Plus } from 'lucide-react';
+import { Activity, Check, Clipboard, Loader2, Users, Clock, Hash, KeyRound, Radio, RefreshCw, Zap, Plus, Target } from 'lucide-react';
 import { format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
@@ -58,6 +63,14 @@ export default function StudioHome() {
 
   const { data: simulations, isLoading: isLoadingSims } = useListSimulations();
   const { data: studioAccess } = useGetStudioAccess();
+  /**
+   * An invited learner does not choose their exercise, so they are not shown
+   * the machinery for choosing one. Admins and people who came in on an access
+   * code still are: they are not on a programme, so there is no objective to
+   * hand them.
+   */
+  const { data: myExercise } = useGetMyStudioExercise();
+  const invited = !!myExercise?.hasInvitation;
   const { data: record } = useGetStudioRecord();
   const generateSim = useGenerateSimulation();
   const joinSim = useJoinSimulationRun();
@@ -168,6 +181,8 @@ export default function StudioHome() {
 
             {studioAccess?.isAdmin && (
               <motion.div {...FADE_UP} className="mb-10 space-y-4">
+
+                <InviteCohortToExercise programmes={programmes} />
 
                 {/* One press: everybody on a programme gets in, and hears about it. */}
                 <div className="p-5 bg-white/[0.02] border border-white/10 relative">
@@ -319,7 +334,9 @@ export default function StudioHome() {
               </motion.div>
             )}
 
-            <div className="flex bg-white/5 p-1 rounded-none border border-white/10 w-fit mb-8">
+            <MyExerciseCard />
+
+            <div className={cn("flex bg-white/5 p-1 rounded-none border border-white/10 w-fit mb-8", invited && "hidden")}>
               <button
                 onClick={() => setActiveTab('new')}
                 className={cn("px-6 py-2.5 text-[11px] font-bold uppercase tracking-widest transition-all rounded-none", activeTab === 'new' ? 'bg-[#f97316] text-[#030811]' : 'text-white/50 hover:text-white')}
@@ -335,7 +352,7 @@ export default function StudioHome() {
             </div>
 
             <AnimatePresence mode="wait">
-              {activeTab === 'new' && (
+              {!invited && activeTab === 'new' && (
                 <motion.div key="new" {...FADE_UP}>
                   <Form {...form}>
                     <form onSubmit={form.handleSubmit(onSubmitGenerate)} className="space-y-6">
@@ -499,7 +516,7 @@ export default function StudioHome() {
                 </motion.div>
               )}
 
-              {activeTab === 'join' && (
+              {!invited && activeTab === 'join' && (
                 <motion.div key="join" {...FADE_UP} className="max-w-md">
                   <div className="bg-[#030811] border border-[#f97316]/30 p-8 relative shadow-[0_0_30px_rgba(249,115,22,0.05)]">
                     <div className="absolute top-0 left-0 w-2 h-2 border-t border-l border-[#f97316]" />
@@ -628,5 +645,97 @@ export default function StudioHome() {
 
       </div>
     </StudioLayout>
+  );
+}
+
+/**
+ * Sending a cohort their exercise.
+ *
+ * One invitation each, one run each. The objective is taken from the module and
+ * written onto every invitation as it is sent, so editing a module description
+ * next week cannot change what somebody was asked to practise this week.
+ *
+ * Anybody still holding an unused invitation is skipped rather than given a
+ * second, because two invitations is two model calls and two runs, and an admin
+ * pressing this twice in a week should not be how that happens.
+ */
+function InviteCohortToExercise({ programmes }: { programmes: any[] }) {
+  const { toast } = useToast();
+  const [programId, setProgramId] = useState('');
+  const [sessionId, setSessionId] = useState('');
+  const [result, setResult] = useState<string | null>(null);
+
+  const { data: sessions = [] } = useListProgramSessions(Number(programId), {
+    query: { queryKey: getListProgramSessionsQueryKey(Number(programId)), enabled: !!programId },
+  });
+
+  const invite = useInviteToStudio({
+    mutation: {
+      onSuccess: (r) => {
+        setResult(r.note);
+        toast({ title: r.invited > 0 ? 'Invitations sent' : 'Nothing to send', description: r.note });
+      },
+      onError: (err) => toast({
+        title: 'Could not invite them',
+        description: apiReason(err, 'Try again in a moment.'),
+        variant: 'destructive',
+      }),
+    },
+  });
+
+  return (
+    <div className="p-5 bg-white/[0.02] border border-white/10 relative">
+      <div className="absolute top-0 left-0 w-1 h-full bg-[#f97316]" />
+      <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2 mb-1">
+        <Target className="w-4 h-4 text-[#f97316]" aria-hidden /> Invite a cohort to an exercise
+      </h3>
+      <p className="text-xs text-white/50 mb-4">
+        One run each. What they practise comes from the module; each learner gets a different
+        situation to practise it in.
+      </p>
+
+      <div className="flex flex-col sm:flex-row gap-3">
+        <Select value={programId} onValueChange={(v) => { setProgramId(v); setSessionId(''); setResult(null); }}>
+          <SelectTrigger className="bg-[#030811] border-white/20 text-white rounded-none flex-1">
+            <SelectValue placeholder="Choose a programme" />
+          </SelectTrigger>
+          <SelectContent className="bg-[#0c1929] border-white/20 text-white">
+            {programmes.map((programme: any) => (
+              <SelectItem key={programme.id} value={String(programme.id)}>{programme.title}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Select value={sessionId} onValueChange={(v) => { setSessionId(v); setResult(null); }} disabled={!programId}>
+          <SelectTrigger className="bg-[#030811] border-white/20 text-white rounded-none flex-1">
+            <SelectValue placeholder="Which module?" />
+          </SelectTrigger>
+          <SelectContent className="bg-[#0c1929] border-white/20 text-white">
+            {sessions.map((session: any) => (
+              <SelectItem key={session.id} value={String(session.id)}>{session.title}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <button
+          type="button"
+          disabled={!programId || invite.isPending}
+          onClick={() => invite.mutate({
+            data: {
+              programId: Number(programId),
+              ...(sessionId ? { sessionId: Number(sessionId) } : {}),
+            },
+          })}
+          className="bg-[#f97316] text-[#030811] px-5 py-2.5 text-[11px] font-bold uppercase tracking-widest disabled:opacity-50"
+        >
+          {invite.isPending ? 'Sending…' : 'Invite'}
+        </button>
+      </div>
+
+      {/* Left on screen rather than shown as a toast that slides away: the
+          sentence says how many people can now spend a model call, which is
+          worth being able to read twice. */}
+      {result && <p className="mt-3 text-xs text-white/70">{result}</p>}
+    </div>
   );
 }

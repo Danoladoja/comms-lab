@@ -15,8 +15,30 @@
 export type StudioMode = "autonomous" | "facilitated";
 export type StudioRunStatus = "active" | "completed";
 
-export function mayEnterStudio(isAdmin: boolean, hasInvitation: boolean, hasRedeemedCode: boolean): boolean {
-  return isAdmin || hasInvitation || hasRedeemedCode;
+/**
+ * Who may open the Studio at all.
+ *
+ * The middle argument used to mean "has ever accepted an invitation to the
+ * Lab", which let every learner on every cohort in — to a room that spends API
+ * tokens on a form anybody can fill in repeatedly. It now means "has been
+ * invited to the Studio", which is a different and much smaller set.
+ *
+ * The change is one word and a large difference, so: a learner who was let in
+ * yesterday by the old rule is not let in by the new one unless somebody sent
+ * them a Studio invitation or granted their whole cohort access. That is the
+ * point of the change rather than a side effect of it.
+ *
+ * Access codes are untouched. They are how people who are not on a programme
+ * get in, and that route was never the one that needed governing.
+ *
+ * Note what this does NOT decide: whether they may start a run. Somebody who
+ * has finished their exercise still belongs in the Studio, because their
+ * debrief and their practice record live there. Admission and permission to
+ * run are two questions, and conflating them would take a learner's own record
+ * away from them the moment they used it.
+ */
+export function mayEnterStudio(isAdmin: boolean, hasStudioInvitation: boolean, hasRedeemedCode: boolean): boolean {
+  return isAdmin || hasStudioInvitation || hasRedeemedCode;
 }
 
 export function mayCreateStudioRun(mode: StudioMode, ownerId: number, participantId: number): boolean {

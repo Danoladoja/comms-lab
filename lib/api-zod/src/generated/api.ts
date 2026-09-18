@@ -2539,6 +2539,57 @@ export const ListSimulationsResponse = zod.array(ListSimulationsResponseItem)
 
 
 /**
+ * Everything needed to begin, and nothing to fill in. The objective comes from the programme; the situation comes from the invitation, and differs from every other learner's. Returns hasInvitation false for admins and for people who got in on an access code, who choose their own.
+ * @summary The exercise this learner has been invited to run
+ */
+export const GetMyStudioExerciseResponse = zod.object({
+  "hasInvitation": zod.boolean(),
+  "state": zod.enum(['ready', 'in-progress', 'spent', 'expired']).optional(),
+  "objective": zod.string().optional(),
+  "situation": zod.string().optional(),
+  "moduleTitle": zod.string().nullish(),
+  "durationMinutes": zod.int().optional(),
+  "difficulty": zod.string().optional(),
+  "runId": zod.int().nullish(),
+  "problem": zod.string().nullish()
+})
+
+
+/**
+ * Idempotent by design. One invitation buys one run: pressing this again, in another tab or after a dropped connection, returns the same run with its clock still going rather than starting a second one. The scenario is written once, on the first press.
+ * @summary Start the invited exercise, or return to the one in progress
+ */
+export const BeginStudioExerciseResponse = zod.object({
+  "runId": zod.int(),
+  "resumed": zod.boolean()
+})
+
+
+/**
+ * @summary Invite a module's learners to run it once each
+ */
+export const inviteToStudioBodyDurationMinutesMin = 5;
+export const inviteToStudioBodyDurationMinutesMax = 240;
+
+
+
+export const InviteToStudioBody = zod.object({
+  "programId": zod.int(),
+  "sessionId": zod.int().optional(),
+  "difficulty": zod.enum(['foundation', 'intermediate', 'advanced']).optional(),
+  "durationMinutes": zod.int().min(inviteToStudioBodyDurationMinutesMin).max(inviteToStudioBodyDurationMinutesMax).optional(),
+  "expiresAt": zod.coerce.date().optional()
+})
+
+export const InviteToStudioResponse = zod.object({
+  "invited": zod.int(),
+  "alreadyHad": zod.int(),
+  "objective": zod.string(),
+  "note": zod.string()
+})
+
+
+/**
  * @summary Check whether the signed-in user may enter Simulation Studio
  */
 export const GetStudioAccessResponse = zod.object({

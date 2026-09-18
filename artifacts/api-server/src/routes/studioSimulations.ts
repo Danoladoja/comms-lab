@@ -2,8 +2,9 @@ import { createHash, randomBytes } from "node:crypto";
 import { Router, type IRouter, type NextFunction, type Request, type Response } from "express";
 import { and, asc, eq, isNull, lt, or, sql } from "drizzle-orm";
 import {
-  db, enrollmentsTable, pendingInvitationsTable, programsTable, sessionsTable, simulationDefinitionsTable,
-  simulationGroupAssignmentsTable, simulationResponsesTable, simulationRunsTable, studioAccessCodesTable, usersTable,
+  db, enrollmentsTable, programsTable, sessionsTable, simulationDefinitionsTable,
+  simulationGroupAssignmentsTable, simulationResponsesTable, simulationRunsTable, studioAccessCodesTable,
+  studioInvitationsTable, usersTable,
 } from "@workspace/db";
 import {
   AdvanceSimulationRunParams, AdvanceSimulationRunResponse, CompleteSimulationRunParams, CompleteSimulationRunResponse,
@@ -13,12 +14,16 @@ import {
   JoinSimulationRunBody, JoinSimulationRunResponse, ListSimulationsResponse, SubmitSimulationResponseBody,
   SubmitSimulationResponseParams, SubmitSimulationResponseResponse, GetStudioAccessResponse,
   RedeemStudioAccessBody, RedeemStudioAccessResponse,
+  GetMyStudioExerciseResponse, BeginStudioExerciseResponse,
+  InviteToStudioBody, InviteToStudioResponse,
 } from "@workspace/api-zod";
 import {
   JOIN_CODE_ALPHABET, JOIN_CODE_LENGTH, accessCodeCount, mayAdvanceStudioRun, mayCompleteStudioRun,
   mayControlStudioRun, mayEnterStudio, mayJoinFacilitatedRun, maySeeStudioSimulation, normaliseJoinCode,
   clampResponseSeconds, nextStudioStep, operationLeaseIsActive, plannedTurns, practiceRecord, runClock,
   satisfiesRole, studioInviteLetter, whatTheClockSays, type StudioProgrammeContext,
+  inviteState, beginProblem, situationFor, situationBrief, situationSummary,
+  objectiveFor, invitationProblem, invitationNote,
 } from "@workspace/domain";
 import { getCurrentUser } from "../lib/auth";
 import { createBudget } from "../lib/rateBudget";
@@ -49,12 +54,25 @@ function accessCodeHash(value: string): string {
 function newAccessCode(): string {
   return randomBytes(9).toString("base64url").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 12);
 }
+/**
+ * May this person open the Studio, and how did they get in?
+ *
+ * The middle test used to be "has ever accepted an invitation to the Lab",
+ * which admitted every learner on every cohort to a room that spends API
+ * tokens. It is now "has been invited to the Studio" — a Studio invitation, or
+ * a cohort grant recorded as one of those, or a code they typed.
+ *
+ * Any invitation counts, including a spent one: somebody who has finished
+ * their exercise still belongs here, because their debrief and their practice
+ * record live here. Whether they may start a *new* run is a different question,
+ * answered by `beginProblem` against the invitation itself.
+ */
 async function studioAccess(user: Awaited<ReturnType<typeof getCurrentUser>>) {
   if (!user) return { allowed: false, isAdmin: false, source: null };
   if (satisfiesRole(user.role, ["admin"])) return { allowed: true, isAdmin: true, source: "admin" as const };
   const [[invitation], [code]] = await Promise.all([
-    db.select({ id: pendingInvitationsTable.id }).from(pendingInvitationsTable)
-      .where(and(eq(pendingInvitationsTable.acceptedByUserId, user.id), eq(pendingInvitationsTable.role, "learner"))).limit(1),
+    db.select({ id: studioInvitationsTable.id }).from(studioInvitationsTable)
+      .where(eq(studioInvitationsTable.userId, user.id)).limit(1),
     db.select({ id: studioAccessCodesTable.id }).from(studioAccessCodesTable)
       .where(eq(studioAccessCodesTable.redeemedByUserId, user.id)).limit(1),
   ]);
@@ -64,6 +82,37 @@ async function studioAccess(user: Awaited<ReturnType<typeof getCurrentUser>>) {
       : { allowed: true, isAdmin: false, source: "access_code" as const };
   }
   return { allowed: false, isAdmin: false, source: null };
+}
+
+/** The four facts the invitation rules read, out of a full row. */
+function inviteFacts(invite: {
+  runId: number | null; startedAt: Date | null; completedAt: Date | null; expiresAt: Date | null;
+}) {
+  return {
+    runId: invite.runId,
+    startedAt: invite.startedAt?.toISOString() ?? null,
+    completedAt: invite.completedAt?.toISOString() ?? null,
+    expiresAt: invite.expiresAt?.toISOString() ?? null,
+  };
+}
+
+async function moduleTitleFor(sessionId: number | null): Promise<string | null> {
+  if (!sessionId) return null;
+  const [found] = await db.select({ title: sessionsTable.title }).from(sessionsTable).where(eq(sessionsTable.id, sessionId));
+  return found?.title ?? null;
+}
+
+/** The invitation this learner is currently working with, if they have one. */
+async function openInvitationFor(userId: number) {
+  const [invite] = await db
+    .select()
+    .from(studioInvitationsTable)
+    .where(eq(studioInvitationsTable.userId, userId))
+    // Newest first, so a learner sent a second invitation after finishing the
+    // first is shown the one they can actually use.
+    .orderBy(sql`${studioInvitationsTable.createdAt} desc`)
+    .limit(1);
+  return invite ?? null;
 }
 /**
  * The gate, applied to each Studio route by name.
@@ -434,6 +483,15 @@ async function finishWith(
     await releaseOperation(claim.run.id, claim.token);
     return { ok: false, status: 409, error: "Somebody answered while that was generating. Refresh and try again." };
   }
+
+  // The invitation is spent at the moment the debrief exists, not at the moment
+  // somebody navigates away. A run that ended because its clock ran out ends
+  // the invitation too, which is the point: an exercise you can walk out of and
+  // start again is not an exercise.
+  await db.update(studioInvitationsTable)
+    .set({ completedAt: new Date() })
+    .where(and(eq(studioInvitationsTable.runId, updated.id), isNull(studioInvitationsTable.completedAt)));
+
   return { ok: true, run: updated };
 }
 
@@ -574,6 +632,261 @@ router.post("/studio/access/programme/:programId", async (req, res): Promise<voi
   }));
 });
 
+/* ------------------------------------------------------------------ *
+ * The invited learner's own exercise
+ * ------------------------------------------------------------------ */
+
+/**
+ * Everything a learner needs to see before they begin, and nothing to fill in.
+ *
+ * The Studio used to open on a form: a subject, an objective, a perspective, a
+ * difficulty, a length. Five decisions asked of the person least placed to make
+ * them, each one a chance to practise the wrong thing, and every submission a
+ * model call. The objective now comes from the programme, and the situation
+ * from their invitation, so there is one button.
+ */
+router.get("/studio/my-exercise", requireStudioAccess, async (req, res): Promise<void> => {
+  const user = await getCurrentUser(req);
+  if (!user) { res.status(401).json(message("Unauthorized")); return; }
+
+  const invite = await openInvitationFor(user.id);
+  if (!invite) { res.json(GetMyStudioExerciseResponse.parse({ hasInvitation: false })); return; }
+
+  const facts = inviteFacts(invite);
+  const situation = situationFor(invite.situationSeed);
+  const state = inviteState(facts, Date.now());
+
+  res.json(GetMyStudioExerciseResponse.parse({
+    hasInvitation: true,
+    state,
+    objective: invite.objective,
+    situation: situationSummary(situation),
+    moduleTitle: await moduleTitleFor(invite.sessionId),
+    durationMinutes: invite.durationMinutes,
+    difficulty: invite.difficulty,
+    runId: invite.runId,
+    problem: state === "ready" ? null : beginProblem(facts, Date.now()),
+  }));
+});
+
+/**
+ * Begin — or, if they have already begun, go back to where they were.
+ *
+ * Two things this must never do. It must never mint a second run from one
+ * invitation: closing the tab is not a way to start again with a fresh clock,
+ * and an exercise you can restart is not an exercise. And it must never ask the
+ * model twice for the same invitation, because that is somebody's money.
+ *
+ * So the invitation is claimed first, in its own small write, before anything
+ * slow happens. Whoever wins the claim generates; anybody else — a second tab,
+ * a double press, an impatient refresh — reads "already started" and is sent to
+ * the run. If the generation then fails, the claim is released, because an
+ * invitation spent on a scenario that never existed is a learner who cannot
+ * practise and an admin who cannot see why.
+ */
+router.post("/studio/my-exercise/begin", requireStudioAccess, async (req, res): Promise<void> => {
+  const user = await getCurrentUser(req);
+  if (!user) { res.status(401).json(message("Unauthorized")); return; }
+
+  const invite = await openInvitationFor(user.id);
+  if (!invite) { res.status(403).json(message("You have not been invited to run an exercise.")); return; }
+
+  const now = Date.now();
+  const state = inviteState(inviteFacts(invite), now);
+
+  // Already running: hand back the same run. This is the ordinary path for
+  // somebody whose laptop died, and it must be indistinguishable from never
+  // having left.
+  if (state === "in-progress" && invite.runId) {
+    res.json(BeginStudioExerciseResponse.parse({ runId: invite.runId, resumed: true }));
+    return;
+  }
+  if (state !== "ready") {
+    res.status(409).json(message(beginProblem(inviteFacts(invite), now) ?? "This invitation cannot be used."));
+    return;
+  }
+
+  if (!simulationAiConfigured()) {
+    res.status(503).json(message("The Studio needs an AI key on the server before it can write exercises."));
+    return;
+  }
+
+  // Claim it. Conditional on nobody else having done so, so two presses cannot
+  // both pass.
+  const [claimed] = await db
+    .update(studioInvitationsTable)
+    .set({ startedAt: new Date() })
+    .where(and(
+      eq(studioInvitationsTable.id, invite.id),
+      isNull(studioInvitationsTable.startedAt),
+      isNull(studioInvitationsTable.runId),
+    ))
+    .returning({ id: studioInvitationsTable.id });
+  if (!claimed) {
+    const fresh = await openInvitationFor(user.id);
+    if (fresh?.runId) { res.json(BeginStudioExerciseResponse.parse({ runId: fresh.runId, resumed: true })); return; }
+    res.status(409).json(message("This exercise is already starting. Give it a moment and refresh."));
+    return;
+  }
+
+  const releaseClaim = async () => {
+    await db.update(studioInvitationsTable)
+      .set({ startedAt: null })
+      .where(and(eq(studioInvitationsTable.id, invite.id), isNull(studioInvitationsTable.runId)));
+  };
+
+  try {
+    const situation = situationFor(invite.situationSeed);
+    const programme = await programmeContext(invite.programId);
+
+    const generated = await generateScenario({
+      sectorTopic: situationBrief(situation),
+      objective: invite.objective,
+      participantPerspective: "Head of Communications",
+      mode: "autonomous",
+      difficulty: invite.difficulty as "foundation" | "intermediate" | "advanced",
+      durationMinutes: invite.durationMinutes,
+      programme,
+    });
+    if (!generated.ok) {
+      await releaseClaim();
+      req.log.error({ reason: generated.error, userId: user.id, inviteId: invite.id }, "Studio exercise generation failed");
+      res.status(502).json(message(generated.error));
+      return;
+    }
+    const scenario = generated.value;
+
+    // Theirs alone: not published, so no one else on the cohort can open the
+    // crisis they were given. That is what makes forty-five different
+    // situations worth generating in the first place.
+    const [definition] = await db.insert(simulationDefinitionsTable).values({
+      ownerId: user.id, programId: invite.programId, published: false, mode: "autonomous",
+      title: scenario.title, context: situationBrief(situation), learningObjective: invite.objective,
+      difficulty: invite.difficulty, durationMinutes: invite.durationMinutes,
+      participantPerspective: "Head of Communications", openingBrief: scenario.openingBrief,
+      groups: scenario.stakeholderGroups,
+      injects: [{ ...scenario.initialDevelopment, responseMinutes: invite.durationMinutes }],
+      evaluationDimensions: scenario.evaluationDimensions, debriefQuestions: scenario.debriefQuestions,
+    }).returning();
+
+    const initial = definition.injects[0];
+    if (!initial || definition.groups.length === 0) {
+      await releaseClaim();
+      res.status(502).json(message("The exercise came back without an opening. Press Begin again."));
+      return;
+    }
+
+    const startedAt = new Date();
+    const [run] = await db.insert(simulationRunsTable).values({
+      ownerId: user.id, definitionId: definition.id, mode: "autonomous", status: "active",
+      joinCode: null,
+      currentDevelopment: withDeadline(initial, startedAt),
+      developments: [withDeadline(initial, startedAt)], startedAt,
+    }).returning();
+    await db.insert(simulationGroupAssignmentsTable)
+      .values({ runId: run.id, userId: user.id, groupId: definition.groups[0].id });
+
+    await db.update(studioInvitationsTable)
+      .set({ definitionId: definition.id, runId: run.id })
+      .where(eq(studioInvitationsTable.id, invite.id));
+
+    req.log.info({ inviteId: invite.id, runId: run.id, userId: user.id }, "Invited learner began their exercise");
+    res.status(201).json(BeginStudioExerciseResponse.parse({ runId: run.id, resumed: false }));
+  } catch (err) {
+    await releaseClaim();
+    throw err;
+  }
+});
+
+/**
+ * Invite a module's learners to run it, once each.
+ *
+ * The objective is read from the module now and written onto every invitation,
+ * rather than looked up when each learner presses Begin. Somebody asked on
+ * Monday to practise one thing must not be judged on Thursday against a
+ * different one because a description was tidied up in between.
+ */
+router.post("/admin/studio/invitations", async (req, res): Promise<void> => {
+  const user = await getCurrentUser(req);
+  if (!user) { res.status(401).json(message("Unauthorized")); return; }
+  if (!satisfiesRole(user.role, ["admin"])) { res.status(403).json(message("Only admins can invite learners to the Studio")); return; }
+
+  const body = InviteToStudioBody.safeParse(req.body);
+  if (!body.success) { res.status(400).json(message(body.error.message)); return; }
+
+  const [programme] = await db.select().from(programsTable).where(eq(programsTable.id, body.data.programId));
+  if (!programme) { res.status(404).json(message("Programme not found")); return; }
+
+  let module: typeof sessionsTable.$inferSelect | null = null;
+  if (body.data.sessionId) {
+    const [found] = await db.select().from(sessionsTable).where(eq(sessionsTable.id, body.data.sessionId));
+    if (!found || found.programId !== programme.id) {
+      res.status(404).json(message("That module is not on this programme")); return;
+    }
+    module = found;
+  }
+
+  const objective = objectiveFor({
+    programmeTitle: programme.title,
+    programmeDescription: programme.description,
+    moduleTitle: module?.title ?? null,
+    moduleDescription: module?.description ?? null,
+  });
+
+  const learners = await db
+    .select({ id: usersTable.id })
+    .from(enrollmentsTable)
+    .innerJoin(usersTable, eq(enrollmentsTable.userId, usersTable.id))
+    .where(and(
+      eq(enrollmentsTable.programId, programme.id),
+      sql`${enrollmentsTable.status} in ('enrolled', 'completed')`,
+    ));
+
+  // Who is already holding one they have not used. Re-inviting them would hand
+  // out a second run, and the quiet version of that is a token bill nobody can
+  // account for.
+  const open = await db
+    .select({ userId: studioInvitationsTable.userId, runId: studioInvitationsTable.runId, startedAt: studioInvitationsTable.startedAt, completedAt: studioInvitationsTable.completedAt, expiresAt: studioInvitationsTable.expiresAt })
+    .from(studioInvitationsTable)
+    .where(eq(studioInvitationsTable.programId, programme.id));
+  const holdsOne = new Set(
+    open.filter((o) => inviteState(inviteFacts(o), Date.now()) !== "spent"
+      && inviteState(inviteFacts(o), Date.now()) !== "expired").map((o) => o.userId),
+  );
+
+  const toInvite = learners.filter((l) => !holdsOne.has(l.id));
+  const refusal = invitationProblem({ objective, hasOpenInvitation: false, enrolled: true });
+  if (refusal) { res.status(400).json(message(refusal)); return; }
+
+  if (toInvite.length > 0) {
+    await db.insert(studioInvitationsTable).values(toInvite.map((l) => ({
+      userId: l.id,
+      programId: programme.id,
+      sessionId: module?.id ?? null,
+      objective,
+      // Unique per learner per invitation, so two people on the same module
+      // get different crises and one person re-invited later gets a new one.
+      situationSeed: `${programme.id}:${module?.id ?? 0}:${l.id}:${randomBytes(4).toString("hex")}`,
+      difficulty: body.data.difficulty ?? "intermediate",
+      durationMinutes: body.data.durationMinutes ?? 30,
+      invitedByUserId: user.id,
+      expiresAt: body.data.expiresAt ? new Date(body.data.expiresAt) : null,
+    })));
+  }
+
+  req.log.info({ programId: programme.id, sessionId: module?.id ?? null, invited: toInvite.length, by: user.id }, "Invited learners to the Studio");
+  res.status(201).json(InviteToStudioResponse.parse({
+    invited: toInvite.length,
+    alreadyHad: learners.length - toInvite.length,
+    objective,
+    note: invitationNote({
+      invited: toInvite.length,
+      alreadyHad: learners.length - toInvite.length,
+      moduleTitle: module?.title ?? programme.title,
+    }),
+  }));
+});
+
 /**
  * What this person can open: their own, plus anything published for a
  * programme they are on. An administrator sees the lot.
@@ -657,6 +970,27 @@ router.post("/simulation-runs", requireStudioAccess, async (req, res): Promise<v
   if (!definition || !maySeeStudioSimulation(definition, { id: user.id, isAdmin: runnerIsAdmin, enrolledProgramIds: runnerProgrammes })) {
     res.status(403).json(message("That exercise is not open to you")); return;
   }
+  /*
+    An invited learner does not start runs from here.
+
+    Their exercise is the one their invitation names, begun once through
+    /studio/my-exercise/begin. Without this, the invitation would govern nothing
+    — anybody could open a published cohort exercise and run it as often as they
+    liked, which is the spending and the unbounded practice the invitation
+    exists to end. Admins still use this route to try exercises out, and so do
+    people who got in on an access code, who are not on a programme and have no
+    invitation to honour.
+  */
+  if (!runnerIsAdmin) {
+    const invite = await openInvitationFor(user.id);
+    if (invite) {
+      res.status(403).json(message(
+        "Your exercise is the one you were invited to. Open the Studio and press Begin.",
+      ));
+      return;
+    }
+  }
+
   const initial = definition.injects[0];
   if (!initial || definition.groups.length === 0) { res.status(400).json(message("Simulation has no initial development or stakeholder group")); return; }
   // The clock starts here, and every deadline after this is measured from it.

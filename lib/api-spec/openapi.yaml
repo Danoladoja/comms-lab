@@ -2973,6 +2973,100 @@ paths:
           content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/StudioSimulation" } } } }
         "401": { $ref: "#/components/responses/Unauthorized" }
         "403": { $ref: "#/components/responses/Forbidden" }
+  /studio/my-exercise:
+    get:
+      operationId: getMyStudioExercise
+      tags: [studio]
+      summary: The exercise this learner has been invited to run
+      description: >
+        Everything needed to begin, and nothing to fill in. The objective comes
+        from the programme; the situation comes from the invitation, and differs
+        from every other learner's. Returns hasInvitation false for admins and
+        for people who got in on an access code, who choose their own.
+      responses:
+        "200":
+          description: Their exercise, or none
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MyStudioExercise"
+        "403":
+          description: Not admitted to the Studio
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+  /studio/my-exercise/begin:
+    post:
+      operationId: beginStudioExercise
+      tags: [studio]
+      summary: Start the invited exercise, or return to the one in progress
+      description: >
+        Idempotent by design. One invitation buys one run: pressing this again,
+        in another tab or after a dropped connection, returns the same run with
+        its clock still going rather than starting a second one. The scenario is
+        written once, on the first press.
+      responses:
+        "201":
+          description: Started
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BeginStudioExercise"
+        "200":
+          description: Already running — the same run
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BeginStudioExercise"
+        "409":
+          description: The invitation is spent or has expired
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "403":
+          description: No invitation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "503":
+          description: The Studio has no AI key
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+  /admin/studio/invitations:
+    post:
+      operationId: inviteToStudio
+      tags: [admin]
+      summary: Invite a module's learners to run it once each
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InviteToStudio"
+      responses:
+        "201":
+          description: Invited
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InviteToStudioResult"
+        "400":
+          description: Refused, with what is wrong
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
   /studio/access:
     get:
       operationId: getStudioAccess
@@ -5260,6 +5354,53 @@ components:
         evaluationDimensions: { type: array, items: { $ref: "#/components/schemas/SimulationEvaluationDimension" } }
         debriefQuestions: { type: array, items: { type: string } }
         createdAt: { type: string, format: date-time }
+    MyStudioExercise:
+      type: object
+      required: [hasInvitation]
+      properties:
+        hasInvitation: { type: boolean }
+        state:
+          type: string
+          enum: [ready, in-progress, spent, expired]
+        # What the programme says they are practising, frozen when the
+        # invitation was sent.
+        objective: { type: string }
+        # Their own crisis, in one sentence. Different for every learner.
+        situation: { type: string }
+        moduleTitle: { type: ["string", "null"] }
+        durationMinutes: { type: integer }
+        difficulty: { type: string }
+        # Set once they have begun, so the page can send them back to it.
+        runId: { type: ["integer", "null"] }
+        # Why they cannot begin, when they cannot.
+        problem: { type: ["string", "null"] }
+    BeginStudioExercise:
+      type: object
+      required: [runId, resumed]
+      properties:
+        runId: { type: integer }
+        # True when this returned the run they were already in rather than a new
+        # one — which is what a dropped connection looks like from here.
+        resumed: { type: boolean }
+    InviteToStudio:
+      type: object
+      required: [programId]
+      properties:
+        programId: { type: integer }
+        # The module whose objective they practise. Omitted, the programme's own
+        # description is used.
+        sessionId: { type: integer }
+        difficulty: { type: string, enum: [foundation, intermediate, advanced] }
+        durationMinutes: { type: integer, minimum: 5, maximum: 240 }
+        expiresAt: { type: string, format: date-time }
+    InviteToStudioResult:
+      type: object
+      required: [invited, alreadyHad, objective, note]
+      properties:
+        invited: { type: integer }
+        alreadyHad: { type: integer }
+        objective: { type: string }
+        note: { type: string }
     StudioAccess:
       type: object
       required: [allowed, isAdmin, source]

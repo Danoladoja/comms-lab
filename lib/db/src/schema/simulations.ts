@@ -165,3 +165,80 @@ export const studioAccessCodesTable = pgTable("studio_access_codes", {
 export const insertSimulationDefinitionSchema = createInsertSchema(simulationDefinitionsTable).omit({ id: true, createdAt: true, updatedAt: true });
 export type InsertSimulationDefinition = z.infer<typeof insertSimulationDefinitionSchema>;
 export type SimulationDefinition = typeof simulationDefinitionsTable.$inferSelect;
+/**
+ * One learner, invited once, to run one individual exercise.
+ *
+ * The Studio runs on API tokens, and until now nothing counted. Anybody the Lab
+ * had ever invited could open it, fill in a form, and generate as many
+ * scenarios as the daily cap allowed — each one a model call, none of them
+ * connected to what that person is supposed to be learning.
+ *
+ * So an invitation is the unit. An admin sends one; it buys exactly one run of
+ * exactly one exercise; and when it is spent it is spent. The objective is
+ * frozen onto the row at the moment of sending, so an admin editing a
+ * programme next week cannot change what somebody was asked to practise
+ * yesterday.
+ *
+ * Access codes are untouched. They are how people who are not on a programme
+ * get in, and that route is not the one that needed governing.
+ */
+export const studioInvitationsTable = pgTable("studio_invitations", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => usersTable.id, { onDelete: "cascade" }),
+  programId: integer("program_id").notNull().references(() => programsTable.id, { onDelete: "cascade" }),
+  /** The module this practises, when it was sent for one. */
+  sessionId: integer("session_id").references(() => sessionsTable.id, { onDelete: "set null" }),
+
+  /**
+   * What they are practising, in the programme's own words.
+   *
+   * Copied here rather than read from the programme when the exercise is
+   * built. A learner asked on Monday to practise one thing must not find on
+   * Thursday that they were judged against something else because somebody
+   * tidied up a module description in between.
+   */
+  objective: text("objective").notNull(),
+
+  /**
+   * What decides this learner's situation.
+   *
+   * Everyone on a cohort practises the same objective against a different
+   * crisis — a different country, a different kind of organisation, a different
+   * thing going wrong. The seed is stored rather than generated on the fly so
+   * that reloading the page cannot reshuffle somebody's scenario, and so that
+   * two people comparing notes find they were genuinely given different work.
+   */
+  situationSeed: text("situation_seed").notNull(),
+
+  difficulty: text("difficulty").notNull().default("intermediate"),
+  durationMinutes: integer("duration_minutes").notNull().default(30),
+
+  invitedByUserId: integer("invited_by_user_id").notNull().references(() => usersTable.id, { onDelete: "restrict" }),
+
+  /**
+   * The exercise built for this invitation.
+   *
+   * Written the first time they press Begin and never again, so the model is
+   * asked once per invitation rather than once per page load. A learner who
+   * refreshes gets the scenario they already had.
+   */
+  definitionId: integer("definition_id").references(() => simulationDefinitionsTable.id, { onDelete: "set null" }),
+
+  /** The one run this invitation buys. Null until they start. */
+  runId: integer("run_id").references(() => simulationRunsTable.id, { onDelete: "set null" }),
+
+  startedAt: timestamp("started_at", { withTimezone: true }),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+  /** After this, it cannot be started. Null means it does not expire. */
+  expiresAt: timestamp("expires_at", { withTimezone: true }),
+
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+}, (t) => [
+  index("studio_invitations_user_idx").on(t.userId),
+  index("studio_invitations_program_idx").on(t.programId),
+  // One run per invitation, enforced by the database rather than by care.
+  uniqueIndex("studio_invitations_run_unique").on(t.runId),
+]);
+
+export type StudioInvitation = typeof studioInvitationsTable.$inferSelect;

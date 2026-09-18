@@ -30,6 +30,7 @@ import type {
   AttendanceCreditResult,
   AttendanceRevoke,
   BadRequestResponse,
+  BeginStudioExercise,
   BulkInviteBody,
   BulkInviteResult,
   Certificate,
@@ -60,6 +61,8 @@ import type {
   HeartbeatResult,
   Invitation,
   InvitationInput,
+  InviteToStudio,
+  InviteToStudioResult,
   JoinResult,
   LateEnrolment,
   LateEnrolmentResult,
@@ -77,6 +80,7 @@ import type {
   ModuleWork,
   MoreQuestionsInput,
   MyFeedback,
+  MyStudioExercise,
   NotFoundResponse,
   PartnershipEnquiryInput,
   PartnershipEnquiryProblems,
@@ -7089,6 +7093,227 @@ export function useListSimulations<TData = Awaited<ReturnType<typeof listSimulat
 
 
 
+
+export const getGetMyStudioExerciseUrl = () => {
+
+
+
+
+  return `/api/studio/my-exercise`
+}
+
+/**
+ * Everything needed to begin, and nothing to fill in. The objective comes from the programme; the situation comes from the invitation, and differs from every other learner's. Returns hasInvitation false for admins and for people who got in on an access code, who choose their own.
+ * @summary The exercise this learner has been invited to run
+ */
+export const getMyStudioExercise = async ( options?: Parameters<typeof customFetch>[1]): Promise<MyStudioExercise> => {
+
+  return customFetch<MyStudioExercise>(getGetMyStudioExerciseUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMyStudioExerciseQueryKey = () => {
+    return [
+    `/api/studio/my-exercise`
+    ] as const;
+    }
+
+
+export const getGetMyStudioExerciseQueryOptions = <TData = Awaited<ReturnType<typeof getMyStudioExercise>>, TError = ErrorType<ApiMessage>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMyStudioExercise>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMyStudioExerciseQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMyStudioExercise>>> = ({ signal }) => getMyStudioExercise({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMyStudioExercise>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetMyStudioExerciseQueryResult = NonNullable<Awaited<ReturnType<typeof getMyStudioExercise>>>
+export type GetMyStudioExerciseQueryError = ErrorType<ApiMessage>
+
+
+/**
+ * @summary The exercise this learner has been invited to run
+ */
+
+export function useGetMyStudioExercise<TData = Awaited<ReturnType<typeof getMyStudioExercise>>, TError = ErrorType<ApiMessage>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMyStudioExercise>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetMyStudioExerciseQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getBeginStudioExerciseUrl = () => {
+
+
+
+
+  return `/api/studio/my-exercise/begin`
+}
+
+/**
+ * Idempotent by design. One invitation buys one run: pressing this again, in another tab or after a dropped connection, returns the same run with its clock still going rather than starting a second one. The scenario is written once, on the first press.
+ * @summary Start the invited exercise, or return to the one in progress
+ */
+export const beginStudioExercise = async ( options?: Parameters<typeof customFetch>[1]): Promise<BeginStudioExercise> => {
+
+  return customFetch<BeginStudioExercise>(getBeginStudioExerciseUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getBeginStudioExerciseMutationOptions = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof beginStudioExercise>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof beginStudioExercise>>, TError,void, TContext> => {
+
+const mutationKey = ['beginStudioExercise'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof beginStudioExercise>>, void> = () => {
+
+
+          return  beginStudioExercise(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type BeginStudioExerciseMutationResult = NonNullable<Awaited<ReturnType<typeof beginStudioExercise>>>
+
+    export type BeginStudioExerciseMutationError = ErrorType<ApiMessage>
+
+    /**
+ * @summary Start the invited exercise, or return to the one in progress
+ */
+export const useBeginStudioExercise = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof beginStudioExercise>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof beginStudioExercise>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getBeginStudioExerciseMutationOptions(options));
+    }
+
+export const getInviteToStudioUrl = () => {
+
+
+
+
+  return `/api/admin/studio/invitations`
+}
+
+/**
+ * @summary Invite a module's learners to run it once each
+ */
+export const inviteToStudio = async (inviteToStudio: InviteToStudio, options?: Parameters<typeof customFetch>[1]): Promise<InviteToStudioResult> => {
+
+  return customFetch<InviteToStudioResult>(getInviteToStudioUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(inviteToStudio)
+  }
+);}
+
+
+
+
+
+export const getInviteToStudioMutationOptions = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof inviteToStudio>>, TError,{data: BodyType<InviteToStudio>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof inviteToStudio>>, TError,{data: BodyType<InviteToStudio>}, TContext> => {
+
+const mutationKey = ['inviteToStudio'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof inviteToStudio>>, {data: BodyType<InviteToStudio>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  inviteToStudio(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type InviteToStudioMutationResult = NonNullable<Awaited<ReturnType<typeof inviteToStudio>>>
+    export type InviteToStudioMutationBody = BodyType<InviteToStudio>
+    export type InviteToStudioMutationError = ErrorType<ApiMessage>
+
+    /**
+ * @summary Invite a module's learners to run it once each
+ */
+export const useInviteToStudio = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof inviteToStudio>>, TError,{data: BodyType<InviteToStudio>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof inviteToStudio>>,
+        TError,
+        {data: BodyType<InviteToStudio>},
+        TContext
+      > => {
+      return useMutation(getInviteToStudioMutationOptions(options));
+    }
 
 export const getGetStudioAccessUrl = () => {
 

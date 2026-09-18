@@ -1803,6 +1803,64 @@ export interface StudioSimulation {
   createdAt: string;
 }
 
+export type MyStudioExerciseState = typeof MyStudioExerciseState[keyof typeof MyStudioExerciseState];
+
+
+export const MyStudioExerciseState = {
+  ready: 'ready',
+  'in-progress': 'in-progress',
+  spent: 'spent',
+  expired: 'expired',
+} as const;
+
+export interface MyStudioExercise {
+  hasInvitation: boolean;
+  state?: MyStudioExerciseState;
+  objective?: string;
+  situation?: string;
+  /** @nullable */
+  moduleTitle?: string | null;
+  durationMinutes?: number;
+  difficulty?: string;
+  /** @nullable */
+  runId?: number | null;
+  /** @nullable */
+  problem?: string | null;
+}
+
+export interface BeginStudioExercise {
+  runId: number;
+  resumed: boolean;
+}
+
+export type InviteToStudioDifficulty = typeof InviteToStudioDifficulty[keyof typeof InviteToStudioDifficulty];
+
+
+export const InviteToStudioDifficulty = {
+  foundation: 'foundation',
+  intermediate: 'intermediate',
+  advanced: 'advanced',
+} as const;
+
+export interface InviteToStudio {
+  programId: number;
+  sessionId?: number;
+  difficulty?: InviteToStudioDifficulty;
+  /**
+     * @minimum 5
+     * @maximum 240
+     */
+  durationMinutes?: number;
+  expiresAt?: string;
+}
+
+export interface InviteToStudioResult {
+  invited: number;
+  alreadyHad: number;
+  objective: string;
+  note: string;
+}
+
 /**
  * @nullable
  */
