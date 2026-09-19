@@ -2919,6 +2919,40 @@ export const GetStudioCohortResponse = zod.object({
 
 
 /**
+ * For when somebody says their work has gone. Reads across the whole Lab rather than one programme, because the account holding a record may not be enrolled on anything any more, and makes no assumption about the shape of the trouble. Reads only.
+ * @summary Where one learner's record actually is
+ */
+export const GetLearnerRecordQueryParams = zod.object({
+  "email": zod.coerce.string()
+})
+
+export const GetLearnerRecordResponse = zod.object({
+  "email": zod.string(),
+  "verdict": zod.enum(['filed-under-another-account', 'all-present', 'nothing-here', 'not-enrolled', 'no-such-learner']),
+  "note": zod.string(),
+  "accounts": zod.array(zod.object({
+  "userId": zod.int(),
+  "name": zod.string(),
+  "role": zod.string(),
+  "createdAt": zod.string(),
+  "enrolledOnProgrammes": zod.int(),
+  "classesAttended": zod.int(),
+  "recordingsWatched": zod.int(),
+  "tasksFiled": zod.int(),
+  "critiquesWritten": zod.int(),
+  "critiquesReceived": zod.int(),
+  "minutesWatched": zod.int(),
+  "minutesInClass": zod.int(),
+  "withdrawnTasks": zod.int(),
+  "enrolments": zod.array(zod.object({
+  "programmeTitle": zod.string(),
+  "status": zod.string()
+}))
+}))
+})
+
+
+/**
  * Every number on a learner's dashboard is worked out from stored rows at the moment it is asked for, so a fault in the working shows up as a wrong verdict with no trace of how it got there. This puts the two side by side and flags wherever they cannot both be right. It reads only.
  * @summary What is recorded against each learner, beside what the Lab says
  */

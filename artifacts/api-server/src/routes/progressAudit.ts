@@ -7,9 +7,9 @@ import {
 } from "@workspace/db";
 import {
   satisfiesRole, replayWatchedSeconds, auditFlags, auditNote, looksWiped, duplicateNote,
-  type AuditFlag, type AccountFacts,
+  readRecord, type AuditFlag, type AccountFacts, type LearnerAccount,
 } from "@workspace/domain";
-import { GetProgressAuditResponse } from "@workspace/api-zod";
+import { GetProgressAuditResponse, GetLearnerRecordResponse } from "@workspace/api-zod";
 import { getCurrentUser } from "../lib/auth";
 import { progressForUser } from "../lib/progress";
 
@@ -297,6 +297,94 @@ router.get("/admin/programs/:programId/progress-audit", async (req, res): Promis
     // read the clean rows.
     learners: [...rows].sort((a, b) => b.flagged - a.flagged || a.name.localeCompare(b.name)),
   }));
+});
+
+/**
+ * Where one learner's record actually is.
+ *
+ * The cohort audit answers "is what is stored being counted correctly". This
+ * answers the question somebody actually asks when a learner says their work
+ * has gone: is it there at all, and if so, under what.
+ *
+ * Across the whole Lab rather than one programme, because the account holding
+ * a record may not be enrolled on anything any more — which is itself one of
+ * the answers. And with no assumption about the shape of the trouble: two
+ * accounts, one empty account, a record with no enrolment all look identical
+ * to the learner and need different answers, and guessing which before looking
+ * is how this went wrong three times.
+ *
+ * Reads only, and reads no work — counts and minutes, never a body.
+ */
+router.get("/admin/learner-record", async (req, res): Promise<void> => {
+  const user = await getCurrentUser(req);
+  if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
+  if (!satisfiesRole(user.role, ["admin"])) {
+    res.status(403).json({ error: "Only admins can look up a record" }); return;
+  }
+
+  const email = String(req.query.email ?? "").trim().toLowerCase();
+  if (!email) { res.status(400).json({ error: "Give an email address to look up" }); return; }
+
+  const found = await db.execute<Record<string, unknown>>(sql`
+    SELECT u.id AS user_id, u.name, u.role, u.created_at,
+      (SELECT count(*) FROM enrollments e WHERE e.user_id = u.id)::int              AS enrolled,
+      (SELECT count(*) FROM session_attendance a WHERE a.user_id = u.id)::int       AS attended,
+      (SELECT coalesce(sum(a.live_seconds), 0) FROM session_attendance a WHERE a.user_id = u.id)::int
+                                                                                     AS live_seconds,
+      (SELECT count(*) FROM replay_progress r WHERE r.user_id = u.id)::int          AS watched,
+      (SELECT coalesce(sum(jsonb_array_length(r.buckets)), 0) * 15
+         FROM replay_progress r WHERE r.user_id = u.id)::int                        AS watched_seconds,
+      (SELECT count(*) FROM assignment_submissions s WHERE s.user_id = u.id)::int   AS filed,
+      (SELECT count(*) FROM assignment_submissions s
+         WHERE s.user_id = u.id AND s.withdrawn_at IS NOT NULL)::int                AS withdrawn,
+      (SELECT count(*) FROM submission_reviews v WHERE v.reviewer_id = u.id)::int   AS critiqued,
+      (SELECT count(*) FROM submission_reviews v
+         JOIN assignment_submissions s2 ON s2.id = v.submission_id
+        WHERE s2.user_id = u.id)::int                                               AS received
+    FROM users u
+    WHERE lower(u.email) = ${email}
+    ORDER BY u.created_at
+  `);
+
+  const rows = (found.rows ?? []) as Record<string, unknown>[];
+  const accounts: LearnerAccount[] = [];
+  for (const row of rows) {
+    const userId = Number(row.user_id);
+    const enrolments = await db
+      .select({ programmeTitle: programsTable.title, status: enrollmentsTable.status })
+      .from(enrollmentsTable)
+      .innerJoin(programsTable, eq(programsTable.id, enrollmentsTable.programId))
+      .where(eq(enrollmentsTable.userId, userId));
+    const made = new Date(row.created_at as string);
+    accounts.push({
+      userId,
+      name: String(row.name ?? "").trim() || "Unnamed",
+      role: String(row.role ?? "learner"),
+      // To the minute, because a learner reporting "it went about one o'clock"
+      // is giving you the one fact that identifies the account they landed on.
+      createdAt: made.toLocaleString("en-GB", {
+        day: "numeric", month: "short", year: "numeric",
+        hour: "2-digit", minute: "2-digit", timeZone: "Africa/Lagos",
+      }),
+      createdOn: made.toLocaleDateString("en-GB", {
+        day: "numeric", month: "short", year: "numeric", timeZone: "Africa/Lagos",
+      }),
+      enrolledOnProgrammes: Number(row.enrolled),
+      classesAttended: Number(row.attended),
+      recordingsWatched: Number(row.watched),
+      tasksFiled: Number(row.filed),
+      critiquesWritten: Number(row.critiqued),
+      critiquesReceived: Number(row.received),
+      minutesWatched: Math.round(Number(row.watched_seconds) / 60),
+      minutesInClass: Math.round(Number(row.live_seconds) / 60),
+      withdrawnTasks: Number(row.withdrawn),
+      // Carried for the screen; the verdict above does not read it.
+      ...({ enrolments } as object),
+    } as LearnerAccount);
+  }
+
+  const { verdict, note } = readRecord(accounts);
+  res.json(GetLearnerRecordResponse.parse({ email, verdict, note, accounts }));
 });
 
 export default router;

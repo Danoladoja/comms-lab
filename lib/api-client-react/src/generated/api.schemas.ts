@@ -2096,6 +2096,46 @@ export interface ProgressAudit {
   learners: ProgressAuditLearnersItem[];
 }
 
+export type LearnerRecordVerdict = typeof LearnerRecordVerdict[keyof typeof LearnerRecordVerdict];
+
+
+export const LearnerRecordVerdict = {
+  'filed-under-another-account': 'filed-under-another-account',
+  'all-present': 'all-present',
+  'nothing-here': 'nothing-here',
+  'not-enrolled': 'not-enrolled',
+  'no-such-learner': 'no-such-learner',
+} as const;
+
+export type LearnerRecordAccountsItemEnrolmentsItem = {
+  programmeTitle: string;
+  status: string;
+};
+
+export type LearnerRecordAccountsItem = {
+  userId: number;
+  name: string;
+  role: string;
+  createdAt: string;
+  enrolledOnProgrammes: number;
+  classesAttended: number;
+  recordingsWatched: number;
+  tasksFiled: number;
+  critiquesWritten: number;
+  critiquesReceived: number;
+  minutesWatched: number;
+  minutesInClass: number;
+  withdrawnTasks: number;
+  enrolments: LearnerRecordAccountsItemEnrolmentsItem[];
+};
+
+export interface LearnerRecord {
+  email: string;
+  verdict: LearnerRecordVerdict;
+  note: string;
+  accounts: LearnerRecordAccountsItem[];
+}
+
 export interface AttachStudioExercisesInput {
   sessionId: number;
 }
@@ -2558,5 +2598,9 @@ export type ConflictResponse = ApiMessage;
 
 export type ListAllEnrollmentsParams = {
 programId?: number;
+};
+
+export type GetLearnerRecordParams = {
+email: string;
 };
 

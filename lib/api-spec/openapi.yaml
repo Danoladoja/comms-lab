@@ -3133,6 +3133,29 @@ paths:
               schema:
                 $ref: "#/components/schemas/StudioCohort"
         "403": { $ref: "#/components/responses/Forbidden" }
+  /admin/learner-record:
+    get:
+      operationId: getLearnerRecord
+      tags: [admin]
+      summary: Where one learner's record actually is
+      description: >
+        For when somebody says their work has gone. Reads across the whole Lab
+        rather than one programme, because the account holding a record may not
+        be enrolled on anything any more, and makes no assumption about the
+        shape of the trouble. Reads only.
+      parameters:
+        - name: email
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: What is there
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LearnerRecord"
+        "403": { $ref: "#/components/responses/Forbidden" }
   /admin/programs/{programId}/progress-audit:
     get:
       operationId: getProgressAudit
@@ -5914,6 +5937,45 @@ components:
                         properties:
                           code: { type: string }
                           note: { type: string }
+    LearnerRecord:
+      type: object
+      required: [email, verdict, note, accounts]
+      properties:
+        email: { type: string }
+        verdict:
+          type: string
+          enum: [filed-under-another-account, all-present, nothing-here, not-enrolled, no-such-learner]
+        note: { type: string }
+        accounts:
+          type: array
+          items:
+            type: object
+            required:
+              [userId, name, role, createdAt, enrolledOnProgrammes, classesAttended,
+               recordingsWatched, tasksFiled, critiquesWritten, critiquesReceived,
+               minutesWatched, minutesInClass, withdrawnTasks, enrolments]
+            properties:
+              userId: { type: integer }
+              name: { type: string }
+              role: { type: string }
+              createdAt: { type: string }
+              enrolledOnProgrammes: { type: integer }
+              classesAttended: { type: integer }
+              recordingsWatched: { type: integer }
+              tasksFiled: { type: integer }
+              critiquesWritten: { type: integer }
+              critiquesReceived: { type: integer }
+              minutesWatched: { type: integer }
+              minutesInClass: { type: integer }
+              withdrawnTasks: { type: integer }
+              enrolments:
+                type: array
+                items:
+                  type: object
+                  required: [programmeTitle, status]
+                  properties:
+                    programmeTitle: { type: string }
+                    status: { type: string }
     AttachStudioExercisesInput:
       type: object
       required: [sessionId]

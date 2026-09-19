@@ -65,6 +65,7 @@ import {
 } from '@workspace/domain';
 import CourseworkStudio, { confirmLosingDraft } from '@/components/CourseworkStudio';
 import ProgressAudit from '@/components/ProgressAudit';
+import LearnerRecordLookup from '@/components/LearnerRecordLookup';
 import { useSyncMeetAttendance } from '@workspace/api-client-react';
 import InviteFacilitator from '@/components/InviteFacilitator';
 import InviteLearners from '@/components/InviteLearners';
@@ -1961,6 +1962,9 @@ function AuditTab() {
         What is stored against each learner, beside what the Lab concludes from it. Anywhere those
         two cannot both be right, it says so. Nothing here changes anything — it is for finding out.
       </p>
+      {/* One person, by name. Above the cohort list because it is what
+          somebody opens this tab to do when a learner has written to them. */}
+      <LearnerRecordLookup />
       <ProgressAudit programmes={programmes as { id: number; title: string }[]} />
     </div>
   );

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
-  auditFlags, auditNote, auditReportText, looksWiped, duplicateNote,
-  type AuditFacts, type AuditReportRow,
+  auditFlags, auditNote, auditReportText, looksWiped, duplicateNote, readRecord,
+  type AuditFacts, type AuditReportRow, type LearnerAccount,
 } from "./progressAudit";
 
 const clean: AuditFacts = {
@@ -215,5 +215,51 @@ describe("a record that looks wiped", () => {
     expect(note).toContain("made 16 Sep");
     // The point of the sentence: nothing was deleted.
     expect(note).toContain("not lost");
+  });
+});
+
+describe("where one learner's record actually is", () => {
+  const account = (over: Partial<LearnerAccount> = {}): LearnerAccount => ({
+    userId: 1, createdOn: "3 Aug", createdAt: "3 Aug 2026, 09:14", name: "Pauline", role: "learner",
+    enrolledOnProgrammes: 1, classesAttended: 4, recordingsWatched: 3,
+    tasksFiled: 2, critiquesWritten: 5, critiquesReceived: 2,
+    minutesWatched: 180, minutesInClass: 240, withdrawnTasks: 0, ...over,
+  });
+  const empty = (over: Partial<LearnerAccount> = {}): LearnerAccount => account({
+    userId: 2, createdOn: "19 Sep", createdAt: "19 Sep 2026, 13:02",
+    classesAttended: 0, recordingsWatched: 0, tasksFiled: 0, critiquesWritten: 0,
+    critiquesReceived: 0, minutesWatched: 0, minutesInClass: 0, ...over,
+  });
+
+  it("finds a record filed under a second account, and says nothing was deleted", () => {
+    const { verdict, note } = readRecord([account(), empty()]);
+    expect(verdict).toBe("filed-under-another-account");
+    expect(note).toContain("3 Aug 2026, 09:14");
+    expect(note).toContain("Nothing was deleted");
+  });
+
+  it("says plainly when the rows are simply not there", () => {
+    // The answer that sends somebody to a backup. It has to be unmistakable.
+    const { verdict, note } = readRecord([empty()]);
+    expect(verdict).toBe("nothing-here");
+    expect(note).toContain("not in the live database");
+    expect(note).toContain("backup");
+  });
+
+  it("spots a record that exists but is enrolled on nothing", () => {
+    const { verdict, note } = readRecord([account({ enrolledOnProgrammes: 0 })]);
+    expect(verdict).toBe("not-enrolled");
+    expect(note).toContain("Enrolling them again");
+  });
+
+  it("says so when everything is fine, and points at the screen instead", () => {
+    const { verdict, note } = readRecord([account()]);
+    expect(verdict).toBe("all-present");
+    expect(note).toContain("240 minutes in class");
+    expect(note).toContain("not in what is stored");
+  });
+
+  it("does not invent an account that is not there", () => {
+    expect(readRecord([]).verdict).toBe("no-such-learner");
   });
 });

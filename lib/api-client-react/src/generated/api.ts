@@ -58,6 +58,7 @@ import type {
   ForbiddenResponse,
   ForumPost,
   ForumThread,
+  GetLearnerRecordParams,
   GoogleConnectionStatus,
   GoogleHoldings,
   GroupSession,
@@ -72,6 +73,7 @@ import type {
   LateEnrolmentResult,
   LatePassClaim,
   LatePassResult,
+  LearnerRecord,
   ListAllEnrollmentsParams,
   LiveSession,
   LiveSessionAttendee,
@@ -7540,6 +7542,91 @@ export function useGetStudioCohort<TData = Awaited<ReturnType<typeof getStudioCo
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetStudioCohortQueryOptions(programId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetLearnerRecordUrl = (params: GetLearnerRecordParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/admin/learner-record?${stringifiedParams}` : `/api/admin/learner-record`
+}
+
+/**
+ * For when somebody says their work has gone. Reads across the whole Lab rather than one programme, because the account holding a record may not be enrolled on anything any more, and makes no assumption about the shape of the trouble. Reads only.
+ * @summary Where one learner's record actually is
+ */
+export const getLearnerRecord = async (params: GetLearnerRecordParams, options?: Parameters<typeof customFetch>[1]): Promise<LearnerRecord> => {
+
+  return customFetch<LearnerRecord>(getGetLearnerRecordUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetLearnerRecordQueryKey = (params?: GetLearnerRecordParams,) => {
+    return [
+    `/api/admin/learner-record`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetLearnerRecordQueryOptions = <TData = Awaited<ReturnType<typeof getLearnerRecord>>, TError = ErrorType<ForbiddenResponse>>(params: GetLearnerRecordParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getLearnerRecord>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetLearnerRecordQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getLearnerRecord>>> = ({ signal }) => getLearnerRecord(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getLearnerRecord>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetLearnerRecordQueryResult = NonNullable<Awaited<ReturnType<typeof getLearnerRecord>>>
+export type GetLearnerRecordQueryError = ErrorType<ForbiddenResponse>
+
+
+/**
+ * @summary Where one learner's record actually is
+ */
+
+export function useGetLearnerRecord<TData = Awaited<ReturnType<typeof getLearnerRecord>>, TError = ErrorType<ForbiddenResponse>>(
+ params: GetLearnerRecordParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getLearnerRecord>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetLearnerRecordQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

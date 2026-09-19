@@ -368,3 +368,103 @@ export function duplicateNote(email: string, accounts: readonly AccountFacts[]):
     + `The one they are signing in with now (made ${empty[0]?.createdOn ?? "later"}) holds `
     + "nothing. Their record is not lost — the Lab is asking the wrong account for it.";
 }
+
+/* ------------------------------------------------------------------ *
+ * One learner, looked up by name
+ * ------------------------------------------------------------------ */
+
+/**
+ * Where one person's record actually is.
+ *
+ * The cohort audit answers "is what is stored being counted correctly". This
+ * answers the different question somebody asks when a learner says their work
+ * has gone: is it there at all, and if so, under what.
+ *
+ * It makes no assumption about the shape of the trouble. Two accounts, one
+ * empty account, an account with a record but no enrolment — each of those
+ * looks identical to the learner and needs a different answer, and guessing
+ * which it is before looking is how the last three attempts at this went
+ * wrong.
+ */
+export type LearnerAccount = AccountFacts & {
+  name: string;
+  role: string;
+  /** When the row was made, to the minute, in the Lab's own clock. */
+  createdAt: string;
+  minutesWatched: number;
+  minutesInClass: number;
+  critiquesReceived: number;
+  withdrawnTasks: number;
+};
+
+export type RecordVerdict =
+  /** Two or more accounts; one holds the record, the one in use does not. */
+  | "filed-under-another-account"
+  /** One account, and it holds a record. Nothing is missing. */
+  | "all-present"
+  /** One account, made recently, holding nothing. The old row is gone. */
+  | "nothing-here"
+  /** A record exists but the learner is on no programme, so nothing counts it. */
+  | "not-enrolled"
+  | "no-such-learner";
+
+export function readRecord(accounts: readonly LearnerAccount[]): {
+  verdict: RecordVerdict;
+  note: string;
+} {
+  if (accounts.length === 0) {
+    return {
+      verdict: "no-such-learner",
+      note: "No account in the Lab uses that address. Check the spelling, and check whether they "
+        + "signed up with a different one.",
+    };
+  }
+
+  const carrying = accounts.filter((a) => historyOn(a) > 0);
+
+  if (accounts.length > 1 && carrying.length > 0 && carrying.length < accounts.length) {
+    const holder = carrying[0];
+    return {
+      verdict: "filed-under-another-account",
+      note: `Their record is safe. It is on the account made ${holder.createdAt}, which holds `
+        + `${holder.minutesInClass} minutes in class, ${holder.minutesWatched} minutes of recordings, `
+        + `${holder.tasksFiled} task${holder.tasksFiled === 1 ? "" : "s"} and `
+        + `${holder.critiquesWritten} critique${holder.critiquesWritten === 1 ? "" : "s"}. `
+        + "The account they are signing in with now is a different row with the same address, and it "
+        + "holds nothing. Nothing was deleted — the Lab is asking the wrong account.",
+    };
+  }
+
+  if (carrying.length === 0) {
+    const newest = [...accounts].sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
+    return {
+      verdict: "nothing-here",
+      note: `There is no record under that address anywhere in the Lab — not on the account they `
+        + `use now (made ${newest.createdAt}) and not on any other. Nothing is filed in the wrong `
+        + "place; the rows are not in the live database at all. The only remaining copy would be in "
+        + "a backup taken before they went.",
+    };
+  }
+
+  const holder = carrying[0];
+  if (holder.enrolledOnProgrammes === 0) {
+    return {
+      verdict: "not-enrolled",
+      note: `The record is there — ${holder.minutesInClass} minutes in class, `
+        + `${holder.minutesWatched} minutes of recordings, ${holder.tasksFiled} task`
+        + `${holder.tasksFiled === 1 ? "" : "s"} — but this account is enrolled on no programme, so `
+        + "nothing counts it and their dashboard has nothing to show. Enrolling them again puts it "
+        + "all back.",
+    };
+  }
+
+  return {
+    verdict: "all-present",
+    note: `Everything is where it should be: ${holder.minutesInClass} minutes in class, `
+      + `${holder.minutesWatched} minutes of recordings, ${holder.tasksFiled} task`
+      + `${holder.tasksFiled === 1 ? "" : "s"} filed and ${holder.critiquesWritten} critique`
+      + `${holder.critiquesWritten === 1 ? "" : "s"} written, on an account enrolled on `
+      + `${holder.enrolledOnProgrammes} programme${holder.enrolledOnProgrammes === 1 ? "" : "s"}. `
+      + "If they cannot see it, the fault is in what they are looking at, not in what is stored.",
+  };
+}
