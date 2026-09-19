@@ -127,3 +127,43 @@ export function wordCountNotice(count: number, required: number): string {
 export function writtenWeekTotal(reviewsRequired: number): number {
   return MIN_TASK_WORDS + Math.max(0, reviewsRequired) * MIN_CRITIQUE_WORDS;
 }
+
+/**
+ * What the Submit button should say when it cannot be pressed.
+ *
+ * A disabled button is silent. It does not respond to a click, it shows no
+ * message, and it goes on reading "Submit assignment" as though pressing it
+ * were the thing to do — so a learner who is two hundred words short sees a
+ * button that appears to be broken, presses it, gets nothing, and reports that
+ * they cannot hand their work in. Every check on this screen has a line of
+ * explanation somewhere else on the page, in small grey type, and none of them
+ * is on the one thing the learner is actually looking at.
+ *
+ * So the button says what it is waiting for. The reason has to be on the
+ * control, not beside it.
+ */
+export function submitButtonLabel(f: {
+  /** The deadline has gone and no late pass is holding it open. */
+  shut: boolean;
+  words: number;
+  wordsRequired: number;
+  /** Nothing typed yet. */
+  empty: boolean;
+  /** Why the AI disclosure is not yet acceptable, or null. */
+  disclosureProblem: string | null;
+  sending: boolean;
+  /** They have filed once already, so this would replace it. */
+  resubmitting: boolean;
+}): string {
+  if (f.shut) return "Closed";
+  if (f.sending) return "Submitting…";
+  if (f.empty) return "Nothing written yet";
+  if (!meetsWordMinimum(f.words, f.wordsRequired)) {
+    const short = f.wordsRequired - f.words;
+    return `${short} more word${short === 1 ? "" : "s"} needed`;
+  }
+  // Named rather than repeated in full: the full sentence is already under the
+  // chooser, and a button is not the place for two lines of prose.
+  if (f.disclosureProblem) return "Say how you used AI";
+  return f.resubmitting ? "Resubmit assignment" : "Submit assignment";
+}

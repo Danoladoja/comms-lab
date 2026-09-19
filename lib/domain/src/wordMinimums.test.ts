@@ -8,8 +8,7 @@ import {
   writtenWeekTotal,
   MIN_TASK_WORDS,
   MIN_CRITIQUE_WORDS,
-  WORD_MINIMUMS_LIVE_FROM,
-} from "./wordMinimums";
+  WORD_MINIMUMS_LIVE_FROM, submitButtonLabel } from "./wordMinimums";
 
 const words = (n: number) => Array.from({ length: n }, (_, i) => `word${i}`).join(" ");
 
@@ -143,5 +142,43 @@ describe("what a week adds up to", () => {
     expect(writtenWeekTotal(0)).toBe(MIN_TASK_WORDS);
     expect(writtenWeekTotal(3)).toBe(1250);
     expect(writtenWeekTotal(-1)).toBe(MIN_TASK_WORDS);
+  });
+});
+
+describe("what the Submit button says when it cannot be pressed", () => {
+  const base = {
+    shut: false, words: 500, wordsRequired: 500, empty: false,
+    disclosureProblem: null, sending: false, resubmitting: false,
+  };
+
+  it("offers to submit when everything is in order", () => {
+    expect(submitButtonLabel(base)).toBe("Submit assignment");
+    expect(submitButtonLabel({ ...base, resubmitting: true })).toBe("Resubmit assignment");
+  });
+
+  it("counts the words that are missing, on the button itself", () => {
+    // The whole point. A learner two hundred words short saw a dead button
+    // reading "Submit assignment" and reported that they could not hand in.
+    expect(submitButtonLabel({ ...base, words: 300 })).toBe("200 more words needed");
+    expect(submitButtonLabel({ ...base, words: 499 })).toBe("1 more word needed");
+  });
+
+  it("names the AI disclosure when that is what is missing", () => {
+    expect(submitButtonLabel({ ...base, disclosureProblem: "Say how you used AI on this piece." }))
+      .toBe("Say how you used AI");
+  });
+
+  it("puts the shut door first, because nothing else matters then", () => {
+    // Telling somebody to write another 200 words for a door that will not
+    // open is worse than telling them nothing.
+    expect(submitButtonLabel({ ...base, shut: true, words: 10 })).toBe("Closed");
+  });
+
+  it("says nothing is written before it says anything is short", () => {
+    expect(submitButtonLabel({ ...base, empty: true, words: 0 })).toBe("Nothing written yet");
+  });
+
+  it("says nothing about length where there is no floor", () => {
+    expect(submitButtonLabel({ ...base, words: 3, wordsRequired: 0 })).toBe("Submit assignment");
   });
 });

@@ -8,7 +8,7 @@ import {
 import {
   apiReason, AI_USE_CHOICES, MAX_AI_NOTE_CHARS, disclosureProblem, type AiUse,
   latePassOffer, latePassBalance, LATE_PASS_HOURS, isNotFound as isMissing, isRefused,
-  countWords, meetsWordMinimum, wordCountNotice,
+  countWords, meetsWordMinimum, wordCountNotice, submitButtonLabel,
 } from '@workspace/domain';
 import { deadlineNotice } from '@/lib/dueDateText';
 import { useWritingProvenance } from '@/hooks/useWritingProvenance';
@@ -506,6 +506,17 @@ export function AssignmentPanel({ sessionId, enabled = true, onSubmitted }: {
         />
       )}
 
+      {/*
+        The button says what it is waiting for.
+
+        A disabled button is silent: it does not answer a click, shows no
+        message, and went on reading "Submit assignment" while refusing to do
+        it. So a learner two hundred words short saw a button that looked
+        broken, pressed it, got nothing, and reported that they could not hand
+        their work in — with every check on this screen explained in small grey
+        type somewhere else on the page, and none of it on the control they
+        were actually looking at.
+      */}
       <Button
         className="w-full font-bold"
         disabled={shut || !text.trim() || !longEnough || !!disclosureIssue || submit.isPending}
@@ -519,11 +530,15 @@ export function AssignmentPanel({ sessionId, enabled = true, onSubmitted }: {
           },
         })}
       >
-        {shut
-          ? 'Closed'
-          : submit.isPending
-            ? 'Submitting...'
-            : assignment?.mySubmission ? 'Resubmit assignment' : 'Submit assignment'}
+        {submitButtonLabel({
+          shut,
+          words,
+          wordsRequired: minWords,
+          empty: !text.trim(),
+          disclosureProblem: disclosureIssue,
+          sending: submit.isPending,
+          resubmitting: !!assignment?.mySubmission,
+        })}
       </Button>
       {!shut && !!text.trim() && !!disclosureIssue && (
         <p className="text-xs text-muted-foreground">{disclosureIssue}</p>
