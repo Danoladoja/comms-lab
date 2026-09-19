@@ -39,6 +39,7 @@ export async function progressForUser(userId: number, programIds: number[]): Pro
       sortOrder: sessionsTable.sortOrder,
       title: sessionsTable.title,
       kind: sessionsTable.kind,
+      recordingDurationSeconds: sessionsTable.recordingDurationSeconds,
       quizDueAt: sessionsTable.quizDueAt,
     })
     .from(sessionsTable)
@@ -114,6 +115,7 @@ export async function progressForUser(userId: number, programIds: number[]): Pro
           sessionId: assignmentSubmissionsTable.sessionId,
           id: assignmentSubmissionsTable.id,
           reviewsRequiredAtSubmission: assignmentSubmissionsTable.reviewsRequiredAtSubmission,
+          reviewsClearedRequired: assignmentSubmissionsTable.reviewsClearedRequired,
         })
         .from(assignmentSubmissionsTable)
         .where(and(
@@ -235,8 +237,24 @@ export async function progressForUser(userId: number, programIds: number[]): Pro
           ...EMPTY_PRESENCE,
           waived: waivedBySession.has(s.id),
           liveSeconds: liveBySession.get(s.id) ?? 0,
-          replayWatchedSeconds: r ? replayWatchedSeconds(r.buckets, r.durationSeconds) : 0,
-          replayDurationSeconds: r?.durationSeconds ?? null,
+          /*
+            One length for the whole cohort, not one per learner.
+
+            The module's settled figure is the shared one, and the presence
+            screen has always used it. This read the learner's own copy
+            instead, so after the module's figure was cleared and settled again
+            the two disagreed and a learner saw one percentage on the dashboard
+            and another on the module — with nothing to say which was true.
+
+            Falls back to their own copy rather than to nothing, because a
+            module whose figure has just been cleared would otherwise divide by
+            nothing, read as 0% watched, and un-complete a module somebody had
+            finished.
+          */
+          replayWatchedSeconds: r
+            ? replayWatchedSeconds(r.buckets, s.recordingDurationSeconds ?? r.durationSeconds)
+            : 0,
+          replayDurationSeconds: s.recordingDurationSeconds ?? r?.durationSeconds ?? null,
         },
       ];
     }),
@@ -263,6 +281,13 @@ export async function progressForUser(userId: number, programIds: number[]): Pro
     submissions
       .filter((s) => s.reviewsRequiredAtSubmission !== null)
       .map((s) => [s.sessionId, s.reviewsRequiredAtSubmission as number]),
+  );
+  // What each learner was asked for at the moment they satisfied it. Null on
+  // anybody who never has, and on everything filed before this was recorded.
+  const clearedBySession = new Map(
+    submissions
+      .filter((sub) => sub.reviewsClearedRequired !== null)
+      .map((sub) => [sub.sessionId, sub.reviewsClearedRequired as number]),
   );
   const givenBySession = new Map(reviewsGiven.map((r) => [r.sessionId, r.count]));
   const receivedBySession = new Map(reviewsReceived.map((r) => [r.sessionId, r.count]));
@@ -305,6 +330,7 @@ export async function progressForUser(userId: number, programIds: number[]): Pro
         reviewsGiven: givenBySession.get(s.id) ?? 0,
         reviewsReceived: receivedBySession.get(s.id) ?? 0,
         peersToReview: peersBySession.get(s.id) ?? 0,
+        reviewsCleared: clearedBySession.get(s.id) ?? null,
         hasSimulation: exerciseBySession.has(s.id),
         simulationDone: exerciseBySession.get(s.id)?.done ?? false,
         // Deadlines ride along so the dashboard can show what is due without

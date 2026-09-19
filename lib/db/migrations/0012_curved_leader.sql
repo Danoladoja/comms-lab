@@ -1,0 +1,1 @@
+ALTER TABLE "assignment_submissions" ADD COLUMN "reviews_cleared_required" integer;

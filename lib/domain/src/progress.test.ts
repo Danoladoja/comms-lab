@@ -595,3 +595,72 @@ describe("a simulation module", () => {
     expect(next.kind).toBe("class");
   });
 });
+
+describe("a module the Lab has already called complete", () => {
+  const HOURS = 60 * 60 * 1000;
+  const enrolled = new Map([[1, new Date(NOW - 90 * 24 * HOURS)]]);
+  const mods = [
+    session(1, { title: "Module 3" }),
+    session(2, { startsAt: new Date(NOW - 12 * HOURS), title: "Module 4" }),
+  ];
+  const attended = new Map([[1, new Date(NOW - 24 * HOURS)], [2, new Date(NOW - 12 * HOURS)]]);
+  const wasThere = new Map([[1, attendedInFull()], [2, attendedInFull()]]);
+
+  function run(peersToReview: number, reviewsGiven: number, reviewsCleared: number | null) {
+    return computeProgress(
+      mods, attended, enrolled,
+      new Map([
+        [1, coursework({
+          hasAssignment: true, assignmentSubmitted: true,
+          reviewsRequired: 2, reviewsGiven, peersToReview, reviewsCleared,
+        })],
+        [2, coursework()],
+      ]),
+      wasThere, NOW,
+    );
+  }
+
+  it("still asks for fewer critiques than there are people to critique", () => {
+    // The original protection, unchanged: a cohort too small to supply
+    // reviewers must not strand everybody in it.
+    expect(run(1, 0, null)[0].reviewsRequired).toBe(1);
+    expect(run(10, 0, null)[0].reviewsRequired).toBe(2);
+  });
+
+  it("does not un-complete when the rest of the cohort catches up", () => {
+    // Monday: one classmate had filed, so one critique was asked and given.
+    const [monday, mondayNext] = run(1, 1, 1);
+    expect(monday.completed).toBe(true);
+    expect(mondayNext.locked).toBe(false);
+
+    // Wednesday: ten classmates have filed. Nothing this learner did changed.
+    const [wednesday, wednesdayNext] = run(10, 1, 1);
+    expect(wednesday.reviewsRequired).toBe(1);
+    expect(wednesday.completed).toBe(true);
+    expect(wednesdayNext.locked).toBe(false);
+  });
+
+  it("does not let somebody who never finished off the hook", () => {
+    // Nothing stamped, because they never satisfied it. They owe the full two.
+    const [row] = run(10, 1, null);
+    expect(row.reviewsRequired).toBe(2);
+    expect(row.completed).toBe(false);
+  });
+
+  it("still follows the requirement down when an admin lowers it", () => {
+    // Lowering only ever helps, so it applies to everybody at once.
+    const [row] = computeProgress(
+      mods, attended, enrolled,
+      new Map([
+        [1, coursework({
+          hasAssignment: true, assignmentSubmitted: true,
+          reviewsRequired: 1, reviewsGiven: 1, peersToReview: 10, reviewsCleared: 2,
+        })],
+        [2, coursework()],
+      ]),
+      wasThere, NOW,
+    );
+    expect(row.reviewsRequired).toBe(1);
+    expect(row.completed).toBe(true);
+  });
+});

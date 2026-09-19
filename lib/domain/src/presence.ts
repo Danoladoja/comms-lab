@@ -234,9 +234,21 @@ export function replayBucketCount(durationSeconds: number): number {
 /**
  * Fold newly reported buckets into what was already covered.
  *
- * Union, sorted, de-duplicated, and bounded by the recording's length — a
- * client reporting bucket 99999 for a ten-minute video is dropped rather than
- * trusted.
+ * Union, sorted, de-duplicated. What a client *reports* is bounded by the
+ * recording's length — one claiming bucket 99999 for a ten-minute video is
+ * dropped rather than trusted.
+ *
+ * What the learner already had is never dropped, and that distinction is the
+ * whole of this function.
+ *
+ * The agreed length of a recording can be cleared and settled again — a
+ * replaced video, or an admin saving a module row. The next player to report
+ * then sets it, and the Lab accepts anything from a quarter of the class
+ * length to three times it. If it lands short, bounding the *existing* set
+ * silently deleted every minute a learner had watched beyond the new mark, for
+ * good, because only the total is kept and not the history. Watching is a
+ * thing somebody did; a number that moved afterwards cannot make it not have
+ * happened.
  */
 export function mergeReplayBuckets(
   existing: number[],
@@ -245,7 +257,11 @@ export function mergeReplayBuckets(
 ): number[] {
   const limit = durationSeconds ? replayBucketCount(durationSeconds) : null;
   const merged = new Set<number>();
-  for (const bucket of [...existing, ...incoming]) {
+  for (const bucket of existing) {
+    if (!Number.isInteger(bucket) || bucket < 0) continue;
+    merged.add(bucket);
+  }
+  for (const bucket of incoming) {
     if (!Number.isInteger(bucket) || bucket < 0) continue;
     if (limit !== null && bucket >= limit) continue;
     merged.add(bucket);

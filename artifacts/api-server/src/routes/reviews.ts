@@ -285,6 +285,22 @@ router.post("/submissions/:submissionId/reviews", async (req, res) => {
     return;
   }
 
+  /*
+    Remember what was asked of them, the moment they have met it.
+
+    The number of critiques the Lab asks for is capped by how many classmates
+    have filed work to critique, and that count rises all week. Without this,
+    a learner who was asked for one on Monday and wrote it found on Wednesday
+    that two were wanted, the module was incomplete again and the module after
+    it had re-locked — from other people catching up, not from anything they
+    did.
+
+    Written once and never moved. Lowering the requirement afterwards still
+    lowers it, because that direction only ever helps; raising it cannot reach
+    back past this.
+  */
+  await stampClearedIfMet(user.id, submission.sessionId, mod.assignmentId);
+
   const saved = inserted[0];
   res.status(201).json({
     id: saved.id,
@@ -294,6 +310,69 @@ router.post("/submissions/:submissionId/reviews", async (req, res) => {
     scorePct: reviewScorePct(rubric, saved.scores),
   });
 });
+
+
+/**
+ * Has this learner now written every critique the Lab is asking of them? If
+ * so, write down the number, so it can never rise past it.
+ *
+ * Deliberately does nothing when there is already a figure: the question is
+ * what they were asked when they finished, not what they were asked the last
+ * time they filed anything.
+ */
+async function stampClearedIfMet(
+  userId: number,
+  sessionId: number,
+  assignmentId: number,
+): Promise<void> {
+  const [mine] = await db
+    .select({
+      id: assignmentSubmissionsTable.id,
+      cleared: assignmentSubmissionsTable.reviewsClearedRequired,
+      askedAtSubmission: assignmentSubmissionsTable.reviewsRequiredAtSubmission,
+    })
+    .from(assignmentSubmissionsTable)
+    .where(and(
+      eq(assignmentSubmissionsTable.userId, userId),
+      eq(assignmentSubmissionsTable.sessionId, sessionId),
+    ));
+  // Staff critique without submitting, and have no row to stamp.
+  if (!mine || mine.cleared !== null) return;
+
+  const [assignment] = await db
+    .select({ reviewsRequired: assignmentsTable.reviewsRequired })
+    .from(assignmentsTable)
+    .where(eq(assignmentsTable.id, assignmentId));
+
+  const [[given], [peers]] = await Promise.all([
+    db.select({ count: sql<number>`count(*)::int` })
+      .from(submissionReviewsTable)
+      .where(and(
+        eq(submissionReviewsTable.reviewerId, userId),
+        eq(submissionReviewsTable.sessionId, sessionId),
+      )),
+    db.select({
+      count: sql<number>`count(*) filter (where ${assignmentSubmissionsTable.userId} <> ${userId})::int`,
+    })
+      .from(assignmentSubmissionsTable)
+      .where(eq(assignmentSubmissionsTable.sessionId, sessionId)),
+  ]);
+
+  // The same sum the dashboard does, read here at the one moment it can be
+  // written down honestly.
+  const asked = mine.askedAtSubmission ?? assignment?.reviewsRequired ?? 0;
+  const ceiling = Math.min(asked, Math.max(0, peers?.count ?? 0));
+  if ((given?.count ?? 0) < ceiling) return;
+
+  await db
+    .update(assignmentSubmissionsTable)
+    .set({ reviewsClearedRequired: ceiling })
+    // Only if still unset, so two critiques filed at once cannot both stamp.
+    .where(and(
+      eq(assignmentSubmissionsTable.id, mine.id),
+      isNull(assignmentSubmissionsTable.reviewsClearedRequired),
+    ));
+}
 
 /* ---------- Reading your own feedback ---------- */
 

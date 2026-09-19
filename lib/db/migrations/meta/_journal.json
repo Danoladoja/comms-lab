@@ -85,6 +85,13 @@
       "when": 1789839808240,
       "tag": "0011_known_bruce_banner",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1789849677168,
+      "tag": "0012_curved_leader",
+      "breakpoints": true
     }
   ]
 }

@@ -78,12 +78,28 @@ router.patch("/sessions/:id", async (req, res) => {
   // A link put in by a person outranks the automatic transfer. Marking it
   // "manual" stops the Meet-to-YouTube job replacing it; clearing the field
   // hands the session back to the job.
-  if ("recordingUrl" in data) {
+  /*
+    Only when the recording has actually changed.
+
+    This read `if ("recordingUrl" in data)`, and the admin console sends the
+    recording link on every save — it is one Save button for the whole row. So
+    correcting a facilitator's name threw away the agreed length of the video,
+    and the next learner to open the replay settled a new one from their own
+    player, anywhere between a quarter of the class length and three times it.
+    Nobody touched the recording and nobody could see what had happened.
+  */
+  const recordingChanged = "recordingUrl" in data
+    && (data.recordingUrl ?? null) !== (existing[0].recordingUrl ?? null);
+  if (recordingChanged) {
     data.recordingStatus = data.recordingUrl ? "manual" : "pending";
     data.recordingError = null;
     // A different video has a different length, so the settled figure the whole
     // cohort's replay coverage is measured against has to go with it.
     data.recordingDurationSeconds = null;
+  } else if ("recordingUrl" in data) {
+    // Same link as before: nothing about the recording has changed, so nothing
+    // about the recording should be rewritten.
+    delete data.recordingUrl;
   }
 
   // An account holder and a typed guest name are alternatives, never both: a

@@ -107,6 +107,24 @@ export type CourseworkStatus = {
    */
   peersToReview?: number;
   /**
+   * How many critiques this learner was asked for at the moment they satisfied
+   * the requirement, or null if they never have.
+   *
+   * This exists because `peersToReview` above is counted fresh on every read,
+   * and it rises all week as a cohort files its work. So a learner who was
+   * asked for one critique on Monday — because only one classmate had filed —
+   * wrote it, was told the module was complete, and found on Wednesday that
+   * the Lab now wanted two, the module was incomplete again and the module
+   * after it had re-locked. They had done nothing. Other people had simply
+   * caught up.
+   *
+   * Once the Lab has told somebody they are finished it does not take it back.
+   * Stamped when a critique is filed, which is a moment the app is already
+   * writing, rather than worked out on a read — a rule that needs a write to
+   * hold true is not a rule, it is a race.
+   */
+  reviewsCleared?: number | null;
+  /**
    * When each stops accepting work, or nothing at all for no deadline.
    *
    * Carried through untouched, and deliberately absent from every rule below. A
@@ -125,6 +143,7 @@ export const EMPTY_COURSEWORK: CourseworkStatus = {
   reviewsRequired: 0,
   reviewsGiven: 0,
   reviewsReceived: 0,
+  reviewsCleared: null,
   hasSimulation: false,
   simulationDone: false,
   quizDueAt: null,
@@ -274,11 +293,23 @@ export function computeProgress(
       const cw = coursework.get(s.id) ?? EMPTY_COURSEWORK;
       const quizPassed = cw.hasQuiz && (cw.quizBestScore ?? 0) >= QUIZ_PASS_MARK;
       const asked = cw.hasAssignment ? cw.reviewsRequired : 0;
-      // Never ask for more critiques than there are people to critique. The
-      // requirement is a teaching floor, not an arithmetic trap.
-      const reviewsRequired = cw.peersToReview === undefined
+      /*
+        Never ask for more critiques than there are people to critique — the
+        requirement is a teaching floor, not an arithmetic trap — and never
+        ask for more than was asked of this learner when they finished.
+
+        The second half is the important one. The peer count rises all week, so
+        without it a completed module un-completes itself and the module after
+        it re-locks, days later, because other people caught up. The learner
+        did nothing. Lowering the requirement afterwards still lowers it, which
+        is the direction that only ever helps.
+      */
+      const ceiling = cw.peersToReview === undefined
         ? asked
         : Math.min(asked, Math.max(0, cw.peersToReview));
+      const reviewsRequired = cw.reviewsCleared === undefined || cw.reviewsCleared === null
+        ? ceiling
+        : Math.min(asked, cw.reviewsCleared);
       const reviewsDone = cw.reviewsGiven >= reviewsRequired;
 
       // Attending the class is a requirement in its own right, and counts as one

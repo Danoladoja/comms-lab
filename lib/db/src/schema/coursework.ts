@@ -116,6 +116,28 @@ export const assignmentSubmissionsTable = pgTable(
     reviewsRequiredAtSubmission: integer("reviews_required_at_submission"),
 
     /**
+     * How many critiques this learner was asked for at the moment they
+     * satisfied the requirement, or null if they never have.
+     *
+     * The sibling of the column above, for the other way the same injustice
+     * happens. The Lab never asks for more critiques than there are classmates
+     * to critique — otherwise a cohort too small to supply reviewers strands
+     * everybody in it — but that count is taken fresh on every read, and it
+     * rises all week as a cohort files its work.
+     *
+     * So a learner asked for one critique on Monday, because one classmate had
+     * filed, wrote it and was told the module was complete. By Wednesday ten
+     * had filed, the Lab wanted two, the module was incomplete again and the
+     * module after it had re-locked. They had done nothing. Other people had
+     * caught up.
+     *
+     * Written when a critique is filed, which is a moment the app is already
+     * writing. A rule that needs a write to stay true cannot be enforced on a
+     * read.
+     */
+    reviewsClearedRequired: integer("reviews_cleared_required"),
+
+    /**
      * How the writer says they used AI on this piece, and a line about it.
      *
      * Required at submission from now on. Empty on everything filed before the

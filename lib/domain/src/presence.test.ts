@@ -302,3 +302,28 @@ describe("a class recorded longer than it runs", () => {
     expect(Math.round(90 * 60 * 0.7 / 60)).toBeGreaterThan(60);
   });
 });
+
+describe("what a learner has already watched", () => {
+  it("is never taken away when the recording's agreed length shrinks", () => {
+    // The length can be cleared and settled again — a replaced video, or an
+    // admin saving a module row — and the Lab accepts anything from a quarter
+    // of the class length to three times it. Bounding what somebody already
+    // watched by a number that moved afterwards deleted it for good.
+    const earned = [0, 1, 2, 40, 80, 120];
+    // A ten-minute denominator: 40 buckets. Most of the above is beyond it.
+    expect(mergeReplayBuckets(earned, [], 600)).toEqual(earned);
+  });
+
+  it("still refuses what a player claims beyond the recording's length", () => {
+    // A client naming its own buckets is the thing this bound is for.
+    expect(mergeReplayBuckets([], [0, 1, 99999], 600)).toEqual([0, 1]);
+  });
+
+  it("merges the two, keeping all of one and the plausible part of the other", () => {
+    expect(mergeReplayBuckets([100], [0, 1, 99999], 600)).toEqual([0, 1, 100]);
+  });
+
+  it("keeps rejecting nonsense from either side", () => {
+    expect(mergeReplayBuckets([-1, 1.5, 3], [-2], 600)).toEqual([3]);
+  });
+});
