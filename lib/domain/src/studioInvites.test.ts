@@ -360,3 +360,34 @@ describe("how long an exercise may be set to run", () => {
     }
   });
 });
+
+describe("what the admin is told after inviting", () => {
+  it("says how many were actually told, not just how many were invited", () => {
+    // The whole point. "50 learners can now run it" was true and useless while
+    // nothing was sent to any of them.
+    const note = invitationNote({
+      invited: 50, alreadyHad: 0, moduleTitle: "Energy Comms",
+      emailed: 50, emailFailed: 0, emailConfigured: true,
+    });
+    expect(note).toContain("50 learners");
+    expect(note).toContain("50 told by email");
+  });
+
+  it("names the ones whose address bounced, and says they were not told", () => {
+    const note = invitationNote({
+      invited: 12, alreadyHad: 0, moduleTitle: "Energy Comms",
+      emailed: 10, emailFailed: 2, emailConfigured: true,
+    });
+    expect(note).toContain("10 told by email");
+    expect(note).toMatch(/2 addresses would not take it/);
+    expect(note).toMatch(/still have their exercise/);
+  });
+
+  it("says plainly when there is no email set up at all", () => {
+    const note = invitationNote({
+      invited: 5, alreadyHad: 0, moduleTitle: "Energy Comms", emailConfigured: false,
+    });
+    expect(note).toMatch(/nobody has been told/i);
+    expect(note).toMatch(/next open the Studio/);
+  });
+});

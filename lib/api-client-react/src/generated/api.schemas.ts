@@ -2025,6 +2025,9 @@ export interface InviteToStudioResult {
   alreadyHad: number;
   objective: string;
   note: string;
+  emailed: number;
+  emailFailed: number;
+  emailConfigured: boolean;
 }
 
 /**

@@ -845,7 +845,17 @@ function InviteCohortToExercise({ programmes }: { programmes: any[] }) {
     mutation: {
       onSuccess: (r) => {
         setResult(r.note);
-        toast({ title: r.invited > 0 ? 'Invitations sent' : 'Nothing to send', description: r.note });
+        toast({
+          // "Sent" now means sent. It used to mean written down and left
+          // sitting there for somebody to stumble across.
+          title: r.invited === 0
+            ? 'Nothing to send'
+            : r.emailConfigured
+              ? `${r.emailed} told by email`
+              : 'Invitations written — nobody told',
+          description: r.note,
+          variant: r.invited > 0 && r.emailFailed > 0 ? 'destructive' : undefined,
+        });
       },
       onError: (err) => toast({
         title: 'Could not invite them',
@@ -872,6 +882,7 @@ function InviteCohortToExercise({ programmes }: { programmes: any[] }) {
       <p className="text-xs text-white/50 mb-4">
         One run each. What they practise comes from the programme as a whole, so the crisis can
         turn on anything it has covered. Each learner gets a different situation to handle it in.
+        They are emailed what it is for and when it closes — never the situation itself.
       </p>
 
       <Select value={programId} onValueChange={(v) => { setProgramId(v); setResult(null); }}>

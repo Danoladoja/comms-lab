@@ -5729,12 +5729,18 @@ components:
         steer: { type: string, maxLength: 2000 }
     InviteToStudioResult:
       type: object
-      required: [invited, alreadyHad, objective, note]
+      required: [invited, alreadyHad, objective, note, emailed, emailFailed, emailConfigured]
       properties:
         invited: { type: integer }
         alreadyHad: { type: integer }
         objective: { type: string }
         note: { type: string }
+        # How many were actually told. An invitation nobody hears about is an
+        # exercise nobody does, so this is reported rather than assumed — the
+        # same three numbers the cohort access grant reports.
+        emailed: { type: integer }
+        emailFailed: { type: integer }
+        emailConfigured: { type: boolean }
     StudioAccess:
       type: object
       required: [allowed, isAdmin, source]

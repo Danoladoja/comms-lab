@@ -25,7 +25,7 @@ import {
   clampResponseSeconds, nextStudioStep, operationLeaseIsActive, plannedTurns, practiceRecord, runClock,
   satisfiesRole, studioInviteLetter, whatTheClockSays, type StudioProgrammeContext,
   inviteState, beginProblem, situationFor, situationBrief, situationSummary,
-  objectiveFor, invitationProblem, invitationNote,
+  objectiveFor, invitationProblem, invitationNote, exerciseInviteLetter,
   steerProblem, standaloneProblem, validityProblem, exerciseSubject, durationProblem,
   groupSessionState, approvalProblem, mayEditSession, beatApprovalNote, GROUP_SESSION_MINUTES,
   developmentsForTeam, debriefForTeam, isUnattendedRoom, mayEnterRoom, startsInMinutes, cohortNote,
@@ -1615,8 +1615,10 @@ router.post("/admin/studio/invitations", async (req, res): Promise<void> => {
     moduleTitles,
   });
 
+  // Names and addresses too, because the invitation is now followed by a
+  // letter and a letter needs somebody to send it to.
   const learners = await db
-    .select({ id: usersTable.id })
+    .select({ id: usersTable.id, name: usersTable.name, email: usersTable.email })
     .from(enrollmentsTable)
     .innerJoin(usersTable, eq(enrollmentsTable.userId, usersTable.id))
     .where(and(
@@ -1644,6 +1646,7 @@ router.post("/admin/studio/invitations", async (req, res): Promise<void> => {
   const refusal = invitationProblem({ objective, hasOpenInvitation: false, enrolled: true });
   if (refusal) { res.status(400).json(message(refusal)); return; }
 
+  const invitedRows = toInvite.map((l) => ({ id: l.id, name: l.name, email: l.email }));
   if (toInvite.length > 0) {
     await db.insert(studioInvitationsTable).values(toInvite.map((l) => ({
       userId: l.id,
@@ -1662,15 +1665,63 @@ router.post("/admin/studio/invitations", async (req, res): Promise<void> => {
     })));
   }
 
-  req.log.info({ programId: programme.id, sessionId: module?.id ?? null, invited: toInvite.length, by: user.id }, "Invited learners to the Studio");
+  /*
+    And then tell them.
+
+    This used to write the invitations and stop, which meant the only way a
+    learner found out was by opening the Studio on the off-chance. Fifty
+    invitations, nobody told. Worse once an invitation could carry a deadline:
+    the clock ran on something they had never heard of.
+
+    Sent one at a time and counted, like the cohort access grant next door, so
+    a bad address is a number on the screen rather than a silence. The
+    invitations are already written by this point — an email that fails must
+    not cost somebody their exercise.
+  */
+  let emailed = 0;
+  const emailFailed: string[] = [];
+  if (emailConfigured()) {
+    for (const learner of invitedRows) {
+      if (!learner.email) continue;
+      try {
+        const letter = exerciseInviteLetter({
+          name: learner.name,
+          programmeTitle: programme.title,
+          objective,
+          durationMinutes: body.data.durationMinutes ?? 30,
+          difficulty: body.data.difficulty ?? "intermediate",
+          opensAt: body.data.opensAt?.toISOString() ?? null,
+          expiresAt: body.data.expiresAt?.toISOString() ?? null,
+          url: studioUrl(),
+          logoUrl: labLogoUrl(),
+        });
+        await sendEmail({
+          to: { email: learner.email, name: (learner.name ?? "").trim() || learner.email },
+          subject: letter.subject, html: letter.html, text: letter.text,
+        });
+        emailed++;
+      } catch (err) {
+        req.log.error({ err, userId: learner.id }, "Could not tell a learner about their exercise");
+        emailFailed.push(learner.email);
+      }
+    }
+  }
+
+  req.log.info({ programId: programme.id, sessionId: module?.id ?? null, invited: toInvite.length, emailed, by: user.id }, "Invited learners to the Studio");
   res.status(201).json(InviteToStudioResponse.parse({
     invited: toInvite.length,
     alreadyHad: learners.length - toInvite.length,
     objective,
+    emailed,
+    emailFailed: emailFailed.length,
+    emailConfigured: emailConfigured(),
     note: invitationNote({
       invited: toInvite.length,
       alreadyHad: learners.length - toInvite.length,
       moduleTitle: programme.title,
+      emailed,
+      emailFailed: emailFailed.length,
+      emailConfigured: emailConfigured(),
     }),
   }));
 });

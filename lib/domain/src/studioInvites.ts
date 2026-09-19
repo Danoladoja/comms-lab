@@ -299,6 +299,16 @@ export function invitationNote(facts: {
   invited: number;
   alreadyHad: number;
   moduleTitle: string;
+  /**
+   * Whether they were actually told, and how many.
+   *
+   * Reported rather than assumed. For a while this wrote fifty invitations and
+   * sent nothing, and the sentence on the screen said fifty people could now
+   * run the exercise — true, and useless, because not one of them knew.
+   */
+  emailed?: number;
+  emailFailed?: number;
+  emailConfigured?: boolean;
 }): string {
   if (facts.invited === 0) {
     return facts.alreadyHad > 0
@@ -309,7 +319,21 @@ export function invitationNote(facts: {
   const tail = facts.alreadyHad > 0
     ? ` ${facts.alreadyHad} already had one and were left alone.`
     : "";
-  return `${who} can now run ${facts.moduleTitle} in the Studio, once each.${tail}`;
+
+  let told = "";
+  if (facts.emailConfigured === false) {
+    told = " No email is set up on the server, so nobody has been told — they will find it when "
+      + "they next open the Studio.";
+  } else if (facts.emailed !== undefined) {
+    const failed = facts.emailFailed ?? 0;
+    told = ` ${facts.emailed} told by email.`;
+    if (failed > 0) {
+      told += ` ${failed} ${failed === 1 ? "address" : "addresses"} would not take it — those `
+        + "people still have their exercise, but nobody has told them.";
+    }
+  }
+
+  return `${who} can now run ${facts.moduleTitle} in the Studio, once each.${tail}${told}`;
 }
 
 /* ------------------------------------------------------------------ *

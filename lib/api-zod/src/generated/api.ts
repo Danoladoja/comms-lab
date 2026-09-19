@@ -2899,7 +2899,10 @@ export const InviteToStudioResponse = zod.object({
   "invited": zod.int(),
   "alreadyHad": zod.int(),
   "objective": zod.string(),
-  "note": zod.string()
+  "note": zod.string(),
+  "emailed": zod.int(),
+  "emailFailed": zod.int(),
+  "emailConfigured": zod.boolean()
 })
 
 

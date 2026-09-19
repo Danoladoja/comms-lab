@@ -22,6 +22,7 @@ export * from "./simulationPrompts";
 export * from "./staffRoles";
 export * from "./invitationEmail";
 export * from "./studioInviteEmail";
+export * from "./studioExerciseEmail";
 export * from "./emailFailure";
 export * from "./labLetter";
 export * from "./cohortMessage";
