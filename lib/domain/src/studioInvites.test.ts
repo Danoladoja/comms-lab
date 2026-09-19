@@ -26,6 +26,8 @@ import {
   studioStanding,
   byStanding,
   cohortStandingNote,
+  needsChasing,
+  cohortTally,
 } from "./studioInvites";
 import { plannedTurns } from "./simulations";
 
@@ -450,5 +452,33 @@ describe("the cohort as the admin needs to see it", () => {
 
   it("says plainly when nobody has been invited", () => {
     expect(cohortStandingNote([])).toMatch(/Nobody has been invited/);
+  });
+
+  it("keeps only the people who need something", () => {
+    // The finished need nothing. Neither does somebody whose door has not
+    // opened yet — the clock opens it, and there is nothing to chase until it
+    // has.
+    expect(needsChasing("missed")).toBe(true);
+    expect(needsChasing("not-started")).toBe(true);
+    expect(needsChasing("in-progress")).toBe(true);
+    expect(needsChasing("finished")).toBe(false);
+    expect(needsChasing("waiting")).toBe(false);
+  });
+
+  it("counts each place, worst first", () => {
+    expect(cohortTally([
+      { standing: "finished" }, { standing: "finished" },
+      { standing: "missed" }, { standing: "not-started" },
+    ])).toEqual([
+      { standing: "missed", count: 1 },
+      { standing: "not-started", count: 1 },
+      { standing: "finished", count: 2 },
+    ]);
+  });
+
+  it("does not count out the places nobody is in", () => {
+    // A screen full of noughts has to be read before it can be dismissed.
+    expect(cohortTally([{ standing: "finished" }])).toEqual([{ standing: "finished", count: 1 }]);
+    expect(cohortTally([])).toEqual([]);
   });
 });

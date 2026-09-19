@@ -5,10 +5,30 @@ import { MotionConfig } from 'framer-motion';
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, '');
 
-export function StudioLayout({ children, backTo }: { children: ReactNode; backTo?: string }) {
+export function StudioLayout({
+  children, backTo, fill = false,
+}: {
+  children: ReactNode;
+  backTo?: string;
+  /**
+   * Hold the page to the height of the screen on a wide display, so that a
+   * child laid out in columns can give each column its own scrollbar.
+   *
+   * Off by default, and deliberately. Every other Studio screen is one long
+   * piece of reading — a briefing, a debrief — and holding those to the height
+   * of the screen would cut the bottom off. Only the two-column home needs it,
+   * and only where there are two columns: on a phone they are stacked and the
+   * page itself is the right thing to scroll.
+   *
+   * Without this the columns had `h-full` against a parent with no height of
+   * its own, which resolves to "as tall as the content" — so neither column
+   * ever scrolled and the cohort list simply made the page longer and longer.
+   */
+  fill?: boolean;
+}) {
   return (
     <MotionConfig reducedMotion="user">
-      <div className="min-h-[100dvh] bg-[#030811] text-white flex flex-col font-sans selection:bg-[#f97316] selection:text-[#030811]">
+      <div className={`min-h-[100dvh] ${fill ? 'lg:h-[100dvh]' : ''} bg-[#030811] text-white flex flex-col font-sans selection:bg-[#f97316] selection:text-[#030811]`}>
       {/*
         The masthead. The Lab's wordmark, then the name of the part of it you
         are in, which is how the rest of the site reads and how a screenshot of

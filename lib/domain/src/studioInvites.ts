@@ -651,3 +651,36 @@ export function cohortStandingNote(rows: readonly { standing: StudioStanding }[]
   if (missed > 0) parts.push(`${missed} ran out of time`);
   return `${parts.join(" · ")}.`;
 }
+
+/**
+ * Does this person need something from the admin?
+ *
+ * The cohort list was every name at once, which for a cohort of fifty is fifty
+ * rows on a page that then runs past the bottom of the screen. Most of those
+ * rows are people who have done it, and a list is not the right way to say "and
+ * forty others are fine".
+ *
+ * So the list is what is left to do. Somebody who has finished needs nothing.
+ * Somebody whose exercise has not opened yet needs nothing either — the door
+ * opens on its own clock, and there is nothing to chase until it has.
+ */
+export function needsChasing(standing: StudioStanding): boolean {
+  return standing === "missed" || standing === "not-started" || standing === "in-progress";
+}
+
+/**
+ * How many people are in each place, in the order they are worth reading.
+ *
+ * Only the standings anybody is actually in: a cohort where nobody has run out
+ * of time should not be shown a nought next to "ran out of time", because a
+ * screen full of noughts is a screen that has to be read before it can be
+ * dismissed.
+ */
+export function cohortTally(
+  rows: readonly { standing: StudioStanding }[],
+): { standing: StudioStanding; count: number }[] {
+  const order: StudioStanding[] = ["missed", "not-started", "in-progress", "waiting", "finished"];
+  return order
+    .map((standing) => ({ standing, count: rows.filter((r) => r.standing === standing).length }))
+    .filter((row) => row.count > 0);
+}

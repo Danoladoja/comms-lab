@@ -20,19 +20,19 @@ export default function MissionLogs({ simulations, isLoading, programmeById }: {
   const isLoadingSims = isLoading;
   return (
     <>
-          <div className="h-16 border-b border-white/5 flex items-center px-8 shrink-0 bg-[#030811]/50 backdrop-blur-sm z-10">
+          <div className="h-16 border-b border-white/5 flex items-center px-6 sm:px-8 shrink-0 bg-[#030811]/50 backdrop-blur-sm z-10">
             <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/40 flex items-center gap-2">
               <RefreshCw className="w-3.5 h-3.5" /> Mission Logs
             </span>
           </div>
 
-          <div className="flex-1 overflow-y-auto p-8">
+          <div className="flex-1 lg:overflow-y-auto lg:min-h-0 p-6 sm:p-8">
             {isLoadingSims ? (
-              <div className="h-full flex items-center justify-center text-[#f97316]">
+              <div className="py-24 flex items-center justify-center text-[#f97316]">
                 <Loader2 className="w-8 h-8 animate-spin" />
               </div>
             ) : !simulations || simulations.length === 0 ? (
-              <div className="h-full flex flex-col items-center justify-center text-white/30 text-center px-8">
+              <div className="py-24 flex flex-col items-center justify-center text-white/30 text-center">
                 <Activity className="w-12 h-12 mb-4 opacity-20" />
                 <p className="text-sm font-mono uppercase tracking-widest mb-1">Nothing here yet</p>
                 <p className="text-xs">Write your first exercise on the left.</p>

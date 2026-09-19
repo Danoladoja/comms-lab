@@ -210,11 +210,20 @@ export default function StudioHome() {
   }
 
   return (
-    <StudioLayout>
-      <div className="flex-1 flex flex-col lg:flex-row h-full overflow-hidden z-10">
+    <StudioLayout fill>
+      {/*
+        Two columns on a wide screen, each with its own scrollbar, and the page
+        itself fixed. Stacked on a phone, where the page is the scroll.
+
+        It used to be `h-full overflow-hidden` at every width. On a phone that
+        is two full-height boxes stacked inside a box that refuses to scroll,
+        so the second one — the cohort — ran off the bottom with no way to
+        reach it.
+      */}
+      <div className="flex-1 flex flex-col lg:flex-row lg:h-full overflow-y-auto lg:overflow-hidden z-10">
 
         {/* Left: writing a new exercise, and joining a room. */}
-        <div className="lg:w-7/12 flex flex-col border-r border-white/5 bg-[#030811] relative h-full overflow-y-auto">
+        <div className="lg:w-7/12 flex flex-col border-r border-white/5 bg-[#030811] relative lg:h-full lg:overflow-y-auto">
           <div className="p-8 md:p-12 max-w-2xl w-full mx-auto">
 
             <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mb-10">
@@ -735,7 +744,7 @@ export default function StudioHome() {
           different numbers. For everybody else it stays what it was: the
           exercises they can actually open.
         */}
-        <div className="lg:w-5/12 flex flex-col bg-[#050b14] relative h-full min-h-0">
+        <div className="lg:w-5/12 flex flex-col bg-[#050b14] relative lg:h-full lg:min-h-0">
           {studioAccess?.isAdmin ? (
             <StudioCohort programmes={programmes as { id: number; title: string }[]} />
           ) : (
