@@ -25,6 +25,7 @@ import {
   accessCodeCount,
   mayEnterStudio,
   picksOwnExercise,
+  shouldCarryOn,
   maySeeStudioSimulation,
   maySeeConfidentialBrief,
   normaliseJoinCode,
@@ -435,5 +436,42 @@ describe("formatClock", () => {
 
   it("shows nothing rather than a lie when there is no deadline", () => {
     expect(formatClock(null)).toBe("--:--");
+  });
+});
+
+describe("a solo run that should have moved on", () => {
+  const run = (over: Partial<Parameters<typeof shouldCarryOn>[0]> = {}) => ({
+    mode: "autonomous" as const, status: "active" as const,
+    answeredCurrent: true, working: false, isOwner: true, ...over,
+  });
+
+  it("moves on a run whose current development is already answered", () => {
+    // The case this exists for: the attempt made when the answer was saved
+    // failed or never happened, and without this the run sits there until the
+    // deadline rescues it — which is what "nothing lands until the clock runs
+    // down" is, whatever caused the first attempt to fail.
+    expect(shouldCarryOn(run())).toBe(true);
+  });
+
+  it("does not bother asking while something is already being written", () => {
+    // An early-out, not the lock: the operation claim in the database is what
+    // actually stops two attempts at once. This just saves the pointless write.
+    expect(shouldCarryOn(run({ working: true }))).toBe(false);
+  });
+
+  it("does nothing until the current development has been answered", () => {
+    expect(shouldCarryOn(run({ answeredCurrent: false }))).toBe(false);
+  });
+
+  it("never moves a room, which moves for everybody at once", () => {
+    expect(shouldCarryOn(run({ mode: "facilitated" }))).toBe(false);
+  });
+
+  it("does not let a participant advance somebody else's run", () => {
+    expect(shouldCarryOn(run({ isOwner: false }))).toBe(false);
+  });
+
+  it("leaves a finished exercise alone", () => {
+    expect(shouldCarryOn(run({ status: "completed" }))).toBe(false);
   });
 });

@@ -29,7 +29,7 @@ import {
   steerProblem, standaloneProblem, validityProblem, exerciseSubject, durationProblem,
   groupSessionState, approvalProblem, mayEditSession, beatApprovalNote, GROUP_SESSION_MINUTES,
   developmentsForTeam, debriefForTeam, isUnattendedRoom, mayEnterRoom, startsInMinutes, cohortNote,
-  minutesLeft, picksOwnExercise,
+  minutesLeft, picksOwnExercise, shouldCarryOn,
 } from "@workspace/domain";
 import { getCurrentUser } from "../lib/auth";
 import { logger } from "../lib/logger";
@@ -1919,7 +1919,46 @@ router.get("/simulation-runs/:runId", requireStudioAccess, async (req, res): Pro
   let run = found;
   if (run.status === "active" && simulationAiConfigured()) {
     const [definition] = await db.select().from(simulationDefinitionsTable).where(eq(simulationDefinitionsTable.id, run.definitionId));
-    const says = whatTheClockSays(clockFor(run, definition), run.mode as "autonomous" | "facilitated");
+    let says = whatTheClockSays(clockFor(run, definition), run.mode as "autonomous" | "facilitated");
+
+    /*
+      A run that should have moved on, and has not.
+
+      The exercise moved at two moments only: when an answer was saved, and
+      when a deadline passed. Fine while both work, and nothing at all when the
+      first does not — the run sits at a development already answered until the
+      clock runs out and the deadline path rescues it. Which is exactly what
+      "the next thing does not land until the clock runs down" looks like from
+      the outside, whatever made the first attempt fail.
+
+      So the state is checked rather than the attempt trusted. Costs one small
+      query per poll and converges within a few seconds of anything going
+      wrong.
+    */
+    if (says === "nothing") {
+      const working = !!run.operationToken
+        && operationLeaseIsActive(run.operationStartedAt, new Date(), operationLeaseMs);
+      const answeredCurrent = !!run.currentDevelopment && !!(await db
+        .select({ id: simulationResponsesTable.id })
+        .from(simulationResponsesTable)
+        .where(and(
+          eq(simulationResponsesTable.runId, run.id),
+          eq(simulationResponsesTable.injectId, run.currentDevelopment.id),
+        ))
+        .limit(1))[0];
+
+      if (shouldCarryOn({
+        mode: run.mode as "autonomous" | "facilitated",
+        status: run.status as "active" | "completed",
+        answeredCurrent,
+        working,
+        isOwner: run.ownerId === user.id,
+      })) {
+        req.log.info({ runId: run.id }, "Run was answered but had not moved on; carrying it on");
+        says = "moveOn";
+      }
+    }
+
     if (says !== "nothing") {
       // Started rather than waited for: the person asked to see their
       // exercise, and they should see it now, with a note that something is

@@ -416,3 +416,46 @@ export function whatTheClockSays(clock: RunClock, mode: StudioMode): ClockAction
   if (clock.responseExpired && mode === "autonomous") return "moveOn";
   return "nothing";
 }
+
+/**
+ * A solo run that ought to have moved on, and has not.
+ *
+ * The exercise moved at exactly two moments: the instant an answer was saved,
+ * and the instant a deadline passed. That is fine while both work and leaves
+ * nothing at all when the first one does not — the run sits at a development
+ * the person has already answered until the clock runs out and the deadline
+ * path rescues it. Which is precisely what "the next thing does not land until
+ * the clock runs down" looks like from the outside, whatever made the first
+ * attempt fail: a model call that timed out, an answer that arrived while one
+ * was generating, a container that restarted mid-write.
+ *
+ * So the question stops being "did the attempt fire" and becomes "is this run
+ * in a state it should not still be in". Every poll asks it, and a run that
+ * has been answered moves on within a few seconds of whatever went wrong,
+ * rather than at the mercy of one attempt.
+ *
+ * Bounded by the things that make it safe to ask: only a solo run, only for
+ * the person whose run it is, and never once the exercise is over. What stops
+ * two attempts running at once is not this but the operation claim in the
+ * database, which is a lock and this is not. And it can only fire while the
+ * current development is answered — the moment a new one lands, it stops being
+ * true, so it cannot run away with itself.
+ */
+export function shouldCarryOn(run: {
+  mode: StudioMode;
+  status: StudioRunStatus;
+  answeredCurrent: boolean;
+  working: boolean;
+  isOwner: boolean;
+}): boolean {
+  if (run.status !== "active") return false;
+  // A room moves when the room moves. Nobody's individual answer advances it.
+  if (run.mode !== "autonomous") return false;
+  if (!run.isOwner) return false;
+  // An early-out rather than the lock. The lock is the operation claim in the
+  // database, which refuses a second attempt whatever this says; skipping the
+  // attempt here just saves a pointless write on every poll while a
+  // development is being written.
+  if (run.working) return false;
+  return run.answeredCurrent;
+}

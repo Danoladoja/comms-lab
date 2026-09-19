@@ -84,6 +84,11 @@ export async function askClaude(args: {
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), args.timeoutMs ?? 120_000);
+  // Timed, because "it never came back" and "it took fifty seconds" are
+  // different faults with different fixes, and from outside the server they
+  // look identical. One line per call, with the model on it, so a slow model
+  // and a rejected model name can be told apart at a glance.
+  const startedAt = Date.now();
 
   try {
     const res = await fetch(apiUrl(), {
@@ -101,13 +106,20 @@ export async function askClaude(args: {
       const detail = await res.text();
       // The detail goes to the logs only. It can quote the request back, and
       // the request contains the scenario.
-      logger.error({ status: res.status, label: args.label, detail: detail.slice(0, 400) }, "Claude call failed");
+      logger.error({
+        status: res.status, label: args.label, model: body.model,
+        ms: Date.now() - startedAt, detail: detail.slice(0, 400),
+      }, "Claude call failed");
       if (res.status === 401) return { error: "The AI key was rejected. Check ANTHROPIC_API_KEY." };
       if (res.status === 429) return { error: "The AI service is busy right now. Try again in a minute." };
       if (res.status === 529) return { error: "The AI service is overloaded right now. Try again in a minute." };
       return { error: `The AI service is unavailable right now (error ${res.status}).` };
     }
 
+    logger.info(
+      { label: args.label, model: body.model, ms: Date.now() - startedAt },
+      "Claude call finished",
+    );
     const json = (await res.json()) as { content?: { type: string; name?: string; input?: unknown }[] };
     const toolUse = json.content?.find((b) => b.type === "tool_use" && b.name === args.toolName);
     if (!toolUse?.input) return { error: "The AI replied in an unexpected shape. Try again." };
@@ -115,9 +127,13 @@ export async function askClaude(args: {
     return { input: toolUse.input };
   } catch (err) {
     if (err instanceof Error && err.name === "AbortError") {
+      logger.error(
+        { label: args.label, model: body.model, ms: Date.now() - startedAt },
+        "Claude call timed out",
+      );
       return { error: "The AI took too long to answer. Try again." };
     }
-    logger.error({ err, label: args.label }, "Claude call threw");
+    logger.error({ err, label: args.label, model: body.model, ms: Date.now() - startedAt }, "Claude call threw");
     return { error: "Could not reach the AI service. Try again shortly." };
   } finally {
     clearTimeout(timer);
