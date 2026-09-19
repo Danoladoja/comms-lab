@@ -9,39 +9,29 @@ import { Button } from '@/components/ui/button';
 import { Loader2, Search, AlertTriangle, CheckCircle2, LifeBuoy } from 'lucide-react';
 
 /**
- * Where one learner's record actually is.
+ * Two questions about one learner, both always on screen.
  *
- * The cohort audit answers "is what is stored being counted correctly". This
- * answers the question somebody actually asks when a learner writes to say
- * their work has gone: is it there at all, and if so, under what.
+ * They are different questions and they were not both reachable. "Where is
+ * their record" and "why can they not hand work in" have different answers,
+ * different causes and different fixes — and the second panel was drawn only
+ * after somebody had already searched, so an admin opening this tab to find it
+ * saw no sign it existed. It had been asked for by name and could not be
+ * found, which is the same fault as building a screen with nothing to copy
+ * from: a thing that exists only after an action nobody knew to take.
  *
- * Typed rather than picked from a list, on purpose. The commonest reason a
- * record looks lost is that the learner now signs in as somebody the Lab has
- * never seen — and an account like that is not on the cohort list to pick.
+ * So both are here from the moment the tab opens, each saying what it needs.
  */
 export default function LearnerRecordLookup() {
   const [typed, setTyped] = useState('');
   const [asked, setAsked] = useState('');
-  const [moduleId, setModuleId] = useState('');
-
-  const { data, isFetching } = useGetLearnerRecord(
-    { email: asked },
-    { query: { enabled: !!asked, queryKey: getGetLearnerRecordQueryKey({ email: asked }) } },
-  );
-
-  const look = data?.verdict === 'all-present'
-    ? { border: 'border-emerald-500/40 bg-emerald-500/5', Icon: CheckCircle2, tone: 'text-emerald-600' }
-    : data?.verdict === 'nothing-here'
-      ? { border: 'border-destructive/40 bg-destructive/5', Icon: AlertTriangle, tone: 'text-destructive' }
-      : { border: 'border-amber-500/40 bg-amber-500/5', Icon: LifeBuoy, tone: 'text-amber-600' };
 
   return (
-    <div className="rounded-lg border border-border p-4 space-y-3">
+    <div className="rounded-lg border border-border p-4 space-y-4">
       <div>
-        <p className="text-sm font-semibold">Find one learner&apos;s record</p>
+        <p className="text-sm font-semibold">Look up one learner</p>
         <p className="text-xs text-muted-foreground">
-          For when somebody says their work has gone. Looks across the whole Lab, not just this
-          programme, and reads nothing anybody wrote.
+          For when somebody says their work has gone, or that they cannot hand it in. Reads across
+          the whole Lab, and reads nothing anybody wrote.
         </p>
       </div>
 
@@ -59,30 +49,48 @@ export default function LearnerRecordLookup() {
             onChange={(e) => setTyped(e.target.value)}
           />
         </div>
-        <Button type="submit" disabled={!typed.trim() || isFetching}>
-          {isFetching ? <Loader2 className="w-4 h-4 animate-spin" aria-hidden /> : 'Look'}
-        </Button>
+        <Button type="submit" disabled={!typed.trim()}>Look</Button>
       </form>
 
-      {/* And, for the other question entirely: why can this one person not hand
-          work in on this one module. Every gate the server asks, in the order
-          it asks them, because from a desk they all look the same. */}
-      {asked && <WhyBlocked email={asked} moduleId={moduleId} onPickModule={setModuleId} />}
+      <WhereIsTheirRecord email={asked} />
+      <WhyBlocked email={asked} />
+    </div>
+  );
+}
 
-      {data && (
+/** Question one: is their record there at all, and under what. */
+function WhereIsTheirRecord({ email }: { email: string }) {
+  const { data, isFetching } = useGetLearnerRecord(
+    { email },
+    { query: { enabled: !!email, queryKey: getGetLearnerRecordQueryKey({ email }) } },
+  );
+
+  const look = data?.verdict === 'all-present'
+    ? { border: 'border-emerald-500/40 bg-emerald-500/5', Icon: CheckCircle2, tone: 'text-emerald-600' }
+    : data?.verdict === 'nothing-here'
+      ? { border: 'border-destructive/40 bg-destructive/5', Icon: AlertTriangle, tone: 'text-destructive' }
+      : { border: 'border-amber-500/40 bg-amber-500/5', Icon: LifeBuoy, tone: 'text-amber-600' };
+
+  return (
+    <section className="space-y-2">
+      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        Where is their record?
+      </p>
+      {!email ? (
+        <p className="text-xs text-muted-foreground">Type an address above and press Look.</p>
+      ) : isFetching ? (
+        <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" aria-hidden />
+      ) : data ? (
         <div className={`rounded-lg border p-3 space-y-3 ${look.border}`}>
           <p className="flex items-start gap-2 text-sm leading-relaxed">
             <look.Icon className={`w-4 h-4 flex-shrink-0 mt-0.5 ${look.tone}`} aria-hidden />
             <span>{data.note}</span>
           </p>
-
           {data.accounts.length > 0 && (
             <ul className="space-y-2">
               {data.accounts.map((a) => (
                 <li key={a.userId} className="rounded border border-border bg-background p-3 text-xs">
-                  <p className="font-medium">
-                    Account #{a.userId} — {a.name} · made {a.createdAt}
-                  </p>
+                  <p className="font-medium">Account #{a.userId} — {a.name} · made {a.createdAt}</p>
                   <p className="text-muted-foreground mt-1">
                     {a.minutesInClass} min in class · {a.minutesWatched} min of recordings ·{' '}
                     {a.tasksFiled} task{a.tasksFiled === 1 ? '' : 's'} filed
@@ -100,52 +108,48 @@ export default function LearnerRecordLookup() {
             </ul>
           )}
         </div>
-      )}
-    </div>
+      ) : null}
+    </section>
   );
 }
 
 /**
- * Why this learner cannot hand work in on this module.
+ * Question two: why can this learner not hand work in on this module.
  *
- * Built because guessing did not work. A learner who has done everything and
- * still cannot submit produces the same complaint whatever is refusing them,
- * and from here those are indistinguishable. This asks the server and reports
- * every gate, including the ones that are open — because "nothing here is
- * refusing them" is itself the answer sometimes, and it is the one that says
- * to go and look at their screen instead.
+ * Every gate the submission route asks, in the order it asks them, including
+ * the ones that are open — because "nothing here is refusing them" is itself
+ * an answer, and it is the one that says to go and look at their screen.
  */
-function WhyBlocked({ email, moduleId, onPickModule }: {
-  email: string;
-  moduleId: string;
-  onPickModule: (id: string) => void;
-}) {
-  const { data: programmes = [] } = useListPrograms();
+function WhyBlocked({ email }: { email: string }) {
   const [programId, setProgramId] = useState('');
+  const [moduleId, setModuleId] = useState('');
+
+  const { data: programmes = [] } = useListPrograms();
   const { data: modules = [] } = useListProgramSessions(Number(programId), {
-    query: {
-      enabled: !!programId,
-      queryKey: getListProgramSessionsQueryKey(Number(programId)),
-    },
+    query: { enabled: !!programId, queryKey: getListProgramSessionsQueryKey(Number(programId)) },
   });
   const { data, isFetching } = useGetSubmitBlocks(
     { email, sessionId: Number(moduleId) },
     {
       query: {
-        enabled: !!moduleId,
+        enabled: !!email && !!moduleId,
         queryKey: getGetSubmitBlocksQueryKey({ email, sessionId: Number(moduleId) }),
       },
     },
   );
 
   return (
-    <div className="rounded-lg border border-dashed border-border p-3 space-y-2">
-      <p className="text-xs font-medium">Why can they not hand work in?</p>
+    <section className="space-y-2 border-t border-border pt-4">
+      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        Why can they not hand work in?
+      </p>
+
       <div className="flex flex-wrap gap-2">
         <select
           className="border border-border rounded-md px-2 py-1.5 text-xs bg-background"
           value={programId}
-          onChange={(e) => { setProgramId(e.target.value); onPickModule(''); }}
+          onChange={(e) => { setProgramId(e.target.value); setModuleId(''); }}
+          aria-label="Which programme"
         >
           <option value="">Choose a programme</option>
           {programmes.map((p: { id: number; title: string }) => (
@@ -156,7 +160,8 @@ function WhyBlocked({ email, moduleId, onPickModule }: {
           className="border border-border rounded-md px-2 py-1.5 text-xs bg-background"
           value={moduleId}
           disabled={!programId}
-          onChange={(e) => onPickModule(e.target.value)}
+          onChange={(e) => setModuleId(e.target.value)}
+          aria-label="Which module"
         >
           <option value="">Choose a module</option>
           {modules.map((m: { id: number; title: string }) => (
@@ -166,8 +171,12 @@ function WhyBlocked({ email, moduleId, onPickModule }: {
         {isFetching && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" aria-hidden />}
       </div>
 
-      {data && (
-        <div className="space-y-2 pt-1">
+      {!email ? (
+        <p className="text-xs text-muted-foreground">Type an address above, then pick the module.</p>
+      ) : !moduleId ? (
+        <p className="text-xs text-muted-foreground">Pick the module they are stuck on.</p>
+      ) : data ? (
+        <div className="space-y-2">
           <p className="text-sm leading-relaxed">{data.verdict}</p>
           <ul className="space-y-1">
             {data.gates.map((g) => (
@@ -180,7 +189,7 @@ function WhyBlocked({ email, moduleId, onPickModule }: {
             ))}
           </ul>
         </div>
-      )}
-    </div>
+      ) : null}
+    </section>
   );
 }
