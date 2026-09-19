@@ -7,7 +7,7 @@ import {
 } from '@workspace/api-client-react';
 import {
   apiReason, AI_USE_CHOICES, MAX_AI_NOTE_CHARS, disclosureProblem, type AiUse,
-  latePassOffer, latePassBalance, LATE_PASS_HOURS, isNotFound as isMissing,
+  latePassOffer, latePassBalance, LATE_PASS_HOURS, isNotFound as isMissing, isRefused,
   countWords, meetsWordMinimum, wordCountNotice,
 } from '@workspace/domain';
 import { deadlineNotice } from '@/lib/dueDateText';
@@ -81,11 +81,17 @@ export function QuizPanel({ sessionId, enabled = true }: { sessionId: number; en
   const reset = () => { setAnswers({}); setResult(null); };
 
   if (isLoading) return <div className="h-32 bg-muted/40 rounded-xl animate-pulse" />;
-  // A 404 genuinely means there is no quiz; anything else means we could not ask.
+  /*
+    Three answers, not two. A 404 means there is no quiz; a 403 means there is
+    one and this learner may not have it yet, and the Lab has already written
+    the reason; anything else means we could not ask.
+  */
   if (error) {
-    return isMissing(error)
-      ? <p className="text-sm text-muted-foreground py-4">This quiz is not available yet.</p>
-      : <CouldNotLoad what="this quiz" onRetry={() => refetch()} compact />;
+    if (isMissing(error)) {
+      return <p className="text-sm text-muted-foreground py-4">This quiz is not available yet.</p>;
+    }
+    if (isRefused(error)) return <Shut reason={apiReason(error, 'This module is not open yet.')} />;
+    return <CouldNotLoad what="this quiz" onRetry={() => refetch()} compact />;
   }
 
   if (result) {
@@ -416,9 +422,23 @@ export function AssignmentPanel({ sessionId, enabled = true, onSubmitted }: {
 
   if (isLoading) return <div className="h-32 bg-muted/40 rounded-xl animate-pulse" />;
   if (error) {
-    return isMissing(error)
-      ? <p className="text-sm text-muted-foreground py-4">This assignment is not available yet.</p>
-      : <CouldNotLoad what="this assignment" onRetry={() => refetch()} compact />;
+    if (isMissing(error)) {
+      return <p className="text-sm text-muted-foreground py-4">This assignment is not available yet.</p>;
+    }
+    /*
+      The one that was sending learners in circles.
+
+      A module shut against somebody answers 403 with a sentence saying which
+      module to finish first. That was falling through to "could not load this
+      assignment" with a Retry button — so a learner who was locked out saw a
+      technical fault, pressed Retry, got it again, and reported that they
+      could not submit their written task. Nothing was broken and nothing they
+      could press would have helped.
+    */
+    if (isRefused(error)) {
+      return <Shut reason={apiReason(error, 'This module is not open to you yet.')} />;
+    }
+    return <CouldNotLoad what="this assignment" onRetry={() => refetch()} compact />;
   }
 
   return (
@@ -528,5 +548,26 @@ export function AssignmentDialog({ sessionId, moduleTitle, open, onOpenChange }:
         {open && <AssignmentPanel sessionId={sessionId} onSubmitted={() => onOpenChange(false)} />}
       </DialogContent>
     </Dialog>
+  );
+}
+
+/**
+ * A door that is shut, saying so.
+ *
+ * Deliberately not an error: nothing has gone wrong, and there is no Retry,
+ * because pressing it again is exactly what a learner in this position was
+ * doing before. The sentence comes from the Lab, which knows whether the
+ * programme moves module by module or a week at a time and names the thing to
+ * finish accordingly.
+ */
+function Shut({ reason }: { reason: string }) {
+  return (
+    <div className="flex items-start gap-3 rounded-lg border border-border bg-muted/40 px-3 py-3">
+      <LockKeyhole className="w-4 h-4 text-muted-foreground flex-shrink-0 mt-0.5" aria-hidden />
+      <div>
+        <p className="text-sm font-medium">Not open to you yet</p>
+        <p className="text-sm text-muted-foreground mt-0.5">{reason}</p>
+      </div>
+    </div>
   );
 }

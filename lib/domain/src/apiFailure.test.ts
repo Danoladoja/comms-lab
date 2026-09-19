@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { apiReason, helpUrlFrom } from "./apiFailure";
+import { apiReason, helpUrlFrom, isRefused } from "./apiFailure";
 
 const FALLBACK = "Try again.";
 
@@ -106,5 +106,27 @@ describe("the page that fixes it", () => {
     // A link rendered into an admin console is a link somebody will press.
     expect(helpUrlFrom({ data: { helpUrl: "javascript:alert(1)" } })).toBeNull();
     expect(helpUrlFrom({ data: { helpUrl: "http://console.example.com" } })).toBeNull();
+  });
+});
+
+describe("telling a refusal from a failure", () => {
+  it("knows a refusal when it sees one", () => {
+    // The learner may not have this, and the Lab has said why. Showing that as
+    // "could not load, retry" sends somebody round a loop with no way out.
+    expect(isRefused({ status: 403 })).toBe(true);
+  });
+
+  it("does not mistake absent or unreachable for refused", () => {
+    expect(isRefused({ status: 404 })).toBe(false);
+    expect(isRefused({ status: 500 })).toBe(false);
+    expect(isRefused(new Error("network"))).toBe(false);
+    expect(isRefused(null)).toBe(false);
+    expect(isRefused(undefined)).toBe(false);
+  });
+
+  it("carries the Lab's own sentence out with it", () => {
+    // The whole point: the reason already exists and is written for a learner.
+    expect(apiReason({ status: 403, data: { error: "Finish Module 3 to open this" } }, "x"))
+      .toBe("Finish Module 3 to open this");
   });
 });

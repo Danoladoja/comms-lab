@@ -129,6 +129,25 @@ export function isNotFound(error: unknown): boolean {
 }
 
 /**
+ * Did the Lab answer "you may not have this, and here is why"?
+ *
+ * The third answer, and the one that had nowhere to go. A screen that knows
+ * about absent (404) and unreachable (everything else) turns a refusal into a
+ * technical failure: a learner whose module is shut was shown "could not load
+ * this assignment" and a Retry button, retried, got the same thing, and
+ * reported that they could not submit their work. The Lab knew exactly why and
+ * had already written the sentence — "Finish Module 3 to open this" — and the
+ * browser threw it away.
+ *
+ * A refusal is an answer. It is not a failure to get one.
+ */
+export function isRefused(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const status = (error as { status?: unknown }).status;
+  return status === 403;
+}
+
+/**
  * The page the upstream service said would fix this, if it named one.
  *
  * Lives beside `apiReason` because it comes off the same error object and no
