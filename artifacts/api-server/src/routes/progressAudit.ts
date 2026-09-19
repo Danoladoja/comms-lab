@@ -3,13 +3,17 @@ import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import {
   db, programsTable, sessionsTable, usersTable, enrollmentsTable,
   attendanceTable, replayProgressTable, assignmentsTable, assignmentSubmissionsTable,
-  submissionReviewsTable, quizAttemptsTable,
+  submissionReviewsTable, quizAttemptsTable, latePassesTable, deadlineExtensionsTable,
 } from "@workspace/db";
 import {
   satisfiesRole, replayWatchedSeconds, auditFlags, auditNote, looksWiped, duplicateNote,
-  readRecord, type AuditFlag, type AccountFacts, type LearnerAccount,
+  readRecord, submitVerdict, wordsRequired, wordCountProblem, effectiveDueAt, isPastDue,
+  lateSubmissionProblem, taughtUnder,
+  type AuditFlag, type AccountFacts, type LearnerAccount, type SubmitGate,
 } from "@workspace/domain";
-import { GetProgressAuditResponse, GetLearnerRecordResponse } from "@workspace/api-zod";
+import {
+  GetProgressAuditResponse, GetLearnerRecordResponse, GetSubmitBlocksResponse,
+} from "@workspace/api-zod";
 import { getCurrentUser } from "../lib/auth";
 import { progressForUser } from "../lib/progress";
 
@@ -385,6 +389,152 @@ router.get("/admin/learner-record", async (req, res): Promise<void> => {
 
   const { verdict, note } = readRecord(accounts);
   res.json(GetLearnerRecordResponse.parse({ email, verdict, note, accounts }));
+});
+
+/**
+ * Why one learner cannot hand work in on one module.
+ *
+ * Written because guessing did not work. A learner who has done everything and
+ * still cannot submit produces the same complaint whatever is refusing them —
+ * a shut module, a task never posted, a deadline gone, a word floor — and from
+ * a desk those are indistinguishable. Three hypotheses were offered before
+ * this existed and all three were wrong.
+ *
+ * So it asks every gate, in the order the submission route itself asks them,
+ * and keeps going past the first refusal. Reporting one at a time sends
+ * somebody round the loop once per problem.
+ *
+ * Reads only, and reads no work — lengths and dates, never a body.
+ */
+router.get("/admin/why-blocked", async (req, res): Promise<void> => {
+  const user = await getCurrentUser(req);
+  if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
+  if (!satisfiesRole(user.role, ["admin"])) {
+    res.status(403).json({ error: "Only admins can read this" }); return;
+  }
+
+  const email = String(req.query.email ?? "").trim().toLowerCase();
+  const sessionId = Number(req.query.sessionId);
+  if (!email || !Number.isInteger(sessionId)) {
+    res.status(400).json({ error: "Give an email address and a module" }); return;
+  }
+
+  const [session] = await db.select().from(sessionsTable).where(eq(sessionsTable.id, sessionId));
+  if (!session) { res.status(404).json({ error: "Module not found" }); return; }
+
+  // The account that actually holds their record, when there is more than one.
+  const people = await db.select().from(usersTable).where(sql`lower(${usersTable.email}) = ${email}`);
+  if (people.length === 0) { res.status(404).json({ error: "No account uses that address" }); return; }
+  const learner = people[people.length - 1];
+
+  const gates: SubmitGate[] = [];
+
+  const [enrolment] = await db
+    .select({ status: enrollmentsTable.status })
+    .from(enrollmentsTable)
+    .where(and(
+      eq(enrollmentsTable.userId, learner.id),
+      eq(enrollmentsTable.programId, session.programId),
+    ));
+  const enrolled = !!enrolment && ["enrolled", "completed"].includes(enrolment.status);
+  gates.push({
+    name: "enrolled",
+    open: enrolled,
+    note: enrolled
+      ? "They are enrolled on this programme."
+      : enrolment
+        ? `Their enrolment on this programme says "${enrolment.status}", which is not one the Lab lets in.`
+        : "They are not enrolled on this programme at all.",
+  });
+
+  const progress = await progressForUser(learner.id, [session.programId]);
+  const entry = progress.find((p) => p.sessionId === sessionId);
+  gates.push({
+    name: "module-open",
+    open: !entry?.locked,
+    note: entry?.locked
+      ? `The module is shut against them: ${entry.lockedReason ?? "the one before it is unfinished"}.`
+      : "The module is open to them.",
+  });
+
+  const [assignment] = await db.select().from(assignmentsTable)
+    .where(eq(assignmentsTable.sessionId, sessionId));
+  gates.push({
+    name: "task-published",
+    open: !!assignment && !assignment.draft,
+    note: !assignment
+      ? "No written task exists on this module."
+      : assignment.draft
+        ? "The task on this module is still a draft, so to a learner it does not exist."
+        : "The task is published.",
+  });
+
+  const setUnder = taughtUnder(assignment?.dueAt?.toISOString() ?? null);
+  const [extension] = await db
+    .select({ dueAt: deadlineExtensionsTable.dueAt })
+    .from(deadlineExtensionsTable)
+    .where(and(
+      eq(deadlineExtensionsTable.userId, learner.id),
+      eq(deadlineExtensionsTable.sessionId, sessionId),
+    ));
+  const dueIso = effectiveDueAt(setUnder, extension?.dueAt?.toISOString() ?? null);
+  const passes = await db
+    .select({ sessionId: latePassesTable.sessionId })
+    .from(latePassesTable)
+    .where(and(
+      eq(latePassesTable.userId, learner.id),
+      eq(latePassesTable.programId, session.programId),
+    ));
+  const lateProblem = lateSubmissionProblem({
+    dueAt: dueIso,
+    now: Date.now(),
+    used: passes.length,
+    claimedHere: passes.some((p) => p.sessionId === sessionId),
+  });
+  gates.push({
+    name: "deadline",
+    open: !lateProblem,
+    note: lateProblem
+      ? `${lateProblem} (Deadline: ${dueIso ?? "none"}.)`
+      : dueIso
+        ? `The deadline is ${dueIso} and has ${isPastDue(dueIso, Date.now()) ? "passed, but a late pass is holding it open" : "not passed"}.`
+        : "This task has no deadline.",
+  });
+
+  const [filed] = await db.select().from(assignmentSubmissionsTable).where(and(
+    eq(assignmentSubmissionsTable.userId, learner.id),
+    eq(assignmentSubmissionsTable.sessionId, sessionId),
+  ));
+  const required = wordsRequired("task", setUnder);
+  // Measured against what they have already filed, when they have. Somebody
+  // resubmitting is the commonest case, and it is the only length this side
+  // can see — what is in their editor right now is on their machine.
+  const shortProblem = filed ? wordCountProblem(filed.body, required, "task") : null;
+  gates.push({
+    name: "word-floor",
+    open: !shortProblem,
+    note: shortProblem
+      ? `What they last filed is short: ${shortProblem}`
+      : required > 0
+        ? `This task asks for ${required} words.`
+        : "This task has no word floor.",
+  });
+
+  gates.push({
+    name: "already-filed",
+    open: true,
+    note: filed
+      ? `They have filed ${filed.body.length} characters, last saved `
+        + `${filed.submittedAt.toISOString()}${filed.withdrawnAt ? ", since withdrawn by staff" : ""}.`
+      : "They have filed nothing on this module yet.",
+  });
+
+  res.json(GetSubmitBlocksResponse.parse({
+    email,
+    moduleTitle: session.title,
+    verdict: submitVerdict(gates),
+    gates,
+  }));
 });
 
 export default router;

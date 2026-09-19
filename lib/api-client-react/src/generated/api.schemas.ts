@@ -2096,6 +2096,19 @@ export interface ProgressAudit {
   learners: ProgressAuditLearnersItem[];
 }
 
+export type SubmitBlocksGatesItem = {
+  name: string;
+  open: boolean;
+  note: string;
+};
+
+export interface SubmitBlocks {
+  email: string;
+  moduleTitle: string;
+  verdict: string;
+  gates: SubmitBlocksGatesItem[];
+}
+
 export type LearnerRecordVerdict = typeof LearnerRecordVerdict[keyof typeof LearnerRecordVerdict];
 
 
@@ -2598,6 +2611,11 @@ export type ConflictResponse = ApiMessage;
 
 export type ListAllEnrollmentsParams = {
 programId?: number;
+};
+
+export type GetSubmitBlocksParams = {
+email: string;
+sessionId: number;
 };
 
 export type GetLearnerRecordParams = {

@@ -2919,6 +2919,27 @@ export const GetStudioCohortResponse = zod.object({
 
 
 /**
+ * Asks every gate between a learner and filing a piece of work, in the order the server itself asks them, and reports all of them rather than stopping at the first. For the case where somebody has done everything and still cannot submit, which from the outside looks identical whatever is refusing them. Reads only.
+ * @summary Why one learner cannot hand work in on one module
+ */
+export const GetSubmitBlocksQueryParams = zod.object({
+  "email": zod.coerce.string(),
+  "sessionId": zod.coerce.number().int()
+})
+
+export const GetSubmitBlocksResponse = zod.object({
+  "email": zod.string(),
+  "moduleTitle": zod.string(),
+  "verdict": zod.string(),
+  "gates": zod.array(zod.object({
+  "name": zod.string(),
+  "open": zod.boolean(),
+  "note": zod.string()
+}))
+})
+
+
+/**
  * For when somebody says their work has gone. Reads across the whole Lab rather than one programme, because the account holding a record may not be enrolled on anything any more, and makes no assumption about the shape of the trouble. Reads only.
  * @summary Where one learner's record actually is
  */

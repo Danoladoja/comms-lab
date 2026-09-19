@@ -3133,6 +3133,35 @@ paths:
               schema:
                 $ref: "#/components/schemas/StudioCohort"
         "403": { $ref: "#/components/responses/Forbidden" }
+  /admin/why-blocked:
+    get:
+      operationId: getSubmitBlocks
+      tags: [admin]
+      summary: Why one learner cannot hand work in on one module
+      description: >
+        Asks every gate between a learner and filing a piece of work, in the
+        order the server itself asks them, and reports all of them rather than
+        stopping at the first. For the case where somebody has done everything
+        and still cannot submit, which from the outside looks identical
+        whatever is refusing them. Reads only.
+      parameters:
+        - name: email
+          in: query
+          required: true
+          schema: { type: string }
+        - name: sessionId
+          in: query
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Every gate, and what it said
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SubmitBlocks"
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
   /admin/learner-record:
     get:
       operationId: getLearnerRecord
@@ -5937,6 +5966,23 @@ components:
                         properties:
                           code: { type: string }
                           note: { type: string }
+    SubmitBlocks:
+      type: object
+      required: [email, moduleTitle, verdict, gates]
+      properties:
+        email: { type: string }
+        moduleTitle: { type: string }
+        # One sentence: what is stopping them, or that the rules are not.
+        verdict: { type: string }
+        gates:
+          type: array
+          items:
+            type: object
+            required: [name, open, note]
+            properties:
+              name: { type: string }
+              open: { type: boolean }
+              note: { type: string }
     LearnerRecord:
       type: object
       required: [email, verdict, note, accounts]

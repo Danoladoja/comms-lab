@@ -468,3 +468,45 @@ export function readRecord(accounts: readonly LearnerAccount[]): {
       + "If they cannot see it, the fault is in what they are looking at, not in what is stored.",
   };
 }
+
+/* ------------------------------------------------------------------ *
+ * Why one learner cannot hand work in
+ * ------------------------------------------------------------------ */
+
+/**
+ * Every gate between a learner and filing a piece of work, in the order the
+ * server actually asks them.
+ *
+ * Written because guessing did not work. A learner who has done everything and
+ * still cannot submit produces the same sentence from the outside whatever is
+ * refusing them — a shut module, an unposted task, a closed deadline, a word
+ * floor — and from a desk it is not possible to tell which. Three hypotheses
+ * were offered before this existed and all three were wrong.
+ *
+ * So: ask every gate, keep going past the first refusal rather than stopping,
+ * and report the lot. A screen that reports only the first problem sends
+ * somebody round the loop once per problem.
+ */
+export type SubmitGate = {
+  name:
+    | "enrolled"
+    | "module-open"
+    | "task-published"
+    | "deadline"
+    | "word-floor"
+    | "already-filed";
+  /** True when this gate lets them through. */
+  open: boolean;
+  /** What it says, whichever way it went. */
+  note: string;
+};
+
+export function submitVerdict(gates: readonly SubmitGate[]): string {
+  const shut = gates.filter((g) => !g.open);
+  if (shut.length === 0) {
+    return "Nothing here is blocking them. Whatever is stopping them is in the browser, "
+      + "not in the rules — a stale page, a failed request, or something on their screen.";
+  }
+  if (shut.length === 1) return `One thing is stopping them: ${shut[0].note}`;
+  return `${shut.length} things are stopping them. ${shut.map((g) => g.note).join(" ")}`;
+}

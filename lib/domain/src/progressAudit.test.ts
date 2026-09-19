@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
-  auditFlags, auditNote, auditReportText, looksWiped, duplicateNote, readRecord,
-  type AuditFacts, type AuditReportRow, type LearnerAccount,
+  auditFlags, auditNote, auditReportText, looksWiped, duplicateNote, readRecord, submitVerdict,
+  type AuditFacts, type AuditReportRow, type LearnerAccount, type SubmitGate,
 } from "./progressAudit";
 
 const clean: AuditFacts = {
@@ -261,5 +261,35 @@ describe("where one learner's record actually is", () => {
 
   it("does not invent an account that is not there", () => {
     expect(readRecord([]).verdict).toBe("no-such-learner");
+  });
+});
+
+describe("why a learner cannot hand work in", () => {
+  const open = (name: SubmitGate["name"]): SubmitGate => ({ name, open: true, note: "fine" });
+
+  it("says so plainly when the rules are not the problem", () => {
+    // The answer that matters most, because it is the one nobody could get to
+    // before: the rules are letting them through and the fault is elsewhere.
+    const said = submitVerdict([open("enrolled"), open("module-open"), open("deadline")]);
+    expect(said).toContain("Nothing here is blocking them");
+    expect(said).toContain("not in the rules");
+  });
+
+  it("names the single thing when there is one", () => {
+    expect(submitVerdict([
+      open("enrolled"),
+      { name: "deadline", open: false, note: "The deadline closed on 18 Sep." },
+    ])).toBe("One thing is stopping them: The deadline closed on 18 Sep.");
+  });
+
+  it("names them all rather than stopping at the first", () => {
+    // Reporting one at a time sends somebody round the loop once per problem.
+    const said = submitVerdict([
+      { name: "deadline", open: false, note: "The deadline closed." },
+      { name: "word-floor", open: false, note: "They have 300 of 500 words." },
+    ]);
+    expect(said).toContain("2 things");
+    expect(said).toContain("deadline closed");
+    expect(said).toContain("300 of 500");
   });
 });

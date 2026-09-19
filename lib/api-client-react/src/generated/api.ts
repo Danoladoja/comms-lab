@@ -59,6 +59,7 @@ import type {
   ForumPost,
   ForumThread,
   GetLearnerRecordParams,
+  GetSubmitBlocksParams,
   GoogleConnectionStatus,
   GoogleHoldings,
   GroupSession,
@@ -145,6 +146,7 @@ import type {
   StudioSimulationRun,
   SubmissionComment,
   SubmissionCommentInput,
+  SubmitBlocks,
   TaskDraftInput,
   TaskDraftResult,
   TaughtCohort,
@@ -7542,6 +7544,91 @@ export function useGetStudioCohort<TData = Awaited<ReturnType<typeof getStudioCo
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetStudioCohortQueryOptions(programId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetSubmitBlocksUrl = (params: GetSubmitBlocksParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/admin/why-blocked?${stringifiedParams}` : `/api/admin/why-blocked`
+}
+
+/**
+ * Asks every gate between a learner and filing a piece of work, in the order the server itself asks them, and reports all of them rather than stopping at the first. For the case where somebody has done everything and still cannot submit, which from the outside looks identical whatever is refusing them. Reads only.
+ * @summary Why one learner cannot hand work in on one module
+ */
+export const getSubmitBlocks = async (params: GetSubmitBlocksParams, options?: Parameters<typeof customFetch>[1]): Promise<SubmitBlocks> => {
+
+  return customFetch<SubmitBlocks>(getGetSubmitBlocksUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetSubmitBlocksQueryKey = (params?: GetSubmitBlocksParams,) => {
+    return [
+    `/api/admin/why-blocked`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetSubmitBlocksQueryOptions = <TData = Awaited<ReturnType<typeof getSubmitBlocks>>, TError = ErrorType<ForbiddenResponse | NotFoundResponse>>(params: GetSubmitBlocksParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSubmitBlocks>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetSubmitBlocksQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getSubmitBlocks>>> = ({ signal }) => getSubmitBlocks(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getSubmitBlocks>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetSubmitBlocksQueryResult = NonNullable<Awaited<ReturnType<typeof getSubmitBlocks>>>
+export type GetSubmitBlocksQueryError = ErrorType<ForbiddenResponse | NotFoundResponse>
+
+
+/**
+ * @summary Why one learner cannot hand work in on one module
+ */
+
+export function useGetSubmitBlocks<TData = Awaited<ReturnType<typeof getSubmitBlocks>>, TError = ErrorType<ForbiddenResponse | NotFoundResponse>>(
+ params: GetSubmitBlocksParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSubmitBlocks>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetSubmitBlocksQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

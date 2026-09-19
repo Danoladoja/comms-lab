@@ -1,5 +1,9 @@
 import { useState } from 'react';
-import { useGetLearnerRecord, getGetLearnerRecordQueryKey } from '@workspace/api-client-react';
+import {
+  useGetLearnerRecord, getGetLearnerRecordQueryKey,
+  useGetSubmitBlocks, getGetSubmitBlocksQueryKey,
+  useListPrograms, useListProgramSessions, getListProgramSessionsQueryKey,
+} from '@workspace/api-client-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Loader2, Search, AlertTriangle, CheckCircle2, LifeBuoy } from 'lucide-react';
@@ -18,6 +22,7 @@ import { Loader2, Search, AlertTriangle, CheckCircle2, LifeBuoy } from 'lucide-r
 export default function LearnerRecordLookup() {
   const [typed, setTyped] = useState('');
   const [asked, setAsked] = useState('');
+  const [moduleId, setModuleId] = useState('');
 
   const { data, isFetching } = useGetLearnerRecord(
     { email: asked },
@@ -59,6 +64,11 @@ export default function LearnerRecordLookup() {
         </Button>
       </form>
 
+      {/* And, for the other question entirely: why can this one person not hand
+          work in on this one module. Every gate the server asks, in the order
+          it asks them, because from a desk they all look the same. */}
+      {asked && <WhyBlocked email={asked} moduleId={moduleId} onPickModule={setModuleId} />}
+
       {data && (
         <div className={`rounded-lg border p-3 space-y-3 ${look.border}`}>
           <p className="flex items-start gap-2 text-sm leading-relaxed">
@@ -89,6 +99,86 @@ export default function LearnerRecordLookup() {
               ))}
             </ul>
           )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Why this learner cannot hand work in on this module.
+ *
+ * Built because guessing did not work. A learner who has done everything and
+ * still cannot submit produces the same complaint whatever is refusing them,
+ * and from here those are indistinguishable. This asks the server and reports
+ * every gate, including the ones that are open — because "nothing here is
+ * refusing them" is itself the answer sometimes, and it is the one that says
+ * to go and look at their screen instead.
+ */
+function WhyBlocked({ email, moduleId, onPickModule }: {
+  email: string;
+  moduleId: string;
+  onPickModule: (id: string) => void;
+}) {
+  const { data: programmes = [] } = useListPrograms();
+  const [programId, setProgramId] = useState('');
+  const { data: modules = [] } = useListProgramSessions(Number(programId), {
+    query: {
+      enabled: !!programId,
+      queryKey: getListProgramSessionsQueryKey(Number(programId)),
+    },
+  });
+  const { data, isFetching } = useGetSubmitBlocks(
+    { email, sessionId: Number(moduleId) },
+    {
+      query: {
+        enabled: !!moduleId,
+        queryKey: getGetSubmitBlocksQueryKey({ email, sessionId: Number(moduleId) }),
+      },
+    },
+  );
+
+  return (
+    <div className="rounded-lg border border-dashed border-border p-3 space-y-2">
+      <p className="text-xs font-medium">Why can they not hand work in?</p>
+      <div className="flex flex-wrap gap-2">
+        <select
+          className="border border-border rounded-md px-2 py-1.5 text-xs bg-background"
+          value={programId}
+          onChange={(e) => { setProgramId(e.target.value); onPickModule(''); }}
+        >
+          <option value="">Choose a programme</option>
+          {programmes.map((p: { id: number; title: string }) => (
+            <option key={p.id} value={p.id}>{p.title}</option>
+          ))}
+        </select>
+        <select
+          className="border border-border rounded-md px-2 py-1.5 text-xs bg-background"
+          value={moduleId}
+          disabled={!programId}
+          onChange={(e) => onPickModule(e.target.value)}
+        >
+          <option value="">Choose a module</option>
+          {modules.map((m: { id: number; title: string }) => (
+            <option key={m.id} value={m.id}>{m.title}</option>
+          ))}
+        </select>
+        {isFetching && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" aria-hidden />}
+      </div>
+
+      {data && (
+        <div className="space-y-2 pt-1">
+          <p className="text-sm leading-relaxed">{data.verdict}</p>
+          <ul className="space-y-1">
+            {data.gates.map((g) => (
+              <li key={g.name} className="flex items-start gap-2 text-xs">
+                {g.open
+                  ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0 mt-0.5" aria-hidden />
+                  : <AlertTriangle className="w-3.5 h-3.5 text-amber-600 flex-shrink-0 mt-0.5" aria-hidden />}
+                <span className={g.open ? 'text-muted-foreground' : ''}>{g.note}</span>
+              </li>
+            ))}
+          </ul>
         </div>
       )}
     </div>
