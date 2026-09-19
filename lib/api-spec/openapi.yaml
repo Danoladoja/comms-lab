@@ -5823,7 +5823,7 @@ components:
         problem: { type: ["string", "null"] }
     ProgressAudit:
       type: object
-      required: [programmeTitle, note, modules, learners]
+      required: [programmeTitle, note, modules, learners, duplicates]
       properties:
         programmeTitle: { type: string }
         # One line about the whole cohort.
@@ -5840,6 +5840,32 @@ components:
               # The agreed length of the recording, in minutes, or null when
               # there is no recording or nothing has settled one yet.
               recordingMinutes: { type: ["integer", "null"] }
+        # Accounts that share an email address where one holds a record and
+        # another holds nothing. This is what a wiped record usually is, and
+        # nothing has been deleted in it.
+        duplicates:
+          type: array
+          items:
+            type: object
+            required: [email, note, accounts]
+            properties:
+              email: { type: string }
+              note: { type: string }
+              accounts:
+                type: array
+                items:
+                  type: object
+                  required:
+                    [userId, createdOn, enrolledOnProgrammes, classesAttended,
+                     recordingsWatched, tasksFiled, critiquesWritten]
+                  properties:
+                    userId: { type: integer }
+                    createdOn: { type: string }
+                    enrolledOnProgrammes: { type: integer }
+                    classesAttended: { type: integer }
+                    recordingsWatched: { type: integer }
+                    tasksFiled: { type: integer }
+                    critiquesWritten: { type: integer }
         learners:
           type: array
           items:

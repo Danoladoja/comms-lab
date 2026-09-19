@@ -2935,6 +2935,19 @@ export const GetProgressAuditResponse = zod.object({
   "kind": zod.string(),
   "recordingMinutes": zod.int().nullish()
 })),
+  "duplicates": zod.array(zod.object({
+  "email": zod.string(),
+  "note": zod.string(),
+  "accounts": zod.array(zod.object({
+  "userId": zod.int(),
+  "createdOn": zod.string(),
+  "enrolledOnProgrammes": zod.int(),
+  "classesAttended": zod.int(),
+  "recordingsWatched": zod.int(),
+  "tasksFiled": zod.int(),
+  "critiquesWritten": zod.int()
+}))
+})),
   "learners": zod.array(zod.object({
   "userId": zod.int(),
   "name": zod.string(),

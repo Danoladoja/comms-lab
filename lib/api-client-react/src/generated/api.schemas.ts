@@ -2037,6 +2037,22 @@ export type ProgressAuditModulesItem = {
   recordingMinutes?: number | null;
 };
 
+export type ProgressAuditDuplicatesItemAccountsItem = {
+  userId: number;
+  createdOn: string;
+  enrolledOnProgrammes: number;
+  classesAttended: number;
+  recordingsWatched: number;
+  tasksFiled: number;
+  critiquesWritten: number;
+};
+
+export type ProgressAuditDuplicatesItem = {
+  email: string;
+  note: string;
+  accounts: ProgressAuditDuplicatesItemAccountsItem[];
+};
+
 export type ProgressAuditLearnersItemRowsItemFlagsItem = {
   code: string;
   note: string;
@@ -2076,6 +2092,7 @@ export interface ProgressAudit {
   programmeTitle: string;
   note: string;
   modules: ProgressAuditModulesItem[];
+  duplicates: ProgressAuditDuplicatesItem[];
   learners: ProgressAuditLearnersItem[];
 }
 

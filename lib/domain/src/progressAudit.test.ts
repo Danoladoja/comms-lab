@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  auditFlags, auditNote, auditReportText,
+  auditFlags, auditNote, auditReportText, looksWiped, duplicateNote,
   type AuditFacts, type AuditReportRow,
 } from "./progressAudit";
 
@@ -112,7 +112,7 @@ describe("the audit as text, for passing on", () => {
       programmeTitle: "Pipeline comms", note: "Nothing to answer for.",
       learners: [{ name: "Ada", flagged: 0, rows: [row()] }],
     });
-    expect(text).toContain("Nothing to report");
+    expect(text).toContain("No records contradict themselves");
     expect(text.split("\n").length).toBeLessThan(8);
   });
 
@@ -150,5 +150,70 @@ describe("the audit as text, for passing on", () => {
     });
     expect(text).not.toContain("Module 1");
     expect(text).toContain("Module 3");
+  });
+});
+
+describe("how far apart two recording lengths have to be to matter", () => {
+  it("says nothing about a second's rounding", () => {
+    // 3420 and 3421 seconds both print as 57 minutes. Reporting that gives an
+    // admin a sentence saying 57 disagrees with 57, six times over, about a
+    // cohort where nothing is wrong.
+    expect(auditFlags({
+      ...clean, moduleRecordingSeconds: 3420, learnerRecordingSeconds: 3421,
+    }).map((f) => f.code)).not.toContain("recording-length-disagrees");
+    expect(auditFlags({
+      ...clean, moduleRecordingSeconds: 3420, learnerRecordingSeconds: 3470,
+    }).map((f) => f.code)).not.toContain("recording-length-disagrees");
+  });
+
+  it("still catches a gap big enough to move somebody past a bar", () => {
+    expect(auditFlags({
+      ...clean, moduleRecordingSeconds: 600, learnerRecordingSeconds: 3600,
+    }).map((f) => f.code)).toContain("recording-length-disagrees");
+    // A minute apart is the smallest gap a person can see in a sentence
+    // written in minutes.
+    expect(auditFlags({
+      ...clean, moduleRecordingSeconds: 3420, learnerRecordingSeconds: 3540,
+    }).map((f) => f.code)).toContain("recording-length-disagrees");
+  });
+});
+
+describe("a record that looks wiped", () => {
+  const busy = {
+    userId: 1, createdOn: "3 Aug", enrolledOnProgrammes: 1,
+    classesAttended: 4, recordingsWatched: 3, tasksFiled: 2, critiquesWritten: 5,
+  };
+  const blank = {
+    userId: 2, createdOn: "16 Sep", enrolledOnProgrammes: 1,
+    classesAttended: 0, recordingsWatched: 0, tasksFiled: 0, critiquesWritten: 0,
+  };
+
+  it("spots one account carrying everything and another carrying nothing", () => {
+    expect(looksWiped([busy, blank])).toBe(true);
+  });
+
+  it("says nothing about a single account", () => {
+    expect(looksWiped([busy])).toBe(false);
+  });
+
+  it("says nothing when both accounts have been used", () => {
+    // Two accounts both doing work is a different problem, and not this one.
+    expect(looksWiped([busy, { ...blank, classesAttended: 2 }])).toBe(false);
+  });
+
+  it("says nothing when neither has done anything", () => {
+    // A duplicate nobody has used has lost nobody anything.
+    expect(looksWiped([blank, { ...blank, userId: 3 }])).toBe(false);
+  });
+
+  it("names which account holds the record, and reassures", () => {
+    const note = duplicateNote("ada@example.com", [blank, busy]);
+    expect(note).toContain("2 accounts");
+    expect(note).toContain("made 3 Aug");
+    expect(note).toContain("4 classes attended");
+    expect(note).toContain("5 critiques written");
+    expect(note).toContain("made 16 Sep");
+    // The point of the sentence: nothing was deleted.
+    expect(note).toContain("not lost");
   });
 });

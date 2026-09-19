@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { ProgressAuditDuplicatesItem } from './progressAuditDuplicatesItem';
 import type { ProgressAuditLearnersItem } from './progressAuditLearnersItem';
 import type { ProgressAuditModulesItem } from './progressAuditModulesItem';
 
@@ -12,5 +13,6 @@ export interface ProgressAudit {
   programmeTitle: string;
   note: string;
   modules: ProgressAuditModulesItem[];
+  duplicates: ProgressAuditDuplicatesItem[];
   learners: ProgressAuditLearnersItem[];
 }

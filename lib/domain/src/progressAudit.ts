@@ -102,10 +102,25 @@ export function auditFlags(f: AuditFacts): AuditFlag[] {
     });
   }
 
+  /*
+    A difference worth telling somebody about.
+
+    This compared the two lengths in seconds and printed them in minutes, so a
+    recording stored as 3420 seconds on the module and 3421 on a learner's row
+    produced "the module says 57 minutes and their record says 57" — a
+    contradiction in terms, printed six times, against a cohort where nothing
+    was wrong at all. A player reports a fractional duration and it is rounded
+    differently on two paths; that is not a fault, it is arithmetic.
+
+    A minute apart is the smallest gap that could move anybody's percentage
+    past a bar, and it is also the smallest gap a person can see in a sentence
+    written in minutes.
+  */
+  const RECORDING_TOLERANCE_SECONDS = 60;
   if (
     f.moduleRecordingSeconds !== null
     && f.learnerRecordingSeconds !== null
-    && f.moduleRecordingSeconds !== f.learnerRecordingSeconds
+    && Math.abs(f.moduleRecordingSeconds - f.learnerRecordingSeconds) > RECORDING_TOLERANCE_SECONDS
   ) {
     flags.push({
       code: "recording-length-disagrees",
@@ -213,6 +228,8 @@ export type AuditReportRow = {
 export type AuditReport = {
   programmeTitle: string;
   note: string;
+  /** Accounts sharing an email where one holds the record and another does not. */
+  duplicates?: readonly { note: string }[];
   learners: readonly {
     name: string;
     flagged: number;
@@ -243,9 +260,20 @@ export function auditReportText(report: AuditReport): string {
     report.note,
   ];
 
+  /*
+    First, because it is the only thing here about a record that has gone
+    missing rather than been miscounted — and because nothing has been lost in
+    it, which is the most useful sentence on the page.
+  */
+  const duplicates = report.duplicates ?? [];
+  if (duplicates.length > 0) {
+    lines.push("", "ACCOUNTS HOLDING A RECORD THE LAB IS NOT ASKING:");
+    for (const d of duplicates) lines.push(`  ${d.note}`);
+  }
+
   const troubled = report.learners.filter((l) => l.flagged > 0);
   if (troubled.length === 0) {
-    lines.push("", "No records contradict themselves. Nothing to report.");
+    lines.push("", "No records contradict themselves.");
     return lines.join("\n");
   }
 
@@ -273,4 +301,70 @@ export function auditReportText(report: AuditReport): string {
   }
 
   return lines.join("\n").trimEnd();
+}
+
+/* ------------------------------------------------------------------ *
+ * A record that looks wiped
+ * ------------------------------------------------------------------ */
+
+/**
+ * Two accounts, one person.
+ *
+ * The audit above compares what is stored against what the Lab concludes from
+ * it. That cannot see a record that has gone: there is nothing left to
+ * disagree with, and a learner whose history has vanished looks exactly like a
+ * learner who never did anything.
+ *
+ * But the commonest way a record "disappears" does not delete anything. The
+ * Lab finds a signed-in person by their Clerk id and nothing else, and two
+ * user rows may share an email address — nothing forbids it. So a learner
+ * whose sign-in identity changes for any reason, most often a change to how
+ * signing in works, arrives as somebody the Lab has never seen: a new row, an
+ * empty record, and every minute they ever watched still sitting on the row
+ * they used to be.
+ *
+ * Nothing is lost in that case. It is filed under a name the app has stopped
+ * asking about.
+ */
+export type AccountFacts = {
+  userId: number;
+  /** When the row was made, already worded. */
+  createdOn: string;
+  enrolledOnProgrammes: number;
+  classesAttended: number;
+  recordingsWatched: number;
+  tasksFiled: number;
+  critiquesWritten: number;
+};
+
+export function historyOn(account: AccountFacts): number {
+  return account.classesAttended + account.recordingsWatched
+    + account.tasksFiled + account.critiquesWritten;
+}
+
+/**
+ * Is this pair worth showing somebody? Only when one account carries a record
+ * and another carries little or none — which is what a wipe looks like from
+ * the outside, and what a duplicate that has never been used does not.
+ */
+export function looksWiped(accounts: readonly AccountFacts[]): boolean {
+  if (accounts.length < 2) return false;
+  const carrying = accounts.filter((a) => historyOn(a) > 0);
+  return carrying.length >= 1 && carrying.length < accounts.length;
+}
+
+export function duplicateNote(email: string, accounts: readonly AccountFacts[]): string {
+  const sorted = [...accounts].sort((a, b) => historyOn(b) - historyOn(a));
+  const holder = sorted[0];
+  const empty = sorted.slice(1);
+  const parts = [
+    `${holder.classesAttended} class${holder.classesAttended === 1 ? "" : "es"} attended`,
+    `${holder.recordingsWatched} recording${holder.recordingsWatched === 1 ? "" : "s"} watched`,
+    `${holder.tasksFiled} task${holder.tasksFiled === 1 ? "" : "s"} filed`,
+    `${holder.critiquesWritten} critique${holder.critiquesWritten === 1 ? "" : "s"} written`,
+  ];
+  return `${email} has ${accounts.length} accounts in the Lab. The older one `
+    + `(made ${holder.createdOn}) holds ${parts.join(", ")}. `
+    + `The one they are signing in with now (made ${empty[0]?.createdOn ?? "later"}) holds `
+    + "nothing. Their record is not lost — the Lab is asking the wrong account for it.";
 }

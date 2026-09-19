@@ -56,6 +56,7 @@ export default function ProgressAudit({ programmes }: { programmes: { id: number
     ? auditReportText({
       programmeTitle: data.programmeTitle,
       note: data.note,
+      duplicates: data.duplicates,
       learners: data.learners.map((l) => ({
         name: l.name,
         flagged: l.flagged,
@@ -154,6 +155,26 @@ export default function ProgressAudit({ programmes }: { programmes: { id: number
               />
               <p className="mt-1 text-xs text-muted-foreground">
                 Tap or click in the box to select all of it, then copy.
+              </p>
+            </div>
+          )}
+
+          {/* A record that has gone missing rather than been miscounted. First,
+              because nothing else on this page can see it and because nothing
+              has actually been lost in it. */}
+          {(data.duplicates ?? []).length > 0 && (
+            <div className="rounded-lg border border-amber-500/40 bg-amber-500/5 p-4 space-y-3">
+              <p className="flex items-center gap-2 text-sm font-semibold">
+                <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0" aria-hidden />
+                {data.duplicates!.length} learner{data.duplicates!.length === 1 ? '' : 's'} signing in
+                to an account that is not the one holding their work
+              </p>
+              {data.duplicates!.map((d) => (
+                <p key={d.email} className="text-xs leading-relaxed">{d.note}</p>
+              ))}
+              <p className="text-xs text-muted-foreground">
+                Nothing has been deleted. Their history is on the older account, and joining the two
+                puts it back.
               </p>
             </div>
           )}

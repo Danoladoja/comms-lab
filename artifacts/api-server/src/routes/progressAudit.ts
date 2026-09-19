@@ -6,7 +6,8 @@ import {
   submissionReviewsTable, quizAttemptsTable,
 } from "@workspace/db";
 import {
-  satisfiesRole, replayWatchedSeconds, auditFlags, auditNote, type AuditFlag,
+  satisfiesRole, replayWatchedSeconds, auditFlags, auditNote, looksWiped, duplicateNote,
+  type AuditFlag, type AccountFacts,
 } from "@workspace/domain";
 import { GetProgressAuditResponse } from "@workspace/api-zod";
 import { getCurrentUser } from "../lib/auth";
@@ -209,8 +210,82 @@ router.get("/admin/programs/:programId/progress-audit", async (req, res): Promis
     };
   });
 
+  /*
+    Two accounts, one person.
+
+    Everything above compares what is stored against what the Lab concludes.
+    That cannot see a record that has gone — there is nothing left to disagree
+    with, and a learner whose history vanished looks exactly like one who never
+    did anything.
+
+    But the commonest wipe deletes nothing. A signed-in person is found by
+    their Clerk id and nothing else, and two rows may share an email because
+    nothing forbids it. So a learner whose sign-in identity changes — most
+    often after a change to how signing in works — arrives as somebody the Lab
+    has never seen, with an empty record, while every minute they watched sits
+    on the row they used to be.
+
+    Read across the whole Lab rather than this programme, because the account
+    holding the record may not be enrolled on anything any more.
+  */
+  /*
+    Written out rather than built.
+
+    The Drizzle version of this returned zero for every count, on accounts that
+    demonstrably had work against them — the correlated subqueries did not bind
+    to the outer row. Zero everywhere reads as "both accounts are empty", which
+    makes `looksWiped` false, which reports no duplicates at all. An empty
+    result that looks exactly like a clean answer is the one wrong answer this
+    check must never give, so it is written as SQL that can be run by hand and
+    checked against the same database.
+  */
+  const found = await db.execute<{
+    user_id: number; email: string; created_at: Date;
+    enrolled: number; attended: number; watched: number; filed: number; critiqued: number;
+  }>(sql`
+    WITH shared AS (
+      SELECT lower(email) AS email FROM users
+      WHERE email <> '' GROUP BY lower(email) HAVING count(*) > 1
+    )
+    SELECT u.id AS user_id, lower(u.email) AS email, u.created_at,
+      (SELECT count(*) FROM enrollments e WHERE e.user_id = u.id)::int            AS enrolled,
+      (SELECT count(*) FROM session_attendance a WHERE a.user_id = u.id)::int     AS attended,
+      (SELECT count(*) FROM replay_progress r WHERE r.user_id = u.id)::int        AS watched,
+      (SELECT count(*) FROM assignment_submissions s WHERE s.user_id = u.id)::int AS filed,
+      (SELECT count(*) FROM submission_reviews v WHERE v.reviewer_id = u.id)::int AS critiqued
+    FROM users u
+    JOIN shared ON shared.email = lower(u.email)
+    ORDER BY lower(u.email), u.created_at
+  `);
+
+  const byEmail = new Map<string, AccountFacts[]>();
+  for (const row of (found.rows ?? []) as Record<string, unknown>[]) {
+    const email = String(row.email);
+    const list = byEmail.get(email) ?? [];
+    list.push({
+      userId: Number(row.user_id),
+      createdOn: new Date(row.created_at as string).toLocaleDateString("en-GB", {
+        day: "numeric", month: "short", year: "numeric", timeZone: "Africa/Lagos",
+      }),
+      enrolledOnProgrammes: Number(row.enrolled),
+      classesAttended: Number(row.attended),
+      recordingsWatched: Number(row.watched),
+      tasksFiled: Number(row.filed),
+      critiquesWritten: Number(row.critiqued),
+    });
+    byEmail.set(email, list);
+  }
+
+  const duplicates: { email: string; note: string; accounts: AccountFacts[] }[] = [];
+  for (const [email, accounts] of byEmail) {
+    if (looksWiped(accounts)) {
+      duplicates.push({ email, note: duplicateNote(email, accounts), accounts });
+    }
+  }
+
   res.json(GetProgressAuditResponse.parse({
     programmeTitle: programme.title,
+    duplicates,
     note: auditNote(allFlags, learners.length),
     modules: modules.map((m) => ({
       id: m.id,

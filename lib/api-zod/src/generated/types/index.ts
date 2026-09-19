@@ -147,6 +147,8 @@ export * from './programUpdate';
 export * from './programUpdateProgression';
 export * from './programUpdateStatus';
 export * from './progressAudit';
+export * from './progressAuditDuplicatesItem';
+export * from './progressAuditDuplicatesItemAccountsItem';
 export * from './progressAuditLearnersItem';
 export * from './progressAuditLearnersItemRowsItem';
 export * from './progressAuditLearnersItemRowsItemFlagsItem';
