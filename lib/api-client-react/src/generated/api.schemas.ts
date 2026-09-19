@@ -1782,6 +1782,22 @@ export const StudioSimulationMode = {
   facilitated: 'facilitated',
 } as const;
 
+export type StudioSimulationYourRunStatus = typeof StudioSimulationYourRunStatus[keyof typeof StudioSimulationYourRunStatus];
+
+
+export const StudioSimulationYourRunStatus = {
+  active: 'active',
+  completed: 'completed',
+} as const;
+
+/**
+ * @nullable
+ */
+export type StudioSimulationYourRun = {
+  id: number;
+  status: StudioSimulationYourRunStatus;
+} | null;
+
 export interface StudioSimulation {
   id: number;
   title: string;
@@ -1801,6 +1817,8 @@ export interface StudioSimulation {
   evaluationDimensions: SimulationEvaluationDimension[];
   debriefQuestions: string[];
   createdAt: string;
+  /** @nullable */
+  yourRun?: StudioSimulationYourRun;
 }
 
 export type PlanGroupSessionDifficulty = typeof PlanGroupSessionDifficulty[keyof typeof PlanGroupSessionDifficulty];

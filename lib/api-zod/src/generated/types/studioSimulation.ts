@@ -9,6 +9,7 @@ import type { SimulationEvaluationDimension } from './simulationEvaluationDimens
 import type { StudioDevelopment } from './studioDevelopment';
 import type { StudioSimulationDifficulty } from './studioSimulationDifficulty';
 import type { StudioSimulationMode } from './studioSimulationMode';
+import type { StudioSimulationYourRun } from './studioSimulationYourRun';
 import type { StudioStakeholderGroup } from './studioStakeholderGroup';
 
 export interface StudioSimulation {
@@ -30,4 +31,6 @@ export interface StudioSimulation {
   evaluationDimensions: SimulationEvaluationDimension[];
   debriefQuestions: string[];
   createdAt: Date;
+  /** @nullable */
+  yourRun?: StudioSimulationYourRun;
 }

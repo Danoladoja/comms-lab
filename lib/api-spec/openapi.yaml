@@ -5522,6 +5522,15 @@ components:
         evaluationDimensions: { type: array, items: { $ref: "#/components/schemas/SimulationEvaluationDimension" } }
         debriefQuestions: { type: array, items: { type: string } }
         createdAt: { type: string, format: date-time }
+        # This person's own run of it, when they have one. Null means they have
+        # never started it. A finished run is why opening an exercise from the
+        # log has to lead to its debrief rather than back to a Begin button.
+        yourRun:
+          type: ["object", "null"]
+          required: [id, status]
+          properties:
+            id: { type: integer }
+            status: { type: string, enum: [active, completed] }
     PlanGroupSession:
       type: object
       required: [programId]

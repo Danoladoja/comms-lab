@@ -229,6 +229,39 @@ async function handedTheirExercise(
 function response(row: typeof simulationResponsesTable.$inferSelect) {
   return { injectId: row.injectId, groupId: row.groupId, body: row.body, authorId: row.authorId, createdAt: row.createdAt, updatedAt: row.updatedAt };
 }
+/**
+ * Which of these exercises this person has already run, and how far they got.
+ *
+ * The Mission Log listed exercises and knew nothing about runs, so every entry
+ * led to the same briefing page with a Begin button on it — including one the
+ * reader had finished an hour earlier. A finished exercise offering to start
+ * is worse than a dead link: it invites somebody to press a button that cannot
+ * do anything, and hides the debrief they came for.
+ *
+ * Their newest run of each, because an exercise begun twice is shown as it
+ * stands now rather than as it once was.
+ */
+async function ownRuns(definitionIds: number[], userId: number) {
+  if (definitionIds.length === 0) return new Map<number, { id: number; status: string }>();
+  const rows = await db
+    .select({
+      id: simulationRunsTable.id,
+      definitionId: simulationRunsTable.definitionId,
+      status: simulationRunsTable.status,
+    })
+    .from(simulationRunsTable)
+    .innerJoin(simulationGroupAssignmentsTable, and(
+      eq(simulationGroupAssignmentsTable.runId, simulationRunsTable.id),
+      eq(simulationGroupAssignmentsTable.userId, userId),
+    ))
+    .where(inArray(simulationRunsTable.definitionId, definitionIds))
+    .orderBy(asc(simulationRunsTable.id));
+
+  const mine = new Map<number, { id: number; status: string }>();
+  for (const row of rows) mine.set(row.definitionId, { id: row.id, status: row.status });
+  return mine;
+}
+
 function definitionView(definition: typeof simulationDefinitionsTable.$inferSelect) {
   const initialDevelopment = definition.injects[0];
   if (!initialDevelopment) throw new Error("Simulation definition has no initial development");
@@ -1656,7 +1689,11 @@ router.get("/simulations", requireStudioAccess, async (req, res): Promise<void> 
   const visible = definitions.filter((definition) =>
     maySeeStudioSimulation(definition, { id: user.id, isAdmin, enrolledProgramIds: programIds }));
 
-  res.json(ListSimulationsResponse.parse(visible.map(definitionView)));
+  const mine = await ownRuns(visible.map((d) => d.id), user.id);
+  res.json(ListSimulationsResponse.parse(visible.map((definition) => ({
+    ...definitionView(definition),
+    yourRun: mine.get(definition.id) ?? null,
+  }))));
 });
 
 router.post("/simulations/generate", requireStudioAccess, async (req, res): Promise<void> => {
@@ -1718,7 +1755,10 @@ router.get("/simulations/:simulationId", requireStudioAccess, async (req, res): 
   if (!definition || !maySeeStudioSimulation(definition, { id: user.id, isAdmin, enrolledProgramIds: programIds })) {
     res.status(404).json(message("Simulation not found")); return;
   }
-  res.json(GetSimulationResponse.parse(definitionView(definition)));
+  res.json(GetSimulationResponse.parse({
+    ...definitionView(definition),
+    yourRun: (await ownRuns([definition.id], user.id)).get(definition.id) ?? null,
+  }));
 });
 
 router.post("/simulation-runs", requireStudioAccess, async (req, res): Promise<void> => {

@@ -2533,7 +2533,11 @@ export const ListSimulationsResponseItem = zod.object({
   "description": zod.string().min(1)
 })),
   "debriefQuestions": zod.array(zod.string()),
-  "createdAt": zod.coerce.date()
+  "createdAt": zod.coerce.date(),
+  "yourRun": zod.object({
+  "id": zod.int(),
+  "status": zod.enum(['active', 'completed'])
+}).nullish()
 })
 export const ListSimulationsResponse = zod.array(ListSimulationsResponseItem)
 
@@ -3292,7 +3296,11 @@ export const GenerateSimulationResponse = zod.object({
   "description": zod.string().min(1)
 })),
   "debriefQuestions": zod.array(zod.string()),
-  "createdAt": zod.coerce.date()
+  "createdAt": zod.coerce.date(),
+  "yourRun": zod.object({
+  "id": zod.int(),
+  "status": zod.enum(['active', 'completed'])
+}).nullish()
 })
 
 
@@ -3360,7 +3368,11 @@ export const GetSimulationResponse = zod.object({
   "description": zod.string().min(1)
 })),
   "debriefQuestions": zod.array(zod.string()),
-  "createdAt": zod.coerce.date()
+  "createdAt": zod.coerce.date(),
+  "yourRun": zod.object({
+  "id": zod.int(),
+  "status": zod.enum(['active', 'completed'])
+}).nullish()
 })
 
 

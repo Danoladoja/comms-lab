@@ -222,6 +222,8 @@ export * from './studioSimulationMode';
 export * from './studioSimulationRun';
 export * from './studioSimulationRunMode';
 export * from './studioSimulationRunStatus';
+export * from './studioSimulationYourRun';
+export * from './studioSimulationYourRunStatus';
 export * from './studioStakeholderGroup';
 export * from './submissionComment';
 export * from './submissionCommentInput';

@@ -751,7 +751,14 @@ export default function StudioHome() {
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: i * 0.05 }}
                   >
-                    <Link href={`/studio/scenarios/${sim.id}`}>
+                    {/*
+                      Where an entry leads depends on what the reader has
+                      already done with it. A finished exercise leads to its
+                      debrief — which is the only reason to open a finished
+                      exercise — and one still running leads back into it.
+                      Only an exercise never started leads to the briefing.
+                    */}
+                    <Link href={sim.yourRun ? `/studio/run/${sim.yourRun.id}` : `/studio/scenarios/${sim.id}`}>
                       <div className="group block p-5 border border-white/5 bg-white/[0.01] hover:bg-white/[0.03] hover:border-[#f97316]/30 transition-all cursor-pointer relative overflow-hidden rounded-none">
                         <div className="absolute left-0 top-0 bottom-0 w-0.5 bg-transparent group-hover:bg-[#f97316] transition-colors" />
 
@@ -780,6 +787,14 @@ export default function StudioHome() {
                         </p>
 
                         <div className="flex items-center gap-4 text-[10px] font-bold text-white/40 uppercase tracking-widest">
+                          {sim.yourRun && (
+                            <div className={cn(
+                              "flex items-center gap-1.5",
+                              sim.yourRun.status === 'completed' ? 'text-emerald-400/80' : 'text-[#f97316]',
+                            )}>
+                              {sim.yourRun.status === 'completed' ? 'Debrief' : 'In progress'}
+                            </div>
+                          )}
                           <div className="flex items-center gap-1.5"><Clock className="w-3.5 h-3.5 text-[#f97316]/70" /> {sim.durationMinutes}m</div>
                           <div className="flex items-center gap-1.5"><Users className="w-3.5 h-3.5 text-[#f97316]/70" /> {sim.mode}</div>
                           {sim.createdAt && (

@@ -18,6 +18,22 @@ export default function ScenarioBriefing({ id }: { id?: string }) {
   const { data: sim, isLoading, error } = useGetSimulation(numericId, { query: { enabled: isValidId, queryKey: getGetSimulationQueryKey(numericId) } });
   const createRun = useCreateSimulationRun();
 
+  /*
+   * A brief is for an exercise not yet taken.
+   *
+   * Somebody who already has a run of this one is sent to it: to the debrief
+   * if they finished, back into it if they did not. Reaching a Begin button
+   * for an exercise you have already done is an offer that cannot be honoured
+   * — the server refuses a second run — and it hides the debrief behind a
+   * page that looks like the start.
+   *
+   * Belt and braces with the Mission Log, which now links straight there. A
+   * bookmarked brief, or a link somebody kept, has to behave too.
+   */
+  useEffect(() => {
+    if (sim?.yourRun) setLocation(`/studio/run/${sim.yourRun.id}`, { replace: true });
+  }, [sim?.yourRun, setLocation]);
+
   useEffect(() => {
     if (error) {
       toast({ title: "Could not open the brief", description: "Try again, or go back to the Studio.", variant: "destructive" });
@@ -172,7 +188,7 @@ export default function ScenarioBriefing({ id }: { id?: string }) {
               <div className="pt-6 border-t border-white/5">
                 <Button
                   onClick={handleLaunch}
-                  disabled={createRun.isPending}
+                  disabled={createRun.isPending || !!sim?.yourRun}
                   className="w-full h-16 bg-[#f97316] hover:bg-white text-[#030811] hover:text-[#030811] font-black uppercase tracking-[0.2em] text-sm shadow-[0_0_20px_rgba(249,115,22,0.15)] hover:shadow-[0_0_30px_rgba(255,255,255,0.3)] transition-all rounded-none"
                 >
                   {createRun.isPending ? (

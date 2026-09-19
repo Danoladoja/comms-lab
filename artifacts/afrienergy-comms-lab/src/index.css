@@ -428,46 +428,68 @@
  * taken off the page.
  */
 @media print {
-  body * { visibility: hidden !important; }
-
-  [data-print-root],
-  [data-print-root] * { visibility: visible !important; }
-
-  [data-print-root] {
-    position: absolute !important;
-    inset: 0 auto auto 0 !important;
-    width: 100% !important;
-    max-width: none !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    background: #fff !important;
-    color: #000 !important;
-    box-shadow: none !important;
+  /*
+   * Printing the debrief.
+   *
+   * Two things were wrong and both came from the same trick. The report was
+   * lifted out of the page with `position: absolute`, and an absolutely
+   * positioned box does not paginate — the browser prints whatever fits on
+   * sheet one and silently drops the rest. A two-page debrief saved as one.
+   *
+   * So the report stays in the document flow and everything around it is
+   * removed instead: the ancestors between it and the page collapse with
+   * `display: contents`, so it becomes an ordinary block that a printer can
+   * break across as many pages as it needs, and everything that is not the
+   * report is taken out rather than merely made invisible — invisible still
+   * occupies its space, which is how you get blank sheets.
+   *
+   * The second was colour. This used to strip it all to save ink, which is
+   * the right instinct for a printer and the wrong one for what people
+   * actually do, which is save a PDF. It keeps its colours now.
+   */
+  html, body {
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    background: #030811 !important;
   }
 
-  [data-print-root] *,
-  [data-print-root] *::before,
-  [data-print-root] *::after {
-    background-image: none !important;
+  /* Everything that is neither the report nor on the path down to it. */
+  body *:not(:has([data-print-root])):not([data-print-root]):not([data-print-root] *) {
+    display: none !important;
+  }
+
+  /* The path down to it stops being layout at all, so the report flows. */
+  body *:has([data-print-root]):not([data-print-root]) {
+    display: contents !important;
+  }
+
+  [data-print-root] {
+    position: static !important;
+    width: auto !important;
+    max-width: none !important;
+    margin: 0 !important;
     box-shadow: none !important;
-    color: #111 !important;
+    overflow: visible !important;
+  }
+
+  /* As designed, not as a photocopy. Both spellings: Safari still wants the
+     prefixed one, and without it a browser is free to drop every background. */
+  [data-print-root],
+  [data-print-root] * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
     animation: none !important;
     transition: none !important;
   }
-
-  /* Panels keep their shape as a hairline rule rather than a block of ink. */
-  [data-print-root] [class*="bg-"] { background-color: transparent !important; }
-  [data-print-root] [class*="border"] { border-color: #ccc !important; }
-
-  /* The one thing that keeps its colour: the bars, so a score is still legible. */
-  [data-print-root] [data-print-keep] { background-color: #F97316 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 
   /* Controls are noise on paper. */
   [data-print-root] button,
   [data-print-root] [data-print-hide] { display: none !important; }
 
-  [data-print-root] h1, [data-print-root] h2, [data-print-root] h3 { page-break-after: avoid; }
-  [data-print-root] li, [data-print-root] p { page-break-inside: avoid; }
+  [data-print-root] h1, [data-print-root] h2, [data-print-root] h3 { break-after: avoid; }
+  [data-print-root] li, [data-print-root] p { break-inside: avoid; }
+  [data-print-root] section, [data-print-root] > div > div { break-inside: auto; }
 
-  @page { margin: 18mm; }
+  @page { margin: 12mm; }
 }
