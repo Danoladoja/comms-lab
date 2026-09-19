@@ -2919,6 +2919,52 @@ export const GetStudioCohortResponse = zod.object({
 
 
 /**
+ * Every number on a learner's dashboard is worked out from stored rows at the moment it is asked for, so a fault in the working shows up as a wrong verdict with no trace of how it got there. This puts the two side by side and flags wherever they cannot both be right. It reads only.
+ * @summary What is recorded against each learner, beside what the Lab says
+ */
+export const GetProgressAuditParams = zod.object({
+  "programId": zod.coerce.number().int()
+})
+
+export const GetProgressAuditResponse = zod.object({
+  "programmeTitle": zod.string(),
+  "note": zod.string(),
+  "modules": zod.array(zod.object({
+  "id": zod.int(),
+  "title": zod.string(),
+  "kind": zod.string(),
+  "recordingMinutes": zod.int().nullish()
+})),
+  "learners": zod.array(zod.object({
+  "userId": zod.int(),
+  "name": zod.string(),
+  "email": zod.string(),
+  "flagged": zod.int(),
+  "rows": zod.array(zod.object({
+  "sessionId": zod.int(),
+  "liveMinutes": zod.int(),
+  "watchedMinutes": zod.int(),
+  "learnerRecordingMinutes": zod.int().nullish(),
+  "hasSubmission": zod.boolean(),
+  "critiquesGiven": zod.int(),
+  "critiquesReceived": zod.int(),
+  "quizBestScore": zod.int().nullish(),
+  "progressPct": zod.int(),
+  "completed": zod.boolean(),
+  "locked": zod.boolean(),
+  "presenceMet": zod.boolean(),
+  "reviewsRequired": zod.int(),
+  "reviewsCleared": zod.int().nullish(),
+  "flags": zod.array(zod.object({
+  "code": zod.string(),
+  "note": zod.string()
+}))
+}))
+}))
+})
+
+
+/**
  * Makes exercises that have already been sent the work for a module, so a round that was under way before simulation modules existed counts towards the programme rather than sitting beside it. Nothing about anybody's exercise changes: whoever has finished is complete the moment this is done, and whoever has not is what is holding the next module shut. Only exercises filed against no module are moved.
  * @summary File this programme's exercises against a simulation module
  */

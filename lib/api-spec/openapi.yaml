@@ -3133,6 +3133,30 @@ paths:
               schema:
                 $ref: "#/components/schemas/StudioCohort"
         "403": { $ref: "#/components/responses/Forbidden" }
+  /admin/programs/{programId}/progress-audit:
+    get:
+      operationId: getProgressAudit
+      tags: [admin]
+      summary: What is recorded against each learner, beside what the Lab says
+      description: >
+        Every number on a learner's dashboard is worked out from stored rows at
+        the moment it is asked for, so a fault in the working shows up as a
+        wrong verdict with no trace of how it got there. This puts the two side
+        by side and flags wherever they cannot both be right. It reads only.
+      parameters:
+        - name: programId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: The audit
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProgressAudit"
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
   /admin/studio/cohort/{programId}/attach:
     post:
       operationId: attachStudioExercises
@@ -5797,6 +5821,71 @@ components:
         runId: { type: ["integer", "null"] }
         # Why they cannot begin, when they cannot.
         problem: { type: ["string", "null"] }
+    ProgressAudit:
+      type: object
+      required: [programmeTitle, note, modules, learners]
+      properties:
+        programmeTitle: { type: string }
+        # One line about the whole cohort.
+        note: { type: string }
+        modules:
+          type: array
+          items:
+            type: object
+            required: [id, title, kind]
+            properties:
+              id: { type: integer }
+              title: { type: string }
+              kind: { type: string }
+              # The agreed length of the recording, in minutes, or null when
+              # there is no recording or nothing has settled one yet.
+              recordingMinutes: { type: ["integer", "null"] }
+        learners:
+          type: array
+          items:
+            type: object
+            required: [userId, name, email, flagged, rows]
+            properties:
+              userId: { type: integer }
+              name: { type: string }
+              email: { type: string }
+              # How many of this learner's records cannot be right.
+              flagged: { type: integer }
+              rows:
+                type: array
+                items:
+                  type: object
+                  required:
+                    [sessionId, liveMinutes, watchedMinutes, hasSubmission,
+                     critiquesGiven, critiquesReceived, progressPct, completed,
+                     locked, presenceMet, reviewsRequired, flags]
+                  properties:
+                    sessionId: { type: integer }
+                    # What is actually stored, read straight from the rows
+                    # rather than from the Lab's verdict about them.
+                    liveMinutes: { type: integer }
+                    watchedMinutes: { type: integer }
+                    learnerRecordingMinutes: { type: ["integer", "null"] }
+                    hasSubmission: { type: boolean }
+                    critiquesGiven: { type: integer }
+                    critiquesReceived: { type: integer }
+                    quizBestScore: { type: ["integer", "null"] }
+                    # What the Lab concludes, from the same code the learner's
+                    # own dashboard uses, so the two cannot disagree.
+                    progressPct: { type: integer }
+                    completed: { type: boolean }
+                    locked: { type: boolean }
+                    presenceMet: { type: boolean }
+                    reviewsRequired: { type: integer }
+                    reviewsCleared: { type: ["integer", "null"] }
+                    flags:
+                      type: array
+                      items:
+                        type: object
+                        required: [code, note]
+                        properties:
+                          code: { type: string }
+                          note: { type: string }
     AttachStudioExercisesInput:
       type: object
       required: [sessionId]

@@ -18,6 +18,7 @@ import cohortMessagesRouter from "./cohortMessages";
 import waitlistRouter from "./waitlist";
 import liveSessionsRouter from "./liveSessions";
 import studioSimulationsRouter from "./studioSimulations";
+import progressAuditRouter from "./progressAudit";
 
 const router: IRouter = Router();
 
@@ -32,6 +33,7 @@ router.use(enrollmentsRouter);
 router.use(courseworkRouter);
 router.use(liveSessionsRouter);
 router.use(studioSimulationsRouter);
+router.use(progressAuditRouter);
 router.use(reviewsRouter);
 router.use(presenceRouter);
 router.use(slidesRouter);

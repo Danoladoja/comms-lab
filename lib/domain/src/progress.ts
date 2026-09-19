@@ -186,6 +186,14 @@ export type ProgressEntry = {
   reviewsRequired: number;
   reviewsGiven: number;
   reviewsReceived: number;
+  /**
+   * What was asked of them at the moment they satisfied it, or null.
+   *
+   * Carried out so the audit can say plainly why somebody's requirement is
+   * where it is, rather than leaving an admin to guess between "they finished
+   * under a smaller number" and "the number never moved".
+   */
+  reviewsCleared: number | null;
   /** What kind of module this is, so a card can be drawn for it. */
   kind: ModuleKind;
   hasSimulation: boolean;
@@ -396,6 +404,7 @@ export function computeProgress(
         reviewsRequired,
         reviewsGiven: cw.reviewsGiven,
         reviewsReceived: cw.reviewsReceived,
+        reviewsCleared: cw.reviewsCleared ?? null,
         kind,
         hasSimulation: cw.hasSimulation,
         simulationDone: cw.simulationDone,

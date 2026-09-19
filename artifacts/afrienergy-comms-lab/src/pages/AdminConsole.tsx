@@ -64,6 +64,7 @@ import {
   isMeasurableRecording,
 } from '@workspace/domain';
 import CourseworkStudio, { confirmLosingDraft } from '@/components/CourseworkStudio';
+import ProgressAudit from '@/components/ProgressAudit';
 import { useSyncMeetAttendance } from '@workspace/api-client-react';
 import InviteFacilitator from '@/components/InviteFacilitator';
 import InviteLearners from '@/components/InviteLearners';
@@ -81,11 +82,17 @@ import { useToast } from '@/hooks/use-toast';
 import { SaveAndClose } from '@/components/EditorSection';
 import {
   ChevronDown, ChevronUp, Plus, Trash2, CircleAlert, Pencil, Clock, Send, X, Mail, Video,
-  Users,
+  Users, Loader2,
 } from 'lucide-react';
 import { CouldNotLoad } from '@/components/CouldNotLoad';
 
-const TABS = ['Programmes', 'Progress', 'Live Sessions', 'Enrolments', 'People', 'Recordings'] as const;
+/*
+  "Audit" sits beside "Progress" on purpose. Progress is what the Lab says
+  about a cohort; Audit is what is actually written down about them, and
+  whether those two can both be true. The day you need the second one, you will
+  have been looking at the first.
+*/
+const TABS = ['Programmes', 'Progress', 'Audit', 'Live Sessions', 'Enrolments', 'People', 'Recordings'] as const;
 type Tab = (typeof TABS)[number];
 
 function formatSessionDate(iso: string | null | undefined) {
@@ -1929,6 +1936,36 @@ function PeopleTab({ selfId, everybody }: {
   );
 }
 
+/* ---------- Audit tab ---------- */
+
+/**
+ * What is recorded against each learner, beside what the Lab says about it.
+ *
+ * Exists because learners reported replay, tasks and critiques not counting,
+ * and progress they had earned disappearing — and there was no way to answer
+ * them except "it should be working". Every number on a dashboard is worked
+ * out from stored rows at the moment somebody asks, so a fault in the working
+ * appears as a wrong verdict with no trace of how it got there.
+ */
+function AuditTab() {
+  const { data: programmes = [], isLoading } = useListPrograms();
+  if (isLoading) {
+    return <div className="py-16 flex justify-center"><Loader2 className="w-6 h-6 animate-spin" aria-hidden /></div>;
+  }
+  if (programmes.length === 0) {
+    return <p className="text-sm text-muted-foreground">No programmes to audit yet.</p>;
+  }
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-muted-foreground max-w-2xl">
+        What is stored against each learner, beside what the Lab concludes from it. Anywhere those
+        two cannot both be right, it says so. Nothing here changes anything — it is for finding out.
+      </p>
+      <ProgressAudit programmes={programmes as { id: number; title: string }[]} />
+    </div>
+  );
+}
+
 /* ---------- Console ---------- */
 
 export default function AdminConsole() {
@@ -2006,6 +2043,7 @@ export default function AdminConsole() {
         />
       )}
       {tab === 'Progress' && <ProgressTracker />}
+      {tab === 'Audit' && <AuditTab />}
       {tab === 'Live Sessions' && <LiveSessionsAdmin />}
       {tab === 'Enrolments' && <EnrollmentsTab writeToProgramId={writeToProgramId} />}
       {tab === 'People' && <PeopleTab selfId={user?.id} everybody={users} />}

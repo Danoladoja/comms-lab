@@ -2029,6 +2029,55 @@ export interface MyStudioExercise {
   problem?: string | null;
 }
 
+export type ProgressAuditModulesItem = {
+  id: number;
+  title: string;
+  kind: string;
+  /** @nullable */
+  recordingMinutes?: number | null;
+};
+
+export type ProgressAuditLearnersItemRowsItemFlagsItem = {
+  code: string;
+  note: string;
+};
+
+export type ProgressAuditLearnersItemRowsItem = {
+  sessionId: number;
+  liveMinutes: number;
+  watchedMinutes: number;
+  /** @nullable */
+  learnerRecordingMinutes?: number | null;
+  hasSubmission: boolean;
+  critiquesGiven: number;
+  critiquesReceived: number;
+  /** @nullable */
+  quizBestScore?: number | null;
+  progressPct: number;
+  completed: boolean;
+  locked: boolean;
+  presenceMet: boolean;
+  reviewsRequired: number;
+  /** @nullable */
+  reviewsCleared?: number | null;
+  flags: ProgressAuditLearnersItemRowsItemFlagsItem[];
+};
+
+export type ProgressAuditLearnersItem = {
+  userId: number;
+  name: string;
+  email: string;
+  flagged: number;
+  rows: ProgressAuditLearnersItemRowsItem[];
+};
+
+export interface ProgressAudit {
+  programmeTitle: string;
+  note: string;
+  modules: ProgressAuditModulesItem[];
+  learners: ProgressAuditLearnersItem[];
+}
+
 export interface AttachStudioExercisesInput {
   sessionId: number;
 }

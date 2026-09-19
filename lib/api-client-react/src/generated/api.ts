@@ -97,6 +97,7 @@ import type {
   Program,
   ProgramInput,
   ProgramUpdate,
+  ProgressAudit,
   PublicCertificate,
   QuestionsDraftResult,
   Quiz,
@@ -7539,6 +7540,84 @@ export function useGetStudioCohort<TData = Awaited<ReturnType<typeof getStudioCo
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetStudioCohortQueryOptions(programId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetProgressAuditUrl = (programId: number,) => {
+
+
+
+
+  return `/api/admin/programs/${programId}/progress-audit`
+}
+
+/**
+ * Every number on a learner's dashboard is worked out from stored rows at the moment it is asked for, so a fault in the working shows up as a wrong verdict with no trace of how it got there. This puts the two side by side and flags wherever they cannot both be right. It reads only.
+ * @summary What is recorded against each learner, beside what the Lab says
+ */
+export const getProgressAudit = async (programId: number, options?: Parameters<typeof customFetch>[1]): Promise<ProgressAudit> => {
+
+  return customFetch<ProgressAudit>(getGetProgressAuditUrl(programId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetProgressAuditQueryKey = (programId: number,) => {
+    return [
+    `/api/admin/programs/${programId}/progress-audit`
+    ] as const;
+    }
+
+
+export const getGetProgressAuditQueryOptions = <TData = Awaited<ReturnType<typeof getProgressAudit>>, TError = ErrorType<ForbiddenResponse | NotFoundResponse>>(programId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getProgressAudit>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetProgressAuditQueryKey(programId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getProgressAudit>>> = ({ signal }) => getProgressAudit(programId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: programId !== null && programId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getProgressAudit>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetProgressAuditQueryResult = NonNullable<Awaited<ReturnType<typeof getProgressAudit>>>
+export type GetProgressAuditQueryError = ErrorType<ForbiddenResponse | NotFoundResponse>
+
+
+/**
+ * @summary What is recorded against each learner, beside what the Lab says
+ */
+
+export function useGetProgressAudit<TData = Awaited<ReturnType<typeof getProgressAudit>>, TError = ErrorType<ForbiddenResponse | NotFoundResponse>>(
+ programId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getProgressAudit>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetProgressAuditQueryOptions(programId,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 
