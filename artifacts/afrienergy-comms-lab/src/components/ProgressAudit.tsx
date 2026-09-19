@@ -173,7 +173,7 @@ function LearnerCard({ learner, moduleTitle, open, onToggle }: {
                 {' · '}{row.watchedMinutes} min of the recording
                 {row.learnerRecordingMinutes !== null && row.learnerRecordingMinutes !== undefined
                   ? ` (of ${row.learnerRecordingMinutes} min)` : ''}
-                {' · '}task {row.hasSubmission ? 'in' : 'not in'}
+                {' · '}task {row.withdrawn ? 'withdrawn' : row.hasSubmission ? 'in' : 'not in'}
                 {' · '}{row.critiquesGiven} of {row.reviewsRequired} critique{row.reviewsRequired === 1 ? '' : 's'} written
                 {' · '}{row.critiquesReceived} received
                 {row.quizBestScore !== null && row.quizBestScore !== undefined

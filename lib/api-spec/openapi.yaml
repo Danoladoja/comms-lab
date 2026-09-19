@@ -5867,6 +5867,8 @@ components:
                     watchedMinutes: { type: integer }
                     learnerRecordingMinutes: { type: ["integer", "null"] }
                     hasSubmission: { type: boolean }
+                    # Hidden by staff rather than lost. The text is untouched.
+                    withdrawn: { type: boolean }
                     critiquesGiven: { type: integer }
                     critiquesReceived: { type: integer }
                     quizBestScore: { type: ["integer", "null"] }

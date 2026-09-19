@@ -14,6 +14,7 @@ export type ProgressAuditLearnersItemRowsItem = {
   /** @nullable */
   learnerRecordingMinutes?: number | null;
   hasSubmission: boolean;
+  withdrawn?: boolean;
   critiquesGiven: number;
   critiquesReceived: number;
   /** @nullable */

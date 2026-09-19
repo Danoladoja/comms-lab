@@ -82,6 +82,11 @@ router.get("/admin/programs/:programId/progress-audit", async (req, res): Promis
       userId: assignmentSubmissionsTable.userId,
       sessionId: assignmentSubmissionsTable.sessionId,
       id: assignmentSubmissionsTable.id,
+      withdrawnAt: assignmentSubmissionsTable.withdrawnAt,
+      // The length rather than the words. A learner's work is theirs, and this
+      // screen has no business showing it to answer a question about whether
+      // it is there at all.
+      bodyLength: sql<number>`length(${assignmentSubmissionsTable.body})::int`,
     }).from(assignmentSubmissionsTable).where(inArray(assignmentSubmissionsTable.sessionId, sessionIds)),
     db.select({
       userId: submissionReviewsTable.reviewerId,
@@ -111,7 +116,7 @@ router.get("/admin/programs/:programId/progress-audit", async (req, res): Promis
   const liveBy = new Map(attendance.map((a) => [key(a.userId, a.sessionId), a.liveSeconds]));
   const replayBy = new Map(replay.map((r) => [key(r.userId, r.sessionId), r]));
   const publishedTask = new Set(published.map((a) => a.sessionId));
-  const submittedBy = new Set(submissions.map((s) => key(s.userId, s.sessionId)));
+  const submissionBy = new Map(submissions.map((s) => [key(s.userId, s.sessionId), s]));
   const givenBy = new Map(given.map((g) => [key(g.userId, g.sessionId), g.count]));
   const receivedBy = new Map(received.map((r) => [key(r.userId, r.sessionId), r.count]));
   const quizBy = new Map(quizzes.map((q) => [key(q.userId, q.sessionId), q.best]));
@@ -157,7 +162,14 @@ router.get("/admin/programs/:programId/progress-audit", async (req, res): Promis
         presenceMet: entry?.presence?.met ?? false,
         liveSeconds: liveBy.get(k) ?? 0,
         hasAssignment: publishedTask.has(mod.id),
-        hasSubmission: submittedBy.has(k),
+        hasSubmission: submissionBy.has(k),
+        withdrawn: !!submissionBy.get(k)?.withdrawnAt,
+        withdrawnOn: submissionBy.get(k)?.withdrawnAt
+          ? submissionBy.get(k)!.withdrawnAt!.toLocaleDateString("en-GB", {
+            day: "numeric", month: "short", timeZone: "Africa/Lagos",
+          })
+          : null,
+        bodyLength: submissionBy.get(k)?.bodyLength ?? 0,
         critiquesGiven: givenBy.get(k) ?? 0,
         reviewsRequired: entry?.reviewsRequired ?? 0,
         reviewsCleared: entry?.reviewsCleared ?? null,
@@ -173,7 +185,8 @@ router.get("/admin/programs/:programId/progress-audit", async (req, res): Promis
         liveMinutes: Math.round((liveBy.get(k) ?? 0) / 60),
         watchedMinutes: Math.round(watchedSeconds / 60),
         learnerRecordingMinutes: minutes(replayRow?.durationSeconds),
-        hasSubmission: submittedBy.has(k),
+        hasSubmission: submissionBy.has(k),
+        withdrawn: !!submissionBy.get(k)?.withdrawnAt,
         critiquesGiven: givenBy.get(k) ?? 0,
         critiquesReceived: receivedBy.get(k) ?? 0,
         quizBestScore: quizBy.get(k) ?? null,

@@ -29,6 +29,22 @@ export type AuditFacts = {
   hasAssignment: boolean;
   /** This learner filed one. Read from the submission itself, not from the verdict. */
   hasSubmission: boolean;
+  /**
+   * Staff hid it. The text is untouched — this is the one kind of missing work
+   * that is missing on purpose and comes back whole.
+   */
+  withdrawn: boolean;
+  /** The day it was withdrawn, already worded, or null. */
+  withdrawnOn: string | null;
+  /**
+   * How long the filed piece is, in characters.
+   *
+   * A submission replaces the one before it in place and keeps no history, so
+   * a learner who saved over their own work with a blank or half-loaded editor
+   * leaves a very short row behind and no trace of what was there. Length is
+   * the only evidence of that there is.
+   */
+  bodyLength: number;
 
   critiquesGiven: number;
   reviewsRequired: number;
@@ -48,6 +64,8 @@ export type AuditFlag = {
     | "recording-length-disagrees"
     | "watched-beyond-length"
     | "no-recording-length"
+    | "withdrawn"
+    | "very-short-submission"
     | "filed-but-not-asked"
     | "critiques-not-counted"
     | "owes-critiques";
@@ -103,6 +121,27 @@ export function auditFlags(f: AuditFacts): AuditFlag[] {
       note: `Covered ${Math.round(f.watchedSeconds / MINUTE)} minutes of a recording the module `
         + `says is ${Math.round(f.moduleRecordingSeconds / MINUTE)} minutes. The agreed length was `
         + "settled short after they watched, so it is the length that is wrong, not the watching.",
+    });
+  }
+
+  if (f.withdrawn) {
+    flags.push({
+      code: "withdrawn",
+      note: `Their work was withdrawn by staff${f.withdrawnOn ? ` on ${f.withdrawnOn}` : ""}, `
+        + `and all ${f.bodyLength} characters of it are still stored. Nothing has been lost — `
+        + "it is hidden, and putting it back is one action.",
+    });
+  }
+
+  // 200 characters is about forty words: shorter than any real answer to any
+  // task, and long enough not to catch somebody who writes tightly.
+  if (f.hasSubmission && !f.withdrawn && f.hasAssignment && f.bodyLength < 200) {
+    flags.push({
+      code: "very-short-submission",
+      note: `Their filed work is ${f.bodyLength} characters — too short to be a finished answer. `
+        + "A submission replaces the one before it and keeps no history, so this is what a save "
+        + "over a blank or half-loaded editor leaves behind. Worth asking them whether they still "
+        + "have their own copy.",
     });
   }
 

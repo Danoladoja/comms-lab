@@ -2946,6 +2946,7 @@ export const GetProgressAuditResponse = zod.object({
   "watchedMinutes": zod.int(),
   "learnerRecordingMinutes": zod.int().nullish(),
   "hasSubmission": zod.boolean(),
+  "withdrawn": zod.boolean().optional(),
   "critiquesGiven": zod.int(),
   "critiquesReceived": zod.int(),
   "quizBestScore": zod.int().nullish(),
