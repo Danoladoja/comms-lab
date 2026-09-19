@@ -138,6 +138,19 @@ export const simulationGroupAssignmentsTable = pgTable("simulation_group_assignm
   userId: integer("user_id").notNull().references(() => usersTable.id, { onDelete: "cascade" }),
   groupId: text("group_id").notNull(),
   assignedAt: timestamp("assigned_at", { withTimezone: true }).notNull().defaultNow(),
+  /**
+   * When they actually walked in.
+   *
+   * A group session puts every enrolled learner in a team the moment it
+   * starts, whether they turn up or not — the cohort is the room, so there is
+   * nothing to accept and nobody to let in. Which meant there was no record
+   * anywhere of who was actually there, and an admin found out only afterwards
+   * by reading which teams had written nothing.
+   *
+   * Stamped the first time they open the run. Empty means they never did, and
+   * that is the honest answer for a session nobody can be marked absent from.
+   */
+  enteredAt: timestamp("entered_at", { withTimezone: true }),
 }, (t) => [
   uniqueIndex("simulation_group_assignments_run_user_unique").on(t.runId, t.userId),
   index("simulation_group_assignments_run_group_idx").on(t.runId, t.groupId),
@@ -341,6 +354,23 @@ export type GroupSessionBeat = {
 export const studioGroupSessionsTable = pgTable("studio_group_sessions", {
   id: serial("id").primaryKey(),
   programId: integer("program_id").notNull().references(() => programsTable.id, { onDelete: "cascade" }),
+  /**
+   * The simulation module this session is, when it is one.
+   *
+   * A group session cannot be rescheduled and should not be: it is one room at
+   * one moment, and composure under a clock nobody controls is the whole
+   * exercise. Making it repeatable would quietly turn it into the solo one.
+   *
+   * So everything here is about getting people there, and being a module is
+   * most of that. The Lab's reminder job reads modules — it emails every
+   * enrolled learner the day before and the hour before — and a group session
+   * was invisible to it, sending nothing at all. Pointing it at a module
+   * changes that with no new machinery, and makes turning up count towards the
+   * programme rather than towards nothing.
+   *
+   * Null is every session written before this, which behaves exactly as it did.
+   */
+  sessionId: integer("session_id").references(() => sessionsTable.id, { onDelete: "set null" }),
   /** The scenario, written when the draft was created. */
   definitionId: integer("definition_id").notNull().references(() => simulationDefinitionsTable.id, { onDelete: "restrict" }),
   title: text("title").notNull().default(""),

@@ -7,6 +7,7 @@ import {
 import { liveWindow, whyModuleLocked, isPastDue } from '@workspace/domain';
 import { deadlineNotice } from '@/lib/dueDateText';
 import { useCurrentUser } from '@/lib/useCurrentUser';
+import MyGroupSessionCard from '@/components/simulation/MyGroupSessionCard';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -134,6 +135,17 @@ export default function LearnerDashboard() {
 
   return (
     <div className="container mx-auto px-4 md:px-6 py-12">
+      {/*
+        The group exercise, on the page they actually land on.
+
+        It lived inside the Studio, which a learner has no reason to open on a
+        Tuesday — so the only thing in the Lab that mentioned a group session
+        was somewhere nobody was looking. A session that cannot be rescheduled
+        and cannot be run again has to be unmissable, and this is the page every
+        learner opens.
+      */}
+      <MyGroupSessionCard />
+
       <div className="mb-8">
         <h1 className="text-3xl md:text-4xl font-display font-bold mb-2">
           {firstName ? `Welcome, ${firstName}` : 'My Learning'}

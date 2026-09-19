@@ -1886,6 +1886,8 @@ export interface PlanGroupSession {
      */
   durationMinutes?: number;
   difficulty?: PlanGroupSessionDifficulty;
+  /** @nullable */
+  sessionId?: number | null;
 }
 
 export type EditGroupSessionObjectivesItem = {
@@ -1897,6 +1899,8 @@ export type EditGroupSessionObjectivesItem = {
 export interface EditGroupSession {
   /** @nullable */
   scheduledAt?: string | null;
+  /** @nullable */
+  sessionId?: number | null;
   objectives?: EditGroupSessionObjectivesItem[];
 }
 
@@ -1942,6 +1946,12 @@ export type GroupSessionTeamsItem = {
   roleName: string;
 };
 
+export type GroupSessionMissingItem = {
+  userId: number;
+  name: string;
+  email: string;
+};
+
 export type GroupSessionSessionDebriefByObjectiveItem = {
   objective: string;
   verdict: string;
@@ -1973,6 +1983,13 @@ export interface GroupSession {
   durationMinutes: number;
   learners: number;
   mayEdit: boolean;
+  /** @nullable */
+  sessionId?: number | null;
+  /** @nullable */
+  moduleTitle?: string | null;
+  entered?: number;
+  expected?: number;
+  missing?: GroupSessionMissingItem[];
   /** @nullable */
   problem?: string | null;
   /** @nullable */

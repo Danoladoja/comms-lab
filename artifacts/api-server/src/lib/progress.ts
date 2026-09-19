@@ -2,6 +2,7 @@ import {
   db, attendanceTable, replayProgressTable, enrollmentsTable, sessionsTable, programsTable,
   quizQuestionsTable, quizAttemptsTable, assignmentsTable, assignmentSubmissionsTable,
   submissionReviewsTable, deadlineExtensionsTable, studioInvitationsTable,
+  studioGroupSessionsTable, simulationGroupAssignmentsTable,
 } from "@workspace/db";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import {
@@ -58,7 +59,7 @@ export async function progressForUser(userId: number, programIds: number[]): Pro
   // `.concat(-1)` keeps the IN clause non-empty for programs with no sessions.
   const sessionIds = sessions.map((s) => s.id).concat(-1);
 
-  const [att, replay, enrollRows, quizSessions, bestAttempts, assignments, submissions, reviewsGiven, reviewsReceived, peers, extensions, studioInvites] =
+  const [att, replay, enrollRows, quizSessions, bestAttempts, assignments, submissions, reviewsGiven, reviewsReceived, peers, extensions, studioInvites, groupSessions] =
     await Promise.all([
       db
         .select()
@@ -182,6 +183,37 @@ export async function progressForUser(userId: number, programIds: number[]): Pro
           eq(studioInvitationsTable.userId, userId),
           inArray(studioInvitationsTable.sessionId, sessionIds),
         )),
+      /*
+        The group sessions filed against a module, and whether this learner
+        walked into them.
+
+        A group session has no invitation — the cohort is the room — so it
+        cannot be read the same way as a solo exercise. What it has is an
+        assignment per enrolled learner, made when the session starts, and a
+        stamp on that assignment for when they actually arrived.
+
+        Turning up is the work. The exercise runs on a clock whether a team
+        answers or not, so being in the room is the whole of what can honestly
+        be asked of somebody — the same bar a live class sets, measured the
+        only way this room can measure it.
+
+        Only approved sessions count. A draft is a scenario nobody has read
+        yet, and it must not be able to shut a module.
+      */
+      db
+        .select({
+          sessionId: studioGroupSessionsTable.sessionId,
+          enteredAt: simulationGroupAssignmentsTable.enteredAt,
+        })
+        .from(studioGroupSessionsTable)
+        .leftJoin(simulationGroupAssignmentsTable, and(
+          eq(simulationGroupAssignmentsTable.runId, studioGroupSessionsTable.runId),
+          eq(simulationGroupAssignmentsTable.userId, userId),
+        ))
+        .where(and(
+          inArray(studioGroupSessionsTable.sessionId, sessionIds),
+          sql`${studioGroupSessionsTable.approvedAt} is not null`,
+        )),
     ]);
 
   const attendance = new Map(att.map((a) => [a.sessionId, a.joinedAt]));
@@ -248,6 +280,15 @@ export async function progressForUser(userId: number, programIds: number[]): Pro
     // them is done.
     exerciseBySession.set(invite.sessionId, {
       done: (already?.done ?? false) || invite.completedAt !== null,
+    });
+  }
+  // The same two answers for a group session: it was asked of them, and they
+  // turned up to it.
+  for (const room of groupSessions) {
+    if (room.sessionId === null || !simulationModules.has(room.sessionId)) continue;
+    const already = exerciseBySession.get(room.sessionId);
+    exerciseBySession.set(room.sessionId, {
+      done: (already?.done ?? false) || room.enteredAt !== null,
     });
   }
 

@@ -1,0 +1,3 @@
+ALTER TABLE "simulation_group_assignments" ADD COLUMN "entered_at" timestamp with time zone;--> statement-breakpoint
+ALTER TABLE "studio_group_sessions" ADD COLUMN "session_id" integer;--> statement-breakpoint
+ALTER TABLE "studio_group_sessions" ADD CONSTRAINT "studio_group_sessions_session_id_sessions_id_fk" FOREIGN KEY ("session_id") REFERENCES "public"."sessions"("id") ON DELETE set null ON UPDATE no action;

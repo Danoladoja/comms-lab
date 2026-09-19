@@ -16,4 +16,6 @@ export interface PlanGroupSession {
      */
   durationMinutes?: number;
   difficulty?: PlanGroupSessionDifficulty;
+  /** @nullable */
+  sessionId?: number | null;
 }

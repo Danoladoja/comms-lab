@@ -10,5 +10,7 @@ import type { EditGroupSessionObjectivesItem } from './editGroupSessionObjective
 export interface EditGroupSession {
   /** @nullable */
   scheduledAt?: Date | null;
+  /** @nullable */
+  sessionId?: number | null;
   objectives?: EditGroupSessionObjectivesItem[];
 }

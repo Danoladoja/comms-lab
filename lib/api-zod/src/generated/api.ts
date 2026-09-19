@@ -2586,6 +2586,15 @@ export const ListGroupSessionsResponseItem = zod.object({
   "durationMinutes": zod.int(),
   "learners": zod.int(),
   "mayEdit": zod.boolean(),
+  "sessionId": zod.int().nullish(),
+  "moduleTitle": zod.string().nullish(),
+  "entered": zod.int().optional(),
+  "expected": zod.int().optional(),
+  "missing": zod.array(zod.object({
+  "userId": zod.int(),
+  "name": zod.string(),
+  "email": zod.string()
+})).optional(),
   "problem": zod.string().nullish(),
   "runId": zod.int().nullish(),
   "sessionDebrief": zod.object({
@@ -2615,7 +2624,8 @@ export const PlanGroupSessionBody = zod.object({
   "programId": zod.int(),
   "scheduledAt": zod.coerce.date().optional(),
   "durationMinutes": zod.int().min(planGroupSessionBodyDurationMinutesMin).max(planGroupSessionBodyDurationMinutesMax).optional(),
-  "difficulty": zod.enum(['foundation', 'intermediate', 'advanced']).optional()
+  "difficulty": zod.enum(['foundation', 'intermediate', 'advanced']).optional(),
+  "sessionId": zod.int().nullish()
 })
 
 export const PlanGroupSessionResponse = zod.object({
@@ -2650,6 +2660,15 @@ export const PlanGroupSessionResponse = zod.object({
   "durationMinutes": zod.int(),
   "learners": zod.int(),
   "mayEdit": zod.boolean(),
+  "sessionId": zod.int().nullish(),
+  "moduleTitle": zod.string().nullish(),
+  "entered": zod.int().optional(),
+  "expected": zod.int().optional(),
+  "missing": zod.array(zod.object({
+  "userId": zod.int(),
+  "name": zod.string(),
+  "email": zod.string()
+})).optional(),
   "problem": zod.string().nullish(),
   "runId": zod.int().nullish(),
   "sessionDebrief": zod.object({
@@ -2704,6 +2723,15 @@ export const GetGroupSessionResponse = zod.object({
   "durationMinutes": zod.int(),
   "learners": zod.int(),
   "mayEdit": zod.boolean(),
+  "sessionId": zod.int().nullish(),
+  "moduleTitle": zod.string().nullish(),
+  "entered": zod.int().optional(),
+  "expected": zod.int().optional(),
+  "missing": zod.array(zod.object({
+  "userId": zod.int(),
+  "name": zod.string(),
+  "email": zod.string()
+})).optional(),
   "problem": zod.string().nullish(),
   "runId": zod.int().nullish(),
   "sessionDebrief": zod.object({
@@ -2729,6 +2757,7 @@ export const EditGroupSessionParams = zod.object({
 
 export const EditGroupSessionBody = zod.object({
   "scheduledAt": zod.coerce.date().nullish(),
+  "sessionId": zod.int().nullish(),
   "objectives": zod.array(zod.object({
   "id": zod.string(),
   "text": zod.string().optional(),
@@ -2768,6 +2797,15 @@ export const EditGroupSessionResponse = zod.object({
   "durationMinutes": zod.int(),
   "learners": zod.int(),
   "mayEdit": zod.boolean(),
+  "sessionId": zod.int().nullish(),
+  "moduleTitle": zod.string().nullish(),
+  "entered": zod.int().optional(),
+  "expected": zod.int().optional(),
+  "missing": zod.array(zod.object({
+  "userId": zod.int(),
+  "name": zod.string(),
+  "email": zod.string()
+})).optional(),
   "problem": zod.string().nullish(),
   "runId": zod.int().nullish(),
   "sessionDebrief": zod.object({
@@ -2822,6 +2860,15 @@ export const ApproveGroupSessionResponse = zod.object({
   "durationMinutes": zod.int(),
   "learners": zod.int(),
   "mayEdit": zod.boolean(),
+  "sessionId": zod.int().nullish(),
+  "moduleTitle": zod.string().nullish(),
+  "entered": zod.int().optional(),
+  "expected": zod.int().optional(),
+  "missing": zod.array(zod.object({
+  "userId": zod.int(),
+  "name": zod.string(),
+  "email": zod.string()
+})).optional(),
   "problem": zod.string().nullish(),
   "runId": zod.int().nullish(),
   "sessionDebrief": zod.object({

@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { GroupSessionBeat } from './groupSessionBeat';
+import type { GroupSessionMissingItem } from './groupSessionMissingItem';
 import type { GroupSessionObjective } from './groupSessionObjective';
 import type { GroupSessionSessionDebrief } from './groupSessionSessionDebrief';
 import type { GroupSessionState } from './groupSessionState';
@@ -26,6 +27,13 @@ export interface GroupSession {
   durationMinutes: number;
   learners: number;
   mayEdit: boolean;
+  /** @nullable */
+  sessionId?: number | null;
+  /** @nullable */
+  moduleTitle?: string | null;
+  entered?: number;
+  expected?: number;
+  missing?: GroupSessionMissingItem[];
   /** @nullable */
   problem?: string | null;
   /** @nullable */

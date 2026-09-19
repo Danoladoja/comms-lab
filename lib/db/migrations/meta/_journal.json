@@ -78,6 +78,13 @@
       "when": 1789836903028,
       "tag": "0010_curly_callisto",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1789839808240,
+      "tag": "0011_known_bruce_banner",
+      "breakpoints": true
     }
   ]
 }

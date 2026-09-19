@@ -78,6 +78,7 @@ export * from './googleHoldings';
 export * from './groupSession';
 export * from './groupSessionBeat';
 export * from './groupSessionBeatScope';
+export * from './groupSessionMissingItem';
 export * from './groupSessionObjective';
 export * from './groupSessionSessionDebrief';
 export * from './groupSessionSessionDebriefByObjectiveItem';

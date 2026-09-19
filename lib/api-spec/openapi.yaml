@@ -5640,10 +5640,17 @@ components:
         scheduledAt: { type: string, format: date-time }
         durationMinutes: { type: integer, minimum: 15, maximum: 180 }
         difficulty: { type: string, enum: [foundation, intermediate, advanced] }
+        # The simulation module this session is. Being a module is what gets
+        # the cohort reminded: the Lab's reminder job reads modules, and a
+        # group session was invisible to it. It also makes turning up count
+        # towards the programme. Absent leaves the session standing alone, as
+        # every one before this did.
+        sessionId: { type: ["integer", "null"] }
     EditGroupSession:
       type: object
       properties:
         scheduledAt: { type: ["string", "null"], format: date-time }
+        sessionId: { type: ["integer", "null"] }
         objectives:
           type: array
           items:
@@ -5711,6 +5718,25 @@ components:
         durationMinutes: { type: integer }
         learners: { type: integer }
         mayEdit: { type: boolean }
+        # The simulation module this session is, and its name, or null when it
+        # stands alone.
+        sessionId: { type: ["integer", "null"] }
+        moduleTitle: { type: ["string", "null"] }
+        # Who has walked in, and how many there are to walk in. Both zero
+        # before it starts.
+        entered: { type: integer }
+        expected: { type: integer }
+        # Who has not, by name, so they can be rung during the session rather
+        # than missed and noticed afterwards. Empty until it is live.
+        missing:
+          type: array
+          items:
+            type: object
+            required: [userId, name, email]
+            properties:
+              userId: { type: integer }
+              name: { type: string }
+              email: { type: string }
         # Why it cannot go live yet, shown before the button is reached.
         problem: { type: ["string", "null"] }
         runId: { type: ["integer", "null"] }

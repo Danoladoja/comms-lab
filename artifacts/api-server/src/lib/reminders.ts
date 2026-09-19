@@ -1,20 +1,18 @@
 import { db, enrollmentsTable, programsTable, sessionsTable, usersTable, sessionRemindersTable } from "@workspace/db";
 import { and, eq, gt, inArray, lte, sql } from "drizzle-orm";
-import { labLetter, formatDeadlineInZone } from "@workspace/domain";
+import { labLetter, formatDeadlineInZone, reminderWords, REMINDER_WINDOWS } from "@workspace/domain";
 import { sendEmail, EmailRejectedError } from "./email";
 import { labLogoUrl } from "./enrollmentEmails";
 import { logger } from "./logger";
 
 const CHECK_EVERY_MS = 5 * 60 * 1000;
 const APP_BASE_PATH = "/afrienergy-comms-lab";
-
-// Two reminders per session: the day before, and shortly before class opens.
-// minLeadMs keeps the kinds disjoint: a session under an hour away gets only
-// the "1h" reminder, never a misleading "tomorrow" one.
-const REMINDER_KINDS = [
-  { kind: "24h", windowMs: 24 * 60 * 60 * 1000, minLeadMs: 60 * 60 * 1000, lead: "tomorrow" },
-  { kind: "1h", windowMs: 60 * 60 * 1000, minLeadMs: 0, lead: "in the next hour" },
-] as const;
+/**
+ * The windows live in the domain, with a test holding them disjoint. Two that
+ * overlap means two emails for one class, one of them saying "tomorrow" about
+ * something starting in ten minutes.
+ */
+const REMINDER_KINDS = REMINDER_WINDOWS;
 
 /**
  * APP_BASE_URL first, which is what Railway sets and what invitation links
@@ -48,13 +46,14 @@ function whenText(startsAt: Date, durationMins: number): string {
 
 async function runOnce(): Promise<void> {
   const now = new Date();
-  for (const { kind, windowMs, minLeadMs, lead } of REMINDER_KINDS) {
-    const horizon = new Date(now.getTime() + windowMs);
-    const floor = new Date(now.getTime() + minLeadMs);
-    const upcoming = await db
+  for (const { kind, fromMs, toMs, lead, only } of REMINDER_KINDS) {
+    const floor = new Date(now.getTime() + fromMs);
+    const horizon = new Date(now.getTime() + toMs);
+    const found = await db
       .select({
         id: sessionsTable.id,
         title: sessionsTable.title,
+        kind: sessionsTable.kind,
         startsAt: sessionsTable.startsAt,
         durationMins: sessionsTable.durationMins,
         programId: sessionsTable.programId,
@@ -63,6 +62,9 @@ async function runOnce(): Promise<void> {
       .from(sessionsTable)
       .innerJoin(programsTable, eq(sessionsTable.programId, programsTable.id))
       .where(and(gt(sessionsTable.startsAt, floor), lte(sessionsTable.startsAt, horizon)));
+    // A kind that is for one sort of module only. Filtered here rather than in
+    // the query so the two original reminders keep the shape they had.
+    const upcoming = only ? found.filter((s) => s.kind === only) : found;
     if (upcoming.length === 0) continue;
 
     const programIds = [...new Set(upcoming.map((s) => s.programId))];
@@ -88,19 +90,26 @@ async function runOnce(): Promise<void> {
           .returning();
         if (claimed.length === 0) continue;
         try {
+          const letter = reminderWords({
+            kind,
+            lead,
+            isSimulation: session.kind === "simulation",
+            title: session.title,
+            programmeTitle: session.programTitle,
+            when: whenText(session.startsAt, session.durationMins),
+          });
           const { html, text } = labLetter({
             greetingName: learner.name,
-            paragraphs: [
-              `${session.title}, part of ${session.programTitle}, starts ${lead}.`,
-              whenText(session.startsAt, session.durationMins),
-              "The classroom opens fifteen minutes before the start. Joining from the classroom checks you in, and attending live is what unlocks the replay afterwards.",
-            ],
-            action: { label: "Open my classroom", url: appUrl(`/classroom/${session.id}`) },
+            paragraphs: letter.paragraphs,
+            action: {
+              label: letter.actionLabel,
+              url: appUrl(session.kind === "simulation" ? "/studio" : `/classroom/${session.id}`),
+            },
             logoUrl: labLogoUrl(),
           });
           await sendEmail({
             to: { email: learner.email, name: learner.name || learner.email },
-            subject: `Reminder: ${session.title} starts ${lead}`,
+            subject: letter.subject,
             html,
             text,
           });

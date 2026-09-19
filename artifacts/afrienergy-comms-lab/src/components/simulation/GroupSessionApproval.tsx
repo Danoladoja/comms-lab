@@ -5,12 +5,14 @@ import {
   useEditGroupSession,
   useApproveGroupSession,
   getListGroupSessionsQueryKey,
+  useListProgramSessions,
+  getListProgramSessionsQueryKey,
   type GroupSession,
 } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { apiReason, sessionDateTimeFromInput, sessionDateTimeInput } from '@workspace/domain';
 import { useToast } from '@/hooks/use-toast';
-import { Users, Clock, AlertTriangle, CheckCircle2, Loader2 } from 'lucide-react';
+import { Users, Clock, AlertTriangle, CheckCircle2, Loader2, DoorOpen, PhoneCall } from 'lucide-react';
 
 /**
  * Planning a group session, and reading it before anybody else can.
@@ -30,7 +32,25 @@ export default function GroupSessionApproval({ programmes }: { programmes: { id:
   const [programId, setProgramId] = useState('');
   const [openId, setOpenId] = useState<number | null>(null);
 
-  const { data: sessions = [] } = useListGroupSessions();
+  const { data: sessions = [] } = useListGroupSessions({
+    query: {
+      queryKey: getListGroupSessionsQueryKey(),
+      /*
+        Fast while a room is open, slow otherwise.
+
+        The one minute this screen has to be live is the first five of a
+        session, when knowing who is not in the room is still actionable. The
+        rest of the time a session's state changes over days.
+      */
+      refetchInterval: (query) => {
+        const rows = query.state.data as { state?: string }[] | undefined;
+        return rows?.some((r) => r.state === 'live') ? 15_000 : 60_000;
+      },
+      // An admin watching who has turned up has their phone in their hand and
+      // this window behind something else.
+      refetchIntervalInBackground: true,
+    },
+  });
   const refresh = () => qc.invalidateQueries({ queryKey: getListGroupSessionsQueryKey() });
 
   const plan = usePlanGroupSession({
@@ -244,6 +264,14 @@ function SessionSheet({ session, onChanged }: { session: GroupSession; onChanged
         </label>
       </div>
 
+      {/* Which module it is. This is what gets the cohort reminded, and it is
+          the only lever there is: the session cannot be rescheduled, so
+          everything has to happen before it opens. */}
+      <ModuleLink session={session} onPick={(id) => edit.mutate({ id: session.id, data: { sessionId: id } })} />
+
+      {/* While it is running, who is not in the room. */}
+      <WhoIsMissing session={session} />
+
       {session.problem && (
         <div className="flex gap-2 border border-amber-400/40 bg-amber-400/10 p-3 text-xs text-amber-200">
           <AlertTriangle className="w-4 h-4 flex-none mt-0.5" aria-hidden />
@@ -343,6 +371,120 @@ function SharedDebrief({ debrief }: { debrief: NonNullable<GroupSession['session
             ))}
           </ul>
         </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Which module this session is.
+ *
+ * A group session cannot be rescheduled and should not be — one room, one
+ * moment, and a clock nobody controls is the exercise. So the only thing that
+ * can be done about somebody missing it is done beforehand, and being a module
+ * is almost all of it: the Lab's reminder job reads modules and emails every
+ * enrolled learner the day before and the hour before. A group session was
+ * invisible to it and sent nothing at all.
+ *
+ * Choosing one also sets the module's date to this session's, so the cohort is
+ * never emailed for one time and let in at another.
+ */
+function ModuleLink({ session, onPick }: {
+  session: GroupSession;
+  onPick: (id: number | null) => void;
+}) {
+  const { data: modules = [] } = useListProgramSessions(session.programId, {
+    query: { queryKey: getListProgramSessionsQueryKey(session.programId) },
+  });
+  const simulations = modules.filter((m: { kind?: string }) => m.kind === 'simulation');
+
+  if (!session.mayEdit) {
+    return (
+      <p className="text-xs text-white/50">
+        {session.moduleTitle
+          ? `This session is ${session.moduleTitle}. The cohort is reminded the day before, an hour before, and again the moment it opens.`
+          : 'This session is not a module, so nobody is reminded about it. It can only be made one while it is still a draft.'}
+      </p>
+    );
+  }
+
+  if (simulations.length === 0) {
+    return (
+      <p className="text-xs text-white/45 leading-relaxed">
+        Nobody will be reminded about this. To have the Lab email the cohort the day before, an hour
+        before and the moment it opens, add a module to the programme and choose{' '}
+        <span className="text-white/70">Simulation exercise</span> instead of Live class, then come
+        back and pick it here.
+      </p>
+    );
+  }
+
+  return (
+    <label className="block text-xs text-white/50">
+      Which module this is
+      <select
+        className="mt-1 block w-full bg-[#030811] border border-white/20 text-white px-2 py-2 text-sm"
+        value={session.sessionId ?? ''}
+        onChange={(e) => onPick(e.target.value ? Number(e.target.value) : null)}
+      >
+        <option value="">Not a module — nobody is reminded</option>
+        {simulations.map((m: { id: number; title: string }) => (
+          <option key={m.id} value={m.id}>{m.title}</option>
+        ))}
+      </select>
+      <span className="mt-1.5 block text-[11px] text-white/45 leading-relaxed">
+        {session.sessionId
+          ? 'The cohort is emailed the day before, an hour before, and the moment the door opens. Turning up counts towards the programme, and the module after this one waits on it.'
+          : 'Nobody is told this is happening except by you. A group session sends no invitation of its own.'}
+      </span>
+    </label>
+  );
+}
+
+/**
+ * Who has not walked in.
+ *
+ * The session cannot be paused and cannot be run again, so this is the last
+ * useful thing anybody can do about it: ring the three people who are not here,
+ * in the first five minutes, while being late still costs them less than
+ * missing it.
+ *
+ * Refreshed on its own short loop, including when the tab is not the one being
+ * looked at — an admin watching this has almost certainly got their phone in
+ * their hand and this window behind something else.
+ */
+function WhoIsMissing({ session }: { session: GroupSession }) {
+  const missing = session.missing ?? [];
+  const entered = session.entered ?? 0;
+  const expected = session.expected ?? 0;
+  if (session.state !== 'live' || expected === 0) return null;
+
+  return (
+    <div className="border border-white/10 bg-white/[0.02] p-4">
+      <p className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em] text-emerald-300 mb-2">
+        <DoorOpen className="w-3.5 h-3.5" aria-hidden />
+        {entered} of {expected} are in
+      </p>
+      {missing.length === 0 ? (
+        <p className="text-xs text-white/60">Everybody turned up.</p>
+      ) : (
+        <>
+          <p className="flex items-center gap-2 text-xs text-white/60 mb-3 leading-relaxed">
+            <PhoneCall className="w-3.5 h-3.5 flex-none" aria-hidden />
+            It will not wait for them and it is not run again. Ringing them now is the only thing
+            that helps.
+          </p>
+          <ul className="space-y-1">
+            {missing.map((m) => (
+              <li key={m.userId} className="flex items-baseline justify-between gap-3 text-xs">
+                <span className="text-white/85 truncate">{m.name}</span>
+                <a href={`mailto:${m.email}`} className="text-white/35 hover:text-[#f97316] truncate">
+                  {m.email}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </>
       )}
     </div>
   );

@@ -1032,6 +1032,37 @@ function sessionFacts(session: typeof studioGroupSessionsTable.$inferSelect) {
  * wording that cannot exist yet, because a team beat quotes a learner who has
  * not answered.
  */
+/**
+ * Point a group session at a simulation module, and make the module's date say
+ * when the session runs.
+ *
+ * One date, written in one direction, at the moment the link is made. The
+ * reminder job reads the module's `startsAt` and the ticker reads the session's
+ * `scheduledAt`; if those two could drift, a cohort would be emailed for one
+ * time and let in at another, which is worse than no reminder at all.
+ *
+ * Returns the refusal, or null.
+ */
+async function linkSessionToModule(
+  sessionId: number | null,
+  programId: number,
+  scheduledAt: Date | null,
+  durationMinutes: number,
+): Promise<string | null> {
+  if (sessionId === null) return null;
+  const [module] = await db.select().from(sessionsTable).where(eq(sessionsTable.id, sessionId));
+  if (!module) return "That module is not on this programme.";
+  if (module.programId !== programId) return "That module is not on this programme.";
+  if (module.kind !== "simulation") {
+    return "That is a live class. A group session can only be a simulation module — "
+      + "add one to the programme, or change that module's kind.";
+  }
+  await db.update(sessionsTable)
+    .set({ startsAt: scheduledAt, durationMins: durationMinutes })
+    .where(eq(sessionsTable.id, module.id));
+  return null;
+}
+
 async function groupSessionView(session: typeof studioGroupSessionsTable.$inferSelect) {
   const [definition] = await db.select().from(simulationDefinitionsTable)
     .where(eq(simulationDefinitionsTable.id, session.definitionId));
@@ -1046,10 +1077,49 @@ async function groupSessionView(session: typeof studioGroupSessionsTable.$inferS
   const state = groupSessionState(sessionFacts(session), Date.now());
   const teams = definition?.groups ?? [];
 
+  /*
+    Who walked in, and who did not.
+
+    A group session cannot be rescheduled and should not be — it is one room at
+    one moment, and composure under a clock nobody controls is the exercise. So
+    the only thing that helps anybody is knowing who is missing while there is
+    still time to ring them, rather than reading afterwards which teams wrote
+    nothing.
+
+    Empty before it starts: nobody is assigned to a room that does not exist
+    yet, so "everyone is missing" would be true and useless.
+  */
+  const arrivals = session.runId
+    ? await db
+      .select({
+        userId: usersTable.id,
+        name: usersTable.name,
+        email: usersTable.email,
+        enteredAt: simulationGroupAssignmentsTable.enteredAt,
+      })
+      .from(simulationGroupAssignmentsTable)
+      .innerJoin(usersTable, eq(usersTable.id, simulationGroupAssignmentsTable.userId))
+      .where(eq(simulationGroupAssignmentsTable.runId, session.runId))
+    : [];
+
+  const moduleTitle = await moduleTitleFor(session.sessionId);
+
   return {
     id: session.id,
     programId: session.programId,
     title: session.title,
+    sessionId: session.sessionId,
+    moduleTitle,
+    entered: arrivals.filter((a) => a.enteredAt !== null).length,
+    expected: arrivals.length,
+    missing: arrivals
+      .filter((a) => a.enteredAt === null)
+      .map((a) => ({
+        userId: a.userId,
+        name: (a.name ?? "").trim() || a.email || "Unnamed",
+        email: a.email ?? "",
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name)),
     state,
     openingBrief: definition?.openingBrief ?? "",
     objective: definition?.learningObjective ?? "",
@@ -1176,10 +1246,24 @@ router.post("/admin/studio/group-sessions", async (req, res): Promise<void> => {
     })),
     scheduledAt: body.data.scheduledAt ? new Date(body.data.scheduledAt) : null,
     durationMinutes,
+    sessionId: body.data.sessionId ?? null,
     createdByUserId: user.id,
   }).returning();
 
-  req.log.info({ sessionId: session.id, programId: body.data.programId, by: user.id }, "Group session drafted");
+  const linkProblem = await linkSessionToModule(
+    session.sessionId, session.programId, session.scheduledAt, session.durationMinutes,
+  );
+  if (linkProblem) {
+    // Said rather than swallowed, and the draft is left standing: the scenario
+    // cost a model call and is perfectly good. Only the link failed, and the
+    // admin can point it at a module from the same screen.
+    await db.update(studioGroupSessionsTable).set({ sessionId: null })
+      .where(eq(studioGroupSessionsTable.id, session.id));
+    session.sessionId = null;
+    req.log.warn({ sessionId: session.id, asked: body.data.sessionId, linkProblem }, "Could not put a group session on a module");
+  }
+
+  req.log.info({ sessionId: session.id, programId: body.data.programId, module: session.sessionId, by: user.id }, "Group session drafted");
   res.status(201).json(GetGroupSessionResponse.parse(await groupSessionView(session)));
 });
 
@@ -1225,12 +1309,23 @@ router.patch("/admin/studio/group-sessions/:id", async (req, res): Promise<void>
     })
     : session.objectives;
 
+  const scheduledAt = body.data.scheduledAt !== undefined
+    ? (body.data.scheduledAt ? new Date(body.data.scheduledAt) : null)
+    : session.scheduledAt;
+  const moduleId = body.data.sessionId !== undefined ? body.data.sessionId : session.sessionId;
+
+  // Refused before anything is written, so a bad module cannot cost the admin
+  // the date they just set.
+  const linkProblem = await linkSessionToModule(
+    moduleId, session.programId, scheduledAt, session.durationMinutes,
+  );
+  if (linkProblem) { res.status(400).json(message(linkProblem)); return; }
+
   const [updated] = await db.update(studioGroupSessionsTable)
     .set({
       objectives,
-      ...(body.data.scheduledAt !== undefined
-        ? { scheduledAt: body.data.scheduledAt ? new Date(body.data.scheduledAt) : null }
-        : {}),
+      ...(body.data.scheduledAt !== undefined ? { scheduledAt } : {}),
+      ...(body.data.sessionId !== undefined ? { sessionId: body.data.sessionId } : {}),
     })
     .where(eq(studioGroupSessionsTable.id, session.id))
     .returning();
@@ -2263,6 +2358,28 @@ router.get("/simulation-runs/:runId", requireStudioAccess, async (req, res): Pro
       if (fresh) run = fresh;
     }
   }
+
+  /*
+    They walked in.
+
+    The only record there is that anybody turned up to a group session. Every
+    enrolled learner is put in a team when it starts, whether they come or
+    not — the cohort is the room, so there is nothing to accept — which left an
+    admin finding out who was actually there by reading which teams had written
+    nothing, afterwards.
+
+    Stamped once, on first read, and never overwritten: the question is when
+    they arrived, not when they last refreshed. An admin reading somebody
+    else's run leaves no mark, because they have no assignment.
+  */
+  await db
+    .update(simulationGroupAssignmentsTable)
+    .set({ enteredAt: new Date() })
+    .where(and(
+      eq(simulationGroupAssignmentsTable.runId, run.id),
+      eq(simulationGroupAssignmentsTable.userId, user.id),
+      isNull(simulationGroupAssignmentsTable.enteredAt),
+    ));
 
   const view = await runView(run, user.id, reading);
   if (!view) { res.status(403).json(message("Not a participant in this simulation run")); return; }

@@ -27,6 +27,10 @@ const mocks = vi.hoisted(() => {
     // A simulation module's exercise is now part of what completes a module,
     // so the progress builder reads this table too.
     studioInvitationsTable: { userId: "userId", sessionId: "sessionId", completedAt: "completedAt" },
+    // A group session on a simulation module completes it too, so the progress
+    // builder reads these as well.
+    studioGroupSessionsTable: { sessionId: "sessionId", runId: "runId", approvedAt: "approvedAt" },
+    simulationGroupAssignmentsTable: { runId: "runId", userId: "userId", enteredAt: "enteredAt" },
   };
 
   let queue: unknown[][] = [];
