@@ -2848,6 +2848,13 @@ export const GetStudioCohortParams = zod.object({
 export const GetStudioCohortResponse = zod.object({
   "programmeTitle": zod.string(),
   "note": zod.string(),
+  "modules": zod.array(zod.object({
+  "id": zod.int(),
+  "title": zod.string(),
+  "attached": zod.int(),
+  "opensTitle": zod.string().nullable()
+})),
+  "unattached": zod.int().optional(),
   "learners": zod.array(zod.object({
   "userId": zod.int(),
   "name": zod.string(),
@@ -2861,6 +2868,43 @@ export const GetStudioCohortResponse = zod.object({
   "opensAt": zod.coerce.date().nullish(),
   "expiresAt": zod.coerce.date().nullish()
 }))
+})
+
+
+/**
+ * Makes exercises that have already been sent the work for a module, so a round that was under way before simulation modules existed counts towards the programme rather than sitting beside it. Nothing about anybody's exercise changes: whoever has finished is complete the moment this is done, and whoever has not is what is holding the next module shut. Only exercises filed against no module are moved.
+ * @summary File this programme's exercises against a simulation module
+ */
+export const AttachStudioExercisesParams = zod.object({
+  "programId": zod.coerce.number().int()
+})
+
+export const AttachStudioExercisesBody = zod.object({
+  "sessionId": zod.int()
+})
+
+export const AttachStudioExercisesResponse = zod.object({
+  "attached": zod.int(),
+  "note": zod.string()
+})
+
+
+/**
+ * For somebody whose window closed before they ran it. They get a new invitation, a new situation and a new deadline; the old one is left where it is as a record that it was missed. Refused for anybody who still holds an exercise they could use, because that would hand out a second run and a second model bill for no reason.
+ * @summary Send one learner a fresh exercise
+ */
+export const ResendStudioExerciseParams = zod.object({
+  "programId": zod.coerce.number().int()
+})
+
+export const ResendStudioExerciseBody = zod.object({
+  "userId": zod.int(),
+  "expiresAt": zod.coerce.date().optional()
+})
+
+export const ResendStudioExerciseResponse = zod.object({
+  "note": zod.string(),
+  "emailed": zod.boolean()
 })
 
 

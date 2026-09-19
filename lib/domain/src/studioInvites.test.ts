@@ -28,6 +28,10 @@ import {
   cohortStandingNote,
   needsChasing,
   cohortTally,
+  attachProblem,
+  attachedNote,
+  resendProblem,
+  resentNote,
 } from "./studioInvites";
 import { plannedTurns } from "./simulations";
 
@@ -480,5 +484,46 @@ describe("the cohort as the admin needs to see it", () => {
     // A screen full of noughts has to be read before it can be dismissed.
     expect(cohortTally([{ standing: "finished" }])).toEqual([{ standing: "finished", count: 1 }]);
     expect(cohortTally([])).toEqual([]);
+  });
+
+  it("refuses to file exercises against a live class", () => {
+    // A class already tells a cohort what it asks of them. Adding a fourth
+    // thing to it afterwards is moving a gate people have been told about.
+    expect(attachProblem({ moduleIsSimulation: false, moduleOnProgramme: true, unattached: 5 }))
+      .toMatch(/live class/);
+    expect(attachProblem({ moduleIsSimulation: true, moduleOnProgramme: false, unattached: 5 }))
+      .toMatch(/not on this programme/);
+    expect(attachProblem({ moduleIsSimulation: true, moduleOnProgramme: true, unattached: 0 }))
+      .toMatch(/already filed/);
+    expect(attachProblem({ moduleIsSimulation: true, moduleOnProgramme: true, unattached: 5 }))
+      .toBeNull();
+  });
+
+  it("says what filing them did, and what it shut", () => {
+    expect(attachedNote(12, "Crisis exercise", "Module 4"))
+      .toBe("12 exercises are now the work for Crisis exercise. Whoever has not finished cannot open Module 4.");
+    expect(attachedNote(1, "Crisis exercise", null))
+      .toMatch(/^One exercise is now the work for Crisis exercise\./);
+    expect(attachedNote(1, "Crisis exercise", null)).toMatch(/opens nothing/);
+  });
+
+  it("sends a fresh exercise only to somebody who ran out of time", () => {
+    // Anybody still holding one they could use is refused: a second run is a
+    // second model call, and two live invitations is one learner wondering
+    // which situation is theirs.
+    expect(resendProblem("missed")).toBeNull();
+    expect(resendProblem("finished")).toMatch(/already done it/);
+    expect(resendProblem("in-progress")).toMatch(/part-way/);
+    expect(resendProblem("not-started")).toMatch(/has not closed/);
+    expect(resendProblem("waiting")).toMatch(/not opened yet/);
+  });
+
+  it("says a fresh exercise is a new situation, not the old one", () => {
+    // The commonest wrong expectation: that "resend" means "reopen the one
+    // they missed". It does not, and cannot — the situation was generated for
+    // an invitation that is spent.
+    expect(resentNote("Femi", "Friday 5pm WAT")).toContain("new situation");
+    expect(resentNote("Femi", "Friday 5pm WAT")).toContain("Friday 5pm WAT");
+    expect(resentNote("", null)).toMatch(/^They have a fresh exercise with no closing date/);
   });
 });

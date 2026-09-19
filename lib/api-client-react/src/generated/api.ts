@@ -26,6 +26,8 @@ import type {
   AssignmentInput,
   AssignmentSubmission,
   AssignmentSubmissionInput,
+  AttachStudioExercises,
+  AttachStudioExercisesInput,
   AttendanceCredit,
   AttendanceCreditResult,
   AttendanceRevoke,
@@ -111,6 +113,8 @@ import type {
   ReplayProgressResult,
   ResendBatchInput,
   ResendBatchResult,
+  ResendStudioExercise,
+  ResendStudioExerciseInput,
   ReviewInput,
   ReviewQueue,
   Session,
@@ -7503,7 +7507,7 @@ export const getGetStudioCohortQueryKey = (programId: number,) => {
     }
 
 
-export const getGetStudioCohortQueryOptions = <TData = Awaited<ReturnType<typeof getStudioCohort>>, TError = ErrorType<ForbiddenResponse | NotFoundResponse>>(programId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getStudioCohort>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export const getGetStudioCohortQueryOptions = <TData = Awaited<ReturnType<typeof getStudioCohort>>, TError = ErrorType<ForbiddenResponse>>(programId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getStudioCohort>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
@@ -7522,14 +7526,14 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 }
 
 export type GetStudioCohortQueryResult = NonNullable<Awaited<ReturnType<typeof getStudioCohort>>>
-export type GetStudioCohortQueryError = ErrorType<ForbiddenResponse | NotFoundResponse>
+export type GetStudioCohortQueryError = ErrorType<ForbiddenResponse>
 
 
 /**
  * @summary Where every invited learner has got to
  */
 
-export function useGetStudioCohort<TData = Awaited<ReturnType<typeof getStudioCohort>>, TError = ErrorType<ForbiddenResponse | NotFoundResponse>>(
+export function useGetStudioCohort<TData = Awaited<ReturnType<typeof getStudioCohort>>, TError = ErrorType<ForbiddenResponse>>(
  programId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getStudioCohort>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
@@ -7546,6 +7550,152 @@ export function useGetStudioCohort<TData = Awaited<ReturnType<typeof getStudioCo
 
 
 
+
+export const getAttachStudioExercisesUrl = (programId: number,) => {
+
+
+
+
+  return `/api/admin/studio/cohort/${programId}/attach`
+}
+
+/**
+ * Makes exercises that have already been sent the work for a module, so a round that was under way before simulation modules existed counts towards the programme rather than sitting beside it. Nothing about anybody's exercise changes: whoever has finished is complete the moment this is done, and whoever has not is what is holding the next module shut. Only exercises filed against no module are moved.
+ * @summary File this programme's exercises against a simulation module
+ */
+export const attachStudioExercises = async (programId: number,
+    attachStudioExercisesInput: AttachStudioExercisesInput, options?: Parameters<typeof customFetch>[1]): Promise<AttachStudioExercises> => {
+
+  return customFetch<AttachStudioExercises>(getAttachStudioExercisesUrl(programId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(attachStudioExercisesInput)
+  }
+);}
+
+
+
+
+
+export const getAttachStudioExercisesMutationOptions = <TError = ErrorType<BadRequestResponse | ForbiddenResponse | NotFoundResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof attachStudioExercises>>, TError,{programId: number;data: BodyType<AttachStudioExercisesInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof attachStudioExercises>>, TError,{programId: number;data: BodyType<AttachStudioExercisesInput>}, TContext> => {
+
+const mutationKey = ['attachStudioExercises'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof attachStudioExercises>>, {programId: number;data: BodyType<AttachStudioExercisesInput>}> = (props) => {
+          const {programId,data} = props ?? {};
+
+          return  attachStudioExercises(programId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AttachStudioExercisesMutationResult = NonNullable<Awaited<ReturnType<typeof attachStudioExercises>>>
+    export type AttachStudioExercisesMutationBody = BodyType<AttachStudioExercisesInput>
+    export type AttachStudioExercisesMutationError = ErrorType<BadRequestResponse | ForbiddenResponse | NotFoundResponse>
+
+    /**
+ * @summary File this programme's exercises against a simulation module
+ */
+export const useAttachStudioExercises = <TError = ErrorType<BadRequestResponse | ForbiddenResponse | NotFoundResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof attachStudioExercises>>, TError,{programId: number;data: BodyType<AttachStudioExercisesInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof attachStudioExercises>>,
+        TError,
+        {programId: number;data: BodyType<AttachStudioExercisesInput>},
+        TContext
+      > => {
+      return useMutation(getAttachStudioExercisesMutationOptions(options));
+    }
+
+export const getResendStudioExerciseUrl = (programId: number,) => {
+
+
+
+
+  return `/api/admin/studio/cohort/${programId}/resend`
+}
+
+/**
+ * For somebody whose window closed before they ran it. They get a new invitation, a new situation and a new deadline; the old one is left where it is as a record that it was missed. Refused for anybody who still holds an exercise they could use, because that would hand out a second run and a second model bill for no reason.
+ * @summary Send one learner a fresh exercise
+ */
+export const resendStudioExercise = async (programId: number,
+    resendStudioExerciseInput: ResendStudioExerciseInput, options?: Parameters<typeof customFetch>[1]): Promise<ResendStudioExercise> => {
+
+  return customFetch<ResendStudioExercise>(getResendStudioExerciseUrl(programId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(resendStudioExerciseInput)
+  }
+);}
+
+
+
+
+
+export const getResendStudioExerciseMutationOptions = <TError = ErrorType<BadRequestResponse | ForbiddenResponse | NotFoundResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof resendStudioExercise>>, TError,{programId: number;data: BodyType<ResendStudioExerciseInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof resendStudioExercise>>, TError,{programId: number;data: BodyType<ResendStudioExerciseInput>}, TContext> => {
+
+const mutationKey = ['resendStudioExercise'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof resendStudioExercise>>, {programId: number;data: BodyType<ResendStudioExerciseInput>}> = (props) => {
+          const {programId,data} = props ?? {};
+
+          return  resendStudioExercise(programId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ResendStudioExerciseMutationResult = NonNullable<Awaited<ReturnType<typeof resendStudioExercise>>>
+    export type ResendStudioExerciseMutationBody = BodyType<ResendStudioExerciseInput>
+    export type ResendStudioExerciseMutationError = ErrorType<BadRequestResponse | ForbiddenResponse | NotFoundResponse>
+
+    /**
+ * @summary Send one learner a fresh exercise
+ */
+export const useResendStudioExercise = <TError = ErrorType<BadRequestResponse | ForbiddenResponse | NotFoundResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof resendStudioExercise>>, TError,{programId: number;data: BodyType<ResendStudioExerciseInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof resendStudioExercise>>,
+        TError,
+        {programId: number;data: BodyType<ResendStudioExerciseInput>},
+        TContext
+      > => {
+      return useMutation(getResendStudioExerciseMutationOptions(options));
+    }
 
 export const getGetMyGroupSessionUrl = () => {
 

@@ -6,9 +6,12 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { StudioCohortLearnersItem } from './studioCohortLearnersItem';
+import type { StudioCohortModulesItem } from './studioCohortModulesItem';
 
 export interface StudioCohort {
   programmeTitle: string;
   note: string;
+  modules: StudioCohortModulesItem[];
+  unattached?: number;
   learners: StudioCohortLearnersItem[];
 }

@@ -684,3 +684,72 @@ export function cohortTally(
     .map((standing) => ({ standing, count: rows.filter((r) => r.standing === standing).length }))
     .filter((row) => row.count > 0);
 }
+
+/**
+ * Filing exercises that have already gone out against a module.
+ *
+ * Simulation modules arrived after the first cohort had already been sent
+ * their exercise, so that round sat beside the programme rather than in it —
+ * everybody's work done or not done, counting towards nothing. This is the one
+ * action that joins them up, and it changes nobody's exercise: whoever has
+ * finished is complete the moment it runs, whoever has not is what is holding
+ * the next module shut.
+ *
+ * Only exercises filed against no module move. One already filed against a
+ * module is somebody's deliberate choice, and quietly re-filing it would move
+ * a gate a cohort has already been told about.
+ */
+export function attachProblem(facts: {
+  moduleIsSimulation: boolean;
+  moduleOnProgramme: boolean;
+  unattached: number;
+}): string | null {
+  if (!facts.moduleOnProgramme) return "That module is not on this programme.";
+  if (!facts.moduleIsSimulation) {
+    return "That is a live class. Only a simulation module can carry an exercise — "
+      + "add one to the programme, or change this module's kind.";
+  }
+  if (facts.unattached === 0) {
+    return "Every exercise on this programme is already filed against a module.";
+  }
+  return null;
+}
+
+export function attachedNote(attached: number, moduleTitle: string, opensTitle: string | null): string {
+  const who = attached === 1 ? "One exercise is" : `${attached} exercises are`;
+  const opens = opensTitle
+    ? ` Whoever has not finished cannot open ${opensTitle}.`
+    : " Nothing comes after it, so it opens nothing — but it still counts towards a certificate.";
+  return `${who} now the work for ${moduleTitle}.${opens}`;
+}
+
+/**
+ * Whether this person can be sent a fresh exercise.
+ *
+ * For somebody whose window shut before they ran it. Anybody still holding one
+ * they could use is refused: handing out a second run buys a second model call
+ * for no reason, and two live invitations is two situations and one learner
+ * wondering which is theirs.
+ */
+export function resendProblem(standing: StudioStanding): string | null {
+  switch (standing) {
+    case "missed": return null;
+    case "finished": return "They have already done it. Sending another would be a second exercise, not a second chance.";
+    case "in-progress": return "They are part-way through the one they have. It is still open.";
+    case "not-started": return "They still have the one they were sent, and it has not closed.";
+    case "waiting": return "Theirs has not opened yet.";
+  }
+}
+
+/**
+ * `closesText` is already worded, because wording a moment needs a time zone
+ * and this file has no business knowing one.
+ */
+export function resentNote(name: string, closesText: string | null): string {
+  // "They has" — the verb has to agree with whichever subject is used, and a
+  // cohort of unnamed learners is common enough that this reads out loud.
+  const subject = name.trim() ? `${name.trim()} has` : "They have";
+  return closesText
+    ? `${subject} a fresh exercise, open until ${closesText}. It is a new situation, not the one they missed.`
+    : `${subject} a fresh exercise with no closing date. It is a new situation, not the one they missed.`;
+}

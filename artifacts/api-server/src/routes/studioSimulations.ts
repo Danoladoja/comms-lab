@@ -16,7 +16,8 @@ import {
   SubmitSimulationResponseParams, SubmitSimulationResponseResponse, GetStudioAccessResponse,
   RedeemStudioAccessBody, RedeemStudioAccessResponse, CreateStudioAccessCodeBody,
   GetMyStudioExerciseResponse, BeginStudioExerciseResponse, GetMyGroupSessionResponse,
-  GetStudioCohortResponse,
+  GetStudioCohortResponse, AttachStudioExercisesBody, AttachStudioExercisesResponse,
+  ResendStudioExerciseBody, ResendStudioExerciseResponse,
   InviteToStudioBody, InviteToStudioResponse,
   PlanGroupSessionBody, EditGroupSessionBody, GetGroupSessionResponse, ListGroupSessionsResponse,
 } from "@workspace/api-zod";
@@ -32,6 +33,7 @@ import {
   developmentsForTeam, debriefForTeam, isUnattendedRoom, mayEnterRoom, startsInMinutes, cohortNote,
   minutesLeft, picksOwnExercise, shouldCarryOn,
   studioStanding, byStanding, cohortStandingNote,
+  attachProblem, attachedNote, resendProblem, resentNote, letterMoment,
 } from "@workspace/domain";
 import { getCurrentUser } from "../lib/auth";
 import { logger } from "../lib/logger";
@@ -1326,6 +1328,7 @@ router.get("/admin/studio/cohort/:programId", async (req, res): Promise<void> =>
       name: usersTable.name,
       email: usersTable.email,
       objective: studioInvitationsTable.objective,
+      sessionId: studioInvitationsTable.sessionId,
       runId: studioInvitationsTable.runId,
       startedAt: studioInvitationsTable.startedAt,
       completedAt: studioInvitationsTable.completedAt,
@@ -1360,10 +1363,198 @@ router.get("/admin/studio/cohort/:programId", async (req, res): Promise<void> =>
     expiresAt: row.expiresAt?.toISOString() ?? null,
   })));
 
+  /*
+    The simulation modules on this programme, so a round of exercises already
+    sent can be filed against one. `opensTitle` is the module that finishing
+    this one opens, named here rather than in the browser because only the
+    server has the running order.
+  */
+  const modules = await db
+    .select({ id: sessionsTable.id, title: sessionsTable.title, kind: sessionsTable.kind })
+    .from(sessionsTable)
+    .where(eq(sessionsTable.programId, programId))
+    .orderBy(asc(sessionsTable.startsAt), asc(sessionsTable.sortOrder), asc(sessionsTable.id));
+
+  const filedAgainst = new Map<number, number>();
+  let unattached = 0;
+  for (const row of rows) {
+    if (row.sessionId === null) { unattached += 1; continue; }
+    filedAgainst.set(row.sessionId, (filedAgainst.get(row.sessionId) ?? 0) + 1);
+  }
+
   res.json(GetStudioCohortResponse.parse({
     programmeTitle: programme.title,
     note: cohortStandingNote(learners),
     learners,
+    unattached,
+    modules: modules
+      .map((m, i) => ({ m, opens: modules[i + 1] ?? null }))
+      .filter(({ m }) => m.kind === "simulation")
+      .map(({ m, opens }) => ({
+        id: m.id,
+        title: m.title,
+        attached: filedAgainst.get(m.id) ?? 0,
+        opensTitle: opens?.title ?? null,
+      })),
+  }));
+});
+
+/**
+ * Make exercises that have already gone out the work for a module.
+ *
+ * Simulation modules arrived after the first cohort had already been sent
+ * their exercise, so that round sat beside the programme rather than in it:
+ * everybody's work, done or not done, counting towards nothing. This is the
+ * one action that joins them up.
+ *
+ * It changes nobody's exercise. Whoever has finished is complete the moment
+ * this runs, whoever has not is what is holding the next module shut, and the
+ * situations, deadlines and debriefs are all exactly where they were. That is
+ * the whole reason it is safe to press: the only thing it writes is which
+ * module each invitation belongs to.
+ */
+router.post("/admin/studio/cohort/:programId/attach", async (req, res): Promise<void> => {
+  const user = await getCurrentUser(req);
+  if (!user) { res.status(401).json(message("Unauthorized")); return; }
+  if (!satisfiesRole(user.role, ["admin"])) { res.status(403).json(message("Only admins can do that")); return; }
+
+  const programId = Number(req.params.programId);
+  if (!Number.isInteger(programId) || programId < 1) { res.status(400).json(message("That is not a programme")); return; }
+  const body = AttachStudioExercisesBody.safeParse(req.body);
+  if (!body.success) { res.status(400).json(message(body.error.message)); return; }
+
+  const [module] = await db.select().from(sessionsTable).where(eq(sessionsTable.id, body.data.sessionId));
+  if (!module) { res.status(404).json(message("Module not found")); return; }
+
+  // Every exercise on this programme that belongs to no module yet. Counted
+  // before the write, because that count is what the refusal is about.
+  const loose = await db
+    .select({ id: studioInvitationsTable.id })
+    .from(studioInvitationsTable)
+    .where(and(eq(studioInvitationsTable.programId, programId), isNull(studioInvitationsTable.sessionId)));
+
+  const refusal = attachProblem({
+    moduleOnProgramme: module.programId === programId,
+    moduleIsSimulation: module.kind === "simulation",
+    unattached: loose.length,
+  });
+  if (refusal) { res.status(400).json(message(refusal)); return; }
+
+  await db
+    .update(studioInvitationsTable)
+    .set({ sessionId: module.id })
+    .where(and(eq(studioInvitationsTable.programId, programId), isNull(studioInvitationsTable.sessionId)));
+
+  // What opens once it is done, by name. The running order decides it, and
+  // only this side knows the running order.
+  const ordered = await db
+    .select({ id: sessionsTable.id, title: sessionsTable.title })
+    .from(sessionsTable)
+    .where(eq(sessionsTable.programId, programId))
+    .orderBy(asc(sessionsTable.startsAt), asc(sessionsTable.sortOrder), asc(sessionsTable.id));
+  const at = ordered.findIndex((m) => m.id === module.id);
+  const opensTitle = at >= 0 ? ordered[at + 1]?.title ?? null : null;
+
+  req.log.info({ programId, sessionId: module.id, attached: loose.length, by: user.id }, "Filed exercises against a module");
+  res.json(AttachStudioExercisesResponse.parse({
+    attached: loose.length,
+    note: attachedNote(loose.length, module.title, opensTitle),
+  }));
+});
+
+/**
+ * One learner, one fresh exercise, because their window shut before they ran
+ * it.
+ *
+ * A new invitation with a new seed, so a new situation — the old one cannot be
+ * reopened, and should not be: its scenario was written for a run that is
+ * spent. The missed invitation is left exactly where it is, as the record that
+ * it was missed.
+ *
+ * Refused for anybody still holding one they could use. That is not
+ * tidiness — every exercise is a model call on somebody's meter, and two live
+ * invitations is two situations and one learner wondering which is theirs.
+ */
+router.post("/admin/studio/cohort/:programId/resend", async (req, res): Promise<void> => {
+  const user = await getCurrentUser(req);
+  if (!user) { res.status(401).json(message("Unauthorized")); return; }
+  if (!satisfiesRole(user.role, ["admin"])) { res.status(403).json(message("Only admins can do that")); return; }
+
+  const programId = Number(req.params.programId);
+  if (!Number.isInteger(programId) || programId < 1) { res.status(400).json(message("That is not a programme")); return; }
+  const body = ResendStudioExerciseBody.safeParse(req.body);
+  if (!body.success) { res.status(400).json(message(body.error.message)); return; }
+
+  const [programme] = await db.select().from(programsTable).where(eq(programsTable.id, programId));
+  if (!programme) { res.status(404).json(message("Programme not found")); return; }
+  const [learner] = await db.select().from(usersTable).where(eq(usersTable.id, body.data.userId));
+  if (!learner) { res.status(404).json(message("We have no record of that learner")); return; }
+
+  // Their newest invitation on this programme is the one that says where they
+  // stand. An older one they finished last term is not the question.
+  const [latest] = await db
+    .select()
+    .from(studioInvitationsTable)
+    .where(and(
+      eq(studioInvitationsTable.programId, programId),
+      eq(studioInvitationsTable.userId, learner.id),
+    ))
+    .orderBy(sql`${studioInvitationsTable.createdAt} desc`)
+    .limit(1);
+  if (!latest) { res.status(404).json(message("They were never sent one")); return; }
+
+  const refusal = resendProblem(studioStanding(inviteFacts(latest), Date.now()));
+  if (refusal) { res.status(400).json(message(refusal)); return; }
+
+  const expiresAt = body.data.expiresAt ? new Date(body.data.expiresAt) : null;
+  await db.insert(studioInvitationsTable).values({
+    userId: learner.id,
+    programId,
+    // The same module, so a fresh exercise still counts towards whatever the
+    // missed one counted towards. This is the whole point of sending it.
+    sessionId: latest.sessionId,
+    objective: latest.objective,
+    // A new seed, so a new situation. Reusing the old one would hand them the
+    // crisis they already know the shape of.
+    situationSeed: `${programId}:${latest.sessionId ?? 0}:${learner.id}:${randomBytes(4).toString("hex")}`,
+    steer: latest.steer,
+    subject: latest.subject,
+    difficulty: latest.difficulty,
+    durationMinutes: latest.durationMinutes,
+    invitedByUserId: user.id,
+    expiresAt,
+  });
+
+  let emailed = false;
+  if (emailConfigured() && learner.email) {
+    try {
+      const letter = exerciseInviteLetter({
+        name: learner.name,
+        programmeTitle: programme.title,
+        objective: latest.objective,
+        durationMinutes: latest.durationMinutes,
+        difficulty: latest.difficulty,
+        opensAt: null,
+        expiresAt: expiresAt?.toISOString() ?? null,
+        url: studioUrl(),
+        logoUrl: labLogoUrl(),
+      });
+      await sendEmail({
+        to: { email: learner.email, name: (learner.name ?? "").trim() || learner.email },
+        subject: letter.subject, html: letter.html, text: letter.text,
+      });
+      emailed = true;
+    } catch (err) {
+      // The invitation is already written. An email that fails must not cost
+      // somebody their second chance.
+      req.log.error({ err, userId: learner.id }, "Could not tell a learner about their fresh exercise");
+    }
+  }
+
+  req.log.info({ programId, userId: learner.id, emailed, by: user.id }, "Sent a fresh exercise");
+  res.json(ResendStudioExerciseResponse.parse({
+    note: resentNote(learner.name ?? "", letterMoment(expiresAt?.toISOString() ?? null)),
+    emailed,
   }));
 });
 

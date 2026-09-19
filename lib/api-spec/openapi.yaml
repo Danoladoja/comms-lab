@@ -3133,6 +3133,70 @@ paths:
               schema:
                 $ref: "#/components/schemas/StudioCohort"
         "403": { $ref: "#/components/responses/Forbidden" }
+  /admin/studio/cohort/{programId}/attach:
+    post:
+      operationId: attachStudioExercises
+      tags: [studio]
+      summary: File this programme's exercises against a simulation module
+      description: >
+        Makes exercises that have already been sent the work for a module, so a
+        round that was under way before simulation modules existed counts
+        towards the programme rather than sitting beside it. Nothing about
+        anybody's exercise changes: whoever has finished is complete the moment
+        this is done, and whoever has not is what is holding the next module
+        shut. Only exercises filed against no module are moved.
+      parameters:
+        - name: programId
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AttachStudioExercisesInput"
+      responses:
+        "200":
+          description: How many were filed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AttachStudioExercises"
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /admin/studio/cohort/{programId}/resend:
+    post:
+      operationId: resendStudioExercise
+      tags: [studio]
+      summary: Send one learner a fresh exercise
+      description: >
+        For somebody whose window closed before they ran it. They get a new
+        invitation, a new situation and a new deadline; the old one is left
+        where it is as a record that it was missed. Refused for anybody who
+        still holds an exercise they could use, because that would hand out a
+        second run and a second model bill for no reason.
+      parameters:
+        - name: programId
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResendStudioExerciseInput"
+      responses:
+        "200":
+          description: Sent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResendStudioExercise"
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/NotFound" }
   /studio/my-group-session:
     get:
@@ -5707,13 +5771,57 @@ components:
         runId: { type: ["integer", "null"] }
         # Why they cannot begin, when they cannot.
         problem: { type: ["string", "null"] }
+    AttachStudioExercisesInput:
+      type: object
+      required: [sessionId]
+      properties:
+        # The simulation module these exercises become the work for.
+        sessionId: { type: integer }
+    ResendStudioExerciseInput:
+      type: object
+      required: [userId]
+      properties:
+        userId: { type: integer }
+        # When the new one closes. Absent means it never does.
+        expiresAt: { type: string, format: date-time }
+    AttachStudioExercises:
+      type: object
+      required: [attached, note]
+      properties:
+        attached: { type: integer }
+        note: { type: string }
+    ResendStudioExercise:
+      type: object
+      required: [note, emailed]
+      properties:
+        note: { type: string }
+        emailed: { type: boolean }
     StudioCohort:
       type: object
-      required: [programmeTitle, note, learners]
+      required: [programmeTitle, note, learners, modules]
       properties:
         programmeTitle: { type: string }
         # The shape of the cohort in one line.
         note: { type: string }
+        # The simulation modules on this programme, so the admin can file this
+        # round of exercises against one. Empty when the programme has none.
+        modules:
+          type: array
+          items:
+            type: object
+            required: [id, title, attached, opensTitle]
+            properties:
+              id: { type: integer }
+              title: { type: string }
+              # How many of this programme's exercises are already filed
+              # against this module.
+              attached: { type: integer }
+              # The module this one opens, by name, or null when nothing
+              # follows it.
+              opensTitle: { type: ["string", "null"] }
+        # How many exercises on this programme are filed against no module at
+        # all. These are the ones "attach" would move.
+        unattached: { type: integer }
         learners:
           type: array
           items:

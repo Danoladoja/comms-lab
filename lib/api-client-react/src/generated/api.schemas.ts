@@ -2012,6 +2012,33 @@ export interface MyStudioExercise {
   problem?: string | null;
 }
 
+export interface AttachStudioExercisesInput {
+  sessionId: number;
+}
+
+export interface ResendStudioExerciseInput {
+  userId: number;
+  expiresAt?: string;
+}
+
+export interface AttachStudioExercises {
+  attached: number;
+  note: string;
+}
+
+export interface ResendStudioExercise {
+  note: string;
+  emailed: boolean;
+}
+
+export type StudioCohortModulesItem = {
+  id: number;
+  title: string;
+  attached: number;
+  /** @nullable */
+  opensTitle: string | null;
+};
+
 export type StudioCohortLearnersItemStanding = typeof StudioCohortLearnersItemStanding[keyof typeof StudioCohortLearnersItemStanding];
 
 
@@ -2046,6 +2073,8 @@ export type StudioCohortLearnersItem = {
 export interface StudioCohort {
   programmeTitle: string;
   note: string;
+  modules: StudioCohortModulesItem[];
+  unattached?: number;
   learners: StudioCohortLearnersItem[];
 }
 
