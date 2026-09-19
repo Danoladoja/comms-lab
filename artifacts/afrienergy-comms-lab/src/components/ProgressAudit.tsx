@@ -2,7 +2,9 @@ import { useState } from 'react';
 import {
   useGetProgressAudit, getGetProgressAuditQueryKey, type ProgressAudit as Audit,
 } from '@workspace/api-client-react';
-import { Loader2, AlertTriangle, CheckCircle2, ChevronDown, Search } from 'lucide-react';
+import { auditReportText } from '@workspace/domain';
+import { Loader2, AlertTriangle, CheckCircle2, ChevronDown, Search, Copy, Check } from 'lucide-react';
+import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 
@@ -28,6 +30,14 @@ export default function ProgressAudit({ programmes }: { programmes: { id: number
   const [query, setQuery] = useState('');
   const [openId, setOpenId] = useState<number | null>(null);
   const [showClean, setShowClean] = useState(false);
+  const [copied, setCopied] = useState(false);
+  /*
+    The clipboard needs a secure page and permission, and on some phones and
+    locked-down browsers it simply will not work. So there is always a box to
+    select from as well. A screen whose whole purpose is to be passed on cannot
+    have a single way out of it.
+  */
+  const [showText, setShowText] = useState(false);
 
   const { data, isLoading, isFetching } = useGetProgressAudit(programId ?? 0, {
     query: {
@@ -40,6 +50,44 @@ export default function ProgressAudit({ programmes }: { programmes: { id: number
   });
 
   const moduleTitle = new Map((data?.modules ?? []).map((m) => [m.id, m.title]));
+
+  // Built here from what is on screen, so what gets pasted is what was read.
+  const report = data
+    ? auditReportText({
+      programmeTitle: data.programmeTitle,
+      note: data.note,
+      learners: data.learners.map((l) => ({
+        name: l.name,
+        flagged: l.flagged,
+        rows: l.rows.map((r) => ({
+          moduleTitle: moduleTitle.get(r.sessionId) ?? `Module ${r.sessionId}`,
+          liveMinutes: r.liveMinutes,
+          watchedMinutes: r.watchedMinutes,
+          learnerRecordingMinutes: r.learnerRecordingMinutes ?? null,
+          hasSubmission: r.hasSubmission,
+          withdrawn: !!r.withdrawn,
+          critiquesGiven: r.critiquesGiven,
+          critiquesReceived: r.critiquesReceived,
+          reviewsRequired: r.reviewsRequired,
+          completed: r.completed,
+          locked: r.locked,
+          progressPct: r.progressPct,
+          flags: r.flags,
+        })),
+      })),
+    })
+    : '';
+
+  async function copyReport() {
+    try {
+      await navigator.clipboard.writeText(report);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    } catch {
+      // No clipboard on this browser. Show the box instead of failing quietly.
+      setShowText(true);
+    }
+  }
   const all = data?.learners ?? [];
   const matching = all.filter((l) =>
     !query.trim() || `${l.name} ${l.email}`.toLowerCase().includes(query.trim().toLowerCase()));
@@ -75,7 +123,40 @@ export default function ProgressAudit({ programmes }: { programmes: { id: number
         <div className="py-16 flex justify-center"><Loader2 className="w-6 h-6 animate-spin" aria-hidden /></div>
       ) : !data ? null : (
         <>
-          <p className="text-sm text-muted-foreground">{data.note}</p>
+          {/* Which programme this is. Shown whether or not there is a choice of
+              them — a page of findings with no heading is a page of findings
+              about something you have to remember. */}
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h3 className="font-semibold">{data.programmeTitle}</h3>
+              <p className="text-sm text-muted-foreground">{data.note}</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={copyReport}>
+                {copied
+                  ? <><Check className="w-4 h-4 mr-1.5 text-emerald-600" aria-hidden />Copied</>
+                  : <><Copy className="w-4 h-4 mr-1.5" aria-hidden />Copy this audit</>}
+              </Button>
+              <Button variant="ghost" size="sm" onClick={() => setShowText((v) => !v)}>
+                {showText ? 'Hide the text' : 'Show the text'}
+              </Button>
+            </div>
+          </div>
+
+          {showText && (
+            <div>
+              <Textarea
+                readOnly
+                value={report}
+                rows={14}
+                className="font-mono text-xs"
+                onFocus={(e) => e.currentTarget.select()}
+              />
+              <p className="mt-1 text-xs text-muted-foreground">
+                Tap or click in the box to select all of it, then copy.
+              </p>
+            </div>
+          )}
 
           {flagged.length === 0 ? (
             <div className="flex items-start gap-3 rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-4">

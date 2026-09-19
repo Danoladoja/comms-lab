@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { auditFlags, auditNote, type AuditFacts } from "./progressAudit";
+import {
+  auditFlags, auditNote, auditReportText,
+  type AuditFacts, type AuditReportRow,
+} from "./progressAudit";
 
 const clean: AuditFacts = {
   hasRecording: true, moduleRecordingSeconds: 3600, learnerRecordingSeconds: 3600,
@@ -92,5 +95,60 @@ describe("what an audit has to notice", () => {
   it("says nothing about length where no task was published", () => {
     expect(codes({ hasAssignment: false, bodyLength: 16 }))
       .not.toContain("very-short-submission");
+  });
+});
+
+describe("the audit as text, for passing on", () => {
+  const row = (over: Partial<AuditReportRow> = {}): AuditReportRow => ({
+    moduleTitle: "Module 3", liveMinutes: 60, watchedMinutes: 40,
+    learnerRecordingMinutes: 60, hasSubmission: true, withdrawn: false,
+    critiquesGiven: 1, critiquesReceived: 0, reviewsRequired: 2,
+    completed: false, locked: false, progressPct: 75, flags: [], ...over,
+  });
+  const flag = { code: "withdrawn" as const, note: "Their work was withdrawn by staff." };
+
+  it("says so in four lines when a cohort is clean", () => {
+    const text = auditReportText({
+      programmeTitle: "Pipeline comms", note: "Nothing to answer for.",
+      learners: [{ name: "Ada", flagged: 0, rows: [row()] }],
+    });
+    expect(text).toContain("Nothing to report");
+    expect(text.split("\n").length).toBeLessThan(8);
+  });
+
+  it("names only the learners with something wrong", () => {
+    const text = auditReportText({
+      programmeTitle: "Pipeline comms", note: "1 record.",
+      learners: [
+        { name: "Ada", flagged: 0, rows: [row()] },
+        { name: "Bala", flagged: 1, rows: [row({ flags: [flag] })] },
+      ],
+    });
+    expect(text).toContain("Bala");
+    expect(text).not.toContain("Ada");
+    expect(text).toContain("1 of 2 learners");
+  });
+
+  it("shows what is stored beside what the Lab says", () => {
+    const text = auditReportText({
+      programmeTitle: "P", note: "n",
+      learners: [{ name: "Bala", flagged: 1, rows: [row({ flags: [flag], locked: true })] }],
+    });
+    expect(text).toContain("40 of 60 min watched");
+    expect(text).toContain("1/2 critiques written");
+    expect(text).toContain("LOCKED");
+    expect(text).toContain("[withdrawn]");
+  });
+
+  it("leaves out the modules that are fine", () => {
+    const text = auditReportText({
+      programmeTitle: "P", note: "n",
+      learners: [{
+        name: "Bala", flagged: 1,
+        rows: [row({ moduleTitle: "Module 1" }), row({ moduleTitle: "Module 3", flags: [flag] })],
+      }],
+    });
+    expect(text).not.toContain("Module 1");
+    expect(text).toContain("Module 3");
   });
 });

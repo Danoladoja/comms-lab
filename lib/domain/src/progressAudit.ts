@@ -183,3 +183,94 @@ export function auditNote(rows: readonly { flags: readonly AuditFlag[] }[], lear
   return `${flagged} record${flagged === 1 ? "" : "s"} across ${learners} learner`
     + `${learners === 1 ? "" : "s"} where what is stored and what the Lab says cannot both be right.`;
 }
+
+/* ------------------------------------------------------------------ *
+ * Getting the audit out of the screen
+ * ------------------------------------------------------------------ */
+
+export type AuditReportRow = {
+  moduleTitle: string;
+  liveMinutes: number;
+  watchedMinutes: number;
+  learnerRecordingMinutes: number | null;
+  hasSubmission: boolean;
+  withdrawn: boolean;
+  critiquesGiven: number;
+  critiquesReceived: number;
+  reviewsRequired: number;
+  completed: boolean;
+  locked: boolean;
+  progressPct: number;
+  /*
+    Loosely typed on purpose. The flags arriving here have been through the
+    API, which types the code as a plain string, and a report that refused to
+    print a flag it did not recognise would hide exactly the thing somebody
+    added last.
+  */
+  flags: readonly { code: string; note: string }[];
+};
+
+export type AuditReport = {
+  programmeTitle: string;
+  note: string;
+  learners: readonly {
+    name: string;
+    flagged: number;
+    rows: readonly AuditReportRow[];
+  }[];
+};
+
+/**
+ * The audit as plain text, for pasting to somebody who can read it.
+ *
+ * The screen was built to be read and then, obviously, to be passed on — and
+ * had no way to get anything off it. A person looking at forty learners and a
+ * page of findings cannot retype them, and a screenshot of a scrolling list is
+ * half a screenshot.
+ *
+ * Only the records with something wrong. A clean cohort produces four lines
+ * saying so, which is the right length for that answer.
+ *
+ * No email addresses and not a word of anybody's writing. This is meant to be
+ * pasted somewhere, and what goes in it should be only what the question
+ * needs: a name to act on, a number to judge by, and the sentence explaining
+ * what cannot be right.
+ */
+export function auditReportText(report: AuditReport): string {
+  const lines: string[] = [
+    "ANANSE COMMS LAB — PROGRESS AUDIT",
+    `Programme: ${report.programmeTitle}`,
+    report.note,
+  ];
+
+  const troubled = report.learners.filter((l) => l.flagged > 0);
+  if (troubled.length === 0) {
+    lines.push("", "No records contradict themselves. Nothing to report.");
+    return lines.join("\n");
+  }
+
+  lines.push("", `${troubled.length} of ${report.learners.length} learners have something to look at.`, "");
+
+  for (const learner of troubled) {
+    lines.push(`${learner.name}`);
+    for (const row of learner.rows) {
+      if (row.flags.length === 0) continue;
+      const stored = [
+        `${row.liveMinutes} min in class`,
+        row.learnerRecordingMinutes === null
+          ? `${row.watchedMinutes} min watched`
+          : `${row.watchedMinutes} of ${row.learnerRecordingMinutes} min watched`,
+        `task ${row.withdrawn ? "withdrawn" : row.hasSubmission ? "in" : "not in"}`,
+        `${row.critiquesGiven}/${row.reviewsRequired} critiques written`,
+        `${row.critiquesReceived} received`,
+      ].join(" · ");
+      const verdict = row.locked ? "LOCKED" : row.completed ? "complete" : `${row.progressPct}%`;
+      lines.push(`  ${row.moduleTitle} — ${verdict}`);
+      lines.push(`    stored: ${stored}`);
+      for (const flag of row.flags) lines.push(`    [${flag.code}] ${flag.note}`);
+    }
+    lines.push("");
+  }
+
+  return lines.join("\n").trimEnd();
+}
