@@ -16,7 +16,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => {
   const tables = {
     attendanceTable: {}, replayProgressTable: {}, enrollmentsTable: { programId: "programId", createdAt: "createdAt", userId: "userId" },
-    sessionsTable: { id: "id", programId: "programId", startsAt: "startsAt", durationMins: "durationMins", sortOrder: "sortOrder", title: "title", quizDueAt: "quizDueAt", quizDraft: "quizDraft" },
+    sessionsTable: { id: "id", programId: "programId", startsAt: "startsAt", durationMins: "durationMins", sortOrder: "sortOrder", title: "title", kind: "kind", quizDueAt: "quizDueAt", quizDraft: "quizDraft" },
     programsTable: { id: "id", progression: "progression" },
     quizQuestionsTable: { sessionId: "sessionId" },
     quizAttemptsTable: { sessionId: "sessionId", userId: "userId", scorePct: "scorePct" },
@@ -24,6 +24,9 @@ const mocks = vi.hoisted(() => {
     assignmentSubmissionsTable: { sessionId: "sessionId", userId: "userId", id: "id" },
     submissionReviewsTable: { sessionId: "sessionId", reviewerId: "reviewerId", submissionId: "submissionId", id: "id" },
     deadlineExtensionsTable: { userId: "userId", sessionId: "sessionId", dueAt: "dueAt" },
+    // A simulation module's exercise is now part of what completes a module,
+    // so the progress builder reads this table too.
+    studioInvitationsTable: { userId: "userId", sessionId: "sessionId", completedAt: "completedAt" },
   };
 
   let queue: unknown[][] = [];

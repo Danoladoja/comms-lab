@@ -12,6 +12,18 @@ export const sessionsTable = pgTable(
   id: serial("id").primaryKey(),
   programId: integer("program_id").notNull().references(() => programsTable.id, { onDelete: "cascade" }),
   title: text("title").notNull(),
+  /**
+   * What kind of module this is: "class" or "simulation".
+   *
+   * A simulation module is a Studio exercise standing in the running order in
+   * its own right. It has no live class, no Meet link, no recording and no
+   * attendance — the work is the exercise — and the module after it waits on
+   * it exactly as it would wait on a class.
+   *
+   * The default is "class", which is what every module that already exists is.
+   * Adding this column must not change a single thing about any of them.
+   */
+  kind: text("kind").notNull().default("class"),
   description: text("description").notNull().default(""),
   sortOrder: integer("sort_order").notNull().default(0),
   startsAt: timestamp("starts_at", { withTimezone: true }),

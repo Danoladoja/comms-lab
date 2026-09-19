@@ -142,6 +142,7 @@ router.get("/programs/:id/sessions", async (req, res) => {
       id: sessionsTable.id,
       programId: sessionsTable.programId,
       title: sessionsTable.title,
+      kind: sessionsTable.kind,
       description: sessionsTable.description,
       sortOrder: sessionsTable.sortOrder,
       startsAt: sessionsTable.startsAt,

@@ -4096,6 +4096,15 @@ components:
         # server because only it knows how the programme advances.
         lockedReason: { type: ["string", "null"] }
         feedbackUnlocked: { type: boolean }
+        # What kind of module this is. A simulation module is a Studio exercise
+        # standing in the running order in its own right: no class, no
+        # recording, nothing to attend, and the module after it waits on it.
+        kind: { type: string, enum: [class, simulation] }
+        # An exercise has been sent to this learner for this module, and
+        # whether they have run it to the end. Finishing is the whole test —
+        # the score is not a gate.
+        hasSimulation: { type: boolean }
+        simulationDone: { type: boolean }
     QuizQuestionPublic:
       type: object
       required: [id, prompt, options, sortOrder]
@@ -4962,6 +4971,7 @@ components:
         # A facilitator with no account. instructorName carries whichever of the
         # two is set, so a page that only wants a name reads one field.
         guestFacilitator: { type: ["string", "null"] }
+        kind: { type: string, enum: [class, simulation] }
     TaughtCohort:
       type: object
       required: [active, finished, learners]
@@ -5001,6 +5011,7 @@ components:
         # A facilitator with no account. instructorName carries whichever of the
         # two is set, so a page that only wants a name reads one field.
         guestFacilitator: { type: ["string", "null"] }
+        kind: { type: string, enum: [class, simulation] }
     SessionInput:
       type: object
       required: [title]
@@ -5014,6 +5025,7 @@ components:
         recordingUrl: { type: string }
         instructorId: { type: ["integer", "null"] }
         guestFacilitator: { type: ["string", "null"] }
+        kind: { type: string, enum: [class, simulation] }
     PlainMessage:
       type: object
       required: [message]
@@ -5108,6 +5120,7 @@ components:
         recordingUrl: { type: ["string", "null"] }
         instructorId: { type: ["integer", "null"] }
         guestFacilitator: { type: ["string", "null"] }
+        kind: { type: string, enum: [class, simulation] }
     Enrollment:
       type: object
       required: [id, userId, programId, status]

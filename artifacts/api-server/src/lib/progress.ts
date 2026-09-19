@@ -1,7 +1,7 @@
 import {
   db, attendanceTable, replayProgressTable, enrollmentsTable, sessionsTable, programsTable,
   quizQuestionsTable, quizAttemptsTable, assignmentsTable, assignmentSubmissionsTable,
-  submissionReviewsTable, deadlineExtensionsTable,
+  submissionReviewsTable, deadlineExtensionsTable, studioInvitationsTable,
 } from "@workspace/db";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import {
@@ -13,6 +13,7 @@ import {
   type PresenceInput,
   type ProgressEntry,
   type Progression,
+  type ModuleKind,
   weeksOfSessions,
   effectiveDueAt,
 } from "@workspace/domain";
@@ -36,6 +37,7 @@ export async function progressForUser(userId: number, programIds: number[]): Pro
       durationMins: sessionsTable.durationMins,
       sortOrder: sessionsTable.sortOrder,
       title: sessionsTable.title,
+      kind: sessionsTable.kind,
       quizDueAt: sessionsTable.quizDueAt,
     })
     .from(sessionsTable)
@@ -56,7 +58,7 @@ export async function progressForUser(userId: number, programIds: number[]): Pro
   // `.concat(-1)` keeps the IN clause non-empty for programs with no sessions.
   const sessionIds = sessions.map((s) => s.id).concat(-1);
 
-  const [att, replay, enrollRows, quizSessions, bestAttempts, assignments, submissions, reviewsGiven, reviewsReceived, peers, extensions] =
+  const [att, replay, enrollRows, quizSessions, bestAttempts, assignments, submissions, reviewsGiven, reviewsReceived, peers, extensions, studioInvites] =
     await Promise.all([
       db
         .select()
@@ -158,6 +160,28 @@ export async function progressForUser(userId: number, programIds: number[]): Pro
           eq(deadlineExtensionsTable.userId, userId),
           inArray(deadlineExtensionsTable.sessionId, sessionIds),
         )),
+      /*
+        The Studio exercises this learner has been sent, per module.
+
+        `sessionId` on an invitation has always been a note of what prompted
+        it. It becomes the link itself only where the module it points at is a
+        simulation module — every ordinary class keeps reading it as a note, so
+        an invitation sent months ago cannot suddenly shut a module.
+
+        Unstarted and abandoned invitations are here too, with completedAt
+        empty. That is the point: it is the invitation that says the work was
+        asked for, and its completion that says the work was done.
+      */
+      db
+        .select({
+          sessionId: studioInvitationsTable.sessionId,
+          completedAt: studioInvitationsTable.completedAt,
+        })
+        .from(studioInvitationsTable)
+        .where(and(
+          eq(studioInvitationsTable.userId, userId),
+          inArray(studioInvitationsTable.sessionId, sessionIds),
+        )),
     ]);
 
   const attendance = new Map(att.map((a) => [a.sessionId, a.joinedAt]));
@@ -211,6 +235,21 @@ export async function progressForUser(userId: number, programIds: number[]): Pro
   const givenBySession = new Map(reviewsGiven.map((r) => [r.sessionId, r.count]));
   const receivedBySession = new Map(reviewsReceived.map((r) => [r.sessionId, r.count]));
   const peersBySession = new Map(peers.map((r) => [r.sessionId, r.count]));
+  // Only a simulation module's exercise counts. A learner sent one that was
+  // filed against an ordinary class has been given practice, not a gate.
+  const simulationModules = new Set(
+    sessions.filter((s) => s.kind === "simulation").map((s) => s.id),
+  );
+  const exerciseBySession = new Map<number, { done: boolean }>();
+  for (const invite of studioInvites) {
+    if (invite.sessionId === null || !simulationModules.has(invite.sessionId)) continue;
+    const already = exerciseBySession.get(invite.sessionId);
+    // Somebody re-sent an exercise after missing the first is done once any of
+    // them is done.
+    exerciseBySession.set(invite.sessionId, {
+      done: (already?.done ?? false) || invite.completedAt !== null,
+    });
+  }
 
   const coursework = new Map<number, CourseworkStatus>(
     sessions.map((s) => [
@@ -225,6 +264,8 @@ export async function progressForUser(userId: number, programIds: number[]): Pro
         reviewsGiven: givenBySession.get(s.id) ?? 0,
         reviewsReceived: receivedBySession.get(s.id) ?? 0,
         peersToReview: peersBySession.get(s.id) ?? 0,
+        hasSimulation: exerciseBySession.has(s.id),
+        simulationDone: exerciseBySession.get(s.id)?.done ?? false,
         // Deadlines ride along so the dashboard can show what is due without
         // opening every quiz and task in turn. They change no rule below.
         quizDueAt: effectiveDueAt(
@@ -240,7 +281,10 @@ export async function progressForUser(userId: number, programIds: number[]): Pro
   );
 
   return computeProgress(
-    sessions, attendance, enrolledAtByProgram, coursework, presenceBySession, Date.now(),
+    // An unreadable value falls back to a class, which is what every module
+    // written before simulation modules existed is.
+    sessions.map((s) => ({ ...s, kind: (s.kind === "simulation" ? "simulation" : "class") as ModuleKind })),
+    attendance, enrolledAtByProgram, coursework, presenceBySession, Date.now(),
     { progressionByProgram, weekOfSession },
   );
 }

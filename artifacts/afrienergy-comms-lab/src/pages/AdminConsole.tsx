@@ -206,11 +206,26 @@ function SessionRow({ session, instructors, onChanged }: {
     },
   });
 
+  /*
+   * A simulation module has no room, no recording and nobody teaching it. Its
+   * class controls are not disabled, they are absent: a greyed-out Meeting
+   * link on a module that will never have one is a question the admin has to
+   * answer every time they look at it.
+   */
+  const isSimulation = session.kind === 'simulation';
+
   return (
     <div className="border border-border rounded-lg p-4 space-y-3 bg-background">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="font-medium text-sm">{session.title}</p>
+          <p className="font-medium text-sm flex items-center gap-2 flex-wrap">
+            {session.title}
+            {isSimulation && (
+              <span className="text-[10px] font-bold uppercase tracking-wider text-[#f97316] border border-[#f97316]/40 rounded px-1.5 py-0.5">
+                Simulation
+              </span>
+            )}
+          </p>
           <p className="text-xs text-muted-foreground">{formatSessionDate(session.startsAt as unknown as string)} · {session.durationMins} min</p>
           {session.description && (
             <p className="text-xs text-muted-foreground/80 mt-1 line-clamp-2">{session.description}</p>
@@ -310,7 +325,7 @@ function SessionRow({ session, instructors, onChanged }: {
       )}
       {/* Past class with nowhere to watch it: the one state that actually
           holds learners up, so it is said out loud rather than implied. */}
-      {isPast && !recordingUrl && (
+      {!isSimulation && isPast && !recordingUrl && (
         <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 flex items-start gap-2">
           <CircleAlert className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" aria-hidden />
           <span>
@@ -320,6 +335,13 @@ function SessionRow({ session, instructors, onChanged }: {
         </p>
       )}
 
+      {isSimulation ? (
+        <p className="text-xs text-muted-foreground border border-dashed border-border rounded-lg px-3 py-2">
+          Nothing to attend and nothing to record. Send this cohort their exercise from the Studio and
+          point it at this module — the module after it stays shut until each learner has run it to the
+          end. Until you send one, this module holds nobody up.
+        </p>
+      ) : (
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         <div>
           <label className="block text-xs font-medium text-muted-foreground mb-1" htmlFor={`meet-${session.id}`}>
@@ -429,7 +451,9 @@ function SessionRow({ session, instructors, onChanged }: {
           </p>
         </div>
       </div>
+      )}
       <div className="flex flex-wrap items-center gap-2">
+        {!isSimulation && (
         <Button
           size="sm" variant="outline"
           // Two people of the same name: saving would hand the class to whichever
@@ -446,13 +470,14 @@ function SessionRow({ session, instructors, onChanged }: {
         >
           {update.isPending ? 'Saving...' : 'Save'}
         </Button>
+        )}
         {/* The label says what pressing it will do, and the arrow says which way
             it goes. "Slides & coursework" on its own read as a place rather than
             a switch, so nobody thought to press it again to shut it. */}
         {/* Attendance comes from Google an hour after each class by itself. This
             is for the classes that finished before any of that existed, and for
             the afternoon when somebody needs an answer now. */}
-        {isPast && (
+        {!isSimulation && isPast && (
           <Button
             size="sm"
             variant="outline"
@@ -499,12 +524,30 @@ function ProgramSessions({ programId, instructors }: { programId: number; instru
   // is a share of this number, so a class recorded longer than it runs fails
   // people who sat through all of it.
   const [duration, setDuration] = useState('60');
+  /*
+   * What kind of module this is.
+   *
+   * A simulation module is a Studio exercise standing in the running order in
+   * its own right — no class, no room, no recording, nothing to attend. It has
+   * a date because that is where it sits in the term, and the module after it
+   * waits on it exactly as it would wait on a class.
+   */
+  const [kind, setKind] = useState<'class' | 'simulation'>('class');
 
   const onChanged = () => qc.invalidateQueries({ queryKey: getListProgramSessionsQueryKey(programId) });
 
   const create = useCreateSession({
     mutation: {
-      onSuccess: () => { setTitle(''); setStartsAt(''); toast({ title: 'Module added' }); onChanged(); },
+      onSuccess: () => {
+        setTitle(''); setStartsAt(''); setKind('class');
+        toast({
+          title: 'Module added',
+          description: kind === 'simulation'
+            ? 'Send this cohort their exercise in the Studio, and point it at this module.'
+            : undefined,
+        });
+        onChanged();
+      },
       onError: () => toast({ title: 'Could not add module', variant: 'destructive' }),
     },
   });
@@ -520,11 +563,12 @@ function ProgramSessions({ programId, instructors }: { programId: number; instru
           <div className="flex gap-2">
             <Input type="number" value={duration} onChange={e => setDuration(e.target.value)} placeholder="Minutes" className="text-sm" />
             <Button
-              size="sm" disabled={!title.trim() || create.isPending}
+              size="sm" disabled={!title.trim() || !startsAt || create.isPending}
               onClick={() => create.mutate({
                 id: programId,
                 data: {
                   title: title.trim(),
+                  kind,
                   sortOrder: sessions.length + 1,
                   startsAt: sessionDateTimeFromInput(startsAt),
                   durationMins: sessionMinutes(duration),
@@ -535,6 +579,35 @@ function ProgramSessions({ programId, instructors }: { programId: number; instru
             </Button>
           </div>
         </div>
+        {/* Which of the two this is. It changes what the module asks of a
+            learner, so it is chosen when the module is made rather than
+            discovered afterwards. */}
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          {(['class', 'simulation'] as const).map(option => (
+            <Button
+              key={option}
+              size="sm"
+              type="button"
+              variant={kind === option ? 'secondary' : 'outline'}
+              onClick={() => setKind(option)}
+            >
+              {option === 'class' ? 'Live class' : 'Simulation exercise'}
+            </Button>
+          ))}
+        </div>
+        <p className="text-xs text-muted-foreground mt-2">
+          {kind === 'class'
+            ? 'A class to attend, with a recording, a quiz and a task. The module after it waits until this one is finished.'
+            : 'A Studio exercise. Nothing to attend and nothing to watch — the work is the exercise. Send it to the cohort from the Studio and point it at this module; the module after it stays shut until each learner has run it to the end.'}
+        </p>
+        {/* Order comes from the date. A module with none sorts to the end of
+            the programme, which for a prerequisite is the one place it must
+            not be. */}
+        {!startsAt && (
+          <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+            Give it a date. Modules run in date order, and one without a date drops to the end.
+          </p>
+        )}
       </div>
     </div>
   );

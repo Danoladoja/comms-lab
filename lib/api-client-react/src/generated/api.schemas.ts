@@ -379,6 +379,14 @@ export interface PortfolioVisibilityInput {
   portfolioPublic: boolean;
 }
 
+export type SessionProgressKind = typeof SessionProgressKind[keyof typeof SessionProgressKind];
+
+
+export const SessionProgressKind = {
+  class: 'class',
+  simulation: 'simulation',
+} as const;
+
 export type PresenceVia = typeof PresenceVia[keyof typeof PresenceVia];
 
 
@@ -427,6 +435,9 @@ export interface SessionProgress {
   /** @nullable */
   lockedReason?: string | null;
   feedbackUnlocked: boolean;
+  kind?: SessionProgressKind;
+  hasSimulation?: boolean;
+  simulationDone?: boolean;
 }
 
 export interface QuizQuestionPublic {
@@ -1142,6 +1153,14 @@ export interface ProgramUpdate {
   progression?: ProgramUpdateProgression;
 }
 
+export type SessionKind = typeof SessionKind[keyof typeof SessionKind];
+
+
+export const SessionKind = {
+  class: 'class',
+  simulation: 'simulation',
+} as const;
+
 export interface Session {
   id: number;
   programId: number;
@@ -1161,6 +1180,7 @@ export interface Session {
   instructorName?: string | null;
   /** @nullable */
   guestFacilitator?: string | null;
+  kind?: SessionKind;
 }
 
 export type TaughtCohortLearnersItem = {
@@ -1174,6 +1194,14 @@ export interface TaughtCohort {
   finished: number;
   learners: TaughtCohortLearnersItem[];
 }
+
+export type SessionDetailKind = typeof SessionDetailKind[keyof typeof SessionDetailKind];
+
+
+export const SessionDetailKind = {
+  class: 'class',
+  simulation: 'simulation',
+} as const;
 
 export interface SessionDetail {
   id: number;
@@ -1196,7 +1224,16 @@ export interface SessionDetail {
   instructorName?: string | null;
   /** @nullable */
   guestFacilitator?: string | null;
+  kind?: SessionDetailKind;
 }
+
+export type SessionInputKind = typeof SessionInputKind[keyof typeof SessionInputKind];
+
+
+export const SessionInputKind = {
+  class: 'class',
+  simulation: 'simulation',
+} as const;
 
 export interface SessionInput {
   /** @minLength 1 */
@@ -1213,6 +1250,7 @@ export interface SessionInput {
   instructorId?: number | null;
   /** @nullable */
   guestFacilitator?: string | null;
+  kind?: SessionInputKind;
 }
 
 export interface PlainMessage {
@@ -1327,6 +1365,14 @@ export interface StaffList {
   staff: StaffMember[];
 }
 
+export type SessionUpdateKind = typeof SessionUpdateKind[keyof typeof SessionUpdateKind];
+
+
+export const SessionUpdateKind = {
+  class: 'class',
+  simulation: 'simulation',
+} as const;
+
 export interface SessionUpdate {
   /** @minLength 1 */
   title?: string;
@@ -1344,6 +1390,7 @@ export interface SessionUpdate {
   instructorId?: number | null;
   /** @nullable */
   guestFacilitator?: string | null;
+  kind?: SessionUpdateKind;
 }
 
 export type EnrollmentStatus = typeof EnrollmentStatus[keyof typeof EnrollmentStatus];

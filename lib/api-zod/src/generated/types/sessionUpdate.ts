@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { SessionUpdateKind } from './sessionUpdateKind';
 
 export interface SessionUpdate {
   /** @minLength 1 */
@@ -23,4 +24,5 @@ export interface SessionUpdate {
   instructorId?: number | null;
   /** @nullable */
   guestFacilitator?: string | null;
+  kind?: SessionUpdateKind;
 }

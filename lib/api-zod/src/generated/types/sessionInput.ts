@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { SessionInputKind } from './sessionInputKind';
 
 export interface SessionInput {
   /** @minLength 1 */
@@ -21,4 +22,5 @@ export interface SessionInput {
   instructorId?: number | null;
   /** @nullable */
   guestFacilitator?: string | null;
+  kind?: SessionInputKind;
 }

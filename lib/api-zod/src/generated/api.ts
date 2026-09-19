@@ -177,7 +177,8 @@ export const ListProgramSessionsResponseItem = zod.object({
   "recordingUrl": zod.string().nullish(),
   "instructorId": zod.int().nullish(),
   "instructorName": zod.string().nullish(),
-  "guestFacilitator": zod.string().nullish()
+  "guestFacilitator": zod.string().nullish(),
+  "kind": zod.enum(['class', 'simulation']).optional()
 })
 export const ListProgramSessionsResponse = zod.array(ListProgramSessionsResponseItem)
 
@@ -203,7 +204,8 @@ export const CreateSessionBody = zod.object({
   "meetUrl": zod.string().optional(),
   "recordingUrl": zod.string().optional(),
   "instructorId": zod.int().nullish(),
-  "guestFacilitator": zod.string().nullish()
+  "guestFacilitator": zod.string().nullish(),
+  "kind": zod.enum(['class', 'simulation']).optional()
 })
 
 export const CreateSessionResponse = zod.object({
@@ -218,7 +220,8 @@ export const CreateSessionResponse = zod.object({
   "recordingUrl": zod.string().nullish(),
   "instructorId": zod.int().nullish(),
   "instructorName": zod.string().nullish(),
-  "guestFacilitator": zod.string().nullish()
+  "guestFacilitator": zod.string().nullish(),
+  "kind": zod.enum(['class', 'simulation']).optional()
 })
 
 
@@ -243,7 +246,8 @@ export const UpdateSessionBody = zod.object({
   "meetUrl": zod.string().nullish(),
   "recordingUrl": zod.string().nullish(),
   "instructorId": zod.int().nullish(),
-  "guestFacilitator": zod.string().nullish()
+  "guestFacilitator": zod.string().nullish(),
+  "kind": zod.enum(['class', 'simulation']).optional()
 })
 
 export const UpdateSessionResponse = zod.object({
@@ -258,7 +262,8 @@ export const UpdateSessionResponse = zod.object({
   "recordingUrl": zod.string().nullish(),
   "instructorId": zod.int().nullish(),
   "instructorName": zod.string().nullish(),
-  "guestFacilitator": zod.string().nullish()
+  "guestFacilitator": zod.string().nullish(),
+  "kind": zod.enum(['class', 'simulation']).optional()
 })
 
 
@@ -1334,7 +1339,10 @@ export const ListMyProgressResponseItem = zod.object({
   "assignmentDueAt": zod.string().nullish(),
   "notSetYet": zod.boolean().optional(),
   "lockedReason": zod.string().nullish(),
-  "feedbackUnlocked": zod.boolean()
+  "feedbackUnlocked": zod.boolean(),
+  "kind": zod.enum(['class', 'simulation']).optional(),
+  "hasSimulation": zod.boolean().optional(),
+  "simulationDone": zod.boolean().optional()
 })
 export const ListMyProgressResponse = zod.array(ListMyProgressResponseItem)
 
@@ -1468,7 +1476,8 @@ export const ListMySessionsResponseItem = zod.object({
   "recordingUrl": zod.string().nullish(),
   "instructorId": zod.int().nullish(),
   "instructorName": zod.string().nullish(),
-  "guestFacilitator": zod.string().nullish()
+  "guestFacilitator": zod.string().nullish(),
+  "kind": zod.enum(['class', 'simulation']).optional()
 })
 export const ListMySessionsResponse = zod.array(ListMySessionsResponseItem)
 

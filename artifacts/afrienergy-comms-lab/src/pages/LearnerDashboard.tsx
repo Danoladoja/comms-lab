@@ -13,7 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import {
   Calendar, Video, PlayCircle, GraduationCap, CheckCircle2, Circle, Lock,
-  Radio, MessageSquare, ClipboardList, FileQuestion, ArrowRight, Clock, CalendarClock,
+  Radio, MessageSquare, ClipboardList, FileQuestion, ArrowRight, Clock, CalendarClock, Zap,
 } from 'lucide-react';
 import { useState } from 'react';
 import { QuizDialog, AssignmentDialog } from '@/components/CourseworkDialogs';
@@ -122,6 +122,12 @@ export default function LearnerDashboard() {
       });
       return;
     }
+    /*
+      A simulation module has no classroom. There is no video, no quiz and no
+      task — the work is the exercise — so the module goes straight to the
+      Studio, which is the only place it can be done.
+    */
+    if (s.kind === 'simulation') { setLocation('/studio'); return; }
     // The classroom houses the video, quiz, and assignment for the module.
     setLocation(`/classroom/${s.id}`);
   };
@@ -210,6 +216,16 @@ export default function LearnerDashboard() {
                             // The class itself is outstanding once it has ended and
                             // the presence bar has not been reached by either route.
                             const needsClass = state === 'done' && entry?.presence?.met === false;
+                            /*
+                              A simulation module. Nothing to attend, nothing to
+                              watch, no quiz and no task — so none of the words
+                              this card usually reaches for are true of it, and
+                              an attendance bar that can never fill would be a
+                              promise the module cannot keep.
+                            */
+                            const isSimulation = m.kind === 'simulation';
+                            const exerciseSent = entry?.hasSimulation ?? false;
+                            const exerciseDone = entry?.simulationDone ?? false;
                             return (
                               <li key={m.id} className={`rounded-xl border border-border transition-colors ${
                                 locked ? 'opacity-55 bg-muted/30' : 'hover:border-primary/40'
@@ -223,11 +239,20 @@ export default function LearnerDashboard() {
                                     ? <Lock className="w-5 h-5 text-muted-foreground/60 flex-shrink-0" />
                                     : done
                                       ? <CheckCircle2 className="w-5 h-5 text-emerald-600 flex-shrink-0" />
-                                      : state === 'live'
-                                        ? <Radio className="w-5 h-5 text-[#C2410C] flex-shrink-0 animate-pulse" />
-                                        : <Circle className="w-5 h-5 text-muted-foreground/40 flex-shrink-0" />}
+                                      : isSimulation
+                                        ? <Zap className="w-5 h-5 text-[#f97316] flex-shrink-0" />
+                                        : state === 'live'
+                                          ? <Radio className="w-5 h-5 text-[#C2410C] flex-shrink-0 animate-pulse" />
+                                          : <Circle className="w-5 h-5 text-muted-foreground/40 flex-shrink-0" />}
                                   <div className="flex-1 min-w-0">
-                                    <p className="font-medium truncate">{m.title}</p>
+                                    <p className="font-medium truncate flex items-center gap-2">
+                                      {m.title}
+                                      {isSimulation && (
+                                        <span className="text-[10px] font-bold uppercase tracking-wider text-[#f97316] border border-[#f97316]/40 rounded px-1.5 py-0.5 flex-shrink-0">
+                                          Exercise
+                                        </span>
+                                      )}
+                                    </p>
                                     <p className="text-xs text-muted-foreground flex items-center gap-1.5 mb-1.5">
                                       <Clock className="w-3 h-3" />
                                       {formatSessionDate(m.startsAt as unknown as string)} · {m.durationMins} min
@@ -237,6 +262,16 @@ export default function LearnerDashboard() {
                                       // the bar's place is better spent saying why.
                                       <p className="text-xs font-medium text-muted-foreground">
                                         {lockedReason}
+                                      </p>
+                                    ) : isSimulation ? (
+                                      // Said in words rather than as a bar.
+                                      // There is no half of an exercise.
+                                      <p className="text-xs font-medium text-muted-foreground">
+                                        {exerciseDone
+                                          ? 'Done. Your debrief is in the Studio.'
+                                          : exerciseSent
+                                            ? 'In the Simulation Studio. One run — it cannot be paused or restarted.'
+                                            : 'Nothing set yet. Your exercise will appear in the Studio.'}
                                       </p>
                                     ) : notSet ? (
                                       // No bar at all. There is nothing to be a
@@ -255,6 +290,12 @@ export default function LearnerDashboard() {
                                   <span className="text-xs font-semibold flex items-center gap-1.5 flex-shrink-0 text-primary">
                                     {locked
                                       ? <span className="text-muted-foreground">Locked</span>
+                                      : isSimulation
+                                        ? (done
+                                            ? 'Completed'
+                                            : exerciseSent
+                                              ? <><Zap className="w-4 h-4" aria-hidden />Begin<ArrowRight className="w-3.5 h-3.5" aria-hidden /></>
+                                              : <span className="text-muted-foreground">To come</span>)
                                       : state === 'live'
                                         ? <><Video className="w-4 h-4" aria-hidden />Join live</>
                                         : notSet

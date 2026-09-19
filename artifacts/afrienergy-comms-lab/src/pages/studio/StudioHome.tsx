@@ -20,7 +20,9 @@ import {
   useJoinSimulationRun,
   useListSimulations,
 
-  useGetStudioRecord,} from '@workspace/api-client-react';
+  useGetStudioRecord,
+  useListProgramSessions,
+  getListProgramSessionsQueryKey,} from '@workspace/api-client-react';
 import { StudioLayout } from '@/components/simulation/StudioLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -778,6 +780,19 @@ function InviteCohortToExercise({ programmes }: { programmes: any[] }) {
   const [opensAt, setOpensAt] = useState('');
   const [closesAt, setClosesAt] = useState('');
   const [steer, setSteer] = useState('');
+  /*
+   * Which module in the programme this exercise is the work for.
+   *
+   * Empty is the old behaviour and still the common one: practice, sent to a
+   * cohort, gating nothing. Set to a simulation module, it becomes that
+   * module's work — and the module after it stays shut until each learner has
+   * run it to the end.
+   *
+   * Only simulation modules are offered. Attaching an exercise to a live class
+   * would quietly add a fourth thing to a module whose cohort had already been
+   * told what it asks of them.
+   */
+  const [moduleId, setModuleId] = useState('');
   const [result, setResult] = useState<string | null>(null);
 
   const invite = useInviteToStudio({
@@ -824,7 +839,7 @@ function InviteCohortToExercise({ programmes }: { programmes: any[] }) {
         They are emailed what it is for and when it closes — never the situation itself.
       </p>
 
-      <Select value={programId} onValueChange={(v) => { setProgramId(v); setResult(null); }}>
+      <Select value={programId} onValueChange={(v) => { setProgramId(v); setModuleId(''); setResult(null); }}>
         <SelectTrigger className="bg-[#030811] border-white/20 text-white rounded-none w-full">
           <SelectValue placeholder="Choose a programme" />
         </SelectTrigger>
@@ -937,6 +952,21 @@ function InviteCohortToExercise({ programmes }: { programmes: any[] }) {
         )}
       </div>
 
+      {/*
+        Where this sits in the programme.
+
+        The Lab already knows how to hold a module shut until the one before it
+        is finished. A simulation module is just another module in that
+        sequence, so pointing an exercise at one is the whole of "the
+        simulation has to be done before Module 4" — no second idea of locking,
+        and the same sentence on the learner's padlock as every other module.
+      */}
+      <SimulationModulePicker
+        programId={programId}
+        moduleId={moduleId}
+        onChange={setModuleId}
+      />
+
       <button
         type="button"
         disabled={!programId || invite.isPending || tooLong || !!windowProblem || !!lengthProblem}
@@ -945,6 +975,7 @@ function InviteCohortToExercise({ programmes }: { programmes: any[] }) {
             programId: Number(programId),
             difficulty,
             durationMinutes: minutes,
+            ...(moduleId ? { sessionId: Number(moduleId) } : {}),
             ...(steer.trim() ? { steer: steer.trim() } : {}),
             // Read in the admin's own clock: both boxes are filled in by
             // somebody looking at their own, so five o'clock means five o'clock
@@ -963,5 +994,74 @@ function InviteCohortToExercise({ programmes }: { programmes: any[] }) {
           worth being able to read twice. */}
       {result && <p className="mt-3 text-xs text-white/70">{result}</p>}
     </div>
+  );
+}
+
+/**
+ * Which simulation module this exercise is the work for.
+ *
+ * Shown only when the programme has one. An admin who has not made a
+ * simulation module is told how, in one sentence, rather than being given an
+ * empty dropdown to puzzle over.
+ *
+ * It names what finishing will open, because that is the thing being decided
+ * and it is not otherwise visible: picking "Crisis exercise" is how you say
+ * "Module 4 waits on this", and nobody should have to hold the running order
+ * in their head to know it.
+ */
+function SimulationModulePicker({ programId, moduleId, onChange }: {
+  programId: string;
+  moduleId: string;
+  onChange: (next: string) => void;
+}) {
+  const { data: modules = [] } = useListProgramSessions(Number(programId), {
+    query: {
+      enabled: !!programId,
+      queryKey: getListProgramSessionsQueryKey(Number(programId)),
+    },
+  });
+
+  if (!programId) return null;
+
+  // The list arrives in the order the programme runs in, so the module after
+  // one is simply the next in it.
+  const simulations = modules.filter((m: { kind?: string }) => m.kind === 'simulation');
+
+  if (simulations.length === 0) {
+    return (
+      <p className="mt-5 text-[11px] text-white/45 leading-relaxed border-t border-white/10 pt-4">
+        This exercise will be practice — it gates nothing. To make one a requirement, add a module to
+        the programme and choose <span className="text-white/70">Simulation exercise</span> instead of
+        Live class, then send this exercise to it.
+      </p>
+    );
+  }
+
+  const chosenIndex = modules.findIndex((m: { id: number }) => String(m.id) === moduleId);
+  const opens = chosenIndex >= 0 ? modules[chosenIndex + 1] : undefined;
+
+  return (
+    <label className="block mt-5 border-t border-white/10 pt-4">
+      <span className="block text-[10px] uppercase tracking-widest text-white/40 mb-1.5">
+        Which module is this the work for — optional
+      </span>
+      <select
+        className="w-full bg-[#030811] border border-white/20 text-white px-3 py-2 text-sm"
+        value={moduleId}
+        onChange={(e) => onChange(e.target.value)}
+      >
+        <option value="">Practice — it gates nothing</option>
+        {simulations.map((m: { id: number; title: string }) => (
+          <option key={m.id} value={m.id}>{m.title}</option>
+        ))}
+      </select>
+      <span className="block text-[11px] text-white/45 mt-1.5 leading-relaxed">
+        {!moduleId
+          ? 'Nobody is held up by this one. They can do it, or not.'
+          : opens
+            ? `Whoever has not run this to the end will not be able to open ${opens.title}.`
+            : 'Nothing comes after this module, so it opens nothing — but it still has to be done for a certificate.'}
+      </span>
+    </label>
   );
 }

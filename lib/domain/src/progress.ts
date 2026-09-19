@@ -31,12 +31,29 @@ import {
 
 export const QUIZ_PASS_MARK = 70;
 
+/**
+ * What kind of thing a module is.
+ *
+ * "class": the original and the default. A live session to attend, with a
+ * recording, a quiz and a task.
+ *
+ * "simulation": the Studio exercise, standing in the running order as a module
+ * of its own. There is nothing to attend and nothing to watch — the work is
+ * the exercise — so attendance is not asked of it. It has a date because that
+ * is where it sits in the term, and the module after it waits on it exactly as
+ * it would wait on a class.
+ */
+export type ModuleKind = "class" | "simulation";
+
 export type SessionLite = {
   id: number;
   programId: number;
   startsAt: Date | null;
   durationMins: number;
   sortOrder: number;
+  /** Absent on every module written before simulation modules existed, and on
+   *  those it means what it has always meant: a live class. */
+  kind?: ModuleKind;
   /**
    * Only ever used to name the module a learner has to finish first. Optional
    * so that callers written before locked modules explained themselves keep
@@ -56,6 +73,27 @@ export type CourseworkStatus = {
   reviewsGiven: number;
   /** How many critiques the learner's own submission has received. */
   reviewsReceived: number;
+  /**
+   * A Studio exercise this learner has been sent for this module.
+   *
+   * False when the module is not a simulation, and also when it is one but
+   * nobody has sent the cohort their exercise yet. That second case matters:
+   * an empty simulation module must not be able to shut the module after it,
+   * for the same reason an unposted quiz must not — a cohort walled in by
+   * something their admin has not done yet, with nothing on screen to explain
+   * it, is the worst failure this file can have.
+   */
+  hasSimulation: boolean;
+  /**
+   * They ran it to the end.
+   *
+   * Finishing is the whole test. The score is not a gate: the Lab asks that
+   * you do the work, not that you do it well, and a debrief that says you
+   * handled it badly is the most useful thing in the exercise. Marking on it
+   * would also mean somebody could be held out of Module 4 by a number rather
+   * than by an action they can take.
+   */
+  simulationDone: boolean;
   /**
    * How many other people filed work on this module that this learner could
    * critique. Undefined on callers written before small cohorts were handled,
@@ -87,6 +125,8 @@ export const EMPTY_COURSEWORK: CourseworkStatus = {
   reviewsRequired: 0,
   reviewsGiven: 0,
   reviewsReceived: 0,
+  hasSimulation: false,
+  simulationDone: false,
   quizDueAt: null,
   assignmentDueAt: null,
 };
@@ -127,6 +167,10 @@ export type ProgressEntry = {
   reviewsRequired: number;
   reviewsGiven: number;
   reviewsReceived: number;
+  /** What kind of module this is, so a card can be drawn for it. */
+  kind: ModuleKind;
+  hasSimulation: boolean;
+  simulationDone: boolean;
   /** Deadlines, so a learner sees them without opening each piece of work. */
   quizDueAt: string | null;
   assignmentDueAt: string | null;
@@ -240,7 +284,15 @@ export function computeProgress(
       // Attending the class is a requirement in its own right, and counts as one
       // share of the module alongside each published deliverable.
       const parts: number[] = [];
-      const presenceRequired = start !== null;
+      /*
+        A simulation module has no class, no room and no recording. Asking it
+        for attendance would give a learner a bar that can never fill, and a
+        module that can never complete, and therefore a Module 4 that never
+        opens. It has a date because that is where it sits in the term, not
+        because anybody turns up to it.
+      */
+      const kind: ModuleKind = s.kind ?? "class";
+      const presenceRequired = start !== null && kind !== "simulation";
       if (presenceRequired) {
         // How far along the learner is, as a share of the bar they are closest
         // to clearing. `bestPct` is the raw higher of the two percentages while
@@ -259,10 +311,15 @@ export function computeProgress(
       if (cw.hasQuiz) {
         parts.push(quizPassed ? 100 : Math.min(cw.quizBestScore ?? 0, 99));
       }
+      // Done or not done. There is no half of an exercise: somebody who
+      // started one and abandoned it has not done it, and a bar reading 50%
+      // would say otherwise.
+      if (cw.hasSimulation) parts.push(cw.simulationDone ? 100 : 0);
 
       const deliverablesMet =
         (!cw.hasAssignment || (cw.assignmentSubmitted && reviewsDone)) &&
-        (!cw.hasQuiz || quizPassed);
+        (!cw.hasQuiz || quizPassed) &&
+        (!cw.hasSimulation || cw.simulationDone);
 
       // Both halves: attended the class, and did the work.
       const requirementsMet = (!presenceRequired || presence.met) && deliverablesMet;
@@ -308,6 +365,9 @@ export function computeProgress(
         reviewsRequired,
         reviewsGiven: cw.reviewsGiven,
         reviewsReceived: cw.reviewsReceived,
+        kind,
+        hasSimulation: cw.hasSimulation,
+        simulationDone: cw.simulationDone,
         quizDueAt: cw.quizDueAt ?? null,
         assignmentDueAt: cw.assignmentDueAt ?? null,
         feedbackUnlocked: reviewsRequired === 0 || reviewsDone,
@@ -331,9 +391,17 @@ export function computeProgress(
         entry.beforeEnrolled = true;
       }
 
-      // Waived prerequisites: unscheduled modules, and modules that ended
-      // before this learner enrolled.
-      const waived = start === null || beforeTheyJoined;
+      /*
+        Waived prerequisites: unscheduled modules, and modules that ended
+        before this learner enrolled.
+
+        A simulation module with an exercise on it is the one undated thing
+        that must still gate. It is not "not scheduled yet" — it is set, it has
+        been sent, and it is the reason the module after it is shut. Every
+        other undated module keeps being waived exactly as before, so no
+        existing programme changes behaviour.
+      */
+      const waived = (start === null && !cw.hasSimulation) || beforeTheyJoined;
       rows.push({ session: s, entry, satisfied: entry.completed || waived });
     }
 

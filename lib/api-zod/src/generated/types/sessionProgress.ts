@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { Presence } from './presence';
+import type { SessionProgressKind } from './sessionProgressKind';
 
 export interface SessionProgress {
   sessionId: number;
@@ -33,4 +34,7 @@ export interface SessionProgress {
   /** @nullable */
   lockedReason?: string | null;
   feedbackUnlocked: boolean;
+  kind?: SessionProgressKind;
+  hasSimulation?: boolean;
+  simulationDone?: boolean;
 }

@@ -498,3 +498,100 @@ describe("edges that stranded real learners", () => {
     expect(entry.progressPct).toBeLessThan(100);
   });
 });
+
+describe("a simulation module", () => {
+  const enrolled = new Map([[1, new Date(NOW - 90 * 24 * HOUR)]]);
+
+  /** Module 3 is the exercise; module 4 is the class that waits on it. */
+  function twoModules(cw: Partial<CourseworkStatus>) {
+    return computeProgress(
+      [
+        session(3, { kind: "simulation", startsAt: new Date(NOW - 2 * HOUR), title: "Crisis exercise" }),
+        session(4, { startsAt: new Date(NOW - 1 * HOUR), title: "Module 4" }),
+      ],
+      new Map(),
+      enrolled,
+      new Map([[3, coursework(cw)], [4, coursework()]]),
+      new Map(),
+      NOW,
+    );
+  }
+
+  it("asks nobody to attend it", () => {
+    // There is no class, no room and no recording. An attendance bar here can
+    // never fill, so it must never be asked for.
+    const [exercise] = twoModules({ hasSimulation: true, simulationDone: true });
+    expect(exercise.completed).toBe(true);
+    expect(exercise.progressPct).toBe(100);
+    expect(exercise.presence.met).toBe(false);
+  });
+
+  it("shuts the module after it until the exercise is done", () => {
+    const [exercise, next] = twoModules({ hasSimulation: true, simulationDone: false });
+    expect(exercise.completed).toBe(false);
+    expect(next.locked).toBe(true);
+    expect(next.lockedReason).toBe("Finish Crisis exercise to open this");
+  });
+
+  it("opens the module after it the moment the exercise is finished", () => {
+    const [exercise, next] = twoModules({ hasSimulation: true, simulationDone: true });
+    expect(exercise.completed).toBe(true);
+    expect(next.locked).toBe(false);
+    expect(next.lockedReason).toBeNull();
+  });
+
+  it("does not mark on the score", () => {
+    // Finishing is the whole test. A debrief saying they handled it badly is
+    // the most useful thing in the exercise; it is not a reason to hold them
+    // out of the next module.
+    const [, next] = twoModules({ hasSimulation: true, simulationDone: true });
+    expect(next.locked).toBe(false);
+  });
+
+  it("lets everybody through while no exercise has been sent", () => {
+    // An empty simulation module must not wall a cohort in for something their
+    // admin has not done yet, with nothing on screen to explain it.
+    const [exercise, next] = twoModules({ hasSimulation: false, simulationDone: false });
+    expect(exercise.completed).toBe(true);
+    expect(exercise.notSetYet).toBe(true);
+    expect(next.locked).toBe(false);
+  });
+
+  it("gates even with no date on it, once an exercise is on it", () => {
+    // Every other undated module is waived as "not scheduled yet". This one is
+    // set, it has been sent, and it is the reason the next module is shut.
+    const rows = computeProgress(
+      [
+        session(3, { kind: "simulation", startsAt: null, title: "Crisis exercise" }),
+        session(4, { startsAt: null, title: "Module 4" }),
+      ],
+      new Map(),
+      enrolled,
+      new Map([[3, coursework({ hasSimulation: true, simulationDone: false })], [4, coursework()]]),
+      new Map(),
+      NOW,
+    );
+    expect(rows[0].completed).toBe(false);
+    expect(rows[1].locked).toBe(true);
+  });
+
+  it("leaves an ordinary undated module waived, as before", () => {
+    const rows = computeProgress(
+      [session(3, { startsAt: null, title: "To be confirmed" }), session(4, { startsAt: null })],
+      new Map(),
+      enrolled,
+      new Map(),
+      new Map(),
+      NOW,
+    );
+    expect(rows[1].locked).toBe(false);
+  });
+
+  it("says what kind of module it is", () => {
+    const [exercise, next] = twoModules({ hasSimulation: true, simulationDone: false });
+    expect(exercise.kind).toBe("simulation");
+    expect(exercise.hasSimulation).toBe(true);
+    expect(exercise.simulationDone).toBe(false);
+    expect(next.kind).toBe("class");
+  });
+});
