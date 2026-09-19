@@ -32,6 +32,7 @@ export interface StudioSimulationRun {
   /** @nullable */
   participantGroupId: string | null;
   unattended: boolean;
+  readOnly?: boolean;
   /** @nullable */
   teamName: string | null;
 }

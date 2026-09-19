@@ -132,6 +132,7 @@ import type {
   StudioAccessCodeInput,
   StudioAccessCodeRequest,
   StudioAccessGrantSummary,
+  StudioCohort,
   StudioPracticeRecord,
   StudioSimulation,
   StudioSimulationRun,
@@ -7467,6 +7468,84 @@ export const useApproveGroupSession = <TError = ErrorType<ApiMessage>,
       > => {
       return useMutation(getApproveGroupSessionMutationOptions(options));
     }
+
+export const getGetStudioCohortUrl = (programId: number,) => {
+
+
+
+
+  return `/api/admin/studio/cohort/${programId}`
+}
+
+/**
+ * The Studio as the person who sent the exercise needs to see it: people rather than exercises. Derived from the invitation and the run, so it cannot drift from what the learner is looking at. Ordered by who needs something first.
+ * @summary Where every invited learner has got to
+ */
+export const getStudioCohort = async (programId: number, options?: Parameters<typeof customFetch>[1]): Promise<StudioCohort> => {
+
+  return customFetch<StudioCohort>(getGetStudioCohortUrl(programId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetStudioCohortQueryKey = (programId: number,) => {
+    return [
+    `/api/admin/studio/cohort/${programId}`
+    ] as const;
+    }
+
+
+export const getGetStudioCohortQueryOptions = <TData = Awaited<ReturnType<typeof getStudioCohort>>, TError = ErrorType<ForbiddenResponse | NotFoundResponse>>(programId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getStudioCohort>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetStudioCohortQueryKey(programId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getStudioCohort>>> = ({ signal }) => getStudioCohort(programId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: programId !== null && programId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getStudioCohort>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetStudioCohortQueryResult = NonNullable<Awaited<ReturnType<typeof getStudioCohort>>>
+export type GetStudioCohortQueryError = ErrorType<ForbiddenResponse | NotFoundResponse>
+
+
+/**
+ * @summary Where every invited learner has got to
+ */
+
+export function useGetStudioCohort<TData = Awaited<ReturnType<typeof getStudioCohort>>, TError = ErrorType<ForbiddenResponse | NotFoundResponse>>(
+ programId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getStudioCohort>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetStudioCohortQueryOptions(programId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getGetMyGroupSessionUrl = () => {
 

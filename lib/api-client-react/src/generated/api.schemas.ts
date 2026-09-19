@@ -1965,6 +1965,43 @@ export interface MyStudioExercise {
   problem?: string | null;
 }
 
+export type StudioCohortLearnersItemStanding = typeof StudioCohortLearnersItemStanding[keyof typeof StudioCohortLearnersItemStanding];
+
+
+export const StudioCohortLearnersItemStanding = {
+  waiting: 'waiting',
+  'not-started': 'not-started',
+  'in-progress': 'in-progress',
+  finished: 'finished',
+  missed: 'missed',
+} as const;
+
+export type StudioCohortLearnersItem = {
+  userId: number;
+  name: string;
+  email: string;
+  standing: StudioCohortLearnersItemStanding;
+  objective?: string;
+  /** @nullable */
+  runId?: number | null;
+  /** @nullable */
+  score?: number | null;
+  /** @nullable */
+  startedAt?: string | null;
+  /** @nullable */
+  completedAt?: string | null;
+  /** @nullable */
+  opensAt?: string | null;
+  /** @nullable */
+  expiresAt?: string | null;
+};
+
+export interface StudioCohort {
+  programmeTitle: string;
+  note: string;
+  learners: StudioCohortLearnersItem[];
+}
+
 export type MyGroupSessionState = typeof MyGroupSessionState[keyof typeof MyGroupSessionState];
 
 
@@ -2319,6 +2356,7 @@ export interface StudioSimulationRun {
   /** @nullable */
   participantGroupId: string | null;
   unattended: boolean;
+  readOnly?: boolean;
   /** @nullable */
   teamName: string | null;
 }

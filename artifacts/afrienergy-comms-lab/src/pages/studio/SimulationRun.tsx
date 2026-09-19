@@ -15,7 +15,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Loader2, Send, ShieldAlert, CheckCircle2, ChevronRight, RefreshCw, Target, Users,
-  Newspaper, MessageCircle, Radio, Mail, Phone, Scale, Megaphone, Zap, Clock, TimerOff, Download,
+  Newspaper, MessageCircle, Radio, Mail, Phone, Scale, Megaphone, Zap, Clock, TimerOff, Download, Eye,
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
@@ -171,6 +171,17 @@ export default function SimulationRun({ id }: { id?: string }) {
    * Both are corrected from this one fact.
    */
   const unattended = !!run?.unattended;
+  /*
+   * Somebody else's exercise, open in front of the person who set it.
+   *
+   * Until now an admin could not open a learner's run at all — the view
+   * refused anyone who was neither the owner nor in a team — so the person who
+   * commissioned the exercise could not read the debrief it produced. They can
+   * now, and this flag is the other half of that: every control on this screen
+   * belongs to the learner, and offering an admin a Send box would offer them
+   * a button that answers 403 and a clock that is not theirs to run.
+   */
+  const watching = !!run?.readOnly;
   const sessionLeft = useTicking(run?.clock?.sessionSecondsLeft);
   const responseLeft = useTicking(run?.clock?.responseSecondsLeft);
   // Under a minute is when people start typing faster. It is the only moment
@@ -423,7 +434,9 @@ export default function SimulationRun({ id }: { id?: string }) {
         */}
         <div className={cn("w-full lg:w-[420px] shrink-0 flex flex-col min-h-0 h-[60vh] lg:h-auto z-10 shadow-2xl lg:shadow-none border-t lg:border-t-0", t.terminalBg, t.panelBorder)}>
           <div className={cn("h-14 border-b flex items-center justify-between px-6 shrink-0", t.panelBorder)}>
-            <span className={cn("text-[10px] uppercase tracking-[0.2em]", t.accentText, t.headerStyle)}>Your response</span>
+            <span className={cn("text-[10px] uppercase tracking-[0.2em]", t.accentText, t.headerStyle)}>
+              {watching ? 'Their response' : 'Your response'}
+            </span>
             <span className="text-white/30 text-[10px] font-mono uppercase">User: {run.participantGroupId || 'Local'}</span>
           </div>
 
@@ -438,7 +451,11 @@ export default function SimulationRun({ id }: { id?: string }) {
                   is on the session in the console. A button promising one would
                   refetch for ever and never produce it.
                 */}
-                {isOwner && unattended && !run.debrief ? (
+                {watching && !run.debrief ? (
+                  <p className="text-white/50 text-xs leading-relaxed">
+                    This one ended without a debrief being written. The answers are on the left.
+                  </p>
+                ) : isOwner && unattended && !run.debrief ? (
                   <p className="text-white/50 text-xs leading-relaxed">
                     Each team's debrief has been written and is on their own screens. The read across
                     the whole room is on this session in the console.
@@ -451,6 +468,16 @@ export default function SimulationRun({ id }: { id?: string }) {
                     </Button>
                   </>
                 )}
+              </div>
+            ) : watching ? (
+              <div className="flex-1 flex flex-col items-center justify-center text-center">
+                <Eye className={cn("w-12 h-12 mb-6", t.accentText)} aria-hidden />
+                <h3 className={cn("text-lg mb-2", t.headerStyle)}>Somebody else's exercise</h3>
+                <p className="text-white/50 text-xs leading-relaxed max-w-xs">
+                  You are reading this while they are in it. Nothing here reaches them — the answers
+                  are theirs to write and the clock is theirs to run. The debrief appears here when
+                  they finish.
+                </p>
               </div>
             ) : !currentDev ? (
                <div className="flex-1 flex flex-col items-center justify-center text-center">

@@ -3110,6 +3110,30 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiMessage"
+  /admin/studio/cohort/{programId}:
+    get:
+      operationId: getStudioCohort
+      tags: [studio]
+      summary: Where every invited learner has got to
+      description: >
+        The Studio as the person who sent the exercise needs to see it: people
+        rather than exercises. Derived from the invitation and the run, so it
+        cannot drift from what the learner is looking at. Ordered by who needs
+        something first.
+      parameters:
+        - name: programId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: The cohort
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StudioCohort"
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
   /studio/my-group-session:
     get:
       operationId: getMyGroupSession
@@ -5670,6 +5694,34 @@ components:
         runId: { type: ["integer", "null"] }
         # Why they cannot begin, when they cannot.
         problem: { type: ["string", "null"] }
+    StudioCohort:
+      type: object
+      required: [programmeTitle, note, learners]
+      properties:
+        programmeTitle: { type: string }
+        # The shape of the cohort in one line.
+        note: { type: string }
+        learners:
+          type: array
+          items:
+            type: object
+            required: [userId, name, email, standing]
+            properties:
+              userId: { type: integer }
+              name: { type: string }
+              email: { type: string }
+              standing:
+                type: string
+                enum: [waiting, not-started, in-progress, finished, missed]
+              objective: { type: string }
+              # The run, once they have begun one. This is what the admin opens
+              # to read the debrief and what they actually wrote.
+              runId: { type: ["integer", "null"] }
+              score: { type: ["integer", "null"] }
+              startedAt: { type: ["string", "null"], format: date-time }
+              completedAt: { type: ["string", "null"], format: date-time }
+              opensAt: { type: ["string", "null"], format: date-time }
+              expiresAt: { type: ["string", "null"], format: date-time }
     MyGroupSession:
       type: object
       required: [hasSession]
@@ -5964,6 +6016,9 @@ components:
         # because the cohort is the room, and the screen must not tell anybody
         # to wait for a facilitator who does not exist.
         unattended: { type: boolean }
+        # An admin reading somebody else's exercise. They see all of it and can
+        # change none of it — there is nothing here for them to press.
+        readOnly: { type: boolean }
         # The team this person is on, named. Null for a solo exercise and for
         # the admin who owns a cohort session, who is in no team.
         teamName: { type: ["string", "null"] }

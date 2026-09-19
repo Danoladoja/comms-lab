@@ -16,6 +16,7 @@ import {
   SubmitSimulationResponseParams, SubmitSimulationResponseResponse, GetStudioAccessResponse,
   RedeemStudioAccessBody, RedeemStudioAccessResponse, CreateStudioAccessCodeBody,
   GetMyStudioExerciseResponse, BeginStudioExerciseResponse, GetMyGroupSessionResponse,
+  GetStudioCohortResponse,
   InviteToStudioBody, InviteToStudioResponse,
   PlanGroupSessionBody, EditGroupSessionBody, GetGroupSessionResponse, ListGroupSessionsResponse,
 } from "@workspace/api-zod";
@@ -30,6 +31,7 @@ import {
   groupSessionState, approvalProblem, mayEditSession, beatApprovalNote, GROUP_SESSION_MINUTES,
   developmentsForTeam, debriefForTeam, isUnattendedRoom, mayEnterRoom, startsInMinutes, cohortNote,
   minutesLeft, picksOwnExercise, shouldCarryOn,
+  studioStanding, byStanding, cohortStandingNote,
 } from "@workspace/domain";
 import { getCurrentUser } from "../lib/auth";
 import { logger } from "../lib/logger";
@@ -274,16 +276,34 @@ function definitionView(definition: typeof simulationDefinitionsTable.$inferSele
     evaluationDimensions: definition.evaluationDimensions, debriefQuestions: definition.debriefQuestions, createdAt: definition.createdAt,
   };
 }
-async function runView(run: typeof simulationRunsTable.$inferSelect, userId: number) {
+async function runView(
+  run: typeof simulationRunsTable.$inferSelect,
+  userId: number,
+  /*
+    An admin reading somebody else's exercise.
+
+    Until now nobody could: the view refused anyone who was neither the owner
+    nor assigned to a team, which is every admin looking at every learner's
+    run. So the person who set the exercise could not read the debrief they
+    commissioned, or see a word anybody wrote. They see all of it now and can
+    change none of it — every route that changes a run checks the assignment,
+    which an admin does not have.
+  */
+  asAdmin = false,
+) {
   const [definition] = await db.select().from(simulationDefinitionsTable).where(eq(simulationDefinitionsTable.id, run.definitionId));
   if (!definition) throw new Error("Simulation definition missing for run");
   const [assignment] = await db.select().from(simulationGroupAssignmentsTable)
     .where(and(eq(simulationGroupAssignmentsTable.runId, run.id), eq(simulationGroupAssignmentsTable.userId, userId)));
   const isOwner = run.ownerId === userId;
-  if (!isOwner && !assignment) return null;
+  if (!isOwner && !assignment && !asAdmin) return null;
+  // Sees the whole thing, the way the owner does — every team's feed, every
+  // answer, the confidential briefs. Reading twenty exercises to teach from
+  // them is the job.
+  const whole = isOwner || asAdmin;
   const participantGroupId = assignment?.groupId ?? definition.groups[0]?.id ?? null;
   const allResponses = await db.select().from(simulationResponsesTable).where(eq(simulationResponsesTable.runId, run.id)).orderBy(asc(simulationResponsesTable.createdAt));
-  const safeGroups = isOwner ? definition.groups : definition.groups.filter((group) => group.id === participantGroupId);
+  const safeGroups = whole ? definition.groups : definition.groups.filter((group) => group.id === participantGroupId);
   return {
     id: run.id, simulationId: definition.id, mode: run.mode as "autonomous" | "facilitated", status: run.status as "active" | "completed",
     joinCode: isOwner ? run.joinCode : null, isOwner,
@@ -295,8 +315,8 @@ async function runView(run: typeof simulationRunsTable.$inferSelect, userId: num
       everybody's, which is what every run written before group sessions existed
       means by it — so nothing else changes.
     */
-    developments: isOwner ? run.developments : developmentsForTeam(run.developments, participantGroupId),
-    responses: (isOwner ? allResponses : allResponses.filter((item) => item.groupId === participantGroupId)).map(response),
+    developments: whole ? run.developments : developmentsForTeam(run.developments, participantGroupId),
+    responses: (whole ? allResponses : allResponses.filter((item) => item.groupId === participantGroupId)).map(response),
     /*
       Each team is judged on the feed it actually had, so each team gets its own
       debrief. A solo run has none of these and `debrief` is the whole answer,
@@ -308,9 +328,16 @@ async function runView(run: typeof simulationRunsTable.$inferSelect, userId: num
       session in the console, and showing them team one's verdict as though it
       were the room's would be a lie in the shape of an answer.
     */
-    debrief: isOwner
-      ? run.debrief
-      : debriefForTeam(run.teamDebriefs, assignment?.groupId ?? null)?.debrief ?? run.debrief,
+    /*
+      An admin reading a learner's run wants the debrief that learner got. On a
+      solo run that is the run's own; on a team run it is their team's, and an
+      admin with no team falls back to the run's, which for a cohort session is
+      the cross-team one on the session.
+    */
+    debrief: assignment
+      ? debriefForTeam(run.teamDebriefs, assignment.groupId)?.debrief ?? run.debrief
+      : run.debrief,
+    readOnly: asAdmin && !isOwner,
     /*
       Nobody is driving this one. The room screen used to tell participants to
       wait for the facilitator, which in a cohort session is a wait for somebody
@@ -1269,6 +1296,77 @@ router.get("/admin/studio/group-sessions", async (req, res): Promise<void> => {
   res.json(ListGroupSessionsResponse.parse(await Promise.all(sessions.map(groupSessionView))));
 });
 
+/**
+ * Where every invited learner has got to.
+ *
+ * The Studio's admin view was organised around exercises, and an admin sees
+ * every exercise — including the private copy generated for each learner each
+ * time one begins. So the list grew by one per run, was mostly other people's
+ * private scenarios, and its length meant nothing; two devices looking at two
+ * different moments showed two different numbers, both correct and both
+ * useless.
+ *
+ * People, then. Derived from the invitation and the run rather than stored, so
+ * it cannot drift from what the learner is actually looking at, and ordered by
+ * who needs something first: out of time, not started, part-way, then done.
+ */
+router.get("/admin/studio/cohort/:programId", async (req, res): Promise<void> => {
+  const user = await getCurrentUser(req);
+  if (!user) { res.status(401).json(message("Unauthorized")); return; }
+  if (!satisfiesRole(user.role, ["admin"])) { res.status(403).json(message("Only admins can read a cohort")); return; }
+
+  const programId = Number(req.params.programId);
+  if (!Number.isInteger(programId) || programId < 1) { res.status(400).json(message("That is not a programme")); return; }
+  const [programme] = await db.select().from(programsTable).where(eq(programsTable.id, programId));
+  if (!programme) { res.status(404).json(message("Programme not found")); return; }
+
+  const rows = await db
+    .select({
+      userId: usersTable.id,
+      name: usersTable.name,
+      email: usersTable.email,
+      objective: studioInvitationsTable.objective,
+      runId: studioInvitationsTable.runId,
+      startedAt: studioInvitationsTable.startedAt,
+      completedAt: studioInvitationsTable.completedAt,
+      opensAt: studioInvitationsTable.opensAt,
+      expiresAt: studioInvitationsTable.expiresAt,
+      createdAt: studioInvitationsTable.createdAt,
+      debrief: simulationRunsTable.debrief,
+    })
+    .from(studioInvitationsTable)
+    .innerJoin(usersTable, eq(usersTable.id, studioInvitationsTable.userId))
+    .leftJoin(simulationRunsTable, eq(simulationRunsTable.id, studioInvitationsTable.runId))
+    .where(eq(studioInvitationsTable.programId, programId))
+    .orderBy(sql`${studioInvitationsTable.createdAt} desc`);
+
+  // Newest invitation per person. Somebody invited twice is shown where they
+  // are now, not where they once were.
+  const newest = new Map<number, typeof rows[number]>();
+  for (const row of rows) if (!newest.has(row.userId)) newest.set(row.userId, row);
+
+  const now = Date.now();
+  const learners = byStanding([...newest.values()].map((row) => ({
+    userId: row.userId,
+    name: (row.name ?? "").trim() || row.email || "Unnamed",
+    email: row.email ?? "",
+    standing: studioStanding(inviteFacts(row), now),
+    objective: row.objective,
+    runId: row.runId,
+    score: row.debrief?.score ?? null,
+    startedAt: row.startedAt?.toISOString() ?? null,
+    completedAt: row.completedAt?.toISOString() ?? null,
+    opensAt: row.opensAt?.toISOString() ?? null,
+    expiresAt: row.expiresAt?.toISOString() ?? null,
+  })));
+
+  res.json(GetStudioCohortResponse.parse({
+    programmeTitle: programme.title,
+    note: cohortStandingNote(learners),
+    learners,
+  }));
+});
+
 /* ------------------------------------------------------------------ *
  * The cohort's group session, as a learner sees it
  * ------------------------------------------------------------------ */
@@ -1914,10 +2012,16 @@ router.get("/simulation-runs/:runId", requireStudioAccess, async (req, res): Pro
   if (!params.success) { res.status(400).json(message(params.error.message)); return; }
   const [found] = await db.select().from(simulationRunsTable).where(eq(simulationRunsTable.id, params.data.runId));
   if (!found) { res.status(404).json(message("Simulation run not found")); return; }
-  if (!(await runView(found, user.id))) { res.status(403).json(message("Not a participant in this simulation run")); return; }
+  const reading = satisfiesRole(user.role, ["admin"]);
+  if (!(await runView(found, user.id, reading))) { res.status(403).json(message("Not a participant in this simulation run")); return; }
 
   let run = found;
-  if (run.status === "active" && simulationAiConfigured()) {
+  // An admin reading somebody else's exercise moves nothing. Advancing a live
+  // run because a facilitator glanced at it would be the software doing
+  // something nobody asked for; a run nobody is watching is closed by the
+  // sweep, not by an onlooker.
+  const mine = found.ownerId === user.id;
+  if (run.status === "active" && simulationAiConfigured() && mine) {
     const [definition] = await db.select().from(simulationDefinitionsTable).where(eq(simulationDefinitionsTable.id, run.definitionId));
     let says = whatTheClockSays(clockFor(run, definition), run.mode as "autonomous" | "facilitated");
 
@@ -1969,7 +2073,7 @@ router.get("/simulation-runs/:runId", requireStudioAccess, async (req, res): Pro
     }
   }
 
-  const view = await runView(run, user.id);
+  const view = await runView(run, user.id, reading);
   if (!view) { res.status(403).json(message("Not a participant in this simulation run")); return; }
   res.json(GetSimulationRunResponse.parse(view));
 });

@@ -585,3 +585,69 @@ export function timeLeftNote(expiresAt: string | null | undefined, nowMs: number
   if (days === 1) return "One day left to start it.";
   return `${days} days left to start it.`;
 }
+
+/* ------------------------------------------------------------------ *
+ * The cohort, as the person who sent the exercise needs to see it
+ * ------------------------------------------------------------------ */
+
+/**
+ * Where one learner has got to.
+ *
+ * Derived rather than stored, from the two rows that already say it: the
+ * invitation and the run. Nothing new is written down, so this cannot drift
+ * from what the learner is actually looking at.
+ */
+export type StudioStanding =
+  /** Sent, its window has not opened. */
+  | "waiting"
+  /** Open, not begun. The one that needs chasing. */
+  | "not-started"
+  | "in-progress"
+  | "finished"
+  /** The window closed before they began. */
+  | "missed";
+
+export function studioStanding(facts: StudioInviteFacts, nowMs: number): StudioStanding {
+  switch (inviteState(facts, nowMs)) {
+    case "not-yet-open": return "waiting";
+    case "ready": return "not-started";
+    case "in-progress": return "in-progress";
+    case "spent": return "finished";
+    case "expired": return "missed";
+  }
+}
+
+/**
+ * The order an admin wants them in.
+ *
+ * The people who need something first: the ones who have run out of time,
+ * then the ones who have not started, then the ones part-way through, then
+ * everybody who is done. Alphabetical inside each, so the list is stable
+ * between one look and the next — a list that reshuffles under you is a list
+ * nobody trusts.
+ */
+const STANDING_ORDER: Record<StudioStanding, number> = {
+  missed: 0, "not-started": 1, "in-progress": 2, waiting: 3, finished: 4,
+};
+
+export function byStanding<T extends { standing: StudioStanding; name: string }>(
+  rows: readonly T[],
+): T[] {
+  return [...rows].sort((a, b) =>
+    STANDING_ORDER[a.standing] - STANDING_ORDER[b.standing]
+    || a.name.localeCompare(b.name));
+}
+
+/** What the admin reads above the list. */
+export function cohortStandingNote(rows: readonly { standing: StudioStanding }[]): string {
+  if (rows.length === 0) return "Nobody has been invited to an exercise yet.";
+  const count = (s: StudioStanding) => rows.filter((r) => r.standing === s).length;
+  const finished = count("finished");
+  const parts = [`${finished} of ${rows.length} finished`];
+  const notStarted = count("not-started");
+  const missed = count("missed");
+  if (notStarted > 0) parts.push(`${notStarted} not started`);
+  if (count("in-progress") > 0) parts.push(`${count("in-progress")} part-way through`);
+  if (missed > 0) parts.push(`${missed} ran out of time`);
+  return `${parts.join(" · ")}.`;
+}

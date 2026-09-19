@@ -23,6 +23,9 @@ import {
   validityProblem,
   opensInNote,
   timeLeftNote,
+  studioStanding,
+  byStanding,
+  cohortStandingNote,
 } from "./studioInvites";
 import { plannedTurns } from "./simulations";
 
@@ -389,5 +392,63 @@ describe("what the admin is told after inviting", () => {
     });
     expect(note).toMatch(/nobody has been told/i);
     expect(note).toMatch(/next open the Studio/);
+  });
+});
+
+describe("the cohort as the admin needs to see it", () => {
+  const NOW = Date.parse("2026-09-19T09:00:00Z");
+  const DAY = 24 * 60 * 60 * 1000;
+  const at = (ms: number) => new Date(NOW + ms).toISOString();
+  const facts = (over: Partial<StudioInviteFacts> = {}): StudioInviteFacts => ({
+    runId: null, startedAt: null, completedAt: null, opensAt: null, expiresAt: null, ...over,
+  });
+
+  it("reads each of the five places somebody can be", () => {
+    expect(studioStanding(facts({ opensAt: at(DAY) }), NOW)).toBe("waiting");
+    expect(studioStanding(facts(), NOW)).toBe("not-started");
+    expect(studioStanding(facts({ runId: 7 }), NOW)).toBe("in-progress");
+    expect(studioStanding(facts({ completedAt: at(-DAY) }), NOW)).toBe("finished");
+    expect(studioStanding(facts({ expiresAt: at(-DAY) }), NOW)).toBe("missed");
+  });
+
+  it("puts the people who need something first", () => {
+    // An admin opens this to find out who to chase, not to admire the finishers.
+    const rows = [
+      { name: "Ama", standing: "finished" as const },
+      { name: "Kofi", standing: "not-started" as const },
+      { name: "Zuri", standing: "missed" as const },
+      { name: "Bala", standing: "in-progress" as const },
+      { name: "Ada", standing: "not-started" as const },
+    ];
+    expect(byStanding(rows).map((r) => r.name)).toEqual(["Zuri", "Ada", "Kofi", "Bala", "Ama"]);
+  });
+
+  it("keeps the same order between one look and the next", () => {
+    // A list that reshuffles under you is a list nobody trusts.
+    const rows = [
+      { name: "Bala", standing: "not-started" as const },
+      { name: "Ada", standing: "not-started" as const },
+    ];
+    expect(byStanding(rows).map((r) => r.name)).toEqual(byStanding(byStanding(rows)).map((r) => r.name));
+  });
+
+  it("says the shape of the cohort in one line", () => {
+    const note = cohortStandingNote([
+      { standing: "finished" }, { standing: "finished" },
+      { standing: "not-started" }, { standing: "in-progress" }, { standing: "missed" },
+    ]);
+    expect(note).toContain("2 of 5 finished");
+    expect(note).toContain("1 not started");
+    expect(note).toContain("1 part-way through");
+    expect(note).toContain("1 ran out of time");
+  });
+
+  it("does not report nothings", () => {
+    const note = cohortStandingNote([{ standing: "finished" }, { standing: "finished" }]);
+    expect(note).toBe("2 of 2 finished.");
+  });
+
+  it("says plainly when nobody has been invited", () => {
+    expect(cohortStandingNote([])).toMatch(/Nobody has been invited/);
   });
 });
