@@ -252,18 +252,37 @@ function Extensions({ programId, focus }: {
             </select>
           </label>
 
+          {/*
+            A module with no deadline used to replace this whole panel with one
+            sentence about there being nothing to extend. That was two things
+            conflated: extra time, which genuinely needs a deadline to move, and
+            "where does everybody stand on this module", which does not.
+
+            It went unnoticed while every module had a written task. A
+            simulation module has neither quiz nor task — it has the exercise —
+            so it fell into the no-deadline case, and choosing it here brought
+            up nothing at all. The per-learner table below, including the
+            exercise column built for exactly this module, was never reached.
+
+            So the two are separated: the standing of the cohort is always
+            drawn, and only the date box waits on there being a date.
+          */}
           {sessionId === null ? null : isLoading ? (
             <div className="mt-4 h-32 animate-pulse rounded-lg bg-muted/40" />
-          ) : !module?.hasCoursework ? (
+          ) : !module ? (
             <p className="mt-4 text-xs text-muted-foreground">
-              Nothing on this module has a deadline, so there is nothing to extend — the work is already open.
+              That module could not be loaded. Try choosing it again.
             </p>
           ) : (
             <>
               <div className="mt-4 rounded-lg border border-border bg-muted/20 p-3 text-xs">
                 <p>
                   <span className="font-medium">The cohort's deadline:</span>{' '}
-                  {describeModuleDeadline(module)}
+                  {module.hasCoursework
+                    ? describeModuleDeadline(module)
+                    : isSimulation
+                      ? 'None. A simulation module is done by doing the exercise, not by a date.'
+                      : 'None. Nothing on this module has a deadline, so the work is already open.'}
                 </p>
                 <p className="mt-1 text-muted-foreground">
                   {notDone.length === 0
@@ -305,6 +324,10 @@ function Extensions({ programId, focus }: {
                 recording it is also the only thing standing between a cohort
                 and every module after it.
               */}
+              {/* Nothing to credit on a simulation module: there was no class,
+                  and a green tick for attending one would be a lie written on
+                  the record beside somebody's name. */}
+              {!isSimulation && (
               <div className="mt-4 rounded-lg border border-border p-3">
                 <p className="flex items-center gap-2 text-xs font-semibold">
                   <UserCheck className="h-4 w-4 text-[#C2410C]" aria-hidden />The class itself
@@ -364,8 +387,13 @@ function Extensions({ programId, focus }: {
                   </>
                 )}
               </div>
+              )}
 
-              {/* The date first, because it is what every button below needs. */}
+              {/* The date first, because it is what every button below needs.
+                  Absent entirely where there is no deadline to move, rather
+                  than offered and then refused. */}
+              {module.hasCoursework && (
+              <>
               <div className="mt-4 flex flex-wrap items-end gap-2">
                 <label className="text-xs text-muted-foreground">
                   New date and time
@@ -420,6 +448,8 @@ function Extensions({ programId, focus }: {
                   </Button>
                 )}
               </div>
+              </>
+              )}
 
               <table className="mt-4 w-full text-sm">
                 <thead>
@@ -442,7 +472,8 @@ function Extensions({ programId, focus }: {
                     <th className="p-2">Quiz</th>
                     <th className="p-2">Written task</th>
                     {anyCritiques && <th className="p-2">Critiques</th>}
-                    <th className="p-2">Extra time</th>
+                    {/* No deadline, nothing to extend, no column. */}
+                    {module.hasCoursework && <th className="p-2">Extra time</th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -561,6 +592,7 @@ function Extensions({ programId, focus }: {
                           )}
                         </td>
                       )}
+                      {module.hasCoursework && (
                       <td className="p-2 text-xs">
                         {l.extendedTo ? (
                           <span className="flex flex-wrap items-center gap-2">
@@ -583,11 +615,21 @@ function Extensions({ programId, focus }: {
                           <span className="text-muted-foreground">—</span>
                         )}
                       </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>
               </table>
 
+              {isSimulation && (
+                <p className="mt-3 text-xs text-muted-foreground">
+                  This module is finished by doing the exercise. There is no class to attend and no
+                  deadline to move, so the only thing that completes it — and opens the module after
+                  it — is the Studio exercise being done.
+                </p>
+              )}
+
+              {module.hasCoursework && (
               <div className="mt-3 space-y-1.5 text-xs text-muted-foreground">
                 <p>
                   Extra time reopens everything on this module that is handed in — the quiz, the written
@@ -605,6 +647,7 @@ function Extensions({ programId, focus }: {
                   marked above with what is blocking them.
                 </p>
               </div>
+              )}
             </>
           )}
         </div>
