@@ -14,6 +14,8 @@ export interface ModuleLearnerStanding {
   attended: boolean;
   attendedVia: ModuleLearnerStandingAttendedVia;
   attendedPct: number;
+  hasSimulation: boolean;
+  simulationDone: boolean;
   submitted: boolean;
   quizPassed: boolean;
   /** @nullable */

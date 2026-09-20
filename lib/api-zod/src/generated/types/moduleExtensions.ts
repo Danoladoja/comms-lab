@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { ModuleExtensionsKind } from './moduleExtensionsKind';
 import type { ModuleLearnerStanding } from './moduleLearnerStanding';
 
 export interface ModuleExtensions {
@@ -13,6 +14,7 @@ export interface ModuleExtensions {
   programTitle?: string;
   /** @nullable */
   startsAt?: Date | null;
+  kind: ModuleExtensionsKind;
   /** @nullable */
   quizDueAt?: Date | null;
   /** @nullable */

@@ -1,7 +1,8 @@
 import {
   db, attendanceTable, replayProgressTable, enrollmentsTable, sessionsTable, programsTable,
   quizQuestionsTable, quizAttemptsTable, assignmentsTable, assignmentSubmissionsTable,
-  submissionReviewsTable, deadlineExtensionsTable, usersTable,
+  submissionReviewsTable, deadlineExtensionsTable, usersTable, studioInvitationsTable,
+  studioGroupSessionsTable, simulationGroupAssignmentsTable,
 } from "@workspace/db";
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import {
@@ -15,6 +16,7 @@ import {
   type CourseworkStatus,
   type PresenceInput,
   type Progression,
+  type ModuleKind,
   type CohortModule,
   type CohortLearner,
   type CohortSnapshot,
@@ -37,8 +39,23 @@ import {
  * So this loads the same tables the single-learner loader does, without the
  * `userId =` filter, groups them by learner in memory, and calls
  * `computeProgress` once per person. Forty-five learners over eight modules is
- * eleven queries and forty-five pure function calls — cheaper than the round
+ * thirteen queries and forty-five pure function calls — cheaper than the round
  * trips it replaces, and incapable of disagreeing with the dashboard.
+ *
+ * "Incapable of disagreeing" was too strong, and it is worth saying where it
+ * broke rather than quietly correcting it. Sharing `computeProgress` only
+ * guarantees the two screens apply the same rules; it guarantees nothing about
+ * their being given the same facts. When simulation modules arrived, the
+ * learner's loader learned to read a module's kind, the Studio exercises sent
+ * to somebody, and who walked into a group session — and this one did not. The
+ * rules then ran correctly here on an incomplete account: every simulation
+ * module read as an ordinary class, so the admin's screen asked forty-five
+ * people for a lecture nobody had scheduled and reported them all absent from
+ * work they had in fact done.
+ *
+ * Which is the same failure the paragraph above is about, one level down. The
+ * guard against it is the test beside this file: it runs both loaders over one
+ * database and fails if they ever disagree about anybody.
  */
 export async function cohortProgressFor(programId: number): Promise<{
   programme: { id: number; title: string };
@@ -68,6 +85,8 @@ export async function cohortProgressFor(programId: number): Promise<{
       durationMins: sessionsTable.durationMins,
       sortOrder: sessionsTable.sortOrder,
       title: sessionsTable.title,
+      kind: sessionsTable.kind,
+      recordingDurationSeconds: sessionsTable.recordingDurationSeconds,
       quizDueAt: sessionsTable.quizDueAt,
       quizDraft: sessionsTable.quizDraft,
     })
@@ -95,7 +114,7 @@ export async function cohortProgressFor(programId: number): Promise<{
   const sessionIds = sessions.map((s) => s.id).concat(-1);
   const userIds = roster.map((r) => r.userId).concat(-1);
 
-  const [att, replay, quizSessions, bestAttempts, assignments, submissions, reviewsGiven, reviewsReceived, extensions] =
+  const [att, replay, quizSessions, bestAttempts, assignments, submissions, reviewsGiven, reviewsReceived, extensions, studioInvites, groupArrivals] =
     await Promise.all([
       db.select().from(attendanceTable).where(and(
         inArray(attendanceTable.sessionId, sessionIds),
@@ -138,6 +157,7 @@ export async function cohortProgressFor(programId: number): Promise<{
           sessionId: assignmentSubmissionsTable.sessionId,
           submittedAt: assignmentSubmissionsTable.submittedAt,
           reviewsRequiredAtSubmission: assignmentSubmissionsTable.reviewsRequiredAtSubmission,
+          reviewsClearedRequired: assignmentSubmissionsTable.reviewsClearedRequired,
         })
         .from(assignmentSubmissionsTable)
         .where(inArray(assignmentSubmissionsTable.sessionId, sessionIds)),
@@ -171,6 +191,42 @@ export async function cohortProgressFor(programId: number): Promise<{
           inArray(deadlineExtensionsTable.sessionId, sessionIds),
           inArray(deadlineExtensionsTable.userId, userIds),
         )),
+      // The Studio exercises sent to anybody on this cohort, and whether each
+      // was finished. Read exactly as the single-learner loader reads them —
+      // the long note on why an invitation's module only counts on a
+      // simulation module is in ./progress.ts and is not worth saying twice.
+      db
+        .select({
+          userId: studioInvitationsTable.userId,
+          sessionId: studioInvitationsTable.sessionId,
+          completedAt: studioInvitationsTable.completedAt,
+        })
+        .from(studioInvitationsTable)
+        .where(and(
+          inArray(studioInvitationsTable.userId, userIds),
+          inArray(studioInvitationsTable.sessionId, sessionIds),
+        )),
+      // The approved group sessions filed against a module, and who walked in.
+      //
+      // Left-joined rather than inner-joined so a module keeps its group
+      // session in the answer even where nobody has arrived yet: the session
+      // existing is what makes the exercise something the module asks for, and
+      // an empty `enteredAt` is the honest record of somebody who never came.
+      db
+        .select({
+          sessionId: studioGroupSessionsTable.sessionId,
+          userId: simulationGroupAssignmentsTable.userId,
+          enteredAt: simulationGroupAssignmentsTable.enteredAt,
+        })
+        .from(studioGroupSessionsTable)
+        .leftJoin(simulationGroupAssignmentsTable, and(
+          eq(simulationGroupAssignmentsTable.runId, studioGroupSessionsTable.runId),
+          inArray(simulationGroupAssignmentsTable.userId, userIds),
+        ))
+        .where(and(
+          inArray(studioGroupSessionsTable.sessionId, sessionIds),
+          sql`${studioGroupSessionsTable.approvedAt} is not null`,
+        )),
     ]);
 
   /* ---- index everything by (user, session) once ---- */
@@ -186,6 +242,35 @@ export async function cohortProgressFor(programId: number): Promise<{
   const extensionByKey = new Map(extensions.map((e) => [key(e.userId, e.sessionId), e.dueAt.toISOString()]));
 
   const quizSet = new Set(quizSessions.map((q) => q.sessionId));
+
+  /* ---- the Studio, by the same reading the learner's own screen gives it ---- */
+
+  // Only a simulation module's exercise is a gate. An exercise filed against an
+  // ordinary class was practice somebody was given, not work they owe.
+  const simulationModules = new Set(
+    sessions.filter((s) => s.kind === "simulation").map((s) => s.id),
+  );
+  // Sent to one person: only that person's module is asked for.
+  const exerciseByKey = new Map<string, boolean>();
+  for (const invite of studioInvites) {
+    if (invite.sessionId === null || !simulationModules.has(invite.sessionId)) continue;
+    const k = key(invite.userId, invite.sessionId);
+    // Somebody re-sent an exercise after missing the first is done once any of
+    // them is done.
+    exerciseByKey.set(k, (exerciseByKey.get(k) ?? false) || invite.completedAt !== null);
+  }
+  // A group session has no invitation, because the cohort is the room: it is
+  // asked of everybody enrolled, and turning up is the work.
+  const groupModules = new Set<number>();
+  const arrivedByKey = new Set<string>();
+  for (const room of groupArrivals) {
+    if (room.sessionId === null || !simulationModules.has(room.sessionId)) continue;
+    groupModules.add(room.sessionId);
+    if (room.userId !== null && room.enteredAt !== null) {
+      arrivedByKey.add(key(room.userId, room.sessionId));
+    }
+  }
+
   const reviewsRequiredBySession = new Map(assignments.map((a) => [a.sessionId, a.reviewsRequired]));
   const assignmentDueBySession = new Map(assignments.map((a) => [a.sessionId, a.dueAt]));
 
@@ -209,6 +294,9 @@ export async function cohortProgressFor(programId: number): Promise<{
     durationMins: s.durationMins,
     sortOrder: s.sortOrder,
     title: s.title,
+    // An unreadable value falls back to a class, which is what every module
+    // written before simulation modules existed is.
+    kind: (s.kind === "simulation" ? "simulation" : "class") as ModuleKind,
   }));
 
   const now = Date.now();
@@ -229,8 +317,14 @@ export async function cohortProgressFor(programId: number): Promise<{
         ...EMPTY_PRESENCE,
         waived: !!a?.presenceWaivedAt,
         liveSeconds: a?.liveSeconds ?? 0,
-        replayWatchedSeconds: r ? replayWatchedSeconds(r.buckets, r.durationSeconds) : 0,
-        replayDurationSeconds: r?.durationSeconds ?? null,
+        // The module's settled length, not each learner's own copy of it —
+        // see the note on the same two lines in ./progress.ts. Reading the
+        // learner's copy here was how the admin's percentage and the
+        // learner's came to differ on the same recording.
+        replayWatchedSeconds: r
+          ? replayWatchedSeconds(r.buckets, s.recordingDurationSeconds ?? r.durationSeconds)
+          : 0,
+        replayDurationSeconds: s.recordingDurationSeconds ?? r?.durationSeconds ?? null,
       });
 
       const submission = submissionByKey.get(k);
@@ -240,6 +334,15 @@ export async function cohortProgressFor(programId: number): Promise<{
 
       const extendedTo = extensionByKey.get(k) ?? null;
       const filedHere = filedPerSession.get(s.id) ?? 0;
+
+      // What the Studio asks of this person on this module, and whether they
+      // have done it. A group session is asked of the whole room; a solo
+      // exercise only of whoever was sent one. Either satisfies the module.
+      const inGroupRoom = groupModules.has(s.id);
+      const sentExercise = exerciseByKey.has(k);
+      const hasSimulation = inGroupRoom || sentExercise;
+      const simulationDone =
+        (exerciseByKey.get(k) ?? false) || arrivedByKey.has(k);
 
       coursework.set(s.id, {
         ...EMPTY_COURSEWORK,
@@ -252,9 +355,15 @@ export async function cohortProgressFor(programId: number): Promise<{
         // un-complete somebody's module.
         reviewsRequired: submission?.reviewsRequiredAtSubmission
           ?? reviewsRequiredBySession.get(s.id) ?? 0,
+        // What they were asked for at the moment they satisfied it. Null on
+        // anybody who never has, and on everything filed before this was
+        // recorded — the same guard against a raised number reaching back.
+        reviewsCleared: submission?.reviewsClearedRequired ?? null,
         reviewsGiven: givenByKey.get(k) ?? 0,
         reviewsReceived: receivedByKey.get(k) ?? 0,
         peersToReview: Math.max(0, filedHere - (submission ? 1 : 0)),
+        hasSimulation,
+        simulationDone,
         quizDueAt: effectiveDueAt(
           s.quizDraft ? null : s.quizDueAt?.toISOString() ?? null,
           extendedTo,

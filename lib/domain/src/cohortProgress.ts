@@ -32,7 +32,7 @@
  *     themselves granted last week.
  */
 
-import type { ProgressEntry } from "./progress";
+import type { ProgressEntry, ModuleKind } from "./progress";
 
 /** A module, as the cohort was asked to do it. */
 export type CohortModule = {
@@ -133,10 +133,17 @@ export function cellState(entry: ProgressEntry, module: CohortModule, nowMs: num
  * An admin who knows only that somebody is "behind on module two" has to open
  * module two to find out whether to chase a quiz or a recording. Naming the
  * parts is the difference between a list and a to-do list.
+ *
+ * A simulation module is never missing a class. Nobody scheduled one, there is
+ * no room and no recording, and telling an admin to chase a lecture that does
+ * not exist sends them looking for a fault in the app. What it can be missing
+ * is the exercise, so that is what it says.
  */
 export function missingParts(entry: ProgressEntry): string[] {
   const missing: string[] = [];
-  if (!entry.presence.met && !entry.notSetYet) missing.push("the class");
+  const isSimulation = entry.kind === "simulation";
+  if (!isSimulation && !entry.presence.met && !entry.notSetYet) missing.push("the class");
+  if (entry.hasSimulation && !entry.simulationDone) missing.push("the exercise");
   if (entry.hasQuiz && !entry.quizPassed) missing.push("the quiz");
   if (entry.hasAssignment && !entry.assignmentSubmitted) missing.push("the written task");
   if (entry.hasAssignment && entry.assignmentSubmitted && entry.reviewsGiven < entry.reviewsRequired) {
@@ -226,12 +233,28 @@ export type ModuleRollup = {
   behind: number;
   onExtraTime: number;
   waived: number;
+  /**
+   * What kind of module this is, so the screen can stop reporting attendance
+   * at a thing nobody attends.
+   */
+  kind: ModuleKind;
   /** Attendance, by the route that carried each learner over the bar. */
   attended: number;
   viaLive: number;
   viaReplay: number;
   presenceWaived: number;
   notAttended: number;
+  /**
+   * The Studio exercise, where the module asks for one.
+   *
+   * This is a simulation module's version of the attendance figures above, and
+   * it exists for the same reason: an admin's first question about a module is
+   * how many people have actually done it. Without these the answer came back
+   * as forty-five absences from a class that was never held.
+   */
+  hasSimulation: boolean;
+  simulationDone: number;
+  simulationNotDone: number;
   hasQuiz: boolean;
   quizPassed: number;
   hasAssignment: boolean;
@@ -284,11 +307,19 @@ function moduleRollup(
     behind: cells.filter((c) => c.state === "behind").length,
     onExtraTime: cells.filter((c) => c.state === "extended").length,
     waived: cells.filter((c) => c.state === "waived").length,
+    // Taken from the entries rather than passed in, so it cannot disagree with
+    // the rules that were applied to them.
+    kind: entries.some((e) => e.kind === "simulation") ? "simulation" : "class",
     attended: count((e) => e.presence.met),
     viaLive: count((e) => e.presence.met && e.presence.via === "live"),
     viaReplay: count((e) => e.presence.met && e.presence.via === "replay"),
     presenceWaived: count((e) => e.presence.met && e.presence.via === "waived"),
     notAttended: count((e) => !e.presence.met),
+    hasSimulation: entries.some((e) => e.hasSimulation),
+    simulationDone: count((e) => e.hasSimulation && e.simulationDone),
+    // Only the people it was actually asked of. Somebody who was never sent an
+    // exercise has not failed to do one.
+    simulationNotDone: count((e) => e.hasSimulation && !e.simulationDone),
     hasQuiz: entries.some((e) => e.hasQuiz),
     quizPassed: count((e) => e.quizPassed),
     hasAssignment: entries.some((e) => e.hasAssignment),

@@ -162,6 +162,14 @@ function Extensions({ programId, focus }: {
   });
 
   const learners = module?.learners ?? [];
+  /**
+   * A simulation module, where there is no class to attend or credit.
+   *
+   * Every attendance figure on one reads as an absence, because nothing was
+   * ever scheduled to be absent from. Left unsaid, this panel offered to credit
+   * forty-five people with a lecture that does not exist.
+   */
+  const isSimulation = module?.kind === 'simulation';
   const withExtra = learners.filter(l => l.extendedTo);
   const notDone = learners.filter(l => !l.complete);
   /**
@@ -171,8 +179,11 @@ function Extensions({ programId, focus }: {
    * class itself. Extra time buys them nothing — the recording is what they
    * need, and the recording was never shut. Naming them stops an admin granting
    * extra time, watching nothing change, and concluding the feature is broken.
+   *
+   * Empty on a simulation module: the exercise is not something a recording
+   * substitutes for, so there is no such person to name.
    */
-  const onlyMissingTheClass = learners.filter(
+  const onlyMissingTheClass = isSimulation ? [] : learners.filter(
     l => !l.complete && !l.attended
       && (!l.hasAssignment || l.submitted)
       && (!l.hasQuiz || l.quizPassed)
@@ -180,7 +191,7 @@ function Extensions({ programId, focus }: {
   );
   const anyCritiques = learners.some(l => l.critiquesRequired > 0);
   /** Nobody has any attendance for this module — the modules-one-and-two case. */
-  const needCredit = learners.filter(l => !l.attended);
+  const needCredit = isSimulation ? [] : learners.filter(l => !l.attended);
   /**
    * People extra time cannot reach.
    *
@@ -424,8 +435,10 @@ function Extensions({ programId, focus }: {
                     <th className="p-2">Learner</th>
                     {/* The class first. It is the requirement extra time cannot
                         move, so it is the one that decides whether extra time
-                        is the right thing to give this person at all. */}
-                    <th className="p-2">The class</th>
+                        is the right thing to give this person at all. On a
+                        simulation module the exercise takes its place: same
+                        question, and the only one this module actually asks. */}
+                    <th className="p-2">{isSimulation ? 'The exercise' : 'The class'}</th>
                     <th className="p-2">Quiz</th>
                     <th className="p-2">Written task</th>
                     {anyCritiques && <th className="p-2">Critiques</th>}
@@ -453,8 +466,20 @@ function Extensions({ programId, focus }: {
                           </p>
                         )}
                       </td>
+                      {/* A simulation module has nothing to credit and no
+                          recording to point anybody at, so the buttons below
+                          would both be lies. What it has is whether they did
+                          the exercise. */}
                       <td className="p-2 text-xs">
-                        {l.attended ? (
+                        {isSimulation ? (
+                          !l.hasSimulation ? (
+                            <span className="text-muted-foreground">No exercise set</span>
+                          ) : (
+                            <span className={l.simulationDone ? 'text-emerald-700' : 'text-amber-800'}>
+                              {l.simulationDone ? 'Done it' : 'Not yet'}
+                            </span>
+                          )
+                        ) : l.attended ? (
                           <span className="flex flex-wrap items-center gap-2">
                             <span className="text-emerald-700">
                               {l.attendedVia === 'replay' ? 'On the replay'
@@ -757,7 +782,8 @@ function ModuleCharts({ modules }: { modules: CohortModuleRollup[] }) {
     <section>
       <h3 className="text-sm font-semibold">Each module, three ways</h3>
       <p className="mt-1 text-xs text-muted-foreground">
-        Where the cohort stands, how they attended, and when the written work came in.
+        Where the cohort stands, how they got there — the class, or the Studio exercise on a
+        simulation module — and when the written work came in.
       </p>
       <div className="mt-3 space-y-4">
         {modules.map(m => (
@@ -789,26 +815,51 @@ function ModuleCharts({ modules }: { modules: CohortModuleRollup[] }) {
                 </p>
               </div>
 
-              <div>
-                <p className="text-[11px] uppercase tracking-wider text-muted-foreground">Attendance</p>
-                <div className="mt-1.5">
-                  <StackedBar
-                    total={m.learners}
-                    segments={[
-                      { value: m.viaLive, className: 'bg-emerald-500', label: 'In the class' },
-                      { value: m.viaReplay, className: 'bg-teal-400', label: 'On the replay' },
-                      { value: m.presenceWaived, className: 'bg-slate-300', label: 'Credited by staff' },
-                      { value: m.notAttended, className: 'bg-rose-400', label: 'Neither' },
-                    ]}
-                  />
+              {/* A simulation module has no class, so the attendance chart on
+                  one would be a full red bar reporting everybody absent from
+                  something that was never held. What it has instead is the
+                  exercise, and that is the same question in its own terms:
+                  how many people have actually done this module. */}
+              {m.kind === 'simulation' ? (
+                <div>
+                  <p className="text-[11px] uppercase tracking-wider text-muted-foreground">The exercise</p>
+                  <div className="mt-1.5">
+                    <StackedBar
+                      total={m.simulationDone + m.simulationNotDone}
+                      segments={[
+                        { value: m.simulationDone, className: 'bg-emerald-500', label: 'Done it' },
+                        { value: m.simulationNotDone, className: 'bg-rose-400', label: 'Not yet' },
+                      ]}
+                    />
+                  </div>
+                  <p className="mt-1 text-[11px] text-muted-foreground">
+                    {m.hasSimulation
+                      ? `${m.simulationDone} done · ${m.simulationNotDone} still to do`
+                      : 'No exercise set on this module yet.'}
+                  </p>
                 </div>
-                {/* The replay share is the number that changed how the Lab
-                    thinks about attendance, so it is named rather than left
-                    inside a colour. */}
-                <p className="mt-1 text-[11px] text-muted-foreground">
-                  {m.viaLive} live · {m.viaReplay} on the replay · {m.notAttended} neither
-                </p>
-              </div>
+              ) : (
+                <div>
+                  <p className="text-[11px] uppercase tracking-wider text-muted-foreground">Attendance</p>
+                  <div className="mt-1.5">
+                    <StackedBar
+                      total={m.learners}
+                      segments={[
+                        { value: m.viaLive, className: 'bg-emerald-500', label: 'In the class' },
+                        { value: m.viaReplay, className: 'bg-teal-400', label: 'On the replay' },
+                        { value: m.presenceWaived, className: 'bg-slate-300', label: 'Credited by staff' },
+                        { value: m.notAttended, className: 'bg-rose-400', label: 'Neither' },
+                      ]}
+                    />
+                  </div>
+                  {/* The replay share is the number that changed how the Lab
+                      thinks about attendance, so it is named rather than left
+                      inside a colour. */}
+                  <p className="mt-1 text-[11px] text-muted-foreground">
+                    {m.viaLive} live · {m.viaReplay} on the replay · {m.notAttended} neither
+                  </p>
+                </div>
+              )}
 
               <div>
                 <p className="text-[11px] uppercase tracking-wider text-muted-foreground">Written task</p>

@@ -1549,6 +1549,14 @@ export interface CohortHeadline {
   completionPct: number;
 }
 
+export type CohortModuleRollupKind = typeof CohortModuleRollupKind[keyof typeof CohortModuleRollupKind];
+
+
+export const CohortModuleRollupKind = {
+  class: 'class',
+  simulation: 'simulation',
+} as const;
+
 export interface CohortModuleRollup {
   sessionId: number;
   title: string;
@@ -1562,11 +1570,15 @@ export interface CohortModuleRollup {
   behind: number;
   onExtraTime: number;
   waived: number;
+  kind: CohortModuleRollupKind;
   attended: number;
   viaLive: number;
   viaReplay: number;
   presenceWaived: number;
   notAttended: number;
+  hasSimulation: boolean;
+  simulationDone: number;
+  simulationNotDone: number;
   hasQuiz: boolean;
   quizPassed: number;
   hasAssignment: boolean;
@@ -1622,6 +1634,14 @@ export interface CohortProgress {
   generatedAt: string;
 }
 
+export type ModuleExtensionsKind = typeof ModuleExtensionsKind[keyof typeof ModuleExtensionsKind];
+
+
+export const ModuleExtensionsKind = {
+  class: 'class',
+  simulation: 'simulation',
+} as const;
+
 export type ModuleLearnerStandingAttendedVia = typeof ModuleLearnerStandingAttendedVia[keyof typeof ModuleLearnerStandingAttendedVia];
 
 
@@ -1639,6 +1659,8 @@ export interface ModuleLearnerStanding {
   attended: boolean;
   attendedVia: ModuleLearnerStandingAttendedVia;
   attendedPct: number;
+  hasSimulation: boolean;
+  simulationDone: boolean;
   submitted: boolean;
   quizPassed: boolean;
   /** @nullable */
@@ -1667,6 +1689,7 @@ export interface ModuleExtensions {
   programTitle?: string;
   /** @nullable */
   startsAt?: string | null;
+  kind: ModuleExtensionsKind;
   /** @nullable */
   quizDueAt?: string | null;
   /** @nullable */

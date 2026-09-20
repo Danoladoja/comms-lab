@@ -5448,7 +5448,8 @@ components:
       type: object
       required:
         [sessionId, title, due, learners, complete, behind, onExtraTime, waived,
-         attended, viaLive, viaReplay, presenceWaived, notAttended,
+         kind, attended, viaLive, viaReplay, presenceWaived, notAttended,
+         hasSimulation, simulationDone, simulationNotDone,
          hasQuiz, quizPassed, hasAssignment, submitted,
          filedBeforeDeadline, filedAfterDeadline, critiquesAsked, critiquesGiven]
       properties:
@@ -5462,11 +5463,20 @@ components:
         behind: { type: integer }
         onExtraTime: { type: integer }
         waived: { type: integer }
+        # A simulation module has no class to attend, so every attendance
+        # figure below reads zero on one and must not be shown as absence.
+        kind:
+          type: string
+          enum: [class, simulation]
         attended: { type: integer }
         viaLive: { type: integer }
         viaReplay: { type: integer }
         presenceWaived: { type: integer }
         notAttended: { type: integer }
+        # The Studio exercise, counted only among the people it was asked of.
+        hasSimulation: { type: boolean }
+        simulationDone: { type: integer }
+        simulationNotDone: { type: integer }
         hasQuiz: { type: boolean }
         quizPassed: { type: integer }
         hasAssignment: { type: boolean }
@@ -5507,12 +5517,17 @@ components:
         extendedTo: { type: ["string", "null"], format: date-time }
     ModuleExtensions:
       type: object
-      required: [sessionId, title, moduleClosed, hasCoursework, learners]
+      required: [sessionId, title, kind, moduleClosed, hasCoursework, learners]
       properties:
         sessionId: { type: integer }
         title: { type: string }
         programTitle: { type: string }
         startsAt: { type: ["string", "null"], format: date-time }
+        # A simulation module has no class, so the panel must not offer to
+        # credit attendance at one.
+        kind:
+          type: string
+          enum: [class, simulation]
         quizDueAt: { type: ["string", "null"], format: date-time }
         assignmentDueAt: { type: ["string", "null"], format: date-time }
         moduleClosed: { type: boolean }
@@ -5524,7 +5539,8 @@ components:
     ModuleLearnerStanding:
       type: object
       required:
-        [userId, name, email, attended, attendedVia, attendedPct, submitted,
+        [userId, name, email, attended, attendedVia, attendedPct,
+         hasSimulation, simulationDone, submitted,
          quizPassed, hasQuiz, hasAssignment, critiquesGiven, critiquesRequired, complete,
          locked, attendanceCredited, hasOwnMeasurement]
       properties:
@@ -5539,6 +5555,10 @@ components:
           type: string
           enum: [live, replay, waived, none]
         attendedPct: { type: integer }
+        # The Studio exercise, where the module asks for one. On a simulation
+        # module this is what "attended" is on an ordinary one.
+        hasSimulation: { type: boolean }
+        simulationDone: { type: boolean }
         submitted: { type: boolean }
         quizPassed: { type: boolean }
         quizBestScore: { type: ["integer", "null"] }

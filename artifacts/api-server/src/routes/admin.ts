@@ -228,6 +228,7 @@ router.get("/admin/sessions/:id/extensions", async (req, res) => {
       programId: sessionsTable.programId,
       programTitle: programsTable.title,
       startsAt: sessionsTable.startsAt,
+      kind: sessionsTable.kind,
       quizDueAt: sessionsTable.quizDueAt,
       quizDraft: sessionsTable.quizDraft,
     })
@@ -292,6 +293,11 @@ router.get("/admin/sessions/:id/extensions", async (req, res) => {
     title: session.title,
     programTitle: session.programTitle,
     startsAt: session.startsAt?.toISOString() ?? null,
+    // What kind of module this is. The panel offers to credit attendance, and
+    // on a simulation module there is no class to credit anybody with — the
+    // exercise is the thing, and crediting a class there would put a green
+    // tick beside work nobody had done.
+    kind: session.kind === "simulation" ? "simulation" : "class",
     quizDueAt: quizDue,
     assignmentDueAt: taskDue,
     // Shut for the cohort — which is what makes extra time worth giving.
@@ -312,6 +318,10 @@ router.get("/admin/sessions/:id/extensions", async (req, res) => {
       attended: entry?.presence.met ?? false,
       attendedVia: entry?.presence.via ?? "none",
       attendedPct: entry?.presence.bestPct ?? 0,
+      // The Studio exercise, where the module asks for one. Read from the same
+      // entry as everything else on this row, so it cannot be a second opinion.
+      hasSimulation: entry?.hasSimulation ?? false,
+      simulationDone: entry?.simulationDone ?? false,
       submitted: entry?.assignmentSubmitted ?? false,
       quizPassed: entry?.quizPassed ?? false,
       quizBestScore: entry?.quizBestScore ?? null,

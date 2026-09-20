@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { CohortModuleRollupKind } from './cohortModuleRollupKind';
 
 export interface CohortModuleRollup {
   sessionId: number;
@@ -19,11 +20,15 @@ export interface CohortModuleRollup {
   behind: number;
   onExtraTime: number;
   waived: number;
+  kind: CohortModuleRollupKind;
   attended: number;
   viaLive: number;
   viaReplay: number;
   presenceWaived: number;
   notAttended: number;
+  hasSimulation: boolean;
+  simulationDone: number;
+  simulationNotDone: number;
   hasQuiz: boolean;
   quizPassed: number;
   hasAssignment: boolean;

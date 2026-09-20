@@ -371,3 +371,102 @@ describe("the line at the top of the page", () => {
     expect(cohortHeadline(snap)).toBe("Nobody is enrolled on this programme yet.");
   });
 });
+
+/* ------------------------------------------------------------------ *
+ * A simulation module, seen from the admin's side.
+ *
+ * The Studio was wired into a learner's own progress first, and the admin's
+ * view of the same cohort was left reading a simulation module as an ordinary
+ * class. It then reported every learner absent from a lecture nobody had
+ * scheduled, while their own dashboards showed the module finished — which is
+ * exactly the shape of complaint that makes an admin distrust the whole screen.
+ * ------------------------------------------------------------------ */
+
+describe("a module nobody attends", () => {
+  const SIM: SessionLite[] = [{
+    id: 9, programId: 7, kind: "simulation",
+    startsAt: new Date("2026-09-10T14:00:00Z"), durationMins: 90, sortOrder: 4,
+    title: "Module four",
+  }];
+  const SIM_MODULE: CohortModule[] = [{
+    sessionId: 9, title: "Module four", startsAt: "2026-09-10T14:00:00Z",
+    quizDueAt: null, assignmentDueAt: null, sortOrder: 4,
+  }];
+
+  /** One learner, with the exercise asked of them or not, and done or not. */
+  function onSimulation(args: {
+    userId: number; name: string; hasSimulation: boolean; simulationDone: boolean;
+  }): CohortLearner {
+    const entries = computeProgress(
+      SIM,
+      new Map(),
+      new Map([[7, new Date("2026-08-20T00:00:00Z")]]),
+      new Map([[9, {
+        ...EMPTY_COURSEWORK,
+        hasSimulation: args.hasSimulation,
+        simulationDone: args.simulationDone,
+      }]]),
+      new Map([[9, { ...EMPTY_PRESENCE }]]),
+      NOW,
+    );
+    return {
+      userId: args.userId, name: args.name,
+      email: `${args.userId}@example.com`,
+      entries, submittedAtBySession: new Map(),
+    };
+  }
+
+  it("asks for the exercise, not for a class that was never held", () => {
+    const [entry] = onSimulation({
+      userId: 1, name: "Ama Boateng", hasSimulation: true, simulationDone: false,
+    }).entries;
+
+    expect(missingParts(entry)).toContain("the exercise");
+    // The fault this guards. Presence can never be met on a simulation module,
+    // so the old reading named "the class" on every one of them forever.
+    expect(missingParts(entry)).not.toContain("the class");
+  });
+
+  it("asks for nothing once the exercise is done", () => {
+    const [entry] = onSimulation({
+      userId: 1, name: "Ama Boateng", hasSimulation: true, simulationDone: true,
+    }).entries;
+    expect(missingParts(entry)).toEqual([]);
+    expect(entry.completed).toBe(true);
+  });
+
+  it("counts the exercise instead of attendance in the module summary", () => {
+    const snap = cohortSnapshot({
+      modules: SIM_MODULE,
+      learners: [
+        onSimulation({ userId: 1, name: "Ama Boateng", hasSimulation: true, simulationDone: true }),
+        onSimulation({ userId: 2, name: "Kofi Mensah", hasSimulation: true, simulationDone: true }),
+        onSimulation({ userId: 3, name: "Zainab Bello", hasSimulation: true, simulationDone: false }),
+      ],
+      nowMs: NOW,
+    });
+    const [m] = snap.modules;
+
+    expect(m.kind).toBe("simulation");
+    expect(m.hasSimulation).toBe(true);
+    expect(m.simulationDone).toBe(2);
+    expect(m.simulationNotDone).toBe(1);
+    // Two people finished this module. The old answer was nought of three,
+    // because it counted attendance at a class that does not exist.
+    expect(m.complete).toBe(2);
+  });
+
+  it("does not count somebody who was never sent an exercise as owing one", () => {
+    const snap = cohortSnapshot({
+      modules: SIM_MODULE,
+      learners: [
+        onSimulation({ userId: 1, name: "Ama Boateng", hasSimulation: true, simulationDone: true }),
+        onSimulation({ userId: 2, name: "Kofi Mensah", hasSimulation: false, simulationDone: false }),
+      ],
+      nowMs: NOW,
+    });
+    const [m] = snap.modules;
+    expect(m.simulationDone).toBe(1);
+    expect(m.simulationNotDone).toBe(0);
+  });
+});
