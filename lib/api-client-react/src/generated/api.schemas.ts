@@ -1501,6 +1501,34 @@ export interface AttendanceRevoke {
   userIds: number[];
 }
 
+export interface ModuleUnlockGrant {
+  /**
+     * @minItems 1
+     * @maxItems 500
+     */
+  userIds: number[];
+  /**
+     * @minLength 4
+     * @maxLength 300
+     */
+  reason: string;
+}
+
+export interface ModuleUnlockRevoke {
+  /**
+     * @minItems 1
+     * @maxItems 500
+     */
+  userIds: number[];
+}
+
+export interface ModuleUnlockResult {
+  sessionId: number;
+  opened: number;
+  alreadyOpen: number;
+  note: string;
+}
+
 export interface AttendanceCreditResult {
   sessionId: number;
   changed: number;
@@ -1661,6 +1689,9 @@ export interface ModuleLearnerStanding {
   attendedPct: number;
   hasSimulation: boolean;
   simulationDone: boolean;
+  openedByStaff: boolean;
+  /** @nullable */
+  openedReason?: string | null;
   submitted: boolean;
   quizPassed: boolean;
   /** @nullable */

@@ -1,7 +1,7 @@
 import {
   db, attendanceTable, replayProgressTable, enrollmentsTable, sessionsTable, programsTable,
   quizQuestionsTable, quizAttemptsTable, assignmentsTable, assignmentSubmissionsTable,
-  submissionReviewsTable, deadlineExtensionsTable, studioInvitationsTable,
+  submissionReviewsTable, deadlineExtensionsTable, studioInvitationsTable, moduleUnlocksTable,
   studioGroupSessionsTable, simulationGroupAssignmentsTable,
 } from "@workspace/db";
 import { and, eq, inArray, sql } from "drizzle-orm";
@@ -60,7 +60,7 @@ export async function progressForUser(userId: number, programIds: number[]): Pro
   // `.concat(-1)` keeps the IN clause non-empty for programs with no sessions.
   const sessionIds = sessions.map((s) => s.id).concat(-1);
 
-  const [att, replay, enrollRows, quizSessions, bestAttempts, assignments, submissions, reviewsGiven, reviewsReceived, peers, extensions, studioInvites, groupSessions] =
+  const [att, replay, enrollRows, quizSessions, bestAttempts, assignments, submissions, reviewsGiven, reviewsReceived, peers, extensions, studioInvites, groupSessions, unlocks] =
     await Promise.all([
       db
         .select()
@@ -216,6 +216,21 @@ export async function progressForUser(userId: number, programIds: number[]): Pro
           inArray(studioGroupSessionsTable.sessionId, sessionIds),
           sql`${studioGroupSessionsTable.approvedAt} is not null`,
         )),
+      /*
+        Modules a member of staff has opened for this learner by hand.
+
+        Read here rather than applied as a patch afterwards, so the learner's
+        dashboard, the doors on the quiz and the task, and the admin's view of
+        the same cohort all get the answer from one place. A door that opened
+        on one screen and not another would be worse than one that stayed shut.
+      */
+      db
+        .select({ sessionId: moduleUnlocksTable.sessionId })
+        .from(moduleUnlocksTable)
+        .where(and(
+          eq(moduleUnlocksTable.userId, userId),
+          inArray(moduleUnlocksTable.sessionId, sessionIds),
+        )),
     ]);
 
   const attendance = new Map(att.map((a) => [a.sessionId, a.joinedAt]));
@@ -352,7 +367,11 @@ export async function progressForUser(userId: number, programIds: number[]): Pro
     // written before simulation modules existed is.
     sessions.map((s) => ({ ...s, kind: (s.kind === "simulation" ? "simulation" : "class") as ModuleKind })),
     attendance, enrolledAtByProgram, coursework, presenceBySession, Date.now(),
-    { progressionByProgram, weekOfSession },
+    {
+      progressionByProgram,
+      weekOfSession,
+      openedByStaff: new Set(unlocks.map((u) => u.sessionId)),
+    },
   );
 }
 

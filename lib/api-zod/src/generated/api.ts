@@ -2046,6 +2046,8 @@ export const ListModuleExtensionsResponse = zod.object({
   "attendedPct": zod.int(),
   "hasSimulation": zod.boolean(),
   "simulationDone": zod.boolean(),
+  "openedByStaff": zod.boolean(),
+  "openedReason": zod.string().nullish(),
   "submitted": zod.boolean(),
   "quizPassed": zod.boolean(),
   "quizBestScore": zod.int().nullish(),
@@ -2062,6 +2064,58 @@ export const ListModuleExtensionsResponse = zod.object({
   "extendedTo": zod.coerce.date().nullish(),
   "extensionReason": zod.string().nullish()
 }))
+})
+
+
+/**
+ * Opens this module for the learners named, with a reason on the record. It grants access and nothing else — no module is completed, no quiz is marked, no task is filed and nothing counts towards a certificate. It exists for the case the lock cannot see: where the Lab itself is why somebody is stuck, so the rule is being applied correctly to a record that is wrong. Learners the module is already open to are left alone.
+ * @summary Open a locked module for named learners
+ */
+export const OpenModuleForLearnersParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const openModuleForLearnersBodyUserIdsMax = 500;
+
+export const openModuleForLearnersBodyReasonMin = 4;
+export const openModuleForLearnersBodyReasonMax = 300;
+
+
+
+export const OpenModuleForLearnersBody = zod.object({
+  "userIds": zod.array(zod.int()).min(1).max(openModuleForLearnersBodyUserIdsMax),
+  "reason": zod.string().min(openModuleForLearnersBodyReasonMin).max(openModuleForLearnersBodyReasonMax)
+})
+
+export const OpenModuleForLearnersResponse = zod.object({
+  "sessionId": zod.int(),
+  "opened": zod.int(),
+  "alreadyOpen": zod.int(),
+  "note": zod.string()
+})
+
+
+/**
+ * Removes the override. The module then follows the same rule as it does for everybody else, which may leave it open anyway if the learner's own work now opens it. Nothing they have done is touched.
+ * @summary Take back a module override
+ */
+export const CloseModuleForLearnersParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const closeModuleForLearnersBodyUserIdsMax = 500;
+
+
+
+export const CloseModuleForLearnersBody = zod.object({
+  "userIds": zod.array(zod.int()).min(1).max(closeModuleForLearnersBodyUserIdsMax)
+})
+
+export const CloseModuleForLearnersResponse = zod.object({
+  "sessionId": zod.int(),
+  "opened": zod.int(),
+  "alreadyOpen": zod.int(),
+  "note": zod.string()
 })
 
 

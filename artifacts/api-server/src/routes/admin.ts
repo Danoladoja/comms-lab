@@ -1,13 +1,14 @@
 import { Router, type IRouter } from "express";
 import {
   db, enrollmentsTable, programsTable, usersTable, pendingInvitationsTable, sessionsTable,
-  assignmentsTable, deadlineExtensionsTable, attendanceTable,
+  assignmentsTable, deadlineExtensionsTable, attendanceTable, moduleUnlocksTable,
 } from "@workspace/db";
 import { and, asc, desc, eq, inArray, isNull, isNotNull, sql } from "drizzle-orm";
 import {
   UpdateUserRoleBody, UpdateEnrollmentBody, InviteFacilitatorBody, EnrolExistingAccountBody,
   GrantDeadlineExtensionBody, RevokeDeadlineExtensionBody,
   CreditClassAttendanceBody, RevokeClassAttendanceBody,
+  OpenModuleForLearnersBody, CloseModuleForLearnersBody,
 } from "@workspace/api-zod";
 import {
   checkRoleChange, validateInvite, describeInvite, mayResendInvitation, MAX_RESEND_AT_ONCE,
@@ -16,6 +17,7 @@ import {
   extensionProblem, extensionNote, manyExtensionsNote, describeWhen,
   whyBehind, cohortHeadline,
   creditProblem, creditStanding, creditRecord, creditNote, takeBackProblem, extraTimeBlocked,
+  unlockProblem, unlockNote, relockNote,
 } from "@workspace/domain";
 import { cohortProgressFor } from "../lib/cohortProgress";
 import { currentRole, founderId, requireRole, getCurrentUser } from "../lib/auth";
@@ -277,6 +279,15 @@ router.get("/admin/sessions/:id/extensions", async (req, res) => {
     .where(eq(deadlineExtensionsTable.sessionId, sessionId));
   const extensionFor = new Map(extensions.map((e) => [e.userId, e]));
 
+  // The override rows carry a reason too. `openedByStaff` comes from the
+  // progress entry, like everything else on this row; only the words an admin
+  // wrote have to be fetched, because the rules have no use for them.
+  const overrides = await db
+    .select({ userId: moduleUnlocksTable.userId, reason: moduleUnlocksTable.reason })
+    .from(moduleUnlocksTable)
+    .where(eq(moduleUnlocksTable.sessionId, sessionId));
+  const overrideFor = new Map(overrides.map((o) => [o.userId, o.reason]));
+
   const roster = await db
     .select({ userId: usersTable.id, name: usersTable.name, email: usersTable.email })
     .from(enrollmentsTable)
@@ -322,6 +333,11 @@ router.get("/admin/sessions/:id/extensions", async (req, res) => {
       // entry as everything else on this row, so it cannot be a second opinion.
       hasSimulation: entry?.hasSimulation ?? false,
       simulationDone: entry?.simulationDone ?? false,
+      // Let past the lock by hand. Deliberately separate from `complete`: the
+      // door is open and the work is still outstanding, and an admin who reads
+      // one as the other will stop chasing work that is still owed.
+      openedByStaff: entry?.openedByStaff ?? false,
+      openedReason: overrideFor.get(l.userId) ?? null,
       submitted: entry?.assignmentSubmitted ?? false,
       quizPassed: entry?.quizPassed ?? false,
       quizBestScore: entry?.quizBestScore ?? null,
@@ -546,6 +562,169 @@ router.delete("/admin/sessions/:id/attendance", async (req, res) => {
       ? "None of those learners had credited attendance on this module."
       : `Credited attendance removed from ${cleared.length === 1 ? "1 learner" : `${cleared.length} learners`} `
         + `on ${session.title}. Nothing they submitted has been touched.`,
+  });
+});
+
+/* ------------------------------------------------------------------ *
+ * Opening a locked module by hand
+ * ------------------------------------------------------------------ */
+
+/**
+ * Let named learners past the lock on one module.
+ *
+ * The last of the three remedies, and the one that was missing. Extra time
+ * moves a deadline; crediting a class supplies a measurement the app never
+ * took; and neither reaches somebody stuck for a reason the Lab does not model
+ * — a submission lost to a dropped request, a week where the fault was ours and
+ * is recorded nowhere as attendance or as work. A lock is checked before any
+ * deadline, so for those people there was no move available at all, and the
+ * honest answer was "wait for a patch".
+ *
+ * What it grants is a door and nothing else. See the long note in
+ * @workspace/domain/moduleUnlock for why opening and completing are kept
+ * rigorously apart: an override that quietly completed a module would be a way
+ * to award a certificate by accident, and afterwards nobody could tell which
+ * modules were earned and which were waved through.
+ */
+router.put("/admin/sessions/:id/unlock", async (req, res) => {
+  const sessionId = Number(req.params.id);
+  if (!Number.isInteger(sessionId)) { res.status(400).json({ error: "That is not a module." }); return; }
+
+  const parsed = OpenModuleForLearnersBody.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
+
+  const [session] = await db
+    .select({ id: sessionsTable.id, title: sessionsTable.title, programId: sessionsTable.programId })
+    .from(sessionsTable)
+    .where(eq(sessionsTable.id, sessionId));
+  if (!session) { res.status(404).json({ error: "That module no longer exists." }); return; }
+
+  // Only people actually on this cohort. A user id in a request body is a
+  // claim, not a fact, and opening a module for somebody not enrolled on it
+  // would write a row nothing else in the app can explain.
+  const enrolled = await db
+    .select({ userId: enrollmentsTable.userId })
+    .from(enrollmentsTable)
+    .where(and(
+      eq(enrollmentsTable.programId, session.programId),
+      sql`${enrollmentsTable.status} in ('enrolled', 'completed')`,
+    ));
+  const onCohort = new Set(enrolled.map((e) => e.userId));
+  const asked = parsed.data.userIds.filter((id) => onCohort.has(id));
+  if (asked.length === 0) {
+    res.status(400).json({ error: "None of those learners are on this programme." });
+    return;
+  }
+
+  // Whether each of them is actually shut out right now, by the Lab's own
+  // definition rather than by an assumption made in the browser. The screen
+  // that offered the button may be a minute old, and in that minute somebody
+  // may have finished the module behind this one.
+  const cohort = await cohortProgressFor(session.programId);
+  const entryFor = new Map(
+    (cohort?.learners ?? []).map((l) => [l.userId, l.entries.find((e) => e.sessionId === sessionId)]),
+  );
+  const lockedNow = new Map(asked.map((id) => [id, entryFor.get(id)?.locked ?? false]));
+
+  const already = await db
+    .select({ userId: moduleUnlocksTable.userId })
+    .from(moduleUnlocksTable)
+    .where(and(
+      eq(moduleUnlocksTable.sessionId, sessionId),
+      inArray(moduleUnlocksTable.userId, asked),
+    ));
+  const alreadyOpen = new Set(already.map((r) => r.userId));
+
+  const problem = unlockProblem({
+    userIds: asked,
+    reason: parsed.data.reason,
+    lockedNow,
+    alreadyOpen,
+  });
+  if (problem) { res.status(400).json({ error: problem }); return; }
+
+  const toOpen = asked.filter((id) => !alreadyOpen.has(id) && (lockedNow.get(id) ?? false));
+  const me = await getCurrentUser(req);
+
+  for (const userId of toOpen) {
+    await db
+      .insert(moduleUnlocksTable)
+      .values({
+        userId,
+        sessionId,
+        reason: parsed.data.reason.trim(),
+        grantedByUserId: me?.id ?? null,
+      })
+      // Granting again rewrites the reason rather than stacking a second row
+      // behind the first, so the record says why it is open now — not why
+      // somebody thought so the first time.
+      .onConflictDoUpdate({
+        target: [moduleUnlocksTable.userId, moduleUnlocksTable.sessionId],
+        set: { reason: parsed.data.reason.trim(), grantedByUserId: me?.id ?? null },
+      });
+  }
+
+  logger.info({ sessionId, opened: toOpen.length, by: me?.id }, "Module opened by hand");
+
+  res.json({
+    sessionId,
+    opened: toOpen.length,
+    alreadyOpen: asked.length - toOpen.length,
+    note: unlockNote({
+      opened: toOpen.length,
+      skipped: asked.length - toOpen.length,
+      moduleTitle: session.title,
+    }),
+  });
+});
+
+/**
+ * Take an override back.
+ *
+ * Removes the row and nothing else. The module then follows the same rule as
+ * everybody else's, which may well leave it open — somebody let through in
+ * September who has since finished the module behind it needs no override, and
+ * saying so is more useful than implying a door has been shut on them.
+ */
+router.delete("/admin/sessions/:id/unlock", async (req, res) => {
+  const sessionId = Number(req.params.id);
+  if (!Number.isInteger(sessionId)) { res.status(400).json({ error: "That is not a module." }); return; }
+
+  const parsed = CloseModuleForLearnersBody.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
+
+  const [session] = await db
+    .select({ id: sessionsTable.id, title: sessionsTable.title, programId: sessionsTable.programId })
+    .from(sessionsTable)
+    .where(eq(sessionsTable.id, sessionId));
+  if (!session) { res.status(404).json({ error: "That module no longer exists." }); return; }
+
+  const removed = await db
+    .delete(moduleUnlocksTable)
+    .where(and(
+      eq(moduleUnlocksTable.sessionId, sessionId),
+      inArray(moduleUnlocksTable.userId, parsed.data.userIds),
+    ))
+    .returning({ userId: moduleUnlocksTable.userId });
+
+  // Asked after the row is gone, so it describes where they actually stand now
+  // rather than where they stood while the override was still holding the door.
+  const cohort = await cohortProgressFor(session.programId);
+  const entryFor = new Map(
+    (cohort?.learners ?? []).map((l) => [l.userId, l.entries.find((e) => e.sessionId === sessionId)]),
+  );
+  const stillLocked = removed.some((r) => entryFor.get(r.userId)?.locked ?? false);
+
+  const me = await getCurrentUser(req);
+  logger.info({ sessionId, removed: removed.length, by: me?.id }, "Module override taken back");
+
+  res.json({
+    sessionId,
+    opened: 0,
+    alreadyOpen: 0,
+    note: removed.length === 0
+      ? "None of those learners had an override on this module."
+      : relockNote({ moduleTitle: session.title, nowLocked: stillLocked }),
   });
 });
 

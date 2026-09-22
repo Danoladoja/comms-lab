@@ -2,7 +2,7 @@ import {
   db, attendanceTable, replayProgressTable, enrollmentsTable, sessionsTable, programsTable,
   quizQuestionsTable, quizAttemptsTable, assignmentsTable, assignmentSubmissionsTable,
   submissionReviewsTable, deadlineExtensionsTable, usersTable, studioInvitationsTable,
-  studioGroupSessionsTable, simulationGroupAssignmentsTable,
+  studioGroupSessionsTable, simulationGroupAssignmentsTable, moduleUnlocksTable,
 } from "@workspace/db";
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import {
@@ -114,7 +114,7 @@ export async function cohortProgressFor(programId: number): Promise<{
   const sessionIds = sessions.map((s) => s.id).concat(-1);
   const userIds = roster.map((r) => r.userId).concat(-1);
 
-  const [att, replay, quizSessions, bestAttempts, assignments, submissions, reviewsGiven, reviewsReceived, extensions, studioInvites, groupArrivals] =
+  const [att, replay, quizSessions, bestAttempts, assignments, submissions, reviewsGiven, reviewsReceived, extensions, studioInvites, groupArrivals, unlocks] =
     await Promise.all([
       db.select().from(attendanceTable).where(and(
         inArray(attendanceTable.sessionId, sessionIds),
@@ -227,6 +227,19 @@ export async function cohortProgressFor(programId: number): Promise<{
           inArray(studioGroupSessionsTable.sessionId, sessionIds),
           sql`${studioGroupSessionsTable.approvedAt} is not null`,
         )),
+      // Modules opened by hand for somebody on this cohort — the same rows the
+      // single-learner loader reads, for the same reason.
+      db
+        .select({
+          userId: moduleUnlocksTable.userId,
+          sessionId: moduleUnlocksTable.sessionId,
+          reason: moduleUnlocksTable.reason,
+        })
+        .from(moduleUnlocksTable)
+        .where(and(
+          inArray(moduleUnlocksTable.userId, userIds),
+          inArray(moduleUnlocksTable.sessionId, sessionIds),
+        )),
     ]);
 
   /* ---- index everything by (user, session) once ---- */
@@ -242,6 +255,10 @@ export async function cohortProgressFor(programId: number): Promise<{
   const extensionByKey = new Map(extensions.map((e) => [key(e.userId, e.sessionId), e.dueAt.toISOString()]));
 
   const quizSet = new Set(quizSessions.map((q) => q.sessionId));
+
+  // Staff overrides, by (learner, module). The reason travels too, because the
+  // panel that shows a module as open is also where somebody asks why.
+  const unlockByKey = new Map(unlocks.map((u) => [key(u.userId, u.sessionId), u.reason]));
 
   /* ---- the Studio, by the same reading the learner's own screen gives it ---- */
 
@@ -386,7 +403,15 @@ export async function cohortProgressFor(programId: number): Promise<{
         coursework,
         presenceBySession,
         now,
-        { progressionByProgram, weekOfSession },
+        {
+          progressionByProgram,
+          weekOfSession,
+          openedByStaff: new Set(
+            sessions
+              .filter((s) => unlockByKey.has(key(person.userId, s.id)))
+              .map((s) => s.id),
+          ),
+        },
       ),
       submittedAtBySession,
     };

@@ -115,21 +115,43 @@ export default function LearnerDashboard() {
 
   const openModule = (s: SessionRow) => {
     const entry = progressBySession.get(s.id);
-    if (entry?.locked) {
-      toast({
-        title: 'Module locked',
-        description: entry.lockedReason || 'Complete the previous module to unlock this one.',
-        variant: 'destructive',
-      });
-      return;
-    }
     /*
       A simulation module has no classroom. There is no video, no quiz and no
       task — the work is the exercise — so the module goes straight to the
-      Studio, which is the only place it can be done.
+      Studio, which is the only place it can be done. It is also the one place
+      with nothing to say about a lock, so a locked one still says so here.
     */
-    if (s.kind === 'simulation') { setLocation('/studio'); return; }
-    // The classroom houses the video, quiz, and assignment for the module.
+    if (s.kind === 'simulation') {
+      if (entry?.locked) {
+        toast({
+          title: 'Module locked',
+          description: entry.lockedReason || 'Complete the previous module to unlock this one.',
+          variant: 'destructive',
+        });
+        return;
+      }
+      setLocation('/studio');
+      return;
+    }
+    /*
+      A locked module opens too, and this is deliberate.
+
+      The server has always let a learner into a live class on a locked module,
+      and the classroom has always kept the Join button open on one. Both carry
+      a comment explaining why: gating attendance on a lock closes a circle
+      nobody can climb out of — miss one measurement, the next module locks,
+      and you can then neither attend that class nor watch it back, so the week
+      after locks behind it.
+
+      This was the last door still shut. The dashboard refused to open a locked
+      module at all, so a learner never reached the room where they would have
+      been let in. The circle was fixed twice and stayed closed, because the fix
+      was made underneath the thing that was actually stopping people.
+
+      Nothing is unlocked by arriving. The classroom draws the padlock, names
+      what is blocking them and keeps the coursework shut — which is both more
+      use than a toast and the truth about where the lock applies.
+    */
     setLocation(`/classroom/${s.id}`);
   };
 
@@ -238,14 +260,29 @@ export default function LearnerDashboard() {
                             const isSimulation = m.kind === 'simulation';
                             const exerciseSent = entry?.hasSimulation ?? false;
                             const exerciseDone = entry?.simulationDone ?? false;
+                            // Dimmed while locked, but not greyed out of reach:
+                            // a locked class module can still be opened, so it
+                            // has to look like something that responds when
+                            // pressed.
                             return (
                               <li key={m.id} className={`rounded-xl border border-border transition-colors ${
-                                locked ? 'opacity-55 bg-muted/30' : 'hover:border-primary/40'
+                                locked && isSimulation
+                                  ? 'opacity-55 bg-muted/30'
+                                  : locked
+                                    ? 'opacity-75 bg-muted/20 hover:border-primary/40'
+                                    : 'hover:border-primary/40'
                               }`}>
+                                {/* A locked class module is still pressable: the
+                                    room, the replay and the reason are all on
+                                    the other side of it. Only a locked
+                                    simulation module has nowhere useful to go,
+                                    and openModule says so rather than moving. */}
                                 <button
                                   onClick={() => openModule(m)}
-                                  disabled={locked}
-                                  className={`w-full text-left flex items-center gap-3 px-4 py-3 ${locked ? 'cursor-not-allowed' : ''}`}
+                                  disabled={locked && isSimulation}
+                                  className={`w-full text-left flex items-center gap-3 px-4 py-3 ${
+                                    locked && isSimulation ? 'cursor-not-allowed' : ''
+                                  }`}
                                 >
                                   {locked
                                     ? <Lock className="w-5 h-5 text-muted-foreground/60 flex-shrink-0" />

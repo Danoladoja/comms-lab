@@ -198,6 +198,15 @@ export type ProgressEntry = {
   kind: ModuleKind;
   hasSimulation: boolean;
   simulationDone: boolean;
+  /**
+   * A member of staff opened this module for this learner.
+   *
+   * Said out loud rather than left as a silently absent padlock, because a
+   * learner who was stuck and is suddenly not deserves to know why, and an
+   * admin reading the cohort needs to tell "finished it" apart from "was let
+   * through". It changes no rule: the module is open and still unfinished.
+   */
+  openedByStaff: boolean;
   /** Deadlines, so a learner sees them without opening each piece of work. */
   quizDueAt: string | null;
   assignmentDueAt: string | null;
@@ -233,6 +242,27 @@ export type ProgressOptions = {
   progressionByProgram?: Map<number, Progression>;
   /** Which week each class belongs to, by session id. Classes with no date have none. */
   weekOfSession?: Map<number, string>;
+  /**
+   * Modules a member of staff has opened for this learner, by session id.
+   *
+   * The lock is a rule about the learner's own work, and it is right almost
+   * always. What it cannot see is the Lab's own faults: attendance that went
+   * unmeasured because a recording failed, work filed into a page that dropped
+   * the request, a class somebody was shut out of by a bug in this app. In
+   * each of those the rule is applied correctly to a record that is wrong, and
+   * a learner is told to finish something they have finished.
+   *
+   * Until now there was no move available. An admin could move a deadline and
+   * credit attendance, and neither opens a locked module — the lock is checked
+   * before both — so the only honest answer to a stranded learner was to wait
+   * for a patch.
+   *
+   * This opens the door and does nothing else. It completes no module, marks
+   * no work and earns no certificate: whatever they still owe, they still owe,
+   * and the module reports itself as unfinished until they do it. It is the
+   * difference between a door and a grade.
+   */
+  openedByStaff?: Set<number>;
 };
 
 function sortSessions(list: SessionLite[]): SessionLite[] {
@@ -408,6 +438,8 @@ export function computeProgress(
         kind,
         hasSimulation: cw.hasSimulation,
         simulationDone: cw.simulationDone,
+        // Set in the pass below, once the locking rules have had their say.
+        openedByStaff: false,
         quizDueAt: cw.quizDueAt ?? null,
         assignmentDueAt: cw.assignmentDueAt ?? null,
         feedbackUnlocked: reviewsRequired === 0 || reviewsDone,
@@ -449,6 +481,31 @@ export function computeProgress(
       lockByWeek(rows, options.weekOfSession ?? new Map());
     } else {
       lockByModule(rows);
+    }
+
+    /*
+      Staff overrides, applied after both rules rather than inside either.
+
+      Put here on purpose: the two locking rules are different enough that
+      threading an exception through both would mean writing it twice and
+      finding out later that one copy had drifted. This way the override means
+      the same thing however the programme advances — the door is open — and
+      neither rule has to know it exists.
+
+      It opens this module only. A module opened for somebody is not "satisfied"
+      and never becomes the reason the next one opens: an admin unsticking
+      Module 5 has not thereby opened Module 6. If that is wanted too, it is a
+      second deliberate act, which is the right number of decisions for
+      something that sets aside the rules.
+    */
+    const opened = options.openedByStaff;
+    if (opened && opened.size > 0) {
+      for (const row of rows) {
+        if (!opened.has(row.session.id)) continue;
+        row.entry.openedByStaff = true;
+        row.entry.locked = false;
+        row.entry.lockedReason = null;
+      }
     }
 
     for (const row of rows) entries.push(row.entry);

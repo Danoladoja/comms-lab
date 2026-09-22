@@ -84,6 +84,9 @@ import type {
   LiveSessionRegistered,
   MeetAttendanceResult,
   ModuleExtensions,
+  ModuleUnlockGrant,
+  ModuleUnlockResult,
+  ModuleUnlockRevoke,
   ModuleWork,
   MoreQuestionsInput,
   MyFeedback,
@@ -5785,6 +5788,152 @@ export function useListModuleExtensions<TData = Awaited<ReturnType<typeof listMo
 
 
 
+
+export const getOpenModuleForLearnersUrl = (id: number,) => {
+
+
+
+
+  return `/api/admin/sessions/${id}/unlock`
+}
+
+/**
+ * Opens this module for the learners named, with a reason on the record. It grants access and nothing else — no module is completed, no quiz is marked, no task is filed and nothing counts towards a certificate. It exists for the case the lock cannot see: where the Lab itself is why somebody is stuck, so the rule is being applied correctly to a record that is wrong. Learners the module is already open to are left alone.
+ * @summary Open a locked module for named learners
+ */
+export const openModuleForLearners = async (id: number,
+    moduleUnlockGrant: ModuleUnlockGrant, options?: Parameters<typeof customFetch>[1]): Promise<ModuleUnlockResult> => {
+
+  return customFetch<ModuleUnlockResult>(getOpenModuleForLearnersUrl(id),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(moduleUnlockGrant)
+  }
+);}
+
+
+
+
+
+export const getOpenModuleForLearnersMutationOptions = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof openModuleForLearners>>, TError,{id: number;data: BodyType<ModuleUnlockGrant>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof openModuleForLearners>>, TError,{id: number;data: BodyType<ModuleUnlockGrant>}, TContext> => {
+
+const mutationKey = ['openModuleForLearners'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof openModuleForLearners>>, {id: number;data: BodyType<ModuleUnlockGrant>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  openModuleForLearners(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type OpenModuleForLearnersMutationResult = NonNullable<Awaited<ReturnType<typeof openModuleForLearners>>>
+    export type OpenModuleForLearnersMutationBody = BodyType<ModuleUnlockGrant>
+    export type OpenModuleForLearnersMutationError = ErrorType<ApiMessage>
+
+    /**
+ * @summary Open a locked module for named learners
+ */
+export const useOpenModuleForLearners = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof openModuleForLearners>>, TError,{id: number;data: BodyType<ModuleUnlockGrant>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof openModuleForLearners>>,
+        TError,
+        {id: number;data: BodyType<ModuleUnlockGrant>},
+        TContext
+      > => {
+      return useMutation(getOpenModuleForLearnersMutationOptions(options));
+    }
+
+export const getCloseModuleForLearnersUrl = (id: number,) => {
+
+
+
+
+  return `/api/admin/sessions/${id}/unlock`
+}
+
+/**
+ * Removes the override. The module then follows the same rule as it does for everybody else, which may leave it open anyway if the learner's own work now opens it. Nothing they have done is touched.
+ * @summary Take back a module override
+ */
+export const closeModuleForLearners = async (id: number,
+    moduleUnlockRevoke: ModuleUnlockRevoke, options?: Parameters<typeof customFetch>[1]): Promise<ModuleUnlockResult> => {
+
+  return customFetch<ModuleUnlockResult>(getCloseModuleForLearnersUrl(id),
+  {
+    ...options,
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(moduleUnlockRevoke)
+  }
+);}
+
+
+
+
+
+export const getCloseModuleForLearnersMutationOptions = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof closeModuleForLearners>>, TError,{id: number;data: BodyType<ModuleUnlockRevoke>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof closeModuleForLearners>>, TError,{id: number;data: BodyType<ModuleUnlockRevoke>}, TContext> => {
+
+const mutationKey = ['closeModuleForLearners'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof closeModuleForLearners>>, {id: number;data: BodyType<ModuleUnlockRevoke>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  closeModuleForLearners(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CloseModuleForLearnersMutationResult = NonNullable<Awaited<ReturnType<typeof closeModuleForLearners>>>
+    export type CloseModuleForLearnersMutationBody = BodyType<ModuleUnlockRevoke>
+    export type CloseModuleForLearnersMutationError = ErrorType<ApiMessage>
+
+    /**
+ * @summary Take back a module override
+ */
+export const useCloseModuleForLearners = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof closeModuleForLearners>>, TError,{id: number;data: BodyType<ModuleUnlockRevoke>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof closeModuleForLearners>>,
+        TError,
+        {id: number;data: BodyType<ModuleUnlockRevoke>},
+        TContext
+      > => {
+      return useMutation(getCloseModuleForLearnersMutationOptions(options));
+    }
 
 export const getCreditClassAttendanceUrl = (id: number,) => {
 

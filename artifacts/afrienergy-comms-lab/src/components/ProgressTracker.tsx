@@ -9,6 +9,8 @@ import {
   useRevokeDeadlineExtension,
   useCreditClassAttendance,
   useRevokeClassAttendance,
+  useOpenModuleForLearners,
+  useCloseModuleForLearners,
   getListProgramsQueryKey,
   getListProgramSessionsQueryKey,
   getGetCohortProgressQueryKey,
@@ -19,11 +21,13 @@ import {
   type CohortModuleRollup,
   type CohortCell,
 } from '@workspace/api-client-react';
-import { apiReason, sessionDateTimeFromInput, SUGGESTED_REASON, takeBackWarning } from '@workspace/domain';
+import {
+  apiReason, sessionDateTimeFromInput, SUGGESTED_REASON, takeBackWarning, unlockWarning,
+} from '@workspace/domain';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { CouldNotLoad } from '@/components/CouldNotLoad';
-import { CalendarClock, ChevronDown, ChevronUp, Users, AlertTriangle, Lock, UserCheck } from 'lucide-react';
+import { CalendarClock, ChevronDown, ChevronUp, Users, AlertTriangle, Lock, Unlock, UserCheck } from 'lucide-react';
 
 
 /**
@@ -68,6 +72,14 @@ function Extensions({ programId, focus }: {
   const [chosen, setChosen] = useState<Set<number>>(new Set());
   /** Why attendance is being credited. Goes on the record beside each name. */
   const [creditReason, setCreditReason] = useState(SUGGESTED_REASON);
+  /**
+   * Why a module is being opened by hand. Deliberately starts empty, unlike the
+   * credit reason above, which has a sensible default because crediting a class
+   * has one common cause. This does not: the whole point of an override is that
+   * something unusual happened, and a pre-filled reason would get pressed
+   * through unread and put the same sentence beside forty-five names.
+   */
+  const [openReason, setOpenReason] = useState('');
 
   // Arriving from a square in the grid, or from the chase list: open on that
   // module with that learner already ticked, so the admin's next action is
@@ -133,6 +145,36 @@ function Extensions({ programId, focus }: {
       },
       onError: (err) => toast({
         title: 'Could not credit the class',
+        description: apiReason(err, 'Try again in a moment.'),
+        variant: 'destructive',
+      }),
+    },
+  });
+
+  const openModule = useOpenModuleForLearners({
+    mutation: {
+      onSuccess: (r) => {
+        toast({ title: r.opened > 0 ? 'Module opened' : 'Nothing to open', description: r.note });
+        setChosen(new Set());
+        setOpenReason('');
+        refresh();
+      },
+      // Every refusal here names something specific — nobody selected, no
+      // reason written, everybody already through — so the server's sentence
+      // travels rather than a generic failure.
+      onError: (err) => toast({
+        title: 'Could not open the module',
+        description: apiReason(err, 'Try again in a moment.'),
+        variant: 'destructive',
+      }),
+    },
+  });
+
+  const closeModule = useCloseModuleForLearners({
+    mutation: {
+      onSuccess: (r) => { toast({ title: 'Override removed', description: r.note }); refresh(); },
+      onError: (err) => toast({
+        title: 'Could not take it back',
         description: apiReason(err, 'Try again in a moment.'),
         variant: 'destructive',
       }),
@@ -314,6 +356,69 @@ function Extensions({ programId, focus }: {
                       deadline — so extra time is granted and nothing changes. Finish or credit the module
                       named against each of them below first.
                     </p>
+
+                    {/*
+                      Or open it. This sits inside the warning rather than
+                      beside it because this is the moment an admin discovers
+                      the problem: the sentence above used to end by naming
+                      three things to try, all of which need the learner to do
+                      something, when the reason they are stuck is often that
+                      the Lab lost their work. A remedy named where the fault
+                      is found is a remedy people use.
+                    */}
+                    <label className="mt-3 block text-rose-900">
+                      Why you are opening it for them (goes on the record beside their name)
+                      <input
+                        className="mt-1 w-full rounded-md border border-rose-300 bg-background px-3 py-2 text-sm text-foreground"
+                        placeholder="Their Module 4 submission was lost when the page dropped the request"
+                        value={openReason}
+                        onChange={e => setOpenReason(e.target.value)}
+                      />
+                    </label>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={openModule.isPending || openReason.trim().length < 4}
+                        onClick={() => {
+                          if (!confirm(unlockWarning({
+                            count: lockedOut.length,
+                            moduleTitle: module.title,
+                          }))) return;
+                          openModule.mutate({
+                            id: sessionId,
+                            data: { userIds: lockedOut.map(l => l.userId), reason: openReason },
+                          });
+                        }}
+                      >
+                        <Unlock className="mr-1.5 h-3.5 w-3.5" aria-hidden />
+                        Open it for all {lockedOut.length}
+                      </Button>
+                      {chosen.size > 0 && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={openModule.isPending || openReason.trim().length < 4}
+                          onClick={() => {
+                            if (!confirm(unlockWarning({
+                              count: chosen.size,
+                              moduleTitle: module.title,
+                            }))) return;
+                            openModule.mutate({
+                              id: sessionId,
+                              data: { userIds: [...chosen], reason: openReason },
+                            });
+                          }}
+                        >
+                          Open it for the {chosen.size} selected
+                        </Button>
+                      )}
+                    </div>
+                    <p className="mt-2">
+                      Opening a module grants access and nothing else. It completes no work, marks no quiz
+                      and counts towards no certificate — whatever they still owe on the module before this
+                      one, they still owe.
+                    </p>
                   </div>
                 </div>
               )}
@@ -494,6 +599,37 @@ function Extensions({ programId, focus }: {
                           <p className="mt-0.5 flex items-start gap-1 text-xs text-rose-700">
                             <Lock className="mt-0.5 h-3 w-3 flex-shrink-0" aria-hidden />
                             {l.lockedReason}
+                          </p>
+                        )}
+                        {/* Said on the row rather than only in a log, because
+                            the question this answers — "why is this person's
+                            module open when their work says it should not be?"
+                            — is asked while looking at this table, often
+                            months later and often by somebody who was not
+                            the one who opened it. */}
+                        {l.openedByStaff && (
+                          <p className="mt-0.5 flex items-start gap-1 text-xs text-amber-800">
+                            <Unlock className="mt-0.5 h-3 w-3 flex-shrink-0" aria-hidden />
+                            <span>
+                              Opened by staff{l.openedReason ? `: ${l.openedReason}` : ''}
+                              {' · '}
+                              <button
+                                type="button"
+                                className="underline underline-offset-2"
+                                disabled={closeModule.isPending}
+                                onClick={() => {
+                                  if (!confirm(
+                                    `Take back the override on ${module.title} for ${l.name || l.email}? `
+                                    + 'The module goes back to the same rule as everybody else — which may '
+                                    + 'leave it open anyway if their own work now opens it. Nothing they '
+                                    + 'have done is touched.',
+                                  )) return;
+                                  closeModule.mutate({ id: sessionId, data: { userIds: [l.userId] } });
+                                }}
+                              >
+                                take it back
+                              </button>
+                            </span>
                           </p>
                         )}
                       </td>

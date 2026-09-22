@@ -31,6 +31,15 @@ const mocks = vi.hoisted(() => {
     // builder reads these as well.
     studioGroupSessionsTable: { sessionId: "sessionId", runId: "runId", approvedAt: "approvedAt" },
     simulationGroupAssignmentsTable: { runId: "runId", userId: "userId", enteredAt: "enteredAt" },
+    // An override can open a module the rules would shut, so the progress
+    // builder reads this one too.
+    //
+    // This list has now broken three times for the same reason: the loader
+    // learns to read a new table and this mock does not know about it. That is
+    // the mock doing its job — it fails loudly the moment the two disagree —
+    // but it is worth saying that the failure is always "add the table here",
+    // never a fault in the rules being tested.
+    moduleUnlocksTable: { userId: "userId", sessionId: "sessionId", reason: "reason" },
   };
 
   let queue: unknown[][] = [];

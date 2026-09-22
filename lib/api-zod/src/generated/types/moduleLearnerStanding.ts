@@ -16,6 +16,9 @@ export interface ModuleLearnerStanding {
   attendedPct: number;
   hasSimulation: boolean;
   simulationDone: boolean;
+  openedByStaff: boolean;
+  /** @nullable */
+  openedReason?: string | null;
   submitted: boolean;
   quizPassed: boolean;
   /** @nullable */

@@ -2350,6 +2350,80 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiMessage"
+  /admin/sessions/{id}/unlock:
+    put:
+      operationId: openModuleForLearners
+      tags: [admin]
+      summary: Open a locked module for named learners
+      description: >
+        Opens this module for the learners named, with a reason on the record.
+        It grants access and nothing else — no module is completed, no quiz is
+        marked, no task is filed and nothing counts towards a certificate. It
+        exists for the case the lock cannot see: where the Lab itself is why
+        somebody is stuck, so the rule is being applied correctly to a record
+        that is wrong. Learners the module is already open to are left alone.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ModuleUnlockGrant"
+      responses:
+        "200":
+          description: Opened
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ModuleUnlockResult"
+        "400":
+          description: Refused, with what is wrong
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+    delete:
+      operationId: closeModuleForLearners
+      tags: [admin]
+      summary: Take back a module override
+      description: >
+        Removes the override. The module then follows the same rule as it does
+        for everybody else, which may leave it open anyway if the learner's own
+        work now opens it. Nothing they have done is touched.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ModuleUnlockRevoke"
+      responses:
+        "200":
+          description: Removed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ModuleUnlockResult"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
   /admin/sessions/{id}/attendance:
     put:
       operationId: creditClassAttendance
@@ -5354,6 +5428,36 @@ components:
           items: { type: integer }
           minItems: 1
           maxItems: 500
+    ModuleUnlockGrant:
+      type: object
+      required: [userIds, reason]
+      properties:
+        userIds:
+          type: array
+          items: { type: integer }
+          minItems: 1
+          maxItems: 500
+        # Required. An override sets the Lab's own rules aside for one person,
+        # and "no reason recorded" is what makes that look arbitrary later.
+        reason: { type: string, minLength: 4, maxLength: 300 }
+    ModuleUnlockRevoke:
+      type: object
+      required: [userIds]
+      properties:
+        userIds:
+          type: array
+          items: { type: integer }
+          minItems: 1
+          maxItems: 500
+    ModuleUnlockResult:
+      type: object
+      required: [sessionId, opened, alreadyOpen, note]
+      properties:
+        sessionId: { type: integer }
+        opened: { type: integer }
+        # Named rather than left to subtraction, as with crediting a class.
+        alreadyOpen: { type: integer }
+        note: { type: string }
     AttendanceCreditResult:
       type: object
       required: [sessionId, changed, alreadyAttended, alreadyCredited, note]
@@ -5542,7 +5646,7 @@ components:
         [userId, name, email, attended, attendedVia, attendedPct,
          hasSimulation, simulationDone, submitted,
          quizPassed, hasQuiz, hasAssignment, critiquesGiven, critiquesRequired, complete,
-         locked, attendanceCredited, hasOwnMeasurement]
+         locked, openedByStaff, attendanceCredited, hasOwnMeasurement]
       properties:
         userId: { type: integer }
         name: { type: string }
@@ -5559,6 +5663,10 @@ components:
         # module this is what "attended" is on an ordinary one.
         hasSimulation: { type: boolean }
         simulationDone: { type: boolean }
+        # A member of staff opened this module for them. Distinct from complete:
+        # the door is open and the work is still outstanding.
+        openedByStaff: { type: boolean }
+        openedReason: { type: ["string", "null"] }
         submitted: { type: boolean }
         quizPassed: { type: boolean }
         quizBestScore: { type: ["integer", "null"] }

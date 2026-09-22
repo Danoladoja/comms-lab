@@ -304,6 +304,56 @@ export type LatePass = typeof latePassesTable.$inferSelect;
  * would quietly ask a late learner for five hundred words nobody else on that
  * module was ever asked for.
  */
+/**
+ * A module a member of staff has opened for one learner.
+ *
+ * The sibling of a deadline extension, for the other way somebody gets stuck.
+ * An extension moves a door's closing time; this opens a door that the rules
+ * are holding shut. They are separate because a lock is checked before any
+ * deadline is, so extra time cannot reach a locked module — which is exactly
+ * the situation that had no remedy until now.
+ *
+ * It grants access and nothing else. No module is completed by a row here, no
+ * quiz is marked, no task is filed and no certificate is earned. What the
+ * learner owes, they still owe. That separation is the point: an override that
+ * quietly completed work would be a way to issue a qualification by accident,
+ * and afterwards nobody could tell which modules were earned and which were
+ * waved through.
+ *
+ * A row exists only where an override has been granted, so taking one back is
+ * deleting it and there is no state to keep in step with anything.
+ */
+export const moduleUnlocksTable = pgTable(
+  "module_unlocks",
+  {
+    id: serial("id").primaryKey(),
+    userId: integer("user_id").notNull().references(() => usersTable.id, { onDelete: "cascade" }),
+    sessionId: integer("session_id").notNull().references(() => sessionsTable.id, { onDelete: "cascade" }),
+    /**
+     * Why, in the admin's words. Required by the rules in @workspace/domain
+     * rather than by the column, so the refusal can be a sentence rather than a
+     * constraint violation — but never empty in practice.
+     *
+     * Kept because six months from now somebody will ask why this learner's
+     * module was open when their work says it should not have been, and "no
+     * reason recorded" is an answer that makes the Lab look arbitrary to the
+     * one person it was trying to help.
+     */
+    reason: text("reason").notNull().default(""),
+    /** Who opened it. Null if that admin's account is later removed. */
+    grantedByUserId: integer("granted_by_user_id").references(() => usersTable.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    // One override per learner per module. Granting again rewrites the reason
+    // rather than stacking a second row behind the first.
+    uniqueIndex("module_unlocks_user_session_unique").on(t.userId, t.sessionId),
+    // Read once per learner on every dashboard, and once per cohort on the
+    // admin's progress screen — both by session.
+    index("module_unlocks_session_idx").on(t.sessionId),
+  ],
+);
+
 export const deadlineExtensionsTable = pgTable(
   "deadline_extensions",
   {

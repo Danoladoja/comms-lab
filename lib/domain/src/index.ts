@@ -56,3 +56,4 @@ export * from "./studioInvites";
 export * from "./groupSession";
 export * from "./reminderWords";
 export * from "./progressAudit";
+export * from "./moduleUnlock";
