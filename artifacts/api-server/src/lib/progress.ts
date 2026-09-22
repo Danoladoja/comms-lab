@@ -225,7 +225,11 @@ export async function progressForUser(userId: number, programIds: number[]): Pro
         on one screen and not another would be worse than one that stayed shut.
       */
       db
-        .select({ sessionId: moduleUnlocksTable.sessionId })
+        .select({
+          sessionId: moduleUnlocksTable.sessionId,
+          clearsModule: moduleUnlocksTable.clearsModule,
+          clearedItems: moduleUnlocksTable.clearedItems,
+        })
         .from(moduleUnlocksTable)
         .where(and(
           eq(moduleUnlocksTable.userId, userId),
@@ -370,7 +374,12 @@ export async function progressForUser(userId: number, programIds: number[]): Pro
     {
       progressionByProgram,
       weekOfSession,
-      openedByStaff: new Set(unlocks.map((u) => u.sessionId)),
+      // An override is one or the other, never both: a module counted as done
+      // has no use for a door held open beside it.
+      openedByStaff: new Set(unlocks.filter((u) => !u.clearsModule).map((u) => u.sessionId)),
+      clearedByStaff: new Map(
+        unlocks.filter((u) => u.clearsModule).map((u) => [u.sessionId, u.clearedItems]),
+      ),
     },
   );
 }

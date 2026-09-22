@@ -132,3 +132,177 @@ export function openedForYouNote(moduleTitle: string): string {
   return `${moduleTitle} has been opened for you by the Lab. Anything still outstanding on `
     + "the module before it is still yours to finish.";
 }
+
+/* ------------------------------------------------------------------ *
+ * Clearing a module, which is a different act from opening one
+ * ------------------------------------------------------------------ */
+
+/**
+ * Opening and clearing, and why both exist.
+ *
+ * Opening a module is the right remedy when somebody is stuck behind work they
+ * genuinely still owe and there is a reason to let them get on with this week
+ * anyway. It moves them past nothing.
+ *
+ * It is the wrong remedy — and this took a learner and an argument to see —
+ * when the work was actually done and the Lab is why the record does not say
+ * so. There, an open door quietly defers the problem to the worst possible
+ * moment. A certificate requires every module complete, so somebody carried
+ * through five modules on open doors reaches the end of the programme, asks for
+ * the certificate they have earned, and is refused by a rule nobody mentioned
+ * on the way. Stuck at the finish is worse than stuck in the middle, because by
+ * then everyone has stopped watching.
+ *
+ * So clearing counts the module as done: the module after it opens by the
+ * ordinary rule, and the certificate follows. What keeps it honest is not
+ * withholding the credit but recording the act — who, when, why, and precisely
+ * which requirements were set aside — and showing that wherever staff look at
+ * the learner's record.
+ *
+ * It is deliberately not written into the learner's work. Clearing does not
+ * invent a submission, does not fill in a quiz score and does not forge
+ * critiques; the coursework tables are left exactly as they were. Anybody
+ * reading the audit afterwards can still see that no task was filed, beside a
+ * note saying the Lab judged it met and why. A remedy that rewrote the evidence
+ * would be indistinguishable from the fault it was fixing.
+ */
+
+/** The requirements a module can ask for, as stored. */
+export type RequirementKey = "presence" | "assignment" | "reviews" | "quiz" | "simulation";
+
+/** What this learner still owes on this module, as stable keys. */
+export function outstandingKeys(entry: {
+  kind?: string;
+  presence: { met: boolean };
+  notSetYet?: boolean;
+  hasAssignment: boolean;
+  assignmentSubmitted: boolean;
+  reviewsGiven: number;
+  reviewsRequired: number;
+  hasQuiz: boolean;
+  quizPassed: boolean;
+  hasSimulation: boolean;
+  simulationDone: boolean;
+}): RequirementKey[] {
+  const out: RequirementKey[] = [];
+  // A simulation module never asked for a class, so it is never short of one.
+  if (entry.kind !== "simulation" && !entry.presence.met && !entry.notSetYet) out.push("presence");
+  if (entry.hasAssignment && !entry.assignmentSubmitted) out.push("assignment");
+  if (entry.hasAssignment && entry.reviewsGiven < entry.reviewsRequired) out.push("reviews");
+  if (entry.hasQuiz && !entry.quizPassed) out.push("quiz");
+  if (entry.hasSimulation && !entry.simulationDone) out.push("simulation");
+  return out;
+}
+
+/**
+ * The same list in the words the Lab uses everywhere else.
+ *
+ * Separate from the keys because an admin about to set a requirement aside has
+ * to be able to read what it is, and because rewording this later must not
+ * rewrite what is already stored against somebody's name.
+ */
+export function describeRequirements(keys: readonly string[]): string[] {
+  const words: Record<string, string> = {
+    presence: "the class",
+    assignment: "the written task",
+    reviews: "the critiques",
+    quiz: "the quiz",
+    simulation: "the Studio exercise",
+  };
+  return keys.map((k) => words[k] ?? k);
+}
+
+/** One line naming everything that would be set aside. */
+export function clearingList(keys: readonly string[]): string {
+  const words = describeRequirements(keys);
+  if (words.length === 0) return "nothing — they have met every requirement on it";
+  if (words.length === 1) return words[0];
+  return `${words.slice(0, -1).join(", ")} and ${words[words.length - 1]}`;
+}
+
+export type ClearRequest = {
+  userIds: readonly number[];
+  reason: string;
+  /** Whether each of them has this module outstanding at all. */
+  outstanding: ReadonlyMap<number, readonly string[]>;
+  /** Whether this module is already cleared for them. */
+  alreadyCleared: ReadonlySet<number>;
+};
+
+/** Why this cannot be done, or null when it can. */
+export function clearProblem(req: ClearRequest): string | null {
+  if (req.userIds.length === 0) {
+    return "Nobody is selected. Tick the learners this should count as done for.";
+  }
+  const reason = req.reason.trim();
+  if (reason.length < MIN_UNLOCK_REASON) {
+    return "Say why you are counting this module as done. It goes on the record beside their "
+      + "name, and it is the only thing that will explain a cleared module to whoever reads it "
+      + "later.";
+  }
+  if (reason.length > MAX_UNLOCK_REASON) {
+    return `That reason is ${reason.length} characters. Keep it under ${MAX_UNLOCK_REASON}.`;
+  }
+  const wouldChange = req.userIds.filter(
+    (id) => !req.alreadyCleared.has(id) && (req.outstanding.get(id)?.length ?? 0) > 0,
+  );
+  if (wouldChange.length === 0) {
+    const done = req.userIds.filter((id) => req.alreadyCleared.has(id)).length;
+    return done > 0
+      ? "This module is already counted as done for everybody you have chosen."
+      : "Nobody you have chosen has anything outstanding on this module — they have finished it "
+        + "on their own work, and nothing needs setting aside.";
+  }
+  return null;
+}
+
+/**
+ * What an admin is told before they press it.
+ *
+ * Names the requirements rather than the count, because "clear the module for 3
+ * learners" hides the thing that actually matters — that one of them has not
+ * taken the quiz. An admin who can see that will sometimes stop.
+ */
+export function clearWarning(args: {
+  count: number;
+  moduleTitle: string;
+  keys: readonly string[];
+}): string {
+  const who = args.count === 1 ? "1 learner" : `${args.count} learners`;
+  return `Count ${args.moduleTitle} as done for ${who}?\n\n`
+    + `This sets aside: ${clearingList(args.keys)}.\n\n`
+    + "The module counts as complete, the next one opens, and it counts towards their "
+    + "certificate. Their work is not altered — nothing is filed, marked or scored on their "
+    + "behalf — and the record will show that staff cleared it, and why.";
+}
+
+/** What to say afterwards. */
+export function clearedNote(args: {
+  cleared: number;
+  skipped: number;
+  moduleTitle: string;
+}): string {
+  const done = args.cleared === 1
+    ? `${args.moduleTitle} now counts as done for 1 learner.`
+    : `${args.moduleTitle} now counts as done for ${args.cleared} learners.`;
+  const next = " The module after it opens by the ordinary rule, and it counts towards their "
+    + "certificate.";
+  if (args.skipped === 0) return done + next;
+  const skipped = args.skipped === 1
+    ? " 1 needed nothing and was left alone."
+    : ` ${args.skipped} needed nothing and were left alone.`;
+  return done + next + skipped;
+}
+
+/**
+ * How a learner is told a module was counted as done for them.
+ *
+ * Says it plainly rather than letting a module quietly turn green. Somebody who
+ * knows the Lab lost their work should be able to see that the Lab put it
+ * right; and somebody who does not know why their module completed deserves an
+ * explanation more than a pleasant surprise.
+ */
+export function clearedForYouNote(moduleTitle: string): string {
+  return `${moduleTitle} has been counted as complete by the Lab. If something you did was not `
+    + "recorded properly, this is us putting that right — you do not need to do it again.";
+}

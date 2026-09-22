@@ -10,5 +10,6 @@ export interface ModuleUnlockResult {
   sessionId: number;
   opened: number;
   alreadyOpen: number;
+  cleared: number;
   note: string;
 }

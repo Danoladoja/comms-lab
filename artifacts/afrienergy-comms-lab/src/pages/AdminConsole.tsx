@@ -72,7 +72,7 @@ import InviteLearners from '@/components/InviteLearners';
 import MessageCohort from '@/components/MessageCohort';
 import LiveSessionsAdmin from '@/components/LiveSessionsAdmin';
 import RecordingsAdmin from '@/components/RecordingsAdmin';
-import ProgressTracker from '@/components/ProgressTracker';
+import ProgressTracker, { ExtensionsTab } from '@/components/ProgressTracker';
 import ProgramThumbnail from '@/components/ProgramThumbnail';
 
 import { useCurrentUser } from '@/lib/useCurrentUser';
@@ -93,7 +93,7 @@ import { CouldNotLoad } from '@/components/CouldNotLoad';
   whether those two can both be true. The day you need the second one, you will
   have been looking at the first.
 */
-const TABS = ['Programmes', 'Progress', 'Audit', 'Live Sessions', 'Enrolments', 'People', 'Recordings'] as const;
+const TABS = ['Programmes', 'Progress', 'Audit', 'Extensions', 'Live Sessions', 'Enrolments', 'People', 'Recordings'] as const;
 type Tab = (typeof TABS)[number];
 
 function formatSessionDate(iso: string | null | undefined) {
@@ -1976,6 +1976,15 @@ export default function AdminConsole() {
   const { role, user, isLoading, unreachable, retry } = useCurrentUser();
   const [tab, setTab] = useState<Tab>('Programmes');
   /**
+   * A learner and module sent from the Progress tab to the Extensions tab.
+   *
+   * Lives here because the two tabs cannot see each other, and the timestamp
+   * is not decoration: pressing the same person's square twice
+   * has to act twice, and without something that changes on every press the
+   * second one would do nothing and read as a broken button.
+   */
+  const [focus, setFocus] = useState<{ sessionId: number; userId: number; at: number } | null>(null);
+  /**
    * The programme an admin pressed "Write to the cohort" on.
    *
    * The composer lives under Enrolments, which is the right home for it and the
@@ -2046,7 +2055,20 @@ export default function AdminConsole() {
           onWriteToCohort={(programId) => { setWriteToProgramId(programId); setTab('Enrolments'); }}
         />
       )}
-      {tab === 'Progress' && <ProgressTracker />}
+      {tab === 'Progress' && (
+        <ProgressTracker
+          onOpenExtensions={(sessionId, userId) => {
+            // Extensions is its own tab now, so a press on a square has to
+            // carry the admin there rather than scrolling down this page. The
+            // learner and module travel with it: the next thing they do is
+            // decide about that person, not find them again in a list of
+            // forty-five.
+            setFocus({ sessionId, userId, at: Date.now() });
+            setTab('Extensions');
+          }}
+        />
+      )}
+      {tab === 'Extensions' && <ExtensionsTab focus={focus} />}
       {tab === 'Audit' && <AuditTab />}
       {tab === 'Live Sessions' && <LiveSessionsAdmin />}
       {tab === 'Enrolments' && <EnrollmentsTab writeToProgramId={writeToProgramId} />}

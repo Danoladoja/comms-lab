@@ -207,6 +207,18 @@ export type ProgressEntry = {
    * through". It changes no rule: the module is open and still unfinished.
    */
   openedByStaff: boolean;
+  /**
+   * Staff counted this module as done. It is complete, and it was not earned
+   * in the ordinary way.
+   *
+   * Distinct from `openedByStaff`, which is only a door. This one satisfies
+   * the module after it and counts towards a certificate, which is why it says
+   * so on every entry rather than being something an admin has to go and look
+   * up.
+   */
+  clearedByStaff: boolean;
+  /** What was outstanding when it was cleared. Empty on everything else. */
+  clearedItems: readonly string[];
   /** Deadlines, so a learner sees them without opening each piece of work. */
   quizDueAt: string | null;
   assignmentDueAt: string | null;
@@ -263,6 +275,30 @@ export type ProgressOptions = {
    * difference between a door and a grade.
    */
   openedByStaff?: Set<number>;
+
+  /**
+   * Modules staff have counted as done, and what was set aside to do it.
+   *
+   * The sibling of the option above, and emphatically not the same thing. That
+   * one opens a door; this one says the module is finished.
+   *
+   * The distinction earns its keep at the very end of a programme. A
+   * certificate needs every module complete, so a learner carried forward on
+   * open doors alone arrives at the finish having done everything asked of
+   * them, asks for the certificate, and is refused by a rule nobody mentioned
+   * while they were being helped past it. Opening is for work still owed.
+   * Clearing is for work that was done and that the Lab failed to record.
+   *
+   * Applied where completion is decided rather than in the pass that unlocks
+   * doors, because a cleared module has to *satisfy* the module after it — the
+   * next one then opens by the ordinary rule with no second override needed —
+   * and because a certificate reads exactly this `completed` flag.
+   *
+   * It changes no coursework. `assignmentSubmitted` stays false on a task that
+   * was never filed and the audit still shows it. What changes is the verdict,
+   * beside a record of who changed it and why.
+   */
+  clearedByStaff?: ReadonlyMap<number, readonly string[]>;
 };
 
 function sortSessions(list: SessionLite[]): SessionLite[] {
@@ -403,7 +439,13 @@ export function computeProgress(
       // placeholder silently denied certificates to a whole programme. It
       // locked nothing, so nobody could see why.
       const nothingSet = parts.length === 0;
-      const completed = nothingSet ? true : requirementsMet;
+      // Staff counting the module as done. Applied here, at the one place
+      // completion is decided, so that everything downstream — the next
+      // module's lock, the certificate, the admin's screen and the learner's
+      // own dashboard — agrees without any of them being taught about it.
+      const clearedItems = options.clearedByStaff?.get(s.id);
+      const clearedByStaff = clearedItems !== undefined;
+      const completed = nothingSet ? true : (requirementsMet || clearedByStaff);
 
       // A module with nothing in it is not 100% done — it is not started,
       // because there is nothing to start. It completes only so that a
@@ -440,6 +482,11 @@ export function computeProgress(
         simulationDone: cw.simulationDone,
         // Set in the pass below, once the locking rules have had their say.
         openedByStaff: false,
+        // Said out loud on the entry rather than left to be inferred from a
+        // module that completed without the work behind it. Every screen that
+        // shows a green module can now say whether it was earned.
+        clearedByStaff,
+        clearedItems: clearedItems ?? [],
         quizDueAt: cw.quizDueAt ?? null,
         assignmentDueAt: cw.assignmentDueAt ?? null,
         feedbackUnlocked: reviewsRequired === 0 || reviewsDone,

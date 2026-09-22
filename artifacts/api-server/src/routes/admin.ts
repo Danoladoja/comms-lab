@@ -17,7 +17,7 @@ import {
   extensionProblem, extensionNote, manyExtensionsNote, describeWhen,
   whyBehind, cohortHeadline,
   creditProblem, creditStanding, creditRecord, creditNote, takeBackProblem, extraTimeBlocked,
-  unlockProblem, unlockNote, relockNote,
+  unlockProblem, unlockNote, relockNote, clearProblem, clearedNote, outstandingKeys,
 } from "@workspace/domain";
 import { cohortProgressFor } from "../lib/cohortProgress";
 import { currentRole, founderId, requireRole, getCurrentUser } from "../lib/auth";
@@ -338,6 +338,14 @@ router.get("/admin/sessions/:id/extensions", async (req, res) => {
       // one as the other will stop chasing work that is still owed.
       openedByStaff: entry?.openedByStaff ?? false,
       openedReason: overrideFor.get(l.userId) ?? null,
+      // Counted as done, which is a different thing from a door and has to
+      // read differently on screen: this one is complete.
+      clearedByStaff: entry?.clearedByStaff ?? false,
+      clearedItems: entry?.clearedItems ?? [],
+      // What this learner still owes on THIS module, named by the domain so the
+      // browser never works it out a second way. It is what a clearance would
+      // set aside, and an admin has to be able to read it before deciding.
+      outstandingItems: entry ? outstandingKeys(entry) : [],
       submitted: entry?.assignmentSubmitted ?? false,
       quizPassed: entry?.quizPassed ?? false,
       quizBestScore: entry?.quizBestScore ?? null,
@@ -627,13 +635,93 @@ router.put("/admin/sessions/:id/unlock", async (req, res) => {
   const lockedNow = new Map(asked.map((id) => [id, entryFor.get(id)?.locked ?? false]));
 
   const already = await db
-    .select({ userId: moduleUnlocksTable.userId })
+    .select({
+      userId: moduleUnlocksTable.userId,
+      clearsModule: moduleUnlocksTable.clearsModule,
+    })
     .from(moduleUnlocksTable)
     .where(and(
       eq(moduleUnlocksTable.sessionId, sessionId),
       inArray(moduleUnlocksTable.userId, asked),
     ));
   const alreadyOpen = new Set(already.map((r) => r.userId));
+  const alreadyCleared = new Set(already.filter((r) => r.clearsModule).map((r) => r.userId));
+
+  const clearing = parsed.data.clear === true;
+  const me = await getCurrentUser(req);
+  const reason = parsed.data.reason.trim();
+
+  /*
+    Clearing: the module counts as done.
+
+    What is outstanding is worked out here rather than taken from the browser,
+    and stored as it stood at this moment. The screen that offered the button
+    may be a minute old, and the point of the record is to say what was set
+    aside *then* — recomputing it later would describe a record that has since
+    changed, which is exactly the question it exists to answer.
+  */
+  if (clearing) {
+    const outstanding = new Map<number, readonly string[]>(
+      asked.map((id) => {
+        const entry = entryFor.get(id);
+        return [id, entry ? outstandingKeys(entry) : []];
+      }),
+    );
+
+    const clearProblemText = clearProblem({
+      userIds: asked,
+      reason: parsed.data.reason,
+      outstanding,
+      alreadyCleared,
+    });
+    if (clearProblemText) { res.status(400).json({ error: clearProblemText }); return; }
+
+    const toClear = asked.filter(
+      (id) => !alreadyCleared.has(id) && (outstanding.get(id)?.length ?? 0) > 0,
+    );
+
+    for (const userId of toClear) {
+      await db
+        .insert(moduleUnlocksTable)
+        .values({
+          userId,
+          sessionId,
+          reason,
+          clearsModule: true,
+          clearedItems: [...(outstanding.get(userId) ?? [])],
+          grantedByUserId: me?.id ?? null,
+        })
+        // A module that was merely opened earlier becomes a cleared one here,
+        // rather than leaving two records disagreeing about the same module.
+        .onConflictDoUpdate({
+          target: [moduleUnlocksTable.userId, moduleUnlocksTable.sessionId],
+          set: {
+            reason,
+            clearsModule: true,
+            clearedItems: [...(outstanding.get(userId) ?? [])],
+            grantedByUserId: me?.id ?? null,
+          },
+        });
+    }
+
+    logger.info(
+      { sessionId, cleared: toClear.length, by: me?.id },
+      "Module counted as done by hand",
+    );
+
+    res.json({
+      sessionId,
+      opened: 0,
+      alreadyOpen: 0,
+      cleared: toClear.length,
+      note: clearedNote({
+        cleared: toClear.length,
+        skipped: asked.length - toClear.length,
+        moduleTitle: session.title,
+      }),
+    });
+    return;
+  }
 
   const problem = unlockProblem({
     userIds: asked,
@@ -644,7 +732,6 @@ router.put("/admin/sessions/:id/unlock", async (req, res) => {
   if (problem) { res.status(400).json({ error: problem }); return; }
 
   const toOpen = asked.filter((id) => !alreadyOpen.has(id) && (lockedNow.get(id) ?? false));
-  const me = await getCurrentUser(req);
 
   for (const userId of toOpen) {
     await db
@@ -652,7 +739,7 @@ router.put("/admin/sessions/:id/unlock", async (req, res) => {
       .values({
         userId,
         sessionId,
-        reason: parsed.data.reason.trim(),
+        reason,
         grantedByUserId: me?.id ?? null,
       })
       // Granting again rewrites the reason rather than stacking a second row
@@ -660,7 +747,7 @@ router.put("/admin/sessions/:id/unlock", async (req, res) => {
       // somebody thought so the first time.
       .onConflictDoUpdate({
         target: [moduleUnlocksTable.userId, moduleUnlocksTable.sessionId],
-        set: { reason: parsed.data.reason.trim(), grantedByUserId: me?.id ?? null },
+        set: { reason, grantedByUserId: me?.id ?? null },
       });
   }
 
@@ -670,6 +757,7 @@ router.put("/admin/sessions/:id/unlock", async (req, res) => {
     sessionId,
     opened: toOpen.length,
     alreadyOpen: asked.length - toOpen.length,
+    cleared: 0,
     note: unlockNote({
       opened: toOpen.length,
       skipped: asked.length - toOpen.length,
@@ -722,6 +810,7 @@ router.delete("/admin/sessions/:id/unlock", async (req, res) => {
     sessionId,
     opened: 0,
     alreadyOpen: 0,
+    cleared: 0,
     note: removed.length === 0
       ? "None of those learners had an override on this module."
       : relockNote({ moduleTitle: session.title, nowLocked: stillLocked }),

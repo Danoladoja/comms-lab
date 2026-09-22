@@ -1512,6 +1512,7 @@ export interface ModuleUnlockGrant {
      * @maxLength 300
      */
   reason: string;
+  clear?: boolean;
 }
 
 export interface ModuleUnlockRevoke {
@@ -1526,6 +1527,7 @@ export interface ModuleUnlockResult {
   sessionId: number;
   opened: number;
   alreadyOpen: number;
+  cleared: number;
   note: string;
 }
 
@@ -1692,6 +1694,9 @@ export interface ModuleLearnerStanding {
   openedByStaff: boolean;
   /** @nullable */
   openedReason?: string | null;
+  clearedByStaff: boolean;
+  clearedItems: string[];
+  outstandingItems: string[];
   submitted: boolean;
   quizPassed: boolean;
   /** @nullable */

@@ -19,6 +19,9 @@ export interface ModuleLearnerStanding {
   openedByStaff: boolean;
   /** @nullable */
   openedReason?: string | null;
+  clearedByStaff: boolean;
+  clearedItems: string[];
+  outstandingItems: string[];
   submitted: boolean;
   quizPassed: boolean;
   /** @nullable */

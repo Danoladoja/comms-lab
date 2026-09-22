@@ -22,12 +22,13 @@ import {
   type CohortCell,
 } from '@workspace/api-client-react';
 import {
-  apiReason, sessionDateTimeFromInput, SUGGESTED_REASON, takeBackWarning, unlockWarning,
+  apiReason, sessionDateTimeFromInput, SUGGESTED_REASON, takeBackWarning,
+  unlockWarning, clearWarning, clearingList,
 } from '@workspace/domain';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { CouldNotLoad } from '@/components/CouldNotLoad';
-import { CalendarClock, ChevronDown, ChevronUp, Users, AlertTriangle, Lock, Unlock, UserCheck } from 'lucide-react';
+import { CalendarClock, ChevronDown, ChevronUp, Users, AlertTriangle, Lock, Unlock, UserCheck, CheckCheck } from 'lucide-react';
 
 
 /**
@@ -80,6 +81,8 @@ function Extensions({ programId, focus }: {
    * through unread and put the same sentence beside forty-five names.
    */
   const [openReason, setOpenReason] = useState('');
+  /** Why a module is being counted as done. Separate box, separate decision. */
+  const [clearReason, setClearReason] = useState('');
 
   // Arriving from a square in the grid, or from the chase list: open on that
   // module with that learner already ticked, so the admin's next action is
@@ -154,16 +157,20 @@ function Extensions({ programId, focus }: {
   const openModule = useOpenModuleForLearners({
     mutation: {
       onSuccess: (r) => {
-        toast({ title: r.opened > 0 ? 'Module opened' : 'Nothing to open', description: r.note });
+        toast({
+          title: r.cleared > 0 ? 'Module counted as done' : r.opened > 0 ? 'Module opened' : 'Nothing to change',
+          description: r.note,
+        });
         setChosen(new Set());
         setOpenReason('');
+        setClearReason('');
         refresh();
       },
       // Every refusal here names something specific — nobody selected, no
       // reason written, everybody already through — so the server's sentence
       // travels rather than a generic failure.
       onError: (err) => toast({
-        title: 'Could not open the module',
+        title: 'Could not change the module',
         description: apiReason(err, 'Try again in a moment.'),
         variant: 'destructive',
       }),
@@ -392,7 +399,7 @@ function Extensions({ programId, focus }: {
                         }}
                       >
                         <Unlock className="mr-1.5 h-3.5 w-3.5" aria-hidden />
-                        Open it for all {lockedOut.length}
+                        Open the door for all {lockedOut.length}
                       </Button>
                       {chosen.size > 0 && (
                         <Button
@@ -429,6 +436,102 @@ function Extensions({ programId, focus }: {
                 recording it is also the only thing standing between a cohort
                 and every module after it.
               */}
+              {/*
+                Counting the module as done.
+
+                Deliberately about THIS module and the people who have not
+                finished it — not about the people locked out of it. Those are
+                different learners and different remedies, and putting this
+                button beside the lock warning would have been a real trap: an
+                admin looking at Module 5's lock would have marked Module 5
+                complete for somebody whose actual problem was Module 4, and
+                the Lab would have recorded a module as done that the learner
+                had not yet sat.
+
+                So the rule is simple and says itself: you clear the module you
+                are looking at, for the people this screen says have not
+                finished it.
+              */}
+              {notDone.length > 0 && (
+                <div className="mt-4 rounded-lg border border-amber-300 bg-amber-50/60 p-3 text-xs text-amber-900">
+                  <p className="flex items-center gap-2 font-semibold">
+                    <CheckCheck className="h-4 w-4" aria-hidden />
+                    Did they actually do this, and the Lab missed it?
+                  </p>
+                  <p className="mt-0.5">
+                    {notDone.length === 1 ? '1 learner has' : `${notDone.length} learners have`} not
+                    finished {module.title}. Where that is our fault rather than theirs — a recording
+                    that never arrived, work lost when a page dropped the request — you can count the
+                    module as done for them.
+                  </p>
+                  <p className="mt-1.5 font-medium">
+                    This is not the same as opening a door. A cleared module completes, opens the
+                    module after it, and counts towards their certificate. An opened door does none
+                    of those, which is how somebody reaches the end of a programme and is refused
+                    there instead.
+                  </p>
+
+                  <label className="mt-3 block">
+                    Why you are counting it as done (goes on the record beside their name)
+                    <input
+                      className="mt-1 w-full rounded-md border border-amber-300 bg-background px-3 py-2 text-sm text-foreground"
+                      placeholder="They submitted on time; the app lost it during the 16 September update"
+                      value={clearReason}
+                      onChange={e => setClearReason(e.target.value)}
+                    />
+                  </label>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {chosen.size > 0 && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={openModule.isPending || clearReason.trim().length < 4}
+                        onClick={() => {
+                          const picked = learners.filter(l => chosen.has(l.userId));
+                          if (!confirm(clearWarning({
+                            count: picked.length,
+                            moduleTitle: module.title,
+                            keys: [...new Set(picked.flatMap(l => l.outstandingItems))],
+                          }))) return;
+                          openModule.mutate({
+                            id: sessionId,
+                            data: { userIds: [...chosen], reason: clearReason, clear: true },
+                          });
+                        }}
+                      >
+                        <CheckCheck className="mr-1.5 h-3.5 w-3.5" aria-hidden />
+                        Count it as done for the {chosen.size} selected
+                      </Button>
+                    )}
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={openModule.isPending || clearReason.trim().length < 4}
+                      onClick={() => {
+                        if (!confirm(clearWarning({
+                          count: notDone.length,
+                          moduleTitle: module.title,
+                          keys: [...new Set(notDone.flatMap(l => l.outstandingItems))],
+                        }))) return;
+                        openModule.mutate({
+                          id: sessionId,
+                          data: { userIds: notDone.map(l => l.userId), reason: clearReason, clear: true },
+                        });
+                      }}
+                    >
+                      All {notDone.length} who have not finished it
+                    </Button>
+                  </div>
+                  <p className="mt-2">
+                    Between them they are short of:{' '}
+                    <span className="font-medium">
+                      {clearingList([...new Set(notDone.flatMap(l => l.outstandingItems))])}
+                    </span>. Their work is not altered — nothing is filed, marked or scored on
+                    anybody's behalf, and the record will show that staff cleared it and why.
+                  </p>
+                </div>
+              )}
+
               {/* Nothing to credit on a simulation module: there was no class,
                   and a green tick for attending one would be a lie written on
                   the record beside somebody's name. */}
@@ -607,6 +710,39 @@ function Extensions({ programId, focus }: {
                             — is asked while looking at this table, often
                             months later and often by somebody who was not
                             the one who opened it. */}
+                        {/* A cleared module is complete and was not earned, so
+                            it says both. Without this the row would be a plain
+                            green tick and nobody reading it later could tell
+                            the difference. */}
+                        {l.clearedByStaff && (
+                          <p className="mt-0.5 flex items-start gap-1 text-xs text-amber-800">
+                            <CheckCheck className="mt-0.5 h-3 w-3 flex-shrink-0" aria-hidden />
+                            <span>
+                              Counted as done by staff
+                              {l.clearedItems.length > 0
+                                ? ` — set aside ${clearingList(l.clearedItems)}`
+                                : ''}
+                              {l.openedReason ? `: ${l.openedReason}` : ''}
+                              {' · '}
+                              <button
+                                type="button"
+                                className="underline underline-offset-2"
+                                disabled={closeModule.isPending}
+                                onClick={() => {
+                                  if (!confirm(
+                                    `Take back the clearance on ${module.title} for ${l.name || l.email}? `
+                                    + 'The module goes back to being judged on their own work, which '
+                                    + 'means it may become incomplete again and the module after it '
+                                    + 'may shut. Nothing they have done is touched.',
+                                  )) return;
+                                  closeModule.mutate({ id: sessionId, data: { userIds: [l.userId] } });
+                                }}
+                              >
+                                take it back
+                              </button>
+                            </span>
+                          </p>
+                        )}
                         {l.openedByStaff && (
                           <p className="mt-0.5 flex items-start gap-1 text-xs text-amber-800">
                             <Unlock className="mt-0.5 h-3 w-3 flex-shrink-0" aria-hidden />
@@ -1134,12 +1270,20 @@ function NeedsAttention({ rows, onPick }: {
  * unable to display. Extra time now lives at the bottom of the page that
  * explains why you would grant it.
  */
-export default function ProgressTracker() {
+export default function ProgressTracker({ onOpenExtensions }: {
+  /**
+   * Pressing a square used to scroll to a panel further down this page.
+   * Extensions is its own tab now, so the press has to change tabs instead —
+   * and the console owns which tab is showing, so it does the changing.
+   *
+   * Optional so the component still stands on its own.
+   */
+  onOpenExtensions?: (sessionId: number, userId: number) => void;
+} = {}) {
   const { data: programmes = [], isLoading: loadingProgrammes } = useListPrograms({
     query: { queryKey: getListProgramsQueryKey() },
   });
   const [programId, setProgramId] = useState<number | null>(null);
-  const [focus, setFocus] = useState<{ sessionId: number; userId: number; at: number } | null>(null);
 
   // Whichever cohort is actually running. Opening on a draft programme from
   // last year would make the first thing an admin sees an empty grid.
@@ -1165,7 +1309,7 @@ export default function ProgressTracker() {
         <select
           className="mt-1 block w-full max-w-md rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground"
           value={chosen ?? ''}
-          onChange={e => { setProgramId(Number(e.target.value)); setFocus(null); }}
+          onChange={e => setProgramId(Number(e.target.value))}
         >
           {programmes.map(p => (
             <option key={p.id} value={p.id}>{p.title}</option>
@@ -1205,20 +1349,82 @@ export default function ProgressTracker() {
 
           <NeedsAttention
             rows={data.needsAttention}
-            onPick={(sessionId, userId) => setFocus({ sessionId, userId, at: Date.now() })}
+            onPick={(sessionId, userId) => onOpenExtensions?.(sessionId, userId)}
           />
 
           <Grid
             data={data}
-            onPick={(sessionId, userId) => setFocus({ sessionId, userId, at: Date.now() })}
+            onPick={(sessionId, userId) => onOpenExtensions?.(sessionId, userId)}
           />
 
           <ModuleCharts modules={data.modules} />
-
-          <div className="rounded-lg border border-border bg-card">
-            <Extensions programId={chosen as number} focus={focus} />
-          </div>
         </>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Extensions as a tab of its own, beside Progress and Audit.
+ *
+ * It was a panel at the bottom of the Progress tab, below the grid and three
+ * charts, and that was the wrong shape for what it had become. It started as
+ * one control — move a deadline — and it now carries four separate remedies:
+ * extra time, crediting a class, opening a locked module, and counting one as
+ * done. None of those is a footnote to the progress grid, and an admin who
+ * needs them is not browsing, they are dealing with a specific person who is
+ * stuck.
+ *
+ * The programme picker is here rather than shared with Progress on purpose:
+ * this tab has to stand on its own if somebody opens it first.
+ */
+export function ExtensionsTab({ focus }: {
+  focus?: { sessionId: number; userId: number; at: number } | null;
+}) {
+  const { data: programmes = [], isLoading } = useListPrograms({
+    query: { queryKey: getListProgramsQueryKey() },
+  });
+  const [programId, setProgramId] = useState<number | null>(null);
+
+  const chosen = useMemo(() => {
+    if (programId !== null) return programId;
+    const live = programmes.find(p => p.status === 'published') ?? programmes[0];
+    return live?.id ?? null;
+  }, [programId, programmes]);
+
+  if (isLoading) return <div className="h-64 animate-pulse rounded-lg bg-muted/40" />;
+  if (programmes.length === 0) {
+    return <p className="text-sm text-muted-foreground">There are no programmes yet.</p>;
+  }
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="font-display text-lg font-bold">Unsticking one learner</h2>
+        <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
+          Four remedies, in the order they are usually needed: more time on a deadline, credit for a
+          class the app could not measure, a locked module opened, and — where the Lab is the reason
+          somebody is short — a module counted as done.
+        </p>
+      </div>
+
+      <label className="block text-xs font-medium text-muted-foreground">
+        Which programme?
+        <select
+          className="mt-1 block w-full max-w-md rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground"
+          value={chosen ?? ''}
+          onChange={e => setProgramId(Number(e.target.value))}
+        >
+          {programmes.map(p => (
+            <option key={p.id} value={p.id}>{p.title}</option>
+          ))}
+        </select>
+      </label>
+
+      {chosen !== null && (
+        <div className="rounded-lg border border-border bg-card">
+          <Extensions programId={chosen} focus={focus} />
+        </div>
       )}
     </div>
   );

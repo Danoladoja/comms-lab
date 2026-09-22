@@ -5440,6 +5440,17 @@ components:
         # Required. An override sets the Lab's own rules aside for one person,
         # and "no reason recorded" is what makes that look arbitrary later.
         reason: { type: string, minLength: 4, maxLength: 300 }
+        # Which of the two acts this is.
+        #
+        # false (the default, and every request written before this existed)
+        # opens the door and nothing else: the module stays incomplete and
+        # earns no certificate.
+        #
+        # true counts the module as done. The module after it then opens by the
+        # ordinary rule and it counts towards a certificate — which an open
+        # door never does, so a learner carried forward on doors alone reaches
+        # the end of the programme and is refused there instead.
+        clear: { type: boolean, default: false }
     ModuleUnlockRevoke:
       type: object
       required: [userIds]
@@ -5451,12 +5462,16 @@ components:
           maxItems: 500
     ModuleUnlockResult:
       type: object
-      required: [sessionId, opened, alreadyOpen, note]
+      required: [sessionId, opened, alreadyOpen, cleared, note]
       properties:
         sessionId: { type: integer }
         opened: { type: integer }
         # Named rather than left to subtraction, as with crediting a class.
         alreadyOpen: { type: integer }
+        # How many modules were counted as done, when that is what was asked
+        # for. Separate from `opened` because they are different acts with
+        # different consequences, and a single number would hide which happened.
+        cleared: { type: integer }
         note: { type: string }
     AttendanceCreditResult:
       type: object
@@ -5646,7 +5661,8 @@ components:
         [userId, name, email, attended, attendedVia, attendedPct,
          hasSimulation, simulationDone, submitted,
          quizPassed, hasQuiz, hasAssignment, critiquesGiven, critiquesRequired, complete,
-         locked, openedByStaff, attendanceCredited, hasOwnMeasurement]
+         locked, openedByStaff, clearedByStaff, clearedItems, outstandingItems,
+         attendanceCredited, hasOwnMeasurement]
       properties:
         userId: { type: integer }
         name: { type: string }
@@ -5667,6 +5683,20 @@ components:
         # the door is open and the work is still outstanding.
         openedByStaff: { type: boolean }
         openedReason: { type: ["string", "null"] }
+        # Staff counted the module as done. Unlike the door above, this one is
+        # complete and counts towards a certificate — so the screen has to be
+        # able to tell an admin which of the two they are looking at.
+        clearedByStaff: { type: boolean }
+        clearedItems:
+          type: array
+          items: { type: string }
+        # What they still owe on this module, named by the same rules the
+        # dashboard uses. This is what a clearance would set aside, and it is
+        # sent rather than worked out in the browser so the sentence an admin
+        # reads before pressing cannot disagree with what is stored afterwards.
+        outstandingItems:
+          type: array
+          items: { type: string }
         submitted: { type: boolean }
         quizPassed: { type: boolean }
         quizBestScore: { type: ["integer", "null"] }

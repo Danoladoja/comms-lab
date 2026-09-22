@@ -17,4 +17,5 @@ export interface ModuleUnlockGrant {
      * @maxLength 300
      */
   reason: string;
+  clear?: boolean;
 }

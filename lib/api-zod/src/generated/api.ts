@@ -2048,6 +2048,9 @@ export const ListModuleExtensionsResponse = zod.object({
   "simulationDone": zod.boolean(),
   "openedByStaff": zod.boolean(),
   "openedReason": zod.string().nullish(),
+  "clearedByStaff": zod.boolean(),
+  "clearedItems": zod.array(zod.string()),
+  "outstandingItems": zod.array(zod.string()),
   "submitted": zod.boolean(),
   "quizPassed": zod.boolean(),
   "quizBestScore": zod.int().nullish(),
@@ -2080,17 +2083,19 @@ export const openModuleForLearnersBodyUserIdsMax = 500;
 export const openModuleForLearnersBodyReasonMin = 4;
 export const openModuleForLearnersBodyReasonMax = 300;
 
-
+export const openModuleForLearnersBodyClearDefault = false;
 
 export const OpenModuleForLearnersBody = zod.object({
   "userIds": zod.array(zod.int()).min(1).max(openModuleForLearnersBodyUserIdsMax),
-  "reason": zod.string().min(openModuleForLearnersBodyReasonMin).max(openModuleForLearnersBodyReasonMax)
+  "reason": zod.string().min(openModuleForLearnersBodyReasonMin).max(openModuleForLearnersBodyReasonMax),
+  "clear": zod.boolean().default(openModuleForLearnersBodyClearDefault)
 })
 
 export const OpenModuleForLearnersResponse = zod.object({
   "sessionId": zod.int(),
   "opened": zod.int(),
   "alreadyOpen": zod.int(),
+  "cleared": zod.int(),
   "note": zod.string()
 })
 
@@ -2115,6 +2120,7 @@ export const CloseModuleForLearnersResponse = zod.object({
   "sessionId": zod.int(),
   "opened": zod.int(),
   "alreadyOpen": zod.int(),
+  "cleared": zod.int(),
   "note": zod.string()
 })
 

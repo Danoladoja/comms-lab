@@ -1,0 +1,2 @@
+ALTER TABLE "module_unlocks" ADD COLUMN "clears_module" boolean DEFAULT false NOT NULL;--> statement-breakpoint
+ALTER TABLE "module_unlocks" ADD COLUMN "cleared_items" jsonb DEFAULT '[]'::jsonb NOT NULL;

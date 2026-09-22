@@ -234,6 +234,8 @@ export async function cohortProgressFor(programId: number): Promise<{
           userId: moduleUnlocksTable.userId,
           sessionId: moduleUnlocksTable.sessionId,
           reason: moduleUnlocksTable.reason,
+          clearsModule: moduleUnlocksTable.clearsModule,
+          clearedItems: moduleUnlocksTable.clearedItems,
         })
         .from(moduleUnlocksTable)
         .where(and(
@@ -258,7 +260,9 @@ export async function cohortProgressFor(programId: number): Promise<{
 
   // Staff overrides, by (learner, module). The reason travels too, because the
   // panel that shows a module as open is also where somebody asks why.
-  const unlockByKey = new Map(unlocks.map((u) => [key(u.userId, u.sessionId), u.reason]));
+  // The whole row, not just the reason: an override is now either a door or a
+  // completed module, and which one it is decides how the rules read it.
+  const unlockByKey = new Map(unlocks.map((u) => [key(u.userId, u.sessionId), u]));
 
   /* ---- the Studio, by the same reading the learner's own screen gives it ---- */
 
@@ -406,10 +410,23 @@ export async function cohortProgressFor(programId: number): Promise<{
         {
           progressionByProgram,
           weekOfSession,
+          // Split the same way the single-learner loader splits them, so the
+          // admin's screen and the learner's dashboard cannot disagree about
+          // whether a module was opened or counted as done.
           openedByStaff: new Set(
             sessions
-              .filter((s) => unlockByKey.has(key(person.userId, s.id)))
+              .filter((s) => {
+                const row = unlockByKey.get(key(person.userId, s.id));
+                return row !== undefined && !row.clearsModule;
+              })
               .map((s) => s.id),
+          ),
+          clearedByStaff: new Map(
+            sessions
+              .map((s) => [s.id, unlockByKey.get(key(person.userId, s.id))] as const)
+              .filter((pair): pair is readonly [number, NonNullable<typeof pair[1]>] =>
+                pair[1] !== undefined && pair[1].clearsModule)
+              .map(([id, row]) => [id, row.clearedItems]),
           ),
         },
       ),

@@ -340,6 +340,43 @@ export const moduleUnlocksTable = pgTable(
      * one person it was trying to help.
      */
     reason: text("reason").notNull().default(""),
+
+    /**
+     * Whether this counts the module as done, or only opens its door.
+     *
+     * Two different acts, and the difference decides whether somebody ever
+     * gets a certificate.
+     *
+     * Opening is for "let them get on with this week while we sort out last
+     * week". It moves nobody past anything: the module behind is still
+     * incomplete, and a certificate needs every module complete, so an opened
+     * door alone would carry a learner all the way to the end of a programme
+     * and refuse them at the last step — stuck at the finish instead of in the
+     * middle, which is worse, because by then everybody has stopped looking.
+     *
+     * Clearing is for when the work was genuinely done and the Lab is why the
+     * record does not say so. It counts the module as complete, so the module
+     * after it opens by the ordinary rule and the certificate follows.
+     *
+     * False on every row written before the distinction existed, which is
+     * right: those were doors.
+     */
+    clearsModule: boolean("clears_module").notNull().default(false),
+
+    /**
+     * What was actually outstanding at the moment it was cleared.
+     *
+     * Stored rather than recomputed, because the point of it is to say what
+     * was waved through *then*. Recomputing it later would describe a record
+     * that has since changed — and the one question this has to answer, months
+     * afterwards, is "what did we decide not to ask this person for?"
+     *
+     * Keys, not sentences: "presence", "assignment", "reviews", "quiz",
+     * "simulation". The words shown on screen live in @workspace/domain and can
+     * be reworded without rewriting anybody's history.
+     */
+    clearedItems: jsonb("cleared_items").$type<string[]>().notNull().default([]),
+
     /** Who opened it. Null if that admin's account is later removed. */
     grantedByUserId: integer("granted_by_user_id").references(() => usersTable.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
