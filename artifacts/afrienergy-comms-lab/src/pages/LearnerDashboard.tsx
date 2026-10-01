@@ -38,6 +38,7 @@ const statusClass: Record<string, string> = {
 };
 
 import type { SessionDetail } from '@workspace/api-client-react';
+import ProgrammeForm from '@/components/ProgrammeForm';
 import { ProgramForum } from '@/components/CohortForum';
 import { openJoinLink } from '@/lib/openJoinLink';
 import { CouldNotLoad } from '@/components/CouldNotLoad';
@@ -200,6 +201,22 @@ export default function LearnerDashboard() {
 
               {/* MODULES + PROGRESS */}
               <TabsContent value="modules" className="space-y-8">
+                {/*
+                  The opening assessment and the closing survey, above the
+                  modules rather than on a tab of their own.
+
+                  A compulsory form on a tab nobody opens is a certificate
+                  withheld by a navigation choice. Each one draws nothing at all
+                  until it is published and shows only a short acknowledgement
+                  once filed, so for most of a programme this costs the page
+                  nothing.
+                */}
+                {active.map(e => (
+                  <ProgrammeForm key={`before-${e.programId}`} programId={e.programId} stage="before" />
+                ))}
+                {active.map(e => (
+                  <ProgrammeForm key={`after-${e.programId}`} programId={e.programId} stage="after" />
+                ))}
                 {active.map(e => {
                   const mods = (sessionsByProgram.get(e.programId) ?? [])
                     .sort((a, b) => new Date(a.startsAt as unknown as string || 0).getTime() - new Date(b.startsAt as unknown as string || 0).getTime());

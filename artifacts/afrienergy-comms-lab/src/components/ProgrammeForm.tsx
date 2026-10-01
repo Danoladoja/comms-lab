@@ -1,0 +1,299 @@
+import { useMemo, useState } from 'react';
+import {
+  useGetProgramForm, useFileProgramForm, getGetProgramFormQueryKey,
+  type FormQuestion, type FormAnswer, type FormFault,
+} from '@workspace/api-client-react';
+import { useQueryClient } from '@tanstack/react-query';
+import { countWords, answerProblem, answeredCount, faultSummary } from '@workspace/domain';
+import { Button } from '@/components/ui/button';
+import { useToast } from '@/hooks/use-toast';
+import { CheckCircle2, AlertCircle } from 'lucide-react';
+
+/**
+ * The opening assessment and the closing survey, as a learner meets them.
+ *
+ * Three decisions in here are about not wasting people's goodwill.
+ *
+ * Every fault is shown at once and each is attached to its own question, so
+ * nobody files, is bounced, scrolls to find out why, fixes one thing and is
+ * bounced again. This form is compulsory and holds a certificate, so a
+ * frustrating one is not merely annoying — it is the Lab withholding something
+ * somebody earned, behind an obstacle of its own making.
+ *
+ * The word count is live and counts down rather than up. "63 of 80" tells you
+ * where you stand; "63 words" makes you do arithmetic against a limit you have
+ * scrolled past.
+ *
+ * And the whole thing is checked in the browser with the same functions the
+ * server uses, from @workspace/domain. Not for security — the server checks
+ * again and is the only one that counts — but so that what the page says is
+ * wrong and what the server says is wrong can never be two different lists.
+ */
+export default function ProgrammeForm({ programId, stage, onFiled }: {
+  programId: number;
+  stage: 'before' | 'after';
+  onFiled?: () => void;
+}) {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const [answers, setAnswers] = useState<Record<number, FormAnswer>>({});
+  const [faults, setFaults] = useState<FormFault[]>([]);
+  /** Only show faults once they have tried. Scolding before they start is rude. */
+  const [tried, setTried] = useState(false);
+
+  const { data, isLoading } = useGetProgramForm(programId, stage, {
+    query: { queryKey: getGetProgramFormQueryKey(programId, stage) },
+  });
+
+  const file = useFileProgramForm({
+    mutation: {
+      onSuccess: () => {
+        toast({
+          title: stage === 'after' ? 'Thank you — that is filed' : 'Thank you',
+          description: stage === 'after'
+            ? 'Your certificate is no longer waiting on anything.'
+            : 'We read these before the first class.',
+        });
+        qc.invalidateQueries({ queryKey: getGetProgramFormQueryKey(programId, stage) });
+        onFiled?.();
+      },
+      onError: (err) => {
+        // The server returns every fault; show them against their questions
+        // rather than as one toast nobody can act on.
+        const body = (err as { response?: { data?: { faults?: FormFault[]; error?: string } } })?.response?.data;
+        if (body?.faults?.length) {
+          setFaults(body.faults);
+          setTried(true);
+        }
+        toast({
+          title: 'Not filed yet',
+          description: body?.error ?? 'Something went wrong. Try again in a moment.',
+          variant: 'destructive',
+        });
+      },
+    },
+  });
+
+  const questions = (data?.questions ?? []) as FormQuestion[];
+  const given = useMemo(() => Object.values(answers), [answers]);
+  const progress = useMemo(
+    () => answeredCount(questions as never, given as never),
+    [questions, given],
+  );
+
+  const set = (questionId: number, patch: Partial<FormAnswer>) => {
+    setAnswers(prev => ({
+      ...prev,
+      [questionId]: { ...(prev[questionId] ?? { questionId }), questionId, ...patch },
+    }));
+    setFaults(prev => prev.filter(f => f.questionId !== questionId));
+  };
+
+  if (isLoading) return <div className="h-64 animate-pulse rounded-lg bg-muted/40" />;
+  if (!data?.published) return null;
+
+  if (data.filed) {
+    return (
+      <section className="rounded-lg border border-emerald-300 bg-emerald-50/60 p-4">
+        <p className="flex items-center gap-2 text-sm font-semibold text-emerald-900">
+          <CheckCircle2 className="h-4 w-4" aria-hidden />
+          {data.title} — filed
+        </p>
+        <p className="mt-1 text-xs text-emerald-900">
+          Thank you. {stage === 'after'
+            ? 'Nothing is waiting on you now.'
+            : 'We read every one of these before the programme starts.'}
+        </p>
+      </section>
+    );
+  }
+
+  const faultFor = (id: number) => faults.find(f => f.questionId === id)?.problem
+    ?? (tried
+      ? answerProblem(
+        questions.find(q => q.id === id) as never,
+        answers[id] as never,
+      ) ?? undefined
+      : undefined);
+
+  return (
+    <section className="rounded-lg border border-border bg-card p-4 space-y-5">
+      <div>
+        <h2 className="font-display text-lg font-bold">{data.title}</h2>
+        {data.intro && <p className="mt-1 max-w-2xl text-sm text-muted-foreground">{data.intro}</p>}
+        <p className="mt-2 text-xs text-muted-foreground">
+          {progress.answered} of {progress.required} questions answered.
+          {stage === 'after' && ' Your certificate is waiting on this.'}
+        </p>
+      </div>
+
+      {tried && faults.length > 0 && (
+        <p className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/5 p-3 text-xs text-destructive">
+          <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" aria-hidden />
+          {faultSummary(faults as never)}
+        </p>
+      )}
+
+      <ol className="space-y-6">
+        {questions.map((q, i) => (
+          <li key={q.id} className="space-y-2">
+            <div>
+              <p className="text-sm font-medium">
+                <span className="text-muted-foreground">{i + 1}. </span>
+                {q.prompt}
+                {!q.required && <span className="ml-1 text-xs font-normal text-muted-foreground">(optional)</span>}
+              </p>
+              {q.help && <p className="mt-0.5 text-xs text-muted-foreground">{q.help}</p>}
+            </div>
+
+            <QuestionBody question={q} answer={answers[q.id]} onChange={patch => set(q.id, patch)} />
+
+            {faultFor(q.id) && (
+              <p className="text-xs text-destructive">{faultFor(q.id)}</p>
+            )}
+          </li>
+        ))}
+      </ol>
+
+      <div className="flex flex-wrap items-center gap-3 border-t border-border pt-4">
+        <Button
+          disabled={file.isPending}
+          onClick={() => {
+            setTried(true);
+            // Checked here first so an obviously incomplete form does not need
+            // a round trip to say so.
+            const local = questions
+              .map(q => ({ q, problem: answerProblem(q as never, answers[q.id] as never) }))
+              .filter(x => x.problem)
+              .map(x => ({ questionId: x.q.id, prompt: x.q.prompt, problem: x.problem as string }));
+            if (local.length > 0) { setFaults(local); return; }
+            file.mutate({ id: programId, stage, data: { answers: given } });
+          }}
+        >
+          {file.isPending ? 'Filing…' : 'File it'}
+        </Button>
+        <p className="text-xs text-muted-foreground">
+          You can file this once. Nothing here is marked, and nobody is scored on it.
+        </p>
+      </div>
+    </section>
+  );
+}
+
+/** The question itself, by kind. */
+function QuestionBody({ question, answer, onChange }: {
+  question: FormQuestion;
+  answer: FormAnswer | undefined;
+  onChange: (patch: Partial<FormAnswer>) => void;
+}) {
+  const c = question.config ?? {};
+
+  if (question.kind === 'slider') {
+    const min = c.min ?? 0;
+    const max = c.max ?? 10;
+    const step = c.step ?? 1;
+    // Undefined until they touch it, so an untouched slider is not silently
+    // recorded as the number it happens to be sitting on.
+    const value = answer?.number;
+    return (
+      <div className="max-w-xl">
+        <input
+          type="range"
+          className="w-full accent-[#C2410C]"
+          min={min}
+          max={max}
+          step={step}
+          value={value ?? Math.round((min + max) / 2)}
+          onChange={e => onChange({ number: Number(e.target.value) })}
+          aria-label={question.prompt}
+        />
+        <div className="mt-1 flex items-center justify-between text-xs text-muted-foreground">
+          <span>{c.minLabel}</span>
+          <span className={value === undefined || value === null ? 'italic' : 'font-semibold text-foreground'}>
+            {value === undefined || value === null ? 'Drag to answer' : value}
+          </span>
+          <span>{c.maxLabel}</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (question.kind === 'choice') {
+    return (
+      <div className="space-y-1.5">
+        {(c.options ?? []).map(option => (
+          <label key={option} className="flex items-center gap-2 text-sm">
+            <input
+              type="radio"
+              name={`q-${question.id}`}
+              checked={answer?.text === option}
+              onChange={() => onChange({ text: option })}
+            />
+            {option}
+          </label>
+        ))}
+      </div>
+    );
+  }
+
+  if (question.kind === 'multi') {
+    const picked = answer?.choices ?? [];
+    const most = c.pickAtMost;
+    return (
+      <div className="space-y-1.5">
+        {(c.options ?? []).map(option => {
+          const on = picked.includes(option);
+          // Stop them at the ceiling rather than letting them pick seven and
+          // be told afterwards that three was the limit.
+          const full = !on && most !== undefined && picked.length >= most;
+          return (
+            <label
+              key={option}
+              className={`flex items-center gap-2 text-sm ${full ? 'text-muted-foreground' : ''}`}
+            >
+              <input
+                type="checkbox"
+                checked={on}
+                disabled={full}
+                onChange={() => onChange({
+                  choices: on ? picked.filter(p => p !== option) : [...picked, option],
+                })}
+              />
+              {option}
+            </label>
+          );
+        })}
+        {most !== undefined && (
+          <p className="text-xs text-muted-foreground">
+            {picked.length} of {most} picked.
+          </p>
+        )}
+      </div>
+    );
+  }
+
+  // Written answers, with the count the learner actually needs.
+  const text = answer?.text ?? '';
+  const words = countWords(text);
+  const most = c.wordsAtMost ?? (question.kind === 'short' ? 60 : 300);
+  const least = c.wordsAtLeast ?? 0;
+  const over = words > most;
+  const under = question.required && words < least;
+
+  return (
+    <div className="max-w-2xl">
+      <textarea
+        className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground"
+        rows={question.kind === 'short' ? 2 : 5}
+        value={text}
+        onChange={e => onChange({ text: e.target.value })}
+        aria-label={question.prompt}
+      />
+      <p className={`mt-1 text-xs ${over || under ? 'text-destructive' : 'text-muted-foreground'}`}>
+        {words} of {most} words
+        {least > 0 && words < least && ` · at least ${least} needed`}
+        {over && ` · ${words - most} over`}
+      </p>
+    </div>
+  );
+}

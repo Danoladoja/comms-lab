@@ -3808,6 +3808,197 @@ paths:
         "403": { $ref: "#/components/responses/Forbidden" }
         "409": { $ref: "#/components/responses/Conflict" }
         "502": { $ref: "#/components/responses/ApiError" }
+  /programs/{id}/form/{stage}:
+    get:
+      operationId: getProgramForm
+      tags: [forms]
+      summary: The opening assessment or closing survey, and anything already filed
+      description: >
+        A draft form reports itself as unpublished with no questions, exactly as
+        a draft quiz does. The learner's own answers travel back once filed so
+        they can read what they said; the form cannot be filed twice.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+        - name: stage
+          in: path
+          required: true
+          schema: { type: string, enum: [before, after] }
+      responses:
+        "200":
+          description: The form
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProgramForm"
+        "403":
+          description: Not enrolled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+    post:
+      operationId: fileProgramForm
+      tags: [forms]
+      summary: File the form
+      description: >
+        Once. Every fault is returned together rather than one at a time, because
+        a compulsory form that complains in sequence is one people abandon.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+        - name: stage
+          in: path
+          required: true
+          schema: { type: string, enum: [before, after] }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FormFiling"
+      responses:
+        "200":
+          description: Filed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FormFiled"
+        "400":
+          description: Refused, with every fault named
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FormRefusal"
+        "409":
+          description: Already filed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+  /admin/programs/{id}/forms:
+    get:
+      operationId: listProgramForms
+      tags: [admin]
+      summary: Both forms for a programme, and how many have filed each
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: The forms
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProgramFormsOverview"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+  /admin/programs/{id}/forms/{stage}/standard:
+    post:
+      operationId: createStandardForm
+      tags: [admin]
+      summary: Start this form from the Lab's standard set of questions
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+        - name: stage
+          in: path
+          required: true
+          schema: { type: string, enum: [before, after] }
+      responses:
+        "200":
+          description: Created as a draft
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FormCreated"
+        "409":
+          description: There is already a form here
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+  /admin/programs/{id}/forms/{stage}/published:
+    put:
+      operationId: setFormPublished
+      tags: [admin]
+      summary: Publish the form to the cohort, or take it back to a draft
+      description: >
+        Publishing the closing survey is what makes it compulsory: certificates
+        wait on it from that moment, and every learner is told so on their
+        dashboard. A form that cannot be filed is refused here rather than
+        discovered by a cohort.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+        - name: stage
+          in: path
+          required: true
+          schema: { type: string, enum: [before, after] }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FormPublishRequest"
+      responses:
+        "200":
+          description: Changed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FormPublishResult"
+        "400":
+          description: The form is not in a state to be published
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+  /admin/programs/{id}/forms/{stage}/responses:
+    get:
+      operationId: listFormResponses
+      tags: [admin]
+      summary: What the cohort said
+      description: >
+        Names reach admins only. A facilitator reading "what was weakest about
+        this programme" gets the answers without the authors, which is the
+        promise that makes the question worth asking.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+        - name: stage
+          in: path
+          required: true
+          schema: { type: string, enum: [before, after] }
+      responses:
+        "200":
+          description: The responses
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FormResponses"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
 components:
   parameters:
     SimulationId:
@@ -6552,3 +6743,177 @@ components:
         # The team this person is on, named. Null for a solo exercise and for
         # the admin who owns a cohort session, who is in no team.
         teamName: { type: ["string", "null"] }
+
+    FormQuestionConfig:
+      type: object
+      properties:
+        options:
+          type: array
+          items: { type: string }
+        pickAtLeast: { type: integer }
+        pickAtMost: { type: integer }
+        min: { type: integer }
+        max: { type: integer }
+        step: { type: integer }
+        minLabel: { type: string }
+        maxLabel: { type: string }
+        wordsAtLeast: { type: integer }
+        wordsAtMost: { type: integer }
+    FormQuestion:
+      type: object
+      required: [id, kind, prompt, help, required, config]
+      properties:
+        id: { type: integer }
+        kind:
+          type: string
+          enum: [slider, choice, multi, short, long]
+        prompt: { type: string }
+        help: { type: string }
+        required: { type: boolean }
+        config:
+          $ref: "#/components/schemas/FormQuestionConfig"
+        pairKey: { type: string }
+    FormAnswer:
+      type: object
+      required: [questionId]
+      properties:
+        questionId: { type: integer }
+        number: { type: ["integer", "null"] }
+        text: { type: string }
+        choices:
+          type: array
+          items: { type: string }
+    ProgramForm:
+      type: object
+      required: [programId, stage, published, questions, filed]
+      properties:
+        programId: { type: integer }
+        stage: { type: string, enum: [before, after] }
+        published: { type: boolean }
+        formId: { type: integer }
+        title: { type: string }
+        intro: { type: string }
+        filed: { type: boolean }
+        filedAt: { type: ["string", "null"], format: date-time }
+        questions:
+          type: array
+          items:
+            $ref: "#/components/schemas/FormQuestion"
+        answers:
+          type: array
+          items:
+            $ref: "#/components/schemas/FormAnswer"
+    FormFiling:
+      type: object
+      required: [answers]
+      properties:
+        answers:
+          type: array
+          items:
+            $ref: "#/components/schemas/FormAnswer"
+    FormFiled:
+      type: object
+      required: [programId, stage, filed]
+      properties:
+        programId: { type: integer }
+        stage: { type: string }
+        filed: { type: boolean }
+    FormFault:
+      type: object
+      required: [questionId, prompt, problem]
+      properties:
+        questionId: { type: integer }
+        prompt: { type: string }
+        problem: { type: string }
+    FormRefusal:
+      type: object
+      required: [error]
+      properties:
+        error: { type: string }
+        faults:
+          type: array
+          items:
+            $ref: "#/components/schemas/FormFault"
+    ProgramFormSummary:
+      type: object
+      required: [stage, exists, published, questionCount, filed, tally, title]
+      properties:
+        stage: { type: string, enum: [before, after] }
+        exists: { type: boolean }
+        formId: { type: integer }
+        title: { type: string }
+        intro: { type: string }
+        published: { type: boolean }
+        questionCount: { type: integer }
+        filed: { type: integer }
+        tally: { type: string }
+        # Why this form cannot be published, or empty when it can.
+        problem: { type: string }
+        questions:
+          type: array
+          items:
+            $ref: "#/components/schemas/FormQuestion"
+    ProgramFormsOverview:
+      type: object
+      required: [programme, enrolled, forms]
+      properties:
+        programme:
+          type: object
+          required: [id, title]
+          properties:
+            id: { type: integer }
+            title: { type: string }
+        enrolled: { type: integer }
+        forms:
+          type: array
+          items:
+            $ref: "#/components/schemas/ProgramFormSummary"
+    FormCreated:
+      type: object
+      required: [programId, stage, formId, published]
+      properties:
+        programId: { type: integer }
+        stage: { type: string }
+        formId: { type: integer }
+        published: { type: boolean }
+    FormPublishRequest:
+      type: object
+      properties:
+        # Omitted means publish. Taking a form back to a draft is the unusual
+        # act and the one worth stating.
+        published: { type: boolean, default: true }
+    FormPublishResult:
+      type: object
+      required: [programId, stage, published, note]
+      properties:
+        programId: { type: integer }
+        stage: { type: string }
+        published: { type: boolean }
+        note: { type: string }
+    FormResponses:
+      type: object
+      required: [stage, title, namesShown, questions, responses]
+      properties:
+        stage: { type: string }
+        title: { type: string }
+        # False for facilitators. The names are withheld at the server rather
+        # than sent and hidden, because a name that reaches the page is a name
+        # somebody can read.
+        namesShown: { type: boolean }
+        questions:
+          type: array
+          items:
+            $ref: "#/components/schemas/FormQuestion"
+        responses:
+          type: array
+          items:
+            type: object
+            required: [submittedAt, answers]
+            properties:
+              name: { type: ["string", "null"] }
+              email: { type: ["string", "null"] }
+              submittedAt: { type: string, format: date-time }
+              answers:
+                type: array
+                items:
+                  $ref: "#/components/schemas/FormAnswer"

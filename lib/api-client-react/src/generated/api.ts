@@ -56,6 +56,13 @@ import type {
   EnrollmentDetail,
   EnrollmentUpdate,
   ForbiddenResponse,
+  FormCreated,
+  FormFiled,
+  FormFiling,
+  FormPublishRequest,
+  FormPublishResult,
+  FormRefusal,
+  FormResponses,
   ForumPost,
   ForumThread,
   GetLearnerRecordParams,
@@ -101,6 +108,8 @@ import type {
   PortfolioVisibilityInput,
   PostInput,
   Program,
+  ProgramForm,
+  ProgramFormsOverview,
   ProgramInput,
   ProgramUpdate,
   ProgressAudit,
@@ -9939,4 +9948,470 @@ export const useCompleteSimulationRun = <TError = ErrorType<UnauthorizedResponse
       > => {
       return useMutation(getCompleteSimulationRunMutationOptions(options));
     }
+
+export const getGetProgramFormUrl = (id: number,
+    stage: 'before' | 'after',) => {
+
+
+
+
+  return `/api/programs/${id}/form/${stage}`
+}
+
+/**
+ * A draft form reports itself as unpublished with no questions, exactly as a draft quiz does. The learner's own answers travel back once filed so they can read what they said; the form cannot be filed twice.
+ * @summary The opening assessment or closing survey, and anything already filed
+ */
+export const getProgramForm = async (id: number,
+    stage: 'before' | 'after', options?: Parameters<typeof customFetch>[1]): Promise<ProgramForm> => {
+
+  return customFetch<ProgramForm>(getGetProgramFormUrl(id,stage),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetProgramFormQueryKey = (id: number,
+    stage: 'before' | 'after',) => {
+    return [
+    `/api/programs/${id}/form/${stage}`
+    ] as const;
+    }
+
+
+export const getGetProgramFormQueryOptions = <TData = Awaited<ReturnType<typeof getProgramForm>>, TError = ErrorType<ApiMessage>>(id: number,
+    stage: 'before' | 'after', options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getProgramForm>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetProgramFormQueryKey(id,stage);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getProgramForm>>> = ({ signal }) => getProgramForm(id,stage, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined && stage !== null && stage !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getProgramForm>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetProgramFormQueryResult = NonNullable<Awaited<ReturnType<typeof getProgramForm>>>
+export type GetProgramFormQueryError = ErrorType<ApiMessage>
+
+
+/**
+ * @summary The opening assessment or closing survey, and anything already filed
+ */
+
+export function useGetProgramForm<TData = Awaited<ReturnType<typeof getProgramForm>>, TError = ErrorType<ApiMessage>>(
+ id: number,
+    stage: 'before' | 'after', options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getProgramForm>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetProgramFormQueryOptions(id,stage,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getFileProgramFormUrl = (id: number,
+    stage: 'before' | 'after',) => {
+
+
+
+
+  return `/api/programs/${id}/form/${stage}`
+}
+
+/**
+ * Once. Every fault is returned together rather than one at a time, because a compulsory form that complains in sequence is one people abandon.
+ * @summary File the form
+ */
+export const fileProgramForm = async (id: number,
+    stage: 'before' | 'after',
+    formFiling: FormFiling, options?: Parameters<typeof customFetch>[1]): Promise<FormFiled> => {
+
+  return customFetch<FormFiled>(getFileProgramFormUrl(id,stage),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(formFiling)
+  }
+);}
+
+
+
+
+
+export const getFileProgramFormMutationOptions = <TError = ErrorType<FormRefusal | ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof fileProgramForm>>, TError,{id: number;stage: 'before' | 'after';data: BodyType<FormFiling>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof fileProgramForm>>, TError,{id: number;stage: 'before' | 'after';data: BodyType<FormFiling>}, TContext> => {
+
+const mutationKey = ['fileProgramForm'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof fileProgramForm>>, {id: number;stage: 'before' | 'after';data: BodyType<FormFiling>}> = (props) => {
+          const {id,stage,data} = props ?? {};
+
+          return  fileProgramForm(id,stage,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type FileProgramFormMutationResult = NonNullable<Awaited<ReturnType<typeof fileProgramForm>>>
+    export type FileProgramFormMutationBody = BodyType<FormFiling>
+    export type FileProgramFormMutationError = ErrorType<FormRefusal | ApiMessage>
+
+    /**
+ * @summary File the form
+ */
+export const useFileProgramForm = <TError = ErrorType<FormRefusal | ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof fileProgramForm>>, TError,{id: number;stage: 'before' | 'after';data: BodyType<FormFiling>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof fileProgramForm>>,
+        TError,
+        {id: number;stage: 'before' | 'after';data: BodyType<FormFiling>},
+        TContext
+      > => {
+      return useMutation(getFileProgramFormMutationOptions(options));
+    }
+
+export const getListProgramFormsUrl = (id: number,) => {
+
+
+
+
+  return `/api/admin/programs/${id}/forms`
+}
+
+/**
+ * @summary Both forms for a programme, and how many have filed each
+ */
+export const listProgramForms = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<ProgramFormsOverview> => {
+
+  return customFetch<ProgramFormsOverview>(getListProgramFormsUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListProgramFormsQueryKey = (id: number,) => {
+    return [
+    `/api/admin/programs/${id}/forms`
+    ] as const;
+    }
+
+
+export const getListProgramFormsQueryOptions = <TData = Awaited<ReturnType<typeof listProgramForms>>, TError = ErrorType<ApiMessage>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listProgramForms>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListProgramFormsQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listProgramForms>>> = ({ signal }) => listProgramForms(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listProgramForms>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListProgramFormsQueryResult = NonNullable<Awaited<ReturnType<typeof listProgramForms>>>
+export type ListProgramFormsQueryError = ErrorType<ApiMessage>
+
+
+/**
+ * @summary Both forms for a programme, and how many have filed each
+ */
+
+export function useListProgramForms<TData = Awaited<ReturnType<typeof listProgramForms>>, TError = ErrorType<ApiMessage>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listProgramForms>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListProgramFormsQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateStandardFormUrl = (id: number,
+    stage: 'before' | 'after',) => {
+
+
+
+
+  return `/api/admin/programs/${id}/forms/${stage}/standard`
+}
+
+/**
+ * @summary Start this form from the Lab's standard set of questions
+ */
+export const createStandardForm = async (id: number,
+    stage: 'before' | 'after', options?: Parameters<typeof customFetch>[1]): Promise<FormCreated> => {
+
+  return customFetch<FormCreated>(getCreateStandardFormUrl(id,stage),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getCreateStandardFormMutationOptions = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createStandardForm>>, TError,{id: number;stage: 'before' | 'after'}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createStandardForm>>, TError,{id: number;stage: 'before' | 'after'}, TContext> => {
+
+const mutationKey = ['createStandardForm'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createStandardForm>>, {id: number;stage: 'before' | 'after'}> = (props) => {
+          const {id,stage} = props ?? {};
+
+          return  createStandardForm(id,stage,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateStandardFormMutationResult = NonNullable<Awaited<ReturnType<typeof createStandardForm>>>
+
+    export type CreateStandardFormMutationError = ErrorType<ApiMessage>
+
+    /**
+ * @summary Start this form from the Lab's standard set of questions
+ */
+export const useCreateStandardForm = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createStandardForm>>, TError,{id: number;stage: 'before' | 'after'}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createStandardForm>>,
+        TError,
+        {id: number;stage: 'before' | 'after'},
+        TContext
+      > => {
+      return useMutation(getCreateStandardFormMutationOptions(options));
+    }
+
+export const getSetFormPublishedUrl = (id: number,
+    stage: 'before' | 'after',) => {
+
+
+
+
+  return `/api/admin/programs/${id}/forms/${stage}/published`
+}
+
+/**
+ * Publishing the closing survey is what makes it compulsory: certificates wait on it from that moment, and every learner is told so on their dashboard. A form that cannot be filed is refused here rather than discovered by a cohort.
+ * @summary Publish the form to the cohort, or take it back to a draft
+ */
+export const setFormPublished = async (id: number,
+    stage: 'before' | 'after',
+    formPublishRequest: FormPublishRequest, options?: Parameters<typeof customFetch>[1]): Promise<FormPublishResult> => {
+
+  return customFetch<FormPublishResult>(getSetFormPublishedUrl(id,stage),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(formPublishRequest)
+  }
+);}
+
+
+
+
+
+export const getSetFormPublishedMutationOptions = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setFormPublished>>, TError,{id: number;stage: 'before' | 'after';data: BodyType<FormPublishRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof setFormPublished>>, TError,{id: number;stage: 'before' | 'after';data: BodyType<FormPublishRequest>}, TContext> => {
+
+const mutationKey = ['setFormPublished'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof setFormPublished>>, {id: number;stage: 'before' | 'after';data: BodyType<FormPublishRequest>}> = (props) => {
+          const {id,stage,data} = props ?? {};
+
+          return  setFormPublished(id,stage,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SetFormPublishedMutationResult = NonNullable<Awaited<ReturnType<typeof setFormPublished>>>
+    export type SetFormPublishedMutationBody = BodyType<FormPublishRequest>
+    export type SetFormPublishedMutationError = ErrorType<ApiMessage>
+
+    /**
+ * @summary Publish the form to the cohort, or take it back to a draft
+ */
+export const useSetFormPublished = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setFormPublished>>, TError,{id: number;stage: 'before' | 'after';data: BodyType<FormPublishRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof setFormPublished>>,
+        TError,
+        {id: number;stage: 'before' | 'after';data: BodyType<FormPublishRequest>},
+        TContext
+      > => {
+      return useMutation(getSetFormPublishedMutationOptions(options));
+    }
+
+export const getListFormResponsesUrl = (id: number,
+    stage: 'before' | 'after',) => {
+
+
+
+
+  return `/api/admin/programs/${id}/forms/${stage}/responses`
+}
+
+/**
+ * Names reach admins only. A facilitator reading "what was weakest about this programme" gets the answers without the authors, which is the promise that makes the question worth asking.
+ * @summary What the cohort said
+ */
+export const listFormResponses = async (id: number,
+    stage: 'before' | 'after', options?: Parameters<typeof customFetch>[1]): Promise<FormResponses> => {
+
+  return customFetch<FormResponses>(getListFormResponsesUrl(id,stage),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListFormResponsesQueryKey = (id: number,
+    stage: 'before' | 'after',) => {
+    return [
+    `/api/admin/programs/${id}/forms/${stage}/responses`
+    ] as const;
+    }
+
+
+export const getListFormResponsesQueryOptions = <TData = Awaited<ReturnType<typeof listFormResponses>>, TError = ErrorType<ApiMessage>>(id: number,
+    stage: 'before' | 'after', options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listFormResponses>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListFormResponsesQueryKey(id,stage);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listFormResponses>>> = ({ signal }) => listFormResponses(id,stage, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined && stage !== null && stage !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listFormResponses>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListFormResponsesQueryResult = NonNullable<Awaited<ReturnType<typeof listFormResponses>>>
+export type ListFormResponsesQueryError = ErrorType<ApiMessage>
+
+
+/**
+ * @summary What the cohort said
+ */
+
+export function useListFormResponses<TData = Awaited<ReturnType<typeof listFormResponses>>, TError = ErrorType<ApiMessage>>(
+ id: number,
+    stage: 'before' | 'after', options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listFormResponses>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListFormResponsesQueryOptions(id,stage,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 

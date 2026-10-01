@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import {
   db, attendanceTable, enrollmentsTable, programsTable, sessionsTable, usersTable,
   assignmentsTable, assignmentSubmissionsTable,
+  programFormsTable, formResponsesTable,
 } from "@workspace/db";
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import {
@@ -240,7 +241,47 @@ router.get("/my/certificates", async (req, res) => {
     return;
   }
   const progress = await progressForUser(user.id, programIds);
-  const completedProgramIds = completedProgramIdsFrom(progress);
+  const byWork = completedProgramIdsFrom(progress);
+  if (byWork.length === 0) {
+    res.json([]);
+    return;
+  }
+
+  /*
+    The closing survey, which is compulsory and withholds this.
+
+    The lever is deliberately here rather than in `computeProgress`. A survey is
+    an administrative requirement, not learning, and making it a condition of
+    module completion would mark somebody's record as though they had not done
+    the work — and would re-lock every module behind it the moment the form was
+    published. Withholding the certificate withholds exactly the one thing the
+    requirement is attached to, and touches nothing else.
+
+    Only a published form counts, so a programme without one behaves exactly as
+    it did before any of this existed.
+  */
+  const closingForms = await db
+    .select({ id: programFormsTable.id, programId: programFormsTable.programId })
+    .from(programFormsTable)
+    .where(and(
+      inArray(programFormsTable.programId, byWork),
+      eq(programFormsTable.stage, "after"),
+      eq(programFormsTable.draft, false),
+    ));
+
+  const filedRows = closingForms.length === 0 ? [] : await db
+    .select({ formId: formResponsesTable.formId })
+    .from(formResponsesTable)
+    .where(and(
+      eq(formResponsesTable.userId, user.id),
+      inArray(formResponsesTable.formId, closingForms.map((f) => f.id)),
+    ));
+  const filed = new Set(filedRows.map((r) => r.formId));
+
+  const waitingOnForm = new Set(
+    closingForms.filter((f) => !filed.has(f.id)).map((f) => f.programId),
+  );
+  const completedProgramIds = byWork.filter((id) => !waitingOnForm.has(id));
   if (completedProgramIds.length === 0) {
     res.json([]);
     return;

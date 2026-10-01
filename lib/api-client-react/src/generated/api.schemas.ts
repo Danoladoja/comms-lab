@@ -2633,6 +2633,159 @@ export interface StudioSimulationRun {
   teamName: string | null;
 }
 
+export interface FormQuestionConfig {
+  options?: string[];
+  pickAtLeast?: number;
+  pickAtMost?: number;
+  min?: number;
+  max?: number;
+  step?: number;
+  minLabel?: string;
+  maxLabel?: string;
+  wordsAtLeast?: number;
+  wordsAtMost?: number;
+}
+
+export type FormQuestionKind = typeof FormQuestionKind[keyof typeof FormQuestionKind];
+
+
+export const FormQuestionKind = {
+  slider: 'slider',
+  choice: 'choice',
+  multi: 'multi',
+  short: 'short',
+  long: 'long',
+} as const;
+
+export interface FormQuestion {
+  id: number;
+  kind: FormQuestionKind;
+  prompt: string;
+  help: string;
+  required: boolean;
+  config: FormQuestionConfig;
+  pairKey?: string;
+}
+
+export interface FormAnswer {
+  questionId: number;
+  /** @nullable */
+  number?: number | null;
+  text?: string;
+  choices?: string[];
+}
+
+export type ProgramFormStage = typeof ProgramFormStage[keyof typeof ProgramFormStage];
+
+
+export const ProgramFormStage = {
+  before: 'before',
+  after: 'after',
+} as const;
+
+export interface ProgramForm {
+  programId: number;
+  stage: ProgramFormStage;
+  published: boolean;
+  formId?: number;
+  title?: string;
+  intro?: string;
+  filed: boolean;
+  /** @nullable */
+  filedAt?: string | null;
+  questions: FormQuestion[];
+  answers?: FormAnswer[];
+}
+
+export interface FormFiling {
+  answers: FormAnswer[];
+}
+
+export interface FormFiled {
+  programId: number;
+  stage: string;
+  filed: boolean;
+}
+
+export interface FormFault {
+  questionId: number;
+  prompt: string;
+  problem: string;
+}
+
+export interface FormRefusal {
+  error: string;
+  faults?: FormFault[];
+}
+
+export type ProgramFormSummaryStage = typeof ProgramFormSummaryStage[keyof typeof ProgramFormSummaryStage];
+
+
+export const ProgramFormSummaryStage = {
+  before: 'before',
+  after: 'after',
+} as const;
+
+export interface ProgramFormSummary {
+  stage: ProgramFormSummaryStage;
+  exists: boolean;
+  formId?: number;
+  title: string;
+  intro?: string;
+  published: boolean;
+  questionCount: number;
+  filed: number;
+  tally: string;
+  problem?: string;
+  questions?: FormQuestion[];
+}
+
+export type ProgramFormsOverviewProgramme = {
+  id: number;
+  title: string;
+};
+
+export interface ProgramFormsOverview {
+  programme: ProgramFormsOverviewProgramme;
+  enrolled: number;
+  forms: ProgramFormSummary[];
+}
+
+export interface FormCreated {
+  programId: number;
+  stage: string;
+  formId: number;
+  published: boolean;
+}
+
+export interface FormPublishRequest {
+  published?: boolean;
+}
+
+export interface FormPublishResult {
+  programId: number;
+  stage: string;
+  published: boolean;
+  note: string;
+}
+
+export type FormResponsesResponsesItem = {
+  /** @nullable */
+  name?: string | null;
+  /** @nullable */
+  email?: string | null;
+  submittedAt: string;
+  answers: FormAnswer[];
+};
+
+export interface FormResponses {
+  stage: string;
+  title: string;
+  namesShown: boolean;
+  questions: FormQuestion[];
+  responses: FormResponsesResponsesItem[];
+}
+
 /**
  * Invalid request
  */

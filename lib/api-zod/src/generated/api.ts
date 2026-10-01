@@ -4413,3 +4413,209 @@ export const CompleteSimulationRunResponse = zod.object({
 })
 
 
+/**
+ * A draft form reports itself as unpublished with no questions, exactly as a draft quiz does. The learner's own answers travel back once filed so they can read what they said; the form cannot be filed twice.
+ * @summary The opening assessment or closing survey, and anything already filed
+ */
+export const GetProgramFormParams = zod.object({
+  "id": zod.coerce.number().int(),
+  "stage": zod.enum(['before', 'after'])
+})
+
+export const GetProgramFormResponse = zod.object({
+  "programId": zod.int(),
+  "stage": zod.enum(['before', 'after']),
+  "published": zod.boolean(),
+  "formId": zod.int().optional(),
+  "title": zod.string().optional(),
+  "intro": zod.string().optional(),
+  "filed": zod.boolean(),
+  "filedAt": zod.coerce.date().nullish(),
+  "questions": zod.array(zod.object({
+  "id": zod.int(),
+  "kind": zod.enum(['slider', 'choice', 'multi', 'short', 'long']),
+  "prompt": zod.string(),
+  "help": zod.string(),
+  "required": zod.boolean(),
+  "config": zod.object({
+  "options": zod.array(zod.string()).optional(),
+  "pickAtLeast": zod.int().optional(),
+  "pickAtMost": zod.int().optional(),
+  "min": zod.int().optional(),
+  "max": zod.int().optional(),
+  "step": zod.int().optional(),
+  "minLabel": zod.string().optional(),
+  "maxLabel": zod.string().optional(),
+  "wordsAtLeast": zod.int().optional(),
+  "wordsAtMost": zod.int().optional()
+}),
+  "pairKey": zod.string().optional()
+})),
+  "answers": zod.array(zod.object({
+  "questionId": zod.int(),
+  "number": zod.int().nullish(),
+  "text": zod.string().optional(),
+  "choices": zod.array(zod.string()).optional()
+})).optional()
+})
+
+
+/**
+ * Once. Every fault is returned together rather than one at a time, because a compulsory form that complains in sequence is one people abandon.
+ * @summary File the form
+ */
+export const FileProgramFormParams = zod.object({
+  "id": zod.coerce.number().int(),
+  "stage": zod.enum(['before', 'after'])
+})
+
+export const FileProgramFormBody = zod.object({
+  "answers": zod.array(zod.object({
+  "questionId": zod.int(),
+  "number": zod.int().nullish(),
+  "text": zod.string().optional(),
+  "choices": zod.array(zod.string()).optional()
+}))
+})
+
+export const FileProgramFormResponse = zod.object({
+  "programId": zod.int(),
+  "stage": zod.string(),
+  "filed": zod.boolean()
+})
+
+
+/**
+ * @summary Both forms for a programme, and how many have filed each
+ */
+export const ListProgramFormsParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const ListProgramFormsResponse = zod.object({
+  "programme": zod.object({
+  "id": zod.int(),
+  "title": zod.string()
+}),
+  "enrolled": zod.int(),
+  "forms": zod.array(zod.object({
+  "stage": zod.enum(['before', 'after']),
+  "exists": zod.boolean(),
+  "formId": zod.int().optional(),
+  "title": zod.string(),
+  "intro": zod.string().optional(),
+  "published": zod.boolean(),
+  "questionCount": zod.int(),
+  "filed": zod.int(),
+  "tally": zod.string(),
+  "problem": zod.string().optional(),
+  "questions": zod.array(zod.object({
+  "id": zod.int(),
+  "kind": zod.enum(['slider', 'choice', 'multi', 'short', 'long']),
+  "prompt": zod.string(),
+  "help": zod.string(),
+  "required": zod.boolean(),
+  "config": zod.object({
+  "options": zod.array(zod.string()).optional(),
+  "pickAtLeast": zod.int().optional(),
+  "pickAtMost": zod.int().optional(),
+  "min": zod.int().optional(),
+  "max": zod.int().optional(),
+  "step": zod.int().optional(),
+  "minLabel": zod.string().optional(),
+  "maxLabel": zod.string().optional(),
+  "wordsAtLeast": zod.int().optional(),
+  "wordsAtMost": zod.int().optional()
+}),
+  "pairKey": zod.string().optional()
+})).optional()
+}))
+})
+
+
+/**
+ * @summary Start this form from the Lab's standard set of questions
+ */
+export const CreateStandardFormParams = zod.object({
+  "id": zod.coerce.number().int(),
+  "stage": zod.enum(['before', 'after'])
+})
+
+export const CreateStandardFormResponse = zod.object({
+  "programId": zod.int(),
+  "stage": zod.string(),
+  "formId": zod.int(),
+  "published": zod.boolean()
+})
+
+
+/**
+ * Publishing the closing survey is what makes it compulsory: certificates wait on it from that moment, and every learner is told so on their dashboard. A form that cannot be filed is refused here rather than discovered by a cohort.
+ * @summary Publish the form to the cohort, or take it back to a draft
+ */
+export const SetFormPublishedParams = zod.object({
+  "id": zod.coerce.number().int(),
+  "stage": zod.enum(['before', 'after'])
+})
+
+export const setFormPublishedBodyPublishedDefault = true;
+
+export const SetFormPublishedBody = zod.object({
+  "published": zod.boolean().default(setFormPublishedBodyPublishedDefault)
+})
+
+export const SetFormPublishedResponse = zod.object({
+  "programId": zod.int(),
+  "stage": zod.string(),
+  "published": zod.boolean(),
+  "note": zod.string()
+})
+
+
+/**
+ * Names reach admins only. A facilitator reading "what was weakest about this programme" gets the answers without the authors, which is the promise that makes the question worth asking.
+ * @summary What the cohort said
+ */
+export const ListFormResponsesParams = zod.object({
+  "id": zod.coerce.number().int(),
+  "stage": zod.enum(['before', 'after'])
+})
+
+export const ListFormResponsesResponse = zod.object({
+  "stage": zod.string(),
+  "title": zod.string(),
+  "namesShown": zod.boolean(),
+  "questions": zod.array(zod.object({
+  "id": zod.int(),
+  "kind": zod.enum(['slider', 'choice', 'multi', 'short', 'long']),
+  "prompt": zod.string(),
+  "help": zod.string(),
+  "required": zod.boolean(),
+  "config": zod.object({
+  "options": zod.array(zod.string()).optional(),
+  "pickAtLeast": zod.int().optional(),
+  "pickAtMost": zod.int().optional(),
+  "min": zod.int().optional(),
+  "max": zod.int().optional(),
+  "step": zod.int().optional(),
+  "minLabel": zod.string().optional(),
+  "maxLabel": zod.string().optional(),
+  "wordsAtLeast": zod.int().optional(),
+  "wordsAtMost": zod.int().optional()
+}),
+  "pairKey": zod.string().optional()
+})),
+  "responses": zod.array(zod.object({
+  "name": zod.string().nullish(),
+  "email": zod.string().nullish(),
+  "submittedAt": zod.coerce.date(),
+  "answers": zod.array(zod.object({
+  "questionId": zod.int(),
+  "number": zod.int().nullish(),
+  "text": zod.string().optional(),
+  "choices": zod.array(zod.string()).optional()
+}))
+}))
+})
+
+

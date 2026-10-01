@@ -19,6 +19,7 @@ import waitlistRouter from "./waitlist";
 import liveSessionsRouter from "./liveSessions";
 import studioSimulationsRouter from "./studioSimulations";
 import progressAuditRouter from "./progressAudit";
+import programFormsRouter from "./programForms";
 
 const router: IRouter = Router();
 
@@ -34,6 +35,7 @@ router.use(courseworkRouter);
 router.use(liveSessionsRouter);
 router.use(studioSimulationsRouter);
 router.use(progressAuditRouter);
+router.use(programFormsRouter);
 router.use(reviewsRouter);
 router.use(presenceRouter);
 router.use(slidesRouter);
