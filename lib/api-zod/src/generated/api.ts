@@ -4433,7 +4433,7 @@ export const GetProgramFormResponse = zod.object({
   "filedAt": zod.coerce.date().nullish(),
   "questions": zod.array(zod.object({
   "id": zod.int(),
-  "kind": zod.enum(['slider', 'choice', 'multi', 'short', 'long']),
+  "kind": zod.enum(['slider', 'rating', 'choice', 'multi', 'short', 'long']),
   "prompt": zod.string(),
   "help": zod.string(),
   "required": zod.boolean(),
@@ -4441,6 +4441,9 @@ export const GetProgramFormResponse = zod.object({
   "options": zod.array(zod.string()).optional(),
   "pickAtLeast": zod.int().optional(),
   "pickAtMost": zod.int().optional(),
+  "scale": zod.int().optional(),
+  "lowLabel": zod.string().optional(),
+  "highLabel": zod.string().optional(),
   "min": zod.int().optional(),
   "max": zod.int().optional(),
   "step": zod.int().optional(),
@@ -4449,7 +4452,8 @@ export const GetProgramFormResponse = zod.object({
   "wordsAtLeast": zod.int().optional(),
   "wordsAtMost": zod.int().optional()
 }),
-  "pairKey": zod.string().optional()
+  "pairKey": zod.string().optional(),
+  "section": zod.string()
 })),
   "answers": zod.array(zod.object({
   "questionId": zod.int(),
@@ -4511,7 +4515,7 @@ export const ListProgramFormsResponse = zod.object({
   "problem": zod.string().optional(),
   "questions": zod.array(zod.object({
   "id": zod.int(),
-  "kind": zod.enum(['slider', 'choice', 'multi', 'short', 'long']),
+  "kind": zod.enum(['slider', 'rating', 'choice', 'multi', 'short', 'long']),
   "prompt": zod.string(),
   "help": zod.string(),
   "required": zod.boolean(),
@@ -4519,6 +4523,9 @@ export const ListProgramFormsResponse = zod.object({
   "options": zod.array(zod.string()).optional(),
   "pickAtLeast": zod.int().optional(),
   "pickAtMost": zod.int().optional(),
+  "scale": zod.int().optional(),
+  "lowLabel": zod.string().optional(),
+  "highLabel": zod.string().optional(),
   "min": zod.int().optional(),
   "max": zod.int().optional(),
   "step": zod.int().optional(),
@@ -4527,7 +4534,8 @@ export const ListProgramFormsResponse = zod.object({
   "wordsAtLeast": zod.int().optional(),
   "wordsAtMost": zod.int().optional()
 }),
-  "pairKey": zod.string().optional()
+  "pairKey": zod.string().optional(),
+  "section": zod.string()
 })).optional()
 }))
 })
@@ -4587,7 +4595,7 @@ export const ListFormResponsesResponse = zod.object({
   "namesShown": zod.boolean(),
   "questions": zod.array(zod.object({
   "id": zod.int(),
-  "kind": zod.enum(['slider', 'choice', 'multi', 'short', 'long']),
+  "kind": zod.enum(['slider', 'rating', 'choice', 'multi', 'short', 'long']),
   "prompt": zod.string(),
   "help": zod.string(),
   "required": zod.boolean(),
@@ -4595,6 +4603,9 @@ export const ListFormResponsesResponse = zod.object({
   "options": zod.array(zod.string()).optional(),
   "pickAtLeast": zod.int().optional(),
   "pickAtMost": zod.int().optional(),
+  "scale": zod.int().optional(),
+  "lowLabel": zod.string().optional(),
+  "highLabel": zod.string().optional(),
   "min": zod.int().optional(),
   "max": zod.int().optional(),
   "step": zod.int().optional(),
@@ -4603,7 +4614,8 @@ export const ListFormResponsesResponse = zod.object({
   "wordsAtLeast": zod.int().optional(),
   "wordsAtMost": zod.int().optional()
 }),
-  "pairKey": zod.string().optional()
+  "pairKey": zod.string().optional(),
+  "section": zod.string()
 })),
   "responses": zod.array(zod.object({
   "name": zod.string().nullish(),

@@ -77,6 +77,10 @@ export type FormQuestionConfig = {
   /** multi: how many they may pick. */
   pickAtLeast?: number;
   pickAtMost?: number;
+  /** rating: how many named steps, and what the ends mean. */
+  scale?: number;
+  lowLabel?: string;
+  highLabel?: string;
   /** slider: the line they drag along, and what each end means. */
   min?: number;
   max?: number;
@@ -95,7 +99,7 @@ export const formQuestionsTable = pgTable(
     formId: integer("form_id")
       .notNull().references(() => programFormsTable.id, { onDelete: "cascade" }),
 
-    /** "slider" | "choice" | "multi" | "short" | "long" */
+    /** "slider" | "rating" | "choice" | "multi" | "short" | "long" */
     kind: text("kind").notNull(),
     prompt: text("prompt").notNull(),
     /** Optional sentence under the question. Context, not a second question. */
@@ -119,6 +123,23 @@ export const formQuestionsTable = pgTable(
      * appears on the other stage, the two are reported as before and after.
      */
     pairKey: text("pair_key").notNull().default(""),
+
+    /**
+     * The part of the form this belongs to.
+     *
+     * Twenty questions in one unbroken column is a form people abandon halfway
+     * and answer carelessly in the second half. Named sections tell somebody
+     * where they are and how much is left.
+     *
+     * A plain string on the question rather than a sections table, because a
+     * section has no properties of its own and no existence apart from the
+     * questions in it — a table would add a second source of truth about an
+     * order that `sort_order` already records.
+     *
+     * Empty on anything written before sections existed, which then draws as
+     * one unnamed run exactly as it did.
+     */
+    section: text("section").notNull().default(""),
 
     sortOrder: integer("sort_order").notNull().default(0),
   },

@@ -1,0 +1,1 @@
+ALTER TABLE "form_questions" ADD COLUMN "section" text DEFAULT '' NOT NULL;

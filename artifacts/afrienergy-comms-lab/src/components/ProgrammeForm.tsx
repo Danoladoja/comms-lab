@@ -4,7 +4,7 @@ import {
   type FormQuestion, type FormAnswer, type FormFault,
 } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
-import { countWords, answerProblem, answeredCount, faultSummary } from '@workspace/domain';
+import { countWords, answerProblem, answeredCount, faultSummary, sectionsOf, sectionHeading } from '@workspace/domain';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { CheckCircle2, AlertCircle } from 'lucide-react';
@@ -76,6 +76,13 @@ export default function ProgrammeForm({ programId, stage, onFiled }: {
 
   const questions = (data?.questions ?? []) as FormQuestion[];
   const given = useMemo(() => Object.values(answers), [answers]);
+  const sections = useMemo(() => sectionsOf(questions as never), [questions]);
+  // Numbered across the whole form rather than restarting each section, so
+  // "question 14" means one thing when somebody writes to ask about it.
+  const numberOf = useMemo(
+    () => new Map(questions.map((q, i) => [q.id, i + 1])),
+    [questions],
+  );
   const progress = useMemo(
     () => answeredCount(questions as never, given as never),
     [questions, given],
@@ -134,26 +141,47 @@ export default function ProgrammeForm({ programId, stage, onFiled }: {
         </p>
       )}
 
-      <ol className="space-y-6">
-        {questions.map((q, i) => (
-          <li key={q.id} className="space-y-2">
-            <div>
-              <p className="text-sm font-medium">
-                <span className="text-muted-foreground">{i + 1}. </span>
-                {q.prompt}
-                {!q.required && <span className="ml-1 text-xs font-normal text-muted-foreground">(optional)</span>}
-              </p>
-              {q.help && <p className="mt-0.5 text-xs text-muted-foreground">{q.help}</p>}
-            </div>
-
-            <QuestionBody question={q} answer={answers[q.id]} onChange={patch => set(q.id, patch)} />
-
-            {faultFor(q.id) && (
-              <p className="text-xs text-destructive">{faultFor(q.id)}</p>
+      {/*
+        Grouped into its sections rather than one unbroken column of twenty.
+        A long form read as a single list is one people abandon halfway and
+        answer carelessly in the second half; named parts say where you are and
+        how much is left.
+      */}
+      <div className="space-y-8">
+        {sections.map((section, si) => (
+          <div key={`${section.name}-${si}`} className="space-y-5">
+            {section.name && (
+              <div className="border-b border-border pb-1.5">
+                <p className="text-xs font-semibold uppercase tracking-wider text-[#C2410C]">
+                  {sectionHeading(si, sections.length, section.name)}
+                </p>
+              </div>
             )}
-          </li>
+            <ol className="space-y-6">
+              {section.questions.map(q => (
+                <li key={q.id} className="space-y-2">
+                  <div>
+                    <p className="text-sm font-medium">
+                      <span className="text-muted-foreground">{numberOf.get(q.id)}. </span>
+                      {q.prompt}
+                      {!q.required && (
+                        <span className="ml-1 text-xs font-normal text-muted-foreground">(optional)</span>
+                      )}
+                    </p>
+                    {q.help && <p className="mt-0.5 text-xs text-muted-foreground">{q.help}</p>}
+                  </div>
+
+                  <QuestionBody question={q} answer={answers[q.id]} onChange={patch => set(q.id, patch)} />
+
+                  {faultFor(q.id) && (
+                    <p className="text-xs text-destructive">{faultFor(q.id)}</p>
+                  )}
+                </li>
+              ))}
+            </ol>
+          </div>
         ))}
-      </ol>
+      </div>
 
       <div className="flex flex-wrap items-center gap-3 border-t border-border pt-4">
         <Button
@@ -213,6 +241,37 @@ function QuestionBody({ question, answer, onChange }: {
             {value === undefined || value === null ? 'Drag to answer' : value}
           </span>
           <span>{c.maxLabel}</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (question.kind === 'rating') {
+    const scale = c.scale ?? 5;
+    const picked = answer?.number;
+    return (
+      <div className="max-w-xl">
+        <div className="flex flex-wrap gap-1.5">
+          {Array.from({ length: scale }, (_, i) => i + 1).map(step => (
+            <button
+              key={step}
+              type="button"
+              aria-pressed={picked === step}
+              aria-label={`${step} of ${scale}`}
+              className={`h-9 w-9 rounded-md border text-sm font-medium transition ${
+                picked === step
+                  ? 'border-[#C2410C] bg-[#C2410C] text-white'
+                  : 'border-border bg-background hover:border-[#C2410C]'
+              }`}
+              onClick={() => onChange({ number: step })}
+            >
+              {step}
+            </button>
+          ))}
+        </div>
+        <div className="mt-1 flex items-center justify-between text-xs text-muted-foreground">
+          <span>{c.lowLabel}</span>
+          <span>{c.highLabel}</span>
         </div>
       </div>
     );

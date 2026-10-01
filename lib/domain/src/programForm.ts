@@ -33,7 +33,21 @@ import { countWords } from "./wordMinimums";
 
 export type FormStage = "before" | "after";
 
-export type QuestionKind = "slider" | "choice" | "multi" | "short" | "long";
+/**
+ * The kinds of question a form can ask.
+ *
+ * `slider` and `rating` are deliberately separate, and the difference is not
+ * cosmetic. A slider is a continuous line somebody drags, best for "how much"
+ * — confidence, preparedness, likelihood — and its answers average honestly
+ * because the scale is a quantity. A rating is a small set of named steps
+ * somebody picks between, best for "how good", and its labels are the whole
+ * point: "Strongly agree" is a position, not a 5.
+ *
+ * Collapsing them into one type would have meant either dragging a handle to
+ * pick "Strongly agree", or offering ten buttons for a confidence score. Both
+ * are worse to answer and worse to read back.
+ */
+export type QuestionKind = "slider" | "rating" | "choice" | "multi" | "short" | "long";
 
 export type QuestionConfig = {
   options?: string[];
@@ -46,6 +60,10 @@ export type QuestionConfig = {
   maxLabel?: string;
   wordsAtLeast?: number;
   wordsAtMost?: number;
+  /** rating: how many steps, and what the ends of the scale mean. */
+  scale?: number;
+  lowLabel?: string;
+  highLabel?: string;
 };
 
 export type FormQuestion = {
@@ -57,6 +75,19 @@ export type FormQuestion = {
   config: QuestionConfig;
   pairKey: string;
   sortOrder: number;
+  /**
+   * The part of the form this belongs to.
+   *
+   * Twenty questions in one unbroken column is a form people abandon halfway
+   * and a form people answer carelessly in the second half. Three named
+   * sections tell somebody where they are and how much is left, and they let
+   * the questions be grouped by what they are actually about rather than by
+   * what type they happen to be.
+   *
+   * Empty on anything written before sections existed, which then draws as one
+   * unnamed run exactly as it did.
+   */
+  section: string;
 };
 
 /** What a learner has put against one question. */
@@ -71,6 +102,9 @@ export const MAX_PROMPT = 300;
 export const MAX_OPTIONS = 12;
 /** Nobody reads past this, and asking for it is a way of getting nothing. */
 export const MAX_WORDS_CEILING = 500;
+/** A rating with more steps than this is a slider wearing buttons. */
+export const MAX_RATING_SCALE = 7;
+export const MIN_RATING_SCALE = 3;
 
 /* ------------------------------------------------------------------ *
  * Building a form
@@ -113,6 +147,18 @@ export function questionProblem(q: {
       const most = c.pickAtMost ?? options.length;
       if (least > most) return "They cannot be asked to pick more than they are allowed to pick.";
       if (most > options.length) return "They cannot pick more options than there are.";
+    }
+    return null;
+  }
+
+  if (q.kind === "rating") {
+    const scale = c.scale ?? 5;
+    if (!Number.isInteger(scale) || scale < MIN_RATING_SCALE || scale > MAX_RATING_SCALE) {
+      return `A rating needs between ${MIN_RATING_SCALE} and ${MAX_RATING_SCALE} steps. `
+        + "More than that and people stop choosing and start guessing.";
+    }
+    if (!(c.lowLabel ?? "").trim() || !(c.highLabel ?? "").trim()) {
+      return "Say what the bottom and the top of the rating mean. A 4 out of 5 of what?";
     }
     return null;
   }
@@ -181,13 +227,23 @@ export function answerProblem(q: FormQuestion, given: GivenAnswer | undefined): 
   const number = given?.number ?? null;
 
   const empty =
-    q.kind === "slider" ? number === null || number === undefined
+    q.kind === "slider" || q.kind === "rating"
+      ? number === null || number === undefined
       : q.kind === "multi" ? choices.length === 0
         : text.length === 0;
 
   if (empty) {
     // Silence on an optional question is an answer, and a valid one.
     return q.required ? "This one needs an answer." : null;
+  }
+
+  if (q.kind === "rating") {
+    const scale = c.scale ?? 5;
+    if (typeof number !== "number" || Number.isNaN(number)) return "Pick a rating.";
+    if (!Number.isInteger(number) || number < 1 || number > scale) {
+      return `Pick a rating between 1 and ${scale}.`;
+    }
+    return null;
   }
 
   if (q.kind === "slider") {
@@ -271,6 +327,40 @@ export function answeredCount(
   const required = questions.filter((q) => q.required);
   const answered = required.filter((q) => answerProblem(q, byId.get(q.id)) === null).length;
   return { answered, required: required.length };
+}
+
+/**
+ * The questions grouped into the sections they belong to, in order.
+ *
+ * Order comes from where each section first appears rather than from an
+ * alphabetical sort or a separate table of sections. A form is a sequence
+ * somebody reads top to bottom, and the sequence is already recorded in
+ * `sortOrder` — giving sections their own ordering would create a second
+ * source of truth about the order of a thing that only has one.
+ */
+export function sectionsOf(questions: readonly FormQuestion[]): {
+  name: string;
+  questions: FormQuestion[];
+}[] {
+  const ordered = [...questions].sort((a, b) => a.sortOrder - b.sortOrder || a.id - b.id);
+  const out: { name: string; questions: FormQuestion[] }[] = [];
+  for (const q of ordered) {
+    const name = (q.section ?? "").trim();
+    const last = out[out.length - 1];
+    // Consecutive questions in the same section stay together; the same name
+    // reappearing later starts a new block, because that is what the order
+    // says happened.
+    if (last && last.name === name) last.questions.push(q);
+    else out.push({ name, questions: [q] });
+  }
+  return out;
+}
+
+/** How a section reads above its questions: "2 of 3 · What changed". */
+export function sectionHeading(index: number, total: number, name: string): string {
+  const where = total > 1 ? `${index + 1} of ${total}` : "";
+  if (!name.trim()) return where;
+  return where ? `${where} · ${name}` : name;
 }
 
 /* ------------------------------------------------------------------ *
@@ -390,162 +480,269 @@ export function filedTally(args: { enrolled: number; filed: number }): string {
  * A starting point
  * ------------------------------------------------------------------ */
 
-/**
- * A question before it has been saved and given an id.
- *
- * Named for what it is rather than "DraftQuestion", which already means
- * something else in this codebase — a quiz question the model wrote and a
- * facilitator has not yet approved. Two different ideas sharing one name in
- * one barrel export is how a later edit lands in the wrong file.
- */
 export type UnsavedQuestion = Omit<FormQuestion, "id">;
 
 /**
  * The Lab's standard pair of forms.
  *
- * Offered rather than imposed: every question here is meant to be edited, and
+ * Offered rather than imposed: every question is meant to be edited, and
  * several should be, because a programme about hostile interviews and one about
  * writing for policymakers do not measure the same confidence.
  *
- * What is worth keeping whatever else changes is the shape. Four sliders that
- * appear in both forms with the same pair keys, so there is something to
- * compare at the end; one question about what they came for and one about what
- * they got, so expectation and outcome can be set side by side; and exactly two
- * compulsory written answers, because a form with eight of them is a form
- * people write "good" in eight times.
+ * Three things about the shape are worth keeping whatever else changes.
  *
- * The sliders run 0 to 10 with both ends named. A number with nothing written
- * at either end cannot be read back a year later by somebody writing a funder's
- * report, which is the whole reason this data exists.
+ * Three sections, because twenty questions in one unbroken column is a form
+ * people abandon halfway and answer carelessly in the second half. The sections
+ * are what the questions are *about* — who you are, where you stand, what you
+ * think of us — not what type they happen to be.
+ *
+ * Paired sliders on both sides with the same keys, because that is the only
+ * thing that turns a satisfaction score into a measured change.
+ *
+ * And a deliberate imbalance between how much is asked and how much is
+ * compulsory. Twenty questions is a lot to require of somebody whose
+ * certificate is waiting on it, so most of them are a tap — a rating, a slider,
+ * a choice — and exactly two written answers are required. The rest are
+ * offered, and people with something to say will say it. A form with twelve
+ * compulsory written answers collects twelve instances of the word "good".
  */
-export function standardQuestions(stage: FormStage): UnsavedQuestion[] {
-  const slider = (pairKey: string, prompt: string, minLabel: string, maxLabel: string): UnsavedQuestion => ({
-    kind: "slider",
-    prompt,
-    help: "",
-    required: true,
-    config: { min: 0, max: 10, step: 1, minLabel, maxLabel },
-    pairKey,
-    sortOrder: 0,
-  });
 
-  const sliders: UnsavedQuestion[] = [
-    slider("confidence-overall",
+const slider = (
+  pairKey: string, section: string, prompt: string, minLabel: string, maxLabel: string,
+): UnsavedQuestion => ({
+  kind: "slider", prompt, help: "", required: true,
+  config: { min: 0, max: 10, step: 1, minLabel, maxLabel },
+  pairKey, sortOrder: 0, section,
+});
+
+const rating = (
+  section: string, prompt: string, help = "", required = true,
+): UnsavedQuestion => ({
+  kind: "rating", prompt, help, required,
+  config: { scale: 5, lowLabel: "Poor", highLabel: "Excellent" },
+  pairKey: "", sortOrder: 0, section,
+});
+
+const agreement = (section: string, prompt: string): UnsavedQuestion => ({
+  kind: "rating", prompt, help: "", required: true,
+  config: { scale: 5, lowLabel: "Strongly disagree", highLabel: "Strongly agree" },
+  pairKey: "", sortOrder: 0, section,
+});
+
+/** The four confidence questions asked identically at both ends. */
+function confidenceSliders(section: string): UnsavedQuestion[] {
+  return [
+    slider("confidence-overall", section,
       "How confident do you feel communicating on energy issues in public?",
       "Not at all confident", "Completely confident"),
-    slider("confidence-hostile",
+    slider("confidence-hostile", section,
       "How confident do you feel handling a hostile or sceptical audience?",
       "Not at all confident", "Completely confident"),
-    slider("confidence-complex",
+    slider("confidence-complex", section,
       "How confident do you feel explaining a technical energy issue to a non-specialist?",
       "Not at all confident", "Completely confident"),
-    slider("confidence-crisis",
+    slider("confidence-crisis", section,
       "How prepared do you feel to communicate during a crisis?",
       "Not at all prepared", "Completely prepared"),
   ];
+}
 
-  if (stage === "before") {
-    return [
-      ...sliders,
-      {
-        kind: "multi",
-        prompt: "Which of these matter most to you on this programme?",
-        help: "Pick up to three.",
-        required: true,
-        config: {
-          options: [
-            "Speaking to the media with confidence",
-            "Writing clearly for non-specialists",
-            "Handling hostile questions",
-            "Communicating in a crisis",
-            "Building an audience over time",
-            "Working with policymakers",
-            "Using data and evidence well",
-          ],
-          pickAtLeast: 1,
-          pickAtMost: 3,
-        },
-        pairKey: "priorities",
-        sortOrder: 0,
-      },
-      {
-        kind: "long",
-        prompt: "What do you most want to be able to do by the end of this programme?",
-        help: "A few sentences is plenty. We read every one of these before the first class.",
-        required: true,
-        config: { wordsAtLeast: 20, wordsAtMost: 150 },
-        pairKey: "",
-        sortOrder: 0,
-      },
-      {
-        kind: "short",
-        prompt: "Is there anything that might make it hard for you to take part?",
-        help: "Connectivity, time zones, work patterns — anything we should know. Optional.",
-        required: false,
-        config: { wordsAtMost: 80 },
-        pairKey: "",
-        sortOrder: 0,
-      },
-    ].map((qn, i) => ({ ...qn, sortOrder: i })) as UnsavedQuestion[];
-  }
+const FOCUS_OPTIONS = [
+  "Speaking to the media with confidence",
+  "Writing clearly for non-specialists",
+  "Handling hostile questions",
+  "Communicating in a crisis",
+  "Building an audience over time",
+  "Working with policymakers",
+  "Using data and evidence well",
+];
+
+function openingQuestions(): UnsavedQuestion[] {
+  const A = "About you and your work";
+  const B = "Where you are starting from";
+  const C = "What you came for";
 
   return [
-    ...sliders,
+    /* --- A: who we are teaching, which is what lets any of this be segmented --- */
     {
-      kind: "multi",
-      prompt: "Which of these did the programme actually help you with?",
-      help: "Pick as many as apply.",
-      required: true,
+      kind: "choice", prompt: "Which best describes the organisation you work with?",
+      help: "", required: true,
       config: {
         options: [
-          "Speaking to the media with confidence",
-          "Writing clearly for non-specialists",
-          "Handling hostile questions",
-          "Communicating in a crisis",
-          "Building an audience over time",
-          "Working with policymakers",
-          "Using data and evidence well",
+          "Government or a public body", "A utility or energy company",
+          "A civil society organisation or NGO", "Media or journalism",
+          "A research institute or university", "Independent or freelance", "Other",
         ],
-        pickAtLeast: 1,
       },
-      pairKey: "priorities",
-      sortOrder: 0,
+      pairKey: "", sortOrder: 0, section: A,
     },
     {
-      kind: "slider",
-      prompt: "How likely are you to recommend this programme to a colleague?",
-      help: "",
-      required: true,
+      kind: "choice", prompt: "How long have you worked in communications?",
+      help: "", required: true,
+      config: { options: ["Under a year", "1 to 3 years", "4 to 7 years", "8 to 15 years", "More than 15 years"] },
+      pairKey: "", sortOrder: 0, section: A,
+    },
+    {
+      kind: "choice", prompt: "How often do you speak publicly about energy — interviews, panels, briefings?",
+      help: "", required: true,
+      config: { options: ["Never so far", "Once or twice a year", "Every few months", "Monthly", "Weekly or more"] },
+      pairKey: "frequency", sortOrder: 0, section: A,
+    },
+    agreement(A, "I have enough time set aside each week to take part properly."),
+    {
+      kind: "short", prompt: "What do you most often have to communicate about?",
+      help: "A line is plenty — tariffs, transition policy, a particular project.",
+      required: false, config: { wordsAtMost: 40 },
+      pairKey: "", sortOrder: 0, section: A,
+    },
+
+    /* --- B: the baseline every later claim is measured against --- */
+    ...confidenceSliders(B),
+    agreement(B, "I know how to tell whether my communication has actually landed."),
+    agreement(B, "I have a clear sense of who my audience is before I write or speak."),
+    {
+      kind: "rating", prompt: "I feel able to push back when I am asked to communicate something "
+        + "I believe is misleading.",
+      help: "", required: true,
+      config: { scale: 5, lowLabel: "Strongly disagree", highLabel: "Strongly agree" },
+      pairKey: "agency", sortOrder: 0, section: B,
+    },
+    {
+      kind: "short", prompt: "What is the hardest part of your job as a communicator right now?",
+      help: "", required: true, config: { wordsAtLeast: 10, wordsAtMost: 80 },
+      pairKey: "", sortOrder: 0, section: B,
+    },
+
+    /* --- C: expectation, so it can be set against outcome at the end --- */
+    {
+      kind: "multi", prompt: "Which of these matter most to you on this programme?",
+      help: "Pick up to three.", required: true,
+      config: { options: FOCUS_OPTIONS, pickAtLeast: 1, pickAtMost: 3 },
+      pairKey: "priorities", sortOrder: 0, section: C,
+    },
+    {
+      kind: "choice", prompt: "Which one of those matters most?",
+      help: "", required: true, config: { options: FOCUS_OPTIONS },
+      pairKey: "top-priority", sortOrder: 0, section: C,
+    },
+    {
+      kind: "long", prompt: "What do you most want to be able to do by the end of this programme?",
+      help: "A few sentences. We read every one of these before the first class.",
+      required: true, config: { wordsAtLeast: 20, wordsAtMost: 150 },
+      pairKey: "", sortOrder: 0, section: C,
+    },
+    {
+      kind: "slider", prompt: "How much of a priority is this programme against everything else on your plate?",
+      help: "", required: true,
+      config: { min: 0, max: 10, step: 1, minLabel: "One of many things", maxLabel: "My main focus" },
+      pairKey: "", sortOrder: 0, section: C,
+    },
+    {
+      kind: "choice", prompt: "How did you hear about the Lab?",
+      help: "", required: false,
+      config: {
+        options: [
+          "A colleague or friend", "Social media", "A newsletter or mailing list",
+          "An event or conference", "A partner organisation", "Somewhere else",
+        ],
+      },
+      pairKey: "", sortOrder: 0, section: C,
+    },
+    {
+      kind: "short", prompt: "Is there anything that might make it hard for you to take part?",
+      help: "Connectivity, time zones, work patterns — anything we should know. Optional.",
+      required: false, config: { wordsAtMost: 80 },
+      pairKey: "", sortOrder: 0, section: C,
+    },
+  ].map((q, i) => ({ ...q, sortOrder: i })) as UnsavedQuestion[];
+}
+
+function closingQuestions(): UnsavedQuestion[] {
+  const A = "How the programme was run";
+  const B = "Where you are now";
+  const C = "What it changed, and what we should change";
+
+  return [
+    /* --- A: delivery, which is the part the Lab can act on next month --- */
+    rating(A, "Overall, how would you rate the programme?"),
+    rating(A, "How would you rate the live classes?"),
+    rating(A, "How would you rate the written tasks and the critiques?"),
+    rating(A, "How would you rate the Simulation Studio exercises?", "", false),
+    rating(A, "How would you rate the facilitators?"),
+    rating(A, "How would you rate the platform itself — the app you are using now?"),
+    agreement(A, "The workload was about right for the time I had."),
+    agreement(A, "I knew what was expected of me each week."),
+    {
+      kind: "choice", prompt: "How much of the programme were you able to take part in?",
+      help: "", required: true,
+      config: { options: ["Almost all of it", "Most of it", "About half", "Less than half"] },
+      pairKey: "", sortOrder: 0, section: A,
+    },
+
+    /* --- B: the same four sliders, which is where the impact claim comes from --- */
+    ...confidenceSliders(B),
+    agreement(B, "I know how to tell whether my communication has actually landed."),
+    agreement(B, "I have a clear sense of who my audience is before I write or speak."),
+    {
+      kind: "rating", prompt: "I feel able to push back when I am asked to communicate something "
+        + "I believe is misleading.",
+      help: "", required: true,
+      config: { scale: 5, lowLabel: "Strongly disagree", highLabel: "Strongly agree" },
+      pairKey: "agency", sortOrder: 0, section: B,
+    },
+    {
+      kind: "choice", prompt: "How often do you now expect to speak publicly about energy?",
+      help: "", required: true,
+      config: { options: ["Never", "Once or twice a year", "Every few months", "Monthly", "Weekly or more"] },
+      pairKey: "frequency", sortOrder: 0, section: B,
+    },
+
+    /* --- C: outcome against expectation, then the part that improves the Lab --- */
+    {
+      kind: "multi", prompt: "Which of these did the programme actually help you with?",
+      help: "Pick as many as apply.", required: true,
+      config: { options: FOCUS_OPTIONS, pickAtLeast: 1 },
+      pairKey: "priorities", sortOrder: 0, section: C,
+    },
+    {
+      kind: "long", prompt: "What can you do now that you could not do before?",
+      help: "Be specific if you can — one concrete example is worth more to us than a compliment.",
+      required: true, config: { wordsAtLeast: 25, wordsAtMost: 200 },
+      pairKey: "", sortOrder: 0, section: C,
+    },
+    {
+      kind: "long", prompt: "What was weakest about the programme, and what would you change?",
+      help: "This is the single most useful thing you can give us. Be blunt — the people who taught "
+        + "you cannot see who wrote this.",
+      required: true, config: { wordsAtLeast: 20, wordsAtMost: 200 },
+      pairKey: "", sortOrder: 0, section: C,
+    },
+    {
+      kind: "slider", prompt: "How likely are you to recommend this programme to a colleague?",
+      help: "", required: true,
       config: { min: 0, max: 10, step: 1, minLabel: "Not at all likely", maxLabel: "Extremely likely" },
-      pairKey: "",
-      sortOrder: 0,
+      pairKey: "", sortOrder: 0, section: C,
     },
     {
-      kind: "long",
-      prompt: "What can you do now that you could not do before?",
-      help: "Be specific if you can — a concrete example is worth more to us than a compliment.",
-      required: true,
-      config: { wordsAtLeast: 25, wordsAtMost: 200 },
-      pairKey: "",
-      sortOrder: 0,
+      kind: "multi", prompt: "What would you like the Lab to offer next?",
+      help: "Pick as many as apply. Optional.", required: false,
+      config: {
+        options: [
+          "A more advanced version of this programme", "Shorter refresher sessions",
+          "One-to-one coaching", "A programme on a different topic",
+          "An alumni network", "Written guides I can keep",
+        ],
+      },
+      pairKey: "", sortOrder: 0, section: C,
     },
     {
-      kind: "long",
-      prompt: "What was weakest about the programme, and what would you change?",
-      help: "This one is the most useful thing you can give us. Be blunt.",
-      required: true,
-      config: { wordsAtLeast: 20, wordsAtMost: 200 },
-      pairKey: "",
-      sortOrder: 0,
+      kind: "short", prompt: "Anything else you want to tell us?",
+      help: "Optional.", required: false, config: { wordsAtMost: 120 },
+      pairKey: "", sortOrder: 0, section: C,
     },
-    {
-      kind: "short",
-      prompt: "Anything else you want to tell us?",
-      help: "Optional.",
-      required: false,
-      config: { wordsAtMost: 120 },
-      pairKey: "",
-      sortOrder: 0,
-    },
-  ].map((qn, i) => ({ ...qn, sortOrder: i })) as UnsavedQuestion[];
+  ].map((q, i) => ({ ...q, sortOrder: i })) as UnsavedQuestion[];
+}
+
+export function standardQuestions(stage: FormStage): UnsavedQuestion[] {
+  return stage === "before" ? openingQuestions() : closingQuestions();
 }

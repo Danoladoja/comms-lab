@@ -10,6 +10,9 @@ export interface FormQuestionConfig {
   options?: string[];
   pickAtLeast?: number;
   pickAtMost?: number;
+  scale?: number;
+  lowLabel?: string;
+  highLabel?: string;
   min?: number;
   max?: number;
   step?: number;

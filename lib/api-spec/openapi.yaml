@@ -6752,6 +6752,9 @@ components:
           items: { type: string }
         pickAtLeast: { type: integer }
         pickAtMost: { type: integer }
+        scale: { type: integer }
+        lowLabel: { type: string }
+        highLabel: { type: string }
         min: { type: integer }
         max: { type: integer }
         step: { type: integer }
@@ -6761,18 +6764,21 @@ components:
         wordsAtMost: { type: integer }
     FormQuestion:
       type: object
-      required: [id, kind, prompt, help, required, config]
+      required: [id, kind, prompt, help, required, config, section]
       properties:
         id: { type: integer }
         kind:
           type: string
-          enum: [slider, choice, multi, short, long]
+          enum: [slider, rating, choice, multi, short, long]
         prompt: { type: string }
         help: { type: string }
         required: { type: boolean }
         config:
           $ref: "#/components/schemas/FormQuestionConfig"
         pairKey: { type: string }
+        # Which part of the form this belongs to. Empty on anything written
+        # before sections existed, which draws as one unnamed run.
+        section: { type: string }
     FormAnswer:
       type: object
       required: [questionId]

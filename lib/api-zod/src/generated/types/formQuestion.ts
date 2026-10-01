@@ -16,4 +16,5 @@ export interface FormQuestion {
   required: boolean;
   config: FormQuestionConfig;
   pairKey?: string;
+  section: string;
 }

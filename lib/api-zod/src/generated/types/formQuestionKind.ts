@@ -11,6 +11,7 @@ export type FormQuestionKind = typeof FormQuestionKind[keyof typeof FormQuestion
 
 export const FormQuestionKind = {
   slider: 'slider',
+  rating: 'rating',
   choice: 'choice',
   multi: 'multi',
   short: 'short',

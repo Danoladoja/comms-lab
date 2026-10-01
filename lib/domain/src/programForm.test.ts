@@ -13,6 +13,8 @@ import {
   filedTally,
   MAX_WORDS_CEILING,
   standardQuestions,
+  sectionsOf,
+  sectionHeading,
   type FormQuestion,
 } from "./programForm";
 
@@ -35,6 +37,7 @@ function q(over: Partial<FormQuestion> = {}): FormQuestion {
     config: {},
     pairKey: "",
     sortOrder: 0,
+    section: "",
     ...over,
   };
 }
@@ -296,3 +299,101 @@ describe("the standard forms", () => {
     }
   });
 });
+
+describe("ratings, which are not sliders", () => {
+  const r = (over: Record<string, unknown> = {}) => ({
+    kind: "rating", prompt: "How was it?",
+    config: { scale: 5, lowLabel: "Poor", highLabel: "Excellent" }, ...over,
+  });
+
+  it("insists both ends are named", () => {
+    expect(questionProblem(r({ config: { scale: 5 } }))).toMatch(/4 out of 5 of what/);
+  });
+
+  it("refuses a scale too long to choose from", () => {
+    expect(questionProblem(r({ config: { scale: 11, lowLabel: "a", highLabel: "b" } })))
+      .toMatch(/steps/);
+  });
+
+  it("accepts an ordinary five-point rating", () => {
+    expect(questionProblem(r())).toBeNull();
+  });
+
+  it("keeps an answer inside the scale and insists on a whole step", () => {
+    const question = q({ kind: "rating", config: { scale: 5, lowLabel: "a", highLabel: "b" } });
+    expect(answerProblem(question, { questionId: question.id, number: 6 })).toMatch(/between 1 and 5/);
+    expect(answerProblem(question, { questionId: question.id, number: 2.5 })).toMatch(/between 1 and 5/);
+    expect(answerProblem(question, { questionId: question.id, number: 1 })).toBeNull();
+  });
+
+  it("treats an untouched rating as unanswered rather than as 1", () => {
+    const question = q({ kind: "rating", required: true, config: { scale: 5, lowLabel: "a", highLabel: "b" } });
+    expect(answerProblem(question, undefined)).toMatch(/needs an answer/);
+  });
+});
+
+describe("sections", () => {
+  it("groups the questions in the order they are asked", () => {
+    const made = [
+      q({ id: 1, section: "One", sortOrder: 0 }),
+      q({ id: 2, section: "One", sortOrder: 1 }),
+      q({ id: 3, section: "Two", sortOrder: 2 }),
+    ];
+    const sections = sectionsOf(made);
+    expect(sections.map(s => s.name)).toEqual(["One", "Two"]);
+    expect(sections[0].questions.map(x => x.id)).toEqual([1, 2]);
+  });
+
+  it("leaves an unsectioned form as one unnamed run", () => {
+    const sections = sectionsOf([q({ id: 1, section: "" }), q({ id: 2, section: "" })]);
+    expect(sections).toHaveLength(1);
+    expect(sections[0].name).toBe("");
+  });
+
+  it("numbers a section for the person filling it in", () => {
+    expect(sectionHeading(1, 3, "Where you are now")).toBe("2 of 3 · Where you are now");
+    expect(sectionHeading(0, 1, "")).toBe("");
+  });
+});
+
+describe("the standard forms are the right size and shape", () => {
+  for (const stage of ["before", "after"] as const) {
+    it(`${stage}: asks around twenty questions in three sections`, () => {
+      const questions = standardQuestions(stage).map((qn, i) => ({ ...qn, id: i + 1 }));
+      expect(questions.length).toBeGreaterThanOrEqual(18);
+      expect(questions.length).toBeLessThanOrEqual(23);
+      expect(sectionsOf(questions)).toHaveLength(3);
+      expect(sectionsOf(questions).every(s => s.name.trim().length > 0)).toBe(true);
+    });
+
+    it(`${stage}: mixes the question types rather than leaning on one`, () => {
+      const kinds = new Set(standardQuestions(stage).map(x => x.kind));
+      expect(kinds.has("slider")).toBe(true);
+      expect(kinds.has("choice")).toBe(true);
+      expect(kinds.has("multi")).toBe(true);
+      expect(kinds.size).toBeGreaterThanOrEqual(4);
+    });
+
+    it(`${stage}: keeps the compulsory writing to what people will actually do`, () => {
+      // Twenty questions is a lot to require of somebody whose certificate is
+      // waiting on it. Most must be a tap.
+      const required = standardQuestions(stage).filter(x => x.required);
+      const writing = required.filter(x => x.kind === "long" || x.kind === "short");
+      expect(writing.length).toBeLessThanOrEqual(2);
+      expect(required.length).toBeLessThan(standardQuestions(stage).length);
+    });
+  }
+
+  it("the closing survey uses ratings, which the opening one has no use for", () => {
+    expect(standardQuestions("after").some(x => x.kind === "rating")).toBe(true);
+  });
+
+  it("asks the same four sliders on both sides, so there is something to compare", () => {
+    const before = new Set(standardQuestions("before").filter(x => x.pairKey).map(x => x.pairKey));
+    const after = new Set(standardQuestions("after").filter(x => x.pairKey).map(x => x.pairKey));
+    const shared = [...before].filter(k => after.has(k));
+    expect(shared).toEqual(expect.arrayContaining([
+      "confidence-overall", "confidence-hostile", "confidence-complex", "confidence-crisis",
+    ]));
+  });
+})

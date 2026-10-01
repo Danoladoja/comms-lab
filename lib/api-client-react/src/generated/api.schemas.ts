@@ -2637,6 +2637,9 @@ export interface FormQuestionConfig {
   options?: string[];
   pickAtLeast?: number;
   pickAtMost?: number;
+  scale?: number;
+  lowLabel?: string;
+  highLabel?: string;
   min?: number;
   max?: number;
   step?: number;
@@ -2651,6 +2654,7 @@ export type FormQuestionKind = typeof FormQuestionKind[keyof typeof FormQuestion
 
 export const FormQuestionKind = {
   slider: 'slider',
+  rating: 'rating',
   choice: 'choice',
   multi: 'multi',
   short: 'short',
@@ -2665,6 +2669,7 @@ export interface FormQuestion {
   required: boolean;
   config: FormQuestionConfig;
   pairKey?: string;
+  section: string;
 }
 
 export interface FormAnswer {

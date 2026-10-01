@@ -51,6 +51,7 @@ async function loadQuestions(formId: number): Promise<FormQuestion[]> {
     config: r.config,
     pairKey: r.pairKey,
     sortOrder: r.sortOrder,
+    section: r.section,
   }));
 }
 
@@ -136,6 +137,7 @@ router.get("/programs/:id/form/:stage", async (req, res) => {
       help: q.help,
       required: q.required,
       config: q.config,
+      section: q.section,
     })),
     answers: filed
       ? (await db
@@ -241,8 +243,9 @@ router.post("/programs/:id/form/:stage", async (req, res) => {
       await tx.insert(formAnswersTable).values({
         responseId: response.id,
         questionId: question.id,
-        number: question.kind === "slider" ? answer.number : null,
-        text: question.kind === "slider" || question.kind === "multi" ? "" : answer.text.trim(),
+        number: question.kind === "slider" || question.kind === "rating" ? answer.number : null,
+        text: question.kind === "slider" || question.kind === "rating" || question.kind === "multi"
+          ? "" : answer.text.trim(),
         choices: question.kind === "multi" ? answer.choices : [],
       });
     }
@@ -316,7 +319,7 @@ router.get("/admin/programs/:id/forms", async (req, res) => {
       problem: formProblem({ questions, title: form.title }) ?? "",
       questions: questions.map((q) => ({
         id: q.id, kind: q.kind, prompt: q.prompt, help: q.help,
-        required: q.required, config: q.config, pairKey: q.pairKey,
+        required: q.required, config: q.config, pairKey: q.pairKey, section: q.section,
       })),
     });
   }
@@ -379,6 +382,7 @@ router.post("/admin/programs/:id/forms/:stage/standard", async (req, res) => {
         config: q.config,
         pairKey: q.pairKey,
         sortOrder: q.sortOrder,
+        section: q.section,
       });
     }
     return form.id;
@@ -493,7 +497,7 @@ router.get("/admin/programs/:id/forms/:stage/responses", async (req, res) => {
     namesShown: namesAllowed,
     questions: questions.map((q) => ({
       id: q.id, kind: q.kind, prompt: q.prompt, required: q.required,
-      config: q.config, pairKey: q.pairKey,
+      config: q.config, pairKey: q.pairKey, section: q.section,
     })),
     responses: responses.map((r) => ({
       // Withheld rather than sent and hidden in the browser. A name that
