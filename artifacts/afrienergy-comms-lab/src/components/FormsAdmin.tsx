@@ -9,7 +9,9 @@ import {
 import { apiReason } from '@workspace/domain';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { ClipboardList, CheckCircle2, AlertTriangle, Eye, EyeOff } from 'lucide-react';
+import { ClipboardList, CheckCircle2, AlertTriangle, Eye, EyeOff, Pencil, BarChart3 } from 'lucide-react';
+import FormEditor from '@/components/FormEditor';
+import FormAnalysis from '@/components/FormAnalysis';
 
 /**
  * The two forms a programme asks, and whether they are open.
@@ -27,6 +29,12 @@ export default function FormsAdmin() {
     query: { queryKey: getListProgramsQueryKey() },
   });
   const [programId, setProgramId] = useState<number | null>(null);
+  /**
+   * Which screen is showing: the two cards, one form's questions, or the
+   * results. One at a time rather than three panels stacked, because editing a
+   * form and reading its results are different jobs done on different days.
+   */
+  const [open, setOpen] = useState<{ what: 'editor'; stage: 'before' | 'after' } | { what: 'analysis' } | null>(null);
 
   const chosen = useMemo(() => {
     if (programId !== null) return programId;
@@ -97,7 +105,23 @@ export default function FormsAdmin() {
         </select>
       </label>
 
-      {data && (
+      {data && open?.what === 'analysis' && (
+        <FormAnalysis programId={chosen as number} onBack={() => setOpen(null)} />
+      )}
+
+      {data && open?.what === 'editor' && (() => {
+        const form = data.forms.find(f => f.stage === open.stage);
+        if (!form?.exists) return null;
+        return <FormEditor programId={chosen as number} form={form} onDone={() => setOpen(null)} />;
+      })()}
+
+      {data && open === null && (
+        <>
+        <div className="flex justify-end">
+          <Button size="sm" variant="outline" onClick={() => setOpen({ what: 'analysis' })}>
+            <BarChart3 className="mr-1.5 h-3.5 w-3.5" aria-hidden />See what they said
+          </Button>
+        </div>
         <div className="grid gap-4 md:grid-cols-2">
           {data.forms.map(form => (
             <FormCard
@@ -106,6 +130,7 @@ export default function FormsAdmin() {
               enrolled={data.enrolled}
               busy={create.isPending || publish.isPending}
               onCreate={() => create.mutate({ id: chosen as number, stage: form.stage })}
+              onEdit={() => setOpen({ what: 'editor', stage: form.stage })}
               onPublish={(published) => {
                 if (published && form.stage === 'after' && !confirm(
                   'Publish the closing survey?\n\n'
@@ -117,17 +142,19 @@ export default function FormsAdmin() {
             />
           ))}
         </div>
+        </>
       )}
     </div>
   );
 }
 
-function FormCard({ form, enrolled, busy, onCreate, onPublish }: {
+function FormCard({ form, enrolled, busy, onCreate, onPublish, onEdit }: {
   form: ProgramFormSummary;
   enrolled: number;
   busy: boolean;
   onCreate: () => void;
   onPublish: (published: boolean) => void;
+  onEdit: () => void;
 }) {
   const opening = form.stage === 'before';
   const name = opening ? 'Opening assessment' : 'Closing survey';
@@ -187,6 +214,9 @@ function FormCard({ form, enrolled, busy, onCreate, onPublish }: {
           )}
 
           <div className="mt-3 flex flex-wrap gap-2">
+            <Button size="sm" variant="outline" onClick={onEdit}>
+              <Pencil className="mr-1.5 h-3.5 w-3.5" aria-hidden />Edit the questions
+            </Button>
             {form.published ? (
               <Button
                 size="sm"

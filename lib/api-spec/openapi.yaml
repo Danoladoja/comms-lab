@@ -3903,6 +3903,39 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiMessage"
+  /admin/programs/{id}/forms/{stage}:
+    put:
+      operationId: updateFormDetails
+      tags: [admin]
+      summary: Change the form's title and introduction
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+        - name: stage
+          in: path
+          required: true
+          schema: { type: string, enum: [before, after] }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FormDetailsRequest"
+      responses:
+        "200":
+          description: Changed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FormDetailsRequest"
+        "400":
+          description: Refused
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
   /admin/programs/{id}/forms/{stage}/standard:
     post:
       operationId: createStandardForm
@@ -3995,6 +4028,159 @@ paths:
                 $ref: "#/components/schemas/FormResponses"
         "403":
           description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+  /admin/programs/{id}/forms/analysis:
+    get:
+      operationId: getFormAnalysis
+      tags: [admin]
+      summary: Both forms summarised, with the movement on every paired question
+      description: >
+        Open to facilitators as well as admins, without names. Every figure
+        carries the number of answers behind it, and a movement computed from
+        fewer than five answers on either side says so on its face rather than
+        in a footnote — the figure is what gets copied into a report.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: The analysis
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FormAnalysis"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+  /admin/programs/{id}/forms/{stage}/questions:
+    post:
+      operationId: addFormQuestion
+      tags: [admin]
+      summary: Add a question to the end of a form
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+        - name: stage
+          in: path
+          required: true
+          schema: { type: string, enum: [before, after] }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FormQuestionDraft"
+      responses:
+        "200":
+          description: Added
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FormQuestionCreated"
+        "400":
+          description: The question is not askable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+  /admin/programs/{id}/forms/{stage}/order:
+    put:
+      operationId: reorderFormQuestions
+      tags: [admin]
+      summary: Put the questions in a new order
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+        - name: stage
+          in: path
+          required: true
+          schema: { type: string, enum: [before, after] }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FormOrderRequest"
+      responses:
+        "200":
+          description: Reordered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FormOrderResult"
+        "400":
+          description: That ordering does not match the form
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+  /admin/forms/questions/{questionId}:
+    put:
+      operationId: updateFormQuestion
+      tags: [admin]
+      summary: Change a question
+      description: >
+        Once somebody has answered, anything that could change what their answer
+        means is refused with 409 — a change of kind, an option removed, a scale
+        shortened, a slider narrowed. Wording, help text, section and word
+        limits go through.
+      parameters:
+        - name: questionId
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FormQuestionDraft"
+      responses:
+        "200":
+          description: Changed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FormQuestionChanged"
+        "409":
+          description: Refused because answers already exist
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+    delete:
+      operationId: deleteFormQuestion
+      tags: [admin]
+      summary: Remove a question
+      description: >
+        Refused once anybody has answered it, rather than deleting their answers
+        along with it.
+      parameters:
+        - name: questionId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FormQuestionDeleted"
+        "409":
+          description: Refused because answers already exist
           content:
             application/json:
               schema:
@@ -6923,3 +7109,153 @@ components:
                 type: array
                 items:
                   $ref: "#/components/schemas/FormAnswer"
+
+    FormQuestionDraft:
+      type: object
+      required: [kind, prompt]
+      properties:
+        kind:
+          type: string
+          enum: [slider, rating, choice, multi, short, long]
+        prompt: { type: string }
+        help: { type: string }
+        required: { type: boolean }
+        section: { type: string }
+        pairKey: { type: string }
+        config:
+          $ref: "#/components/schemas/FormQuestionConfig"
+    FormQuestionCreated:
+      type: object
+      required: [questionId]
+      properties:
+        questionId: { type: integer }
+    FormQuestionChanged:
+      type: object
+      required: [questionId, answered]
+      properties:
+        questionId: { type: integer }
+        # How many people had already answered it when this change was made.
+        answered: { type: integer }
+    FormQuestionDeleted:
+      type: object
+      required: [questionId, deleted]
+      properties:
+        questionId: { type: integer }
+        deleted: { type: boolean }
+    FormOrderRequest:
+      type: object
+      required: [questionIds]
+      properties:
+        questionIds:
+          type: array
+          items: { type: integer }
+    FormOrderResult:
+      type: object
+      required: [programId, stage, ordered]
+      properties:
+        programId: { type: integer }
+        stage: { type: string }
+        ordered: { type: integer }
+    FormDetailsRequest:
+      type: object
+      required: [title]
+      properties:
+        title: { type: string }
+        intro: { type: string }
+    QuestionSummary:
+      type: object
+      required: [shape]
+      properties:
+        shape:
+          type: string
+          enum: [numeric, tally, written]
+        count: { type: integer }
+        mean: { type: ["number", "null"] }
+        lowest: { type: ["number", "null"] }
+        highest: { type: ["number", "null"] }
+        spread:
+          type: array
+          items:
+            type: object
+            required: [value, count]
+            properties:
+              value: { type: integer }
+              count: { type: integer }
+        options:
+          type: array
+          items:
+            type: object
+            required: [option, count, pct]
+            properties:
+              option: { type: string }
+              count: { type: integer }
+              pct: { type: integer }
+        answers:
+          type: array
+          items: { type: string }
+        medianWords: { type: integer }
+    AnalysedQuestion:
+      type: object
+      required: [id, kind, prompt, section, summary]
+      properties:
+        id: { type: integer }
+        kind: { type: string }
+        prompt: { type: string }
+        section: { type: string }
+        pairKey: { type: string }
+        summary:
+          $ref: "#/components/schemas/QuestionSummary"
+    AnalysedStage:
+      type: object
+      required: [stage, title, filed, questions]
+      properties:
+        stage: { type: string, enum: [before, after] }
+        title: { type: string }
+        filed: { type: integer }
+        questions:
+          type: array
+          items:
+            $ref: "#/components/schemas/AnalysedQuestion"
+    PairedMovement:
+      type: object
+      required: [pairKey, prompt, kind, note]
+      properties:
+        pairKey: { type: string }
+        prompt: { type: string }
+        kind: { type: string }
+        before:
+          $ref: "#/components/schemas/QuestionSummary"
+        after:
+          $ref: "#/components/schemas/QuestionSummary"
+        movement:
+          type: ["object", "null"]
+          properties:
+            before: { type: number }
+            after: { type: number }
+            change: { type: number }
+            beforeCount: { type: integer }
+            afterCount: { type: integer }
+        # The sentence, with its caveat already in it.
+        note: { type: string }
+    FormAnalysis:
+      type: object
+      required: [programme, enrolled, stages, pairs, report]
+      properties:
+        programme:
+          type: object
+          required: [id, title]
+          properties:
+            id: { type: integer }
+            title: { type: string }
+        enrolled: { type: integer }
+        stages:
+          type: array
+          items:
+            $ref: "#/components/schemas/AnalysedStage"
+        pairs:
+          type: array
+          items:
+            $ref: "#/components/schemas/PairedMovement"
+        # The whole thing as text, built on the server so the sentence a funder
+        # reads and the sentence on screen cannot drift apart.
+        report: { type: string }

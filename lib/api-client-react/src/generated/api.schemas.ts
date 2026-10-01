@@ -2791,6 +2791,151 @@ export interface FormResponses {
   responses: FormResponsesResponsesItem[];
 }
 
+export type FormQuestionDraftKind = typeof FormQuestionDraftKind[keyof typeof FormQuestionDraftKind];
+
+
+export const FormQuestionDraftKind = {
+  slider: 'slider',
+  rating: 'rating',
+  choice: 'choice',
+  multi: 'multi',
+  short: 'short',
+  long: 'long',
+} as const;
+
+export interface FormQuestionDraft {
+  kind: FormQuestionDraftKind;
+  prompt: string;
+  help?: string;
+  required?: boolean;
+  section?: string;
+  pairKey?: string;
+  config?: FormQuestionConfig;
+}
+
+export interface FormQuestionCreated {
+  questionId: number;
+}
+
+export interface FormQuestionChanged {
+  questionId: number;
+  answered: number;
+}
+
+export interface FormQuestionDeleted {
+  questionId: number;
+  deleted: boolean;
+}
+
+export interface FormOrderRequest {
+  questionIds: number[];
+}
+
+export interface FormOrderResult {
+  programId: number;
+  stage: string;
+  ordered: number;
+}
+
+export interface FormDetailsRequest {
+  title: string;
+  intro?: string;
+}
+
+export type QuestionSummaryShape = typeof QuestionSummaryShape[keyof typeof QuestionSummaryShape];
+
+
+export const QuestionSummaryShape = {
+  numeric: 'numeric',
+  tally: 'tally',
+  written: 'written',
+} as const;
+
+export type QuestionSummarySpreadItem = {
+  value: number;
+  count: number;
+};
+
+export type QuestionSummaryOptionsItem = {
+  option: string;
+  count: number;
+  pct: number;
+};
+
+export interface QuestionSummary {
+  shape: QuestionSummaryShape;
+  count?: number;
+  /** @nullable */
+  mean?: number | null;
+  /** @nullable */
+  lowest?: number | null;
+  /** @nullable */
+  highest?: number | null;
+  spread?: QuestionSummarySpreadItem[];
+  options?: QuestionSummaryOptionsItem[];
+  answers?: string[];
+  medianWords?: number;
+}
+
+export interface AnalysedQuestion {
+  id: number;
+  kind: string;
+  prompt: string;
+  section: string;
+  pairKey?: string;
+  summary: QuestionSummary;
+}
+
+export type AnalysedStageStage = typeof AnalysedStageStage[keyof typeof AnalysedStageStage];
+
+
+export const AnalysedStageStage = {
+  before: 'before',
+  after: 'after',
+} as const;
+
+export interface AnalysedStage {
+  stage: AnalysedStageStage;
+  title: string;
+  filed: number;
+  questions: AnalysedQuestion[];
+}
+
+/**
+ * @nullable
+ */
+export type PairedMovementMovement = {
+  before?: number;
+  after?: number;
+  change?: number;
+  beforeCount?: number;
+  afterCount?: number;
+} | null;
+
+export interface PairedMovement {
+  pairKey: string;
+  prompt: string;
+  kind: string;
+  before?: QuestionSummary;
+  after?: QuestionSummary;
+  /** @nullable */
+  movement?: PairedMovementMovement;
+  note: string;
+}
+
+export type FormAnalysisProgramme = {
+  id: number;
+  title: string;
+};
+
+export interface FormAnalysis {
+  programme: FormAnalysisProgramme;
+  enrolled: number;
+  stages: AnalysedStage[];
+  pairs: PairedMovement[];
+  report: string;
+}
+
 /**
  * Invalid request
  */

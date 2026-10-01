@@ -4542,6 +4542,25 @@ export const ListProgramFormsResponse = zod.object({
 
 
 /**
+ * @summary Change the form's title and introduction
+ */
+export const UpdateFormDetailsParams = zod.object({
+  "id": zod.coerce.number().int(),
+  "stage": zod.enum(['before', 'after'])
+})
+
+export const UpdateFormDetailsBody = zod.object({
+  "title": zod.string(),
+  "intro": zod.string().optional()
+})
+
+export const UpdateFormDetailsResponse = zod.object({
+  "title": zod.string(),
+  "intro": zod.string().optional()
+})
+
+
+/**
  * @summary Start this form from the Lab's standard set of questions
  */
 export const CreateStandardFormParams = zod.object({
@@ -4628,6 +4647,211 @@ export const ListFormResponsesResponse = zod.object({
   "choices": zod.array(zod.string()).optional()
 }))
 }))
+})
+
+
+/**
+ * Open to facilitators as well as admins, without names. Every figure carries the number of answers behind it, and a movement computed from fewer than five answers on either side says so on its face rather than in a footnote — the figure is what gets copied into a report.
+ * @summary Both forms summarised, with the movement on every paired question
+ */
+export const GetFormAnalysisParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const GetFormAnalysisResponse = zod.object({
+  "programme": zod.object({
+  "id": zod.int(),
+  "title": zod.string()
+}),
+  "enrolled": zod.int(),
+  "stages": zod.array(zod.object({
+  "stage": zod.enum(['before', 'after']),
+  "title": zod.string(),
+  "filed": zod.int(),
+  "questions": zod.array(zod.object({
+  "id": zod.int(),
+  "kind": zod.string(),
+  "prompt": zod.string(),
+  "section": zod.string(),
+  "pairKey": zod.string().optional(),
+  "summary": zod.object({
+  "shape": zod.enum(['numeric', 'tally', 'written']),
+  "count": zod.int().optional(),
+  "mean": zod.number().nullish(),
+  "lowest": zod.number().nullish(),
+  "highest": zod.number().nullish(),
+  "spread": zod.array(zod.object({
+  "value": zod.int(),
+  "count": zod.int()
+})).optional(),
+  "options": zod.array(zod.object({
+  "option": zod.string(),
+  "count": zod.int(),
+  "pct": zod.int()
+})).optional(),
+  "answers": zod.array(zod.string()).optional(),
+  "medianWords": zod.int().optional()
+})
+}))
+})),
+  "pairs": zod.array(zod.object({
+  "pairKey": zod.string(),
+  "prompt": zod.string(),
+  "kind": zod.string(),
+  "before": zod.object({
+  "shape": zod.enum(['numeric', 'tally', 'written']),
+  "count": zod.int().optional(),
+  "mean": zod.number().nullish(),
+  "lowest": zod.number().nullish(),
+  "highest": zod.number().nullish(),
+  "spread": zod.array(zod.object({
+  "value": zod.int(),
+  "count": zod.int()
+})).optional(),
+  "options": zod.array(zod.object({
+  "option": zod.string(),
+  "count": zod.int(),
+  "pct": zod.int()
+})).optional(),
+  "answers": zod.array(zod.string()).optional(),
+  "medianWords": zod.int().optional()
+}).optional(),
+  "after": zod.object({
+  "shape": zod.enum(['numeric', 'tally', 'written']),
+  "count": zod.int().optional(),
+  "mean": zod.number().nullish(),
+  "lowest": zod.number().nullish(),
+  "highest": zod.number().nullish(),
+  "spread": zod.array(zod.object({
+  "value": zod.int(),
+  "count": zod.int()
+})).optional(),
+  "options": zod.array(zod.object({
+  "option": zod.string(),
+  "count": zod.int(),
+  "pct": zod.int()
+})).optional(),
+  "answers": zod.array(zod.string()).optional(),
+  "medianWords": zod.int().optional()
+}).optional(),
+  "movement": zod.object({
+  "before": zod.number().optional(),
+  "after": zod.number().optional(),
+  "change": zod.number().optional(),
+  "beforeCount": zod.int().optional(),
+  "afterCount": zod.int().optional()
+}).nullish(),
+  "note": zod.string()
+})),
+  "report": zod.string()
+})
+
+
+/**
+ * @summary Add a question to the end of a form
+ */
+export const AddFormQuestionParams = zod.object({
+  "id": zod.coerce.number().int(),
+  "stage": zod.enum(['before', 'after'])
+})
+
+export const AddFormQuestionBody = zod.object({
+  "kind": zod.enum(['slider', 'rating', 'choice', 'multi', 'short', 'long']),
+  "prompt": zod.string(),
+  "help": zod.string().optional(),
+  "required": zod.boolean().optional(),
+  "section": zod.string().optional(),
+  "pairKey": zod.string().optional(),
+  "config": zod.object({
+  "options": zod.array(zod.string()).optional(),
+  "pickAtLeast": zod.int().optional(),
+  "pickAtMost": zod.int().optional(),
+  "scale": zod.int().optional(),
+  "lowLabel": zod.string().optional(),
+  "highLabel": zod.string().optional(),
+  "min": zod.int().optional(),
+  "max": zod.int().optional(),
+  "step": zod.int().optional(),
+  "minLabel": zod.string().optional(),
+  "maxLabel": zod.string().optional(),
+  "wordsAtLeast": zod.int().optional(),
+  "wordsAtMost": zod.int().optional()
+}).optional()
+})
+
+export const AddFormQuestionResponse = zod.object({
+  "questionId": zod.int()
+})
+
+
+/**
+ * @summary Put the questions in a new order
+ */
+export const ReorderFormQuestionsParams = zod.object({
+  "id": zod.coerce.number().int(),
+  "stage": zod.enum(['before', 'after'])
+})
+
+export const ReorderFormQuestionsBody = zod.object({
+  "questionIds": zod.array(zod.int())
+})
+
+export const ReorderFormQuestionsResponse = zod.object({
+  "programId": zod.int(),
+  "stage": zod.string(),
+  "ordered": zod.int()
+})
+
+
+/**
+ * Once somebody has answered, anything that could change what their answer means is refused with 409 — a change of kind, an option removed, a scale shortened, a slider narrowed. Wording, help text, section and word limits go through.
+ * @summary Change a question
+ */
+export const UpdateFormQuestionParams = zod.object({
+  "questionId": zod.coerce.number().int()
+})
+
+export const UpdateFormQuestionBody = zod.object({
+  "kind": zod.enum(['slider', 'rating', 'choice', 'multi', 'short', 'long']),
+  "prompt": zod.string(),
+  "help": zod.string().optional(),
+  "required": zod.boolean().optional(),
+  "section": zod.string().optional(),
+  "pairKey": zod.string().optional(),
+  "config": zod.object({
+  "options": zod.array(zod.string()).optional(),
+  "pickAtLeast": zod.int().optional(),
+  "pickAtMost": zod.int().optional(),
+  "scale": zod.int().optional(),
+  "lowLabel": zod.string().optional(),
+  "highLabel": zod.string().optional(),
+  "min": zod.int().optional(),
+  "max": zod.int().optional(),
+  "step": zod.int().optional(),
+  "minLabel": zod.string().optional(),
+  "maxLabel": zod.string().optional(),
+  "wordsAtLeast": zod.int().optional(),
+  "wordsAtMost": zod.int().optional()
+}).optional()
+})
+
+export const UpdateFormQuestionResponse = zod.object({
+  "questionId": zod.int(),
+  "answered": zod.int()
+})
+
+
+/**
+ * Refused once anybody has answered it, rather than deleting their answers along with it.
+ * @summary Remove a question
+ */
+export const DeleteFormQuestionParams = zod.object({
+  "questionId": zod.coerce.number().int()
+})
+
+export const DeleteFormQuestionResponse = zod.object({
+  "questionId": zod.int(),
+  "deleted": zod.boolean()
 })
 
 

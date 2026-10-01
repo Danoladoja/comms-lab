@@ -56,11 +56,19 @@ import type {
   EnrollmentDetail,
   EnrollmentUpdate,
   ForbiddenResponse,
+  FormAnalysis,
   FormCreated,
+  FormDetailsRequest,
   FormFiled,
   FormFiling,
+  FormOrderRequest,
+  FormOrderResult,
   FormPublishRequest,
   FormPublishResult,
+  FormQuestionChanged,
+  FormQuestionCreated,
+  FormQuestionDeleted,
+  FormQuestionDraft,
   FormRefusal,
   FormResponses,
   ForumPost,
@@ -10184,6 +10192,80 @@ export function useListProgramForms<TData = Awaited<ReturnType<typeof listProgra
 
 
 
+export const getUpdateFormDetailsUrl = (id: number,
+    stage: 'before' | 'after',) => {
+
+
+
+
+  return `/api/admin/programs/${id}/forms/${stage}`
+}
+
+/**
+ * @summary Change the form's title and introduction
+ */
+export const updateFormDetails = async (id: number,
+    stage: 'before' | 'after',
+    formDetailsRequest: FormDetailsRequest, options?: Parameters<typeof customFetch>[1]): Promise<FormDetailsRequest> => {
+
+  return customFetch<FormDetailsRequest>(getUpdateFormDetailsUrl(id,stage),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(formDetailsRequest)
+  }
+);}
+
+
+
+
+
+export const getUpdateFormDetailsMutationOptions = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateFormDetails>>, TError,{id: number;stage: 'before' | 'after';data: BodyType<FormDetailsRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateFormDetails>>, TError,{id: number;stage: 'before' | 'after';data: BodyType<FormDetailsRequest>}, TContext> => {
+
+const mutationKey = ['updateFormDetails'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateFormDetails>>, {id: number;stage: 'before' | 'after';data: BodyType<FormDetailsRequest>}> = (props) => {
+          const {id,stage,data} = props ?? {};
+
+          return  updateFormDetails(id,stage,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateFormDetailsMutationResult = NonNullable<Awaited<ReturnType<typeof updateFormDetails>>>
+    export type UpdateFormDetailsMutationBody = BodyType<FormDetailsRequest>
+    export type UpdateFormDetailsMutationError = ErrorType<ApiMessage>
+
+    /**
+ * @summary Change the form's title and introduction
+ */
+export const useUpdateFormDetails = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateFormDetails>>, TError,{id: number;stage: 'before' | 'after';data: BodyType<FormDetailsRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateFormDetails>>,
+        TError,
+        {id: number;stage: 'before' | 'after';data: BodyType<FormDetailsRequest>},
+        TContext
+      > => {
+      return useMutation(getUpdateFormDetailsMutationOptions(options));
+    }
+
 export const getCreateStandardFormUrl = (id: number,
     stage: 'before' | 'after',) => {
 
@@ -10414,4 +10496,375 @@ export function useListFormResponses<TData = Awaited<ReturnType<typeof listFormR
 
 
 
+
+export const getGetFormAnalysisUrl = (id: number,) => {
+
+
+
+
+  return `/api/admin/programs/${id}/forms/analysis`
+}
+
+/**
+ * Open to facilitators as well as admins, without names. Every figure carries the number of answers behind it, and a movement computed from fewer than five answers on either side says so on its face rather than in a footnote — the figure is what gets copied into a report.
+ * @summary Both forms summarised, with the movement on every paired question
+ */
+export const getFormAnalysis = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<FormAnalysis> => {
+
+  return customFetch<FormAnalysis>(getGetFormAnalysisUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetFormAnalysisQueryKey = (id: number,) => {
+    return [
+    `/api/admin/programs/${id}/forms/analysis`
+    ] as const;
+    }
+
+
+export const getGetFormAnalysisQueryOptions = <TData = Awaited<ReturnType<typeof getFormAnalysis>>, TError = ErrorType<ApiMessage>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getFormAnalysis>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetFormAnalysisQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getFormAnalysis>>> = ({ signal }) => getFormAnalysis(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getFormAnalysis>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetFormAnalysisQueryResult = NonNullable<Awaited<ReturnType<typeof getFormAnalysis>>>
+export type GetFormAnalysisQueryError = ErrorType<ApiMessage>
+
+
+/**
+ * @summary Both forms summarised, with the movement on every paired question
+ */
+
+export function useGetFormAnalysis<TData = Awaited<ReturnType<typeof getFormAnalysis>>, TError = ErrorType<ApiMessage>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getFormAnalysis>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetFormAnalysisQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getAddFormQuestionUrl = (id: number,
+    stage: 'before' | 'after',) => {
+
+
+
+
+  return `/api/admin/programs/${id}/forms/${stage}/questions`
+}
+
+/**
+ * @summary Add a question to the end of a form
+ */
+export const addFormQuestion = async (id: number,
+    stage: 'before' | 'after',
+    formQuestionDraft: FormQuestionDraft, options?: Parameters<typeof customFetch>[1]): Promise<FormQuestionCreated> => {
+
+  return customFetch<FormQuestionCreated>(getAddFormQuestionUrl(id,stage),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(formQuestionDraft)
+  }
+);}
+
+
+
+
+
+export const getAddFormQuestionMutationOptions = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addFormQuestion>>, TError,{id: number;stage: 'before' | 'after';data: BodyType<FormQuestionDraft>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof addFormQuestion>>, TError,{id: number;stage: 'before' | 'after';data: BodyType<FormQuestionDraft>}, TContext> => {
+
+const mutationKey = ['addFormQuestion'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof addFormQuestion>>, {id: number;stage: 'before' | 'after';data: BodyType<FormQuestionDraft>}> = (props) => {
+          const {id,stage,data} = props ?? {};
+
+          return  addFormQuestion(id,stage,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AddFormQuestionMutationResult = NonNullable<Awaited<ReturnType<typeof addFormQuestion>>>
+    export type AddFormQuestionMutationBody = BodyType<FormQuestionDraft>
+    export type AddFormQuestionMutationError = ErrorType<ApiMessage>
+
+    /**
+ * @summary Add a question to the end of a form
+ */
+export const useAddFormQuestion = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addFormQuestion>>, TError,{id: number;stage: 'before' | 'after';data: BodyType<FormQuestionDraft>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof addFormQuestion>>,
+        TError,
+        {id: number;stage: 'before' | 'after';data: BodyType<FormQuestionDraft>},
+        TContext
+      > => {
+      return useMutation(getAddFormQuestionMutationOptions(options));
+    }
+
+export const getReorderFormQuestionsUrl = (id: number,
+    stage: 'before' | 'after',) => {
+
+
+
+
+  return `/api/admin/programs/${id}/forms/${stage}/order`
+}
+
+/**
+ * @summary Put the questions in a new order
+ */
+export const reorderFormQuestions = async (id: number,
+    stage: 'before' | 'after',
+    formOrderRequest: FormOrderRequest, options?: Parameters<typeof customFetch>[1]): Promise<FormOrderResult> => {
+
+  return customFetch<FormOrderResult>(getReorderFormQuestionsUrl(id,stage),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(formOrderRequest)
+  }
+);}
+
+
+
+
+
+export const getReorderFormQuestionsMutationOptions = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reorderFormQuestions>>, TError,{id: number;stage: 'before' | 'after';data: BodyType<FormOrderRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof reorderFormQuestions>>, TError,{id: number;stage: 'before' | 'after';data: BodyType<FormOrderRequest>}, TContext> => {
+
+const mutationKey = ['reorderFormQuestions'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof reorderFormQuestions>>, {id: number;stage: 'before' | 'after';data: BodyType<FormOrderRequest>}> = (props) => {
+          const {id,stage,data} = props ?? {};
+
+          return  reorderFormQuestions(id,stage,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ReorderFormQuestionsMutationResult = NonNullable<Awaited<ReturnType<typeof reorderFormQuestions>>>
+    export type ReorderFormQuestionsMutationBody = BodyType<FormOrderRequest>
+    export type ReorderFormQuestionsMutationError = ErrorType<ApiMessage>
+
+    /**
+ * @summary Put the questions in a new order
+ */
+export const useReorderFormQuestions = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reorderFormQuestions>>, TError,{id: number;stage: 'before' | 'after';data: BodyType<FormOrderRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof reorderFormQuestions>>,
+        TError,
+        {id: number;stage: 'before' | 'after';data: BodyType<FormOrderRequest>},
+        TContext
+      > => {
+      return useMutation(getReorderFormQuestionsMutationOptions(options));
+    }
+
+export const getUpdateFormQuestionUrl = (questionId: number,) => {
+
+
+
+
+  return `/api/admin/forms/questions/${questionId}`
+}
+
+/**
+ * Once somebody has answered, anything that could change what their answer means is refused with 409 — a change of kind, an option removed, a scale shortened, a slider narrowed. Wording, help text, section and word limits go through.
+ * @summary Change a question
+ */
+export const updateFormQuestion = async (questionId: number,
+    formQuestionDraft: FormQuestionDraft, options?: Parameters<typeof customFetch>[1]): Promise<FormQuestionChanged> => {
+
+  return customFetch<FormQuestionChanged>(getUpdateFormQuestionUrl(questionId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(formQuestionDraft)
+  }
+);}
+
+
+
+
+
+export const getUpdateFormQuestionMutationOptions = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateFormQuestion>>, TError,{questionId: number;data: BodyType<FormQuestionDraft>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateFormQuestion>>, TError,{questionId: number;data: BodyType<FormQuestionDraft>}, TContext> => {
+
+const mutationKey = ['updateFormQuestion'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateFormQuestion>>, {questionId: number;data: BodyType<FormQuestionDraft>}> = (props) => {
+          const {questionId,data} = props ?? {};
+
+          return  updateFormQuestion(questionId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateFormQuestionMutationResult = NonNullable<Awaited<ReturnType<typeof updateFormQuestion>>>
+    export type UpdateFormQuestionMutationBody = BodyType<FormQuestionDraft>
+    export type UpdateFormQuestionMutationError = ErrorType<ApiMessage>
+
+    /**
+ * @summary Change a question
+ */
+export const useUpdateFormQuestion = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateFormQuestion>>, TError,{questionId: number;data: BodyType<FormQuestionDraft>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateFormQuestion>>,
+        TError,
+        {questionId: number;data: BodyType<FormQuestionDraft>},
+        TContext
+      > => {
+      return useMutation(getUpdateFormQuestionMutationOptions(options));
+    }
+
+export const getDeleteFormQuestionUrl = (questionId: number,) => {
+
+
+
+
+  return `/api/admin/forms/questions/${questionId}`
+}
+
+/**
+ * Refused once anybody has answered it, rather than deleting their answers along with it.
+ * @summary Remove a question
+ */
+export const deleteFormQuestion = async (questionId: number, options?: Parameters<typeof customFetch>[1]): Promise<FormQuestionDeleted> => {
+
+  return customFetch<FormQuestionDeleted>(getDeleteFormQuestionUrl(questionId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteFormQuestionMutationOptions = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteFormQuestion>>, TError,{questionId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteFormQuestion>>, TError,{questionId: number}, TContext> => {
+
+const mutationKey = ['deleteFormQuestion'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteFormQuestion>>, {questionId: number}> = (props) => {
+          const {questionId} = props ?? {};
+
+          return  deleteFormQuestion(questionId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteFormQuestionMutationResult = NonNullable<Awaited<ReturnType<typeof deleteFormQuestion>>>
+
+    export type DeleteFormQuestionMutationError = ErrorType<ApiMessage>
+
+    /**
+ * @summary Remove a question
+ */
+export const useDeleteFormQuestion = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteFormQuestion>>, TError,{questionId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteFormQuestion>>,
+        TError,
+        {questionId: number},
+        TContext
+      > => {
+      return useMutation(getDeleteFormQuestionMutationOptions(options));
+    }
 
