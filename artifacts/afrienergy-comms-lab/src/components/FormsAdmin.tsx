@@ -8,6 +8,7 @@ import {
 } from '@workspace/api-client-react';
 import { apiReason } from '@workspace/domain';
 import { Button } from '@/components/ui/button';
+import { CouldNotLoad } from '@/components/CouldNotLoad';
 import { useToast } from '@/hooks/use-toast';
 import { ClipboardList, CheckCircle2, AlertTriangle, Eye, EyeOff, Pencil, BarChart3 } from 'lucide-react';
 import FormEditor from '@/components/FormEditor';
@@ -42,7 +43,9 @@ export default function FormsAdmin() {
     return live?.id ?? null;
   }, [programId, programmes]);
 
-  const { data } = useListProgramForms(chosen as number, {
+  const {
+    data, isLoading: loadingForms, isError: formsFailed, refetch: retryForms,
+  } = useListProgramForms(chosen as number, {
     query: { queryKey: getListProgramFormsQueryKey(chosen as number), enabled: chosen !== null },
   });
 
@@ -104,6 +107,24 @@ export default function FormsAdmin() {
           {programmes.map(p => <option key={p.id} value={p.id}>{p.title}</option>)}
         </select>
       </label>
+
+      {/*
+        Every state this screen can be in says something.
+
+        It previously drew the heading, the description and the programme
+        picker, and then — if the request behind it failed — nothing at all. It
+        failed for a fortnight-old reason (an admin was being refused by a role
+        check meant to admit facilitators) and the screen's only account of
+        itself was a blank space under a dropdown. A page that can show nothing
+        without explaining why is a page that hides its own faults.
+      */}
+      {chosen !== null && loadingForms && (
+        <div className="h-48 animate-pulse rounded-lg bg-muted/40" />
+      )}
+
+      {chosen !== null && formsFailed && (
+        <CouldNotLoad what="this programme's forms" onRetry={() => retryForms()} />
+      )}
 
       {data && open?.what === 'analysis' && (
         <FormAnalysis programId={chosen as number} onBack={() => setOpen(null)} />

@@ -5,7 +5,8 @@ import {
 } from "@workspace/db";
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import {
-  formProblem, formFaults, faultSummary, standardQuestions, filedTally, satisfiesRole,
+  formProblem, formFaults, faultSummary, standardQuestions, filedTally,
+  satisfiesRole, isStaffRole,
   questionProblem, editProblem, deleteProblem, reorderProblem,
   aggregate, pairUp, reportText,
   type FormQuestion, type FormStage, type GivenAnswer,
@@ -266,7 +267,14 @@ router.get("/admin/programs/:id/forms", async (req, res) => {
   const user = await getCurrentUser(req);
   const role = await currentRole(req);
   if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
-  if (!satisfiesRole(role, ["instructor"])) {
+  // `isStaffRole`, not `satisfiesRole(role, ["instructor"])`.
+  //
+  // That second form reads like "instructor and above" and is the opposite:
+  // satisfiesRole is not a hierarchy, and an admin is deliberately not an
+  // instructor — an instructor check guards one person's own classroom, not a
+  // level of seniority. Written the wrong way it locked every admin and super
+  // admin out of this screen, which then drew nothing at all.
+  if (!isStaffRole(role)) {
     res.status(403).json({ error: "Forbidden" }); return;
   }
 
@@ -453,7 +461,9 @@ router.get("/admin/programs/:id/forms/:stage/responses", async (req, res) => {
   const user = await getCurrentUser(req);
   const role = await currentRole(req);
   if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
-  if (!satisfiesRole(role, ["instructor"])) { res.status(403).json({ error: "Forbidden" }); return; }
+  // Staff, which is instructors, admins and super admins — see the note on the
+  // forms overview above for why this is not satisfiesRole(…, ["instructor"]).
+  if (!isStaffRole(role)) { res.status(403).json({ error: "Forbidden" }); return; }
 
   const namesAllowed = satisfiesRole(role, ["admin"]);
 
@@ -775,7 +785,9 @@ router.get("/admin/programs/:id/forms/analysis", async (req, res) => {
   const user = await getCurrentUser(req);
   const role = await currentRole(req);
   if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
-  if (!satisfiesRole(role, ["instructor"])) { res.status(403).json({ error: "Forbidden" }); return; }
+  // Staff, which is instructors, admins and super admins — see the note on the
+  // forms overview above for why this is not satisfiesRole(…, ["instructor"]).
+  if (!isStaffRole(role)) { res.status(403).json({ error: "Forbidden" }); return; }
 
   const programId = Number(req.params.id);
   if (!Number.isInteger(programId)) { res.status(400).json({ error: "That is not a programme." }); return; }
