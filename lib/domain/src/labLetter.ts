@@ -62,6 +62,33 @@ export type Letter = {
   tagline?: string | null;
 };
 
+/**
+ * The Lab's colours, in one place.
+ *
+ * They were literals inside the letter's HTML, which was fine while the letter
+ * was the only branded thing the Lab produced. It is not any more: the closing
+ * survey is a page a learner meets in the same fortnight as four of these
+ * emails, and two near-identical oranges would read as two organisations.
+ *
+ * Exported as values rather than written into a stylesheet because the letter
+ * needs them as inline hex — every serious mail client strips a stylesheet —
+ * and the survey needs the same hex to match it.
+ */
+export const LAB_COLOURS = {
+  /** The masthead and all body text. Near-black with a blue cast. */
+  ink: "#07111E",
+  /** The ground a letter sits on. */
+  cream: "#EFEAE0",
+  /** The lighter cream of the footer and the masthead's type. */
+  creamLight: "#F4F0E8",
+  /** The one accent: buttons, rules under headings. */
+  accent: "#F97316",
+  /** Small print and anything secondary. */
+  muted: "#5B6470",
+  /** Hairlines. */
+  rule: "#E4DFD4",
+} as const;
+
 export const LAB_CONTACT_EMAIL = "africaenergypulse@gmail.com";
 export const LAB_TAGLINE = "Africa's learning hub for energy communicators";
 
@@ -98,7 +125,7 @@ export function labLetterHtml(letter: Letter): string {
   const masthead = logo
     ? `<img src="${escapeHtml(logo)}" alt="Ananse Comms Lab" width="180"
              style="display: block; width: 180px; max-width: 60%; height: auto; border: 0;" />`
-    : `<span style="color: #F4F0E8; font-size: 20px; font-weight: bold; letter-spacing: 0.02em;">Ananse Comms Lab</span>`;
+    : `<span style="color: ${LAB_COLOURS.creamLight}; font-size: 20px; font-weight: bold; letter-spacing: 0.02em;">Ananse Comms Lab</span>`;
 
   const body = letter.paragraphs
     .map((p) => `<p style="margin: 0 0 16px; font-size: 15px; line-height: 1.6;">${escapeHtml(p)}</p>`)
@@ -108,7 +135,7 @@ export function labLetterHtml(letter: Letter): string {
     ? `
       <p style="margin: 28px 0 8px;">
         <a href="${escapeHtml(letter.action.url)}"
-           style="background: #F97316; color: #07111E; font-weight: bold; font-size: 15px; padding: 14px 28px; border-radius: 999px; text-decoration: none; display: inline-block;">
+           style="background: ${LAB_COLOURS.accent}; color: ${LAB_COLOURS.ink}; font-weight: bold; font-size: 15px; padding: 14px 28px; border-radius: 999px; text-decoration: none; display: inline-block;">
           ${escapeHtml(letter.action.label)}
         </a>
       </p>`
@@ -116,7 +143,7 @@ export function labLetterHtml(letter: Letter): string {
 
   const printedUrl = letter.action?.showUrl
     ? `
-      <p style="margin: 16px 0 0; font-size: 12px; color: #5B6470; line-height: 1.6;">
+      <p style="margin: 16px 0 0; font-size: 12px; color: ${LAB_COLOURS.muted}; line-height: 1.6;">
         If the button does not work, copy this address into your browser:<br />
         <span style="word-break: break-all;">${escapeHtml(letter.action.url)}</span>
       </p>`
@@ -124,29 +151,29 @@ export function labLetterHtml(letter: Letter): string {
 
   const footnote = tidyLine(letter.footnote)
     ? `
-      <p style="margin: 20px 0 0; padding-top: 16px; border-top: 1px solid #E4DFD4; font-size: 12px; color: #5B6470; line-height: 1.6;">
+      <p style="margin: 20px 0 0; padding-top: 16px; border-top: 1px solid ${LAB_COLOURS.rule}; font-size: 12px; color: ${LAB_COLOURS.muted}; line-height: 1.6;">
         ${escapeHtml(tidyLine(letter.footnote))}
       </p>`
     : "";
 
   return `
-<div style="background: #EFEAE0; padding: 24px 12px; font-family: Arial, Helvetica, sans-serif;">
+<div style="background: ${LAB_COLOURS.cream}; padding: 24px 12px; font-family: Arial, Helvetica, sans-serif;">
   <div style="max-width: 560px; margin: 0 auto; background: #FFFFFF; border-radius: 14px; overflow: hidden;">
 
-    <div style="background: #07111E; padding: 24px 28px;">
+    <div style="background: ${LAB_COLOURS.ink}; padding: 24px 28px;">
       ${masthead}
-      <p style="margin: 12px 0 0; color: #F4F0E8; opacity: 0.75; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase;">
+      <p style="margin: 12px 0 0; color: ${LAB_COLOURS.creamLight}; opacity: 0.75; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase;">
         ${tidyLine(letter.tagline) ? escapeHtml(tidyLine(letter.tagline)) : LAB_TAGLINE}
       </p>
     </div>
 
-    <div style="padding: 28px; color: #07111E;">
+    <div style="padding: 28px; color: ${LAB_COLOURS.ink};">
       <p style="margin: 0 0 16px; font-size: 15px; line-height: 1.6;">Hello ${greeting},</p>
       ${body}${action}${printedUrl}${footnote}
     </div>
 
-    <div style="background: #F4F0E8; padding: 16px 28px; font-size: 11px; color: #5B6470;">
-      Ananse Comms Lab · <a href="mailto:${LAB_CONTACT_EMAIL}" style="color: #5B6470;">${LAB_CONTACT_EMAIL}</a>
+    <div style="background: ${LAB_COLOURS.creamLight}; padding: 16px 28px; font-size: 11px; color: ${LAB_COLOURS.muted};">
+      Ananse Comms Lab · <a href="mailto:${LAB_CONTACT_EMAIL}" style="color: ${LAB_COLOURS.muted};">${LAB_CONTACT_EMAIL}</a>
     </div>
 
   </div>

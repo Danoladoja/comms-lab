@@ -4,7 +4,10 @@ import {
   type FormQuestion, type FormAnswer, type FormFault,
 } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
-import { countWords, answerProblem, answeredCount, faultSummary, sectionsOf, sectionHeading } from '@workspace/domain';
+import {
+  countWords, answerProblem, answeredCount, faultSummary, sectionsOf, sectionHeading,
+  LAB_COLOURS, LAB_TAGLINE,
+} from '@workspace/domain';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { CheckCircle2, AlertCircle } from 'lucide-react';
@@ -29,10 +32,66 @@ import { CheckCircle2, AlertCircle } from 'lucide-react';
  * again and is the only one that counts — but so that what the page says is
  * wrong and what the server says is wrong can never be two different lists.
  */
-export default function ProgrammeForm({ programId, stage, onFiled }: {
+const basePath = import.meta.env.BASE_URL.replace(/\/$/, '');
+
+/**
+ * The Lab's masthead, the one from the letters.
+ *
+ * A learner meets four of the Lab's emails and this survey inside a fortnight.
+ * Arriving as two different-looking things from the same organisation reads as
+ * carelessness at best, and the plainer one reads as something forged — which
+ * matters more here than anywhere, because this page asks people to be candid
+ * about their own experience.
+ *
+ * The colours come from @workspace/domain so the letter and this cannot drift
+ * into two near-identical oranges. The name is set in type beside the logo for
+ * the same reason the email does it: an image that fails to load must not take
+ * the Lab's name with it.
+ */
+function Masthead({ title, intro }: { title: string; intro: string }) {
+  return (
+    <div style={{ background: LAB_COLOURS.ink }} className="px-6 py-6 sm:px-8">
+      <div className="flex items-center gap-3">
+        <img
+          src={`${basePath}/logo-white.png`}
+          alt=""
+          width={456}
+          height={160}
+          className="h-8 w-auto"
+        />
+        <span className="sr-only">Ananse Comms Lab</span>
+      </div>
+      <p
+        className="mt-3 text-[11px] uppercase tracking-[0.08em]"
+        style={{ color: LAB_COLOURS.creamLight, opacity: 0.75 }}
+      >
+        {LAB_TAGLINE}
+      </p>
+      <h2 className="mt-4 font-display text-xl font-bold" style={{ color: LAB_COLOURS.creamLight }}>
+        {title}
+      </h2>
+      {intro && (
+        <p className="mt-1.5 max-w-2xl text-sm" style={{ color: LAB_COLOURS.creamLight, opacity: 0.85 }}>
+          {intro}
+        </p>
+      )}
+    </div>
+  );
+}
+
+export default function ProgrammeForm({ programId, stage, onFiled, preview }: {
   programId: number;
   stage: 'before' | 'after';
   onFiled?: () => void;
+  /**
+   * Render these questions instead of fetching, and file nothing.
+   *
+   * For an admin reading a draft before publishing it. Deliberately the same
+   * component rather than a second one that looks like it: a preview built
+   * separately is a preview that stops being true, and the whole point of it is
+   * to show exactly what a learner will meet.
+   */
+  preview?: { title: string; intro: string; questions: FormQuestion[] } | null;
 }) {
   const qc = useQueryClient();
   const { toast } = useToast();
@@ -41,9 +100,15 @@ export default function ProgrammeForm({ programId, stage, onFiled }: {
   /** Only show faults once they have tried. Scolding before they start is rude. */
   const [tried, setTried] = useState(false);
 
-  const { data, isLoading } = useGetProgramForm(programId, stage, {
-    query: { queryKey: getGetProgramFormQueryKey(programId, stage) },
+  const { data: fetched, isLoading } = useGetProgramForm(programId, stage, {
+    query: { queryKey: getGetProgramFormQueryKey(programId, stage), enabled: !preview },
   });
+
+  // One shape whether it came from the server or from a draft being read.
+  const data = preview
+    ? { published: true, filed: false, title: preview.title, intro: preview.intro,
+        questions: preview.questions, filedAt: null }
+    : fetched;
 
   const file = useFileProgramForm({
     mutation: {
@@ -96,7 +161,7 @@ export default function ProgrammeForm({ programId, stage, onFiled }: {
     setFaults(prev => prev.filter(f => f.questionId !== questionId));
   };
 
-  if (isLoading) return <div className="h-64 animate-pulse rounded-lg bg-muted/40" />;
+  if (!preview && isLoading) return <div className="h-64 animate-pulse rounded-lg bg-muted/40" />;
   if (!data?.published) return null;
 
   if (data.filed) {
@@ -124,15 +189,25 @@ export default function ProgrammeForm({ programId, stage, onFiled }: {
       : undefined);
 
   return (
-    <section className="rounded-lg border border-border bg-card p-4 space-y-5">
-      <div>
-        <h2 className="font-display text-lg font-bold">{data.title}</h2>
-        {data.intro && <p className="mt-1 max-w-2xl text-sm text-muted-foreground">{data.intro}</p>}
-        <p className="mt-2 text-xs text-muted-foreground">
-          {progress.answered} of {progress.required} questions answered.
-          {stage === 'after' && ' Your certificate is waiting on this.'}
+    <section
+      className="overflow-hidden rounded-xl border"
+      style={{ borderColor: LAB_COLOURS.rule, background: LAB_COLOURS.cream }}
+    >
+      <Masthead title={data.title ?? ''} intro={data.intro ?? ''} />
+
+      <div className="space-y-5 bg-white p-6 sm:p-8" style={{ color: LAB_COLOURS.ink }}>
+      {preview && (
+        <p
+          className="rounded-md px-3 py-2 text-xs"
+          style={{ background: LAB_COLOURS.creamLight, color: LAB_COLOURS.muted }}
+        >
+          You are reading the draft exactly as a learner will see it. Nothing here can be filed.
         </p>
-      </div>
+      )}
+      <p className="text-xs" style={{ color: LAB_COLOURS.muted }}>
+        {progress.answered} of {progress.required} questions answered.
+        {stage === 'after' && !preview && ' Your certificate is waiting on this.'}
+      </p>
 
       {tried && faults.length > 0 && (
         <p className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/5 p-3 text-xs text-destructive">
@@ -151,8 +226,11 @@ export default function ProgrammeForm({ programId, stage, onFiled }: {
         {sections.map((section, si) => (
           <div key={`${section.name}-${si}`} className="space-y-5">
             {section.name && (
-              <div className="border-b border-border pb-1.5">
-                <p className="text-xs font-semibold uppercase tracking-wider text-[#C2410C]">
+              <div className="pb-1.5" style={{ borderBottom: `2px solid ${LAB_COLOURS.accent}` }}>
+                <p
+                  className="text-xs font-semibold uppercase tracking-wider"
+                  style={{ color: LAB_COLOURS.accent }}
+                >
                   {sectionHeading(si, sections.length, section.name)}
                 </p>
               </div>
@@ -183,9 +261,13 @@ export default function ProgrammeForm({ programId, stage, onFiled }: {
         ))}
       </div>
 
-      <div className="flex flex-wrap items-center gap-3 border-t border-border pt-4">
+      <div
+        className="flex flex-wrap items-center gap-3 pt-4"
+        style={{ borderTop: `1px solid ${LAB_COLOURS.rule}` }}
+      >
         <Button
-          disabled={file.isPending}
+          disabled={file.isPending || !!preview}
+          style={{ background: LAB_COLOURS.accent, color: LAB_COLOURS.ink }}
           onClick={() => {
             setTried(true);
             // Checked here first so an obviously incomplete form does not need
@@ -198,11 +280,14 @@ export default function ProgrammeForm({ programId, stage, onFiled }: {
             file.mutate({ id: programId, stage, data: { answers: given } });
           }}
         >
-          {file.isPending ? 'Filing…' : 'File it'}
+          {preview ? 'File it' : file.isPending ? 'Filing…' : 'File it'}
         </Button>
-        <p className="text-xs text-muted-foreground">
-          You can file this once. Nothing here is marked, and nobody is scored on it.
+        <p className="text-xs" style={{ color: LAB_COLOURS.muted }}>
+          {preview
+            ? 'This button does nothing while you are reading the draft.'
+            : 'You can file this once. Nothing here is marked, and nobody is scored on it.'}
         </p>
+      </div>
       </div>
     </section>
   );
@@ -227,7 +312,8 @@ function QuestionBody({ question, answer, onChange }: {
       <div className="max-w-xl">
         <input
           type="range"
-          className="w-full accent-[#C2410C]"
+          className="w-full"
+          style={{ accentColor: LAB_COLOURS.accent }}
           min={min}
           max={max}
           step={step}
@@ -260,9 +346,12 @@ function QuestionBody({ question, answer, onChange }: {
               aria-label={`${step} of ${scale}`}
               className={`h-9 w-9 rounded-md border text-sm font-medium transition ${
                 picked === step
-                  ? 'border-[#C2410C] bg-[#C2410C] text-white'
-                  : 'border-border bg-background hover:border-[#C2410C]'
+                  ? 'text-white'
+                  : 'bg-white hover:opacity-80'
               }`}
+              style={picked === step
+                ? { background: LAB_COLOURS.accent, borderColor: LAB_COLOURS.accent }
+                : { borderColor: LAB_COLOURS.rule }}
               onClick={() => onChange({ number: step })}
             >
               {step}

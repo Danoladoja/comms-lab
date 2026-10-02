@@ -10,7 +10,8 @@ import { apiReason } from '@workspace/domain';
 import { Button } from '@/components/ui/button';
 import { CouldNotLoad } from '@/components/CouldNotLoad';
 import { useToast } from '@/hooks/use-toast';
-import { ClipboardList, CheckCircle2, AlertTriangle, Eye, EyeOff, Pencil, BarChart3 } from 'lucide-react';
+import { ClipboardList, CheckCircle2, AlertTriangle, Eye, EyeOff, Pencil, BarChart3, BookOpen } from 'lucide-react';
+import ProgrammeForm from '@/components/ProgrammeForm';
 import FormEditor from '@/components/FormEditor';
 import FormAnalysis from '@/components/FormAnalysis';
 
@@ -35,7 +36,12 @@ export default function FormsAdmin() {
    * results. One at a time rather than three panels stacked, because editing a
    * form and reading its results are different jobs done on different days.
    */
-  const [open, setOpen] = useState<{ what: 'editor'; stage: 'before' | 'after' } | { what: 'analysis' } | null>(null);
+  const [open, setOpen] = useState<
+    | { what: 'editor'; stage: 'before' | 'after' }
+    | { what: 'preview'; stage: 'before' | 'after' }
+    | { what: 'analysis' }
+    | null
+  >(null);
 
   const chosen = useMemo(() => {
     if (programId !== null) return programId;
@@ -130,9 +136,57 @@ export default function FormsAdmin() {
         <FormAnalysis programId={chosen as number} onBack={() => setOpen(null)} />
       )}
 
+      {/*
+        Reading the draft, as a learner will see it.
+
+        An admin who has just created a twenty-three question survey needs to
+        read it before putting it in front of forty-five people, and a list of
+        prompts in an editor is not reading it. This is the learner's own
+        component with the draft's questions handed to it, so what is previewed
+        cannot drift from what is served.
+      */}
+      {data && open?.what === 'preview' && (() => {
+        const form = data.forms.find(f => f.stage === open.stage);
+        if (!form?.exists) {
+          return (
+            <MissingForm stage={open.stage} onBack={() => setOpen(null)} />
+          );
+        }
+        return (
+          <div className="space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-sm font-semibold">
+                Reading the draft — {form.stage === 'before' ? 'opening assessment' : 'closing survey'}
+              </p>
+              <div className="flex gap-2">
+                <Button size="sm" variant="outline"
+                  onClick={() => setOpen({ what: 'editor', stage: form.stage })}>
+                  <Pencil className="mr-1.5 h-3.5 w-3.5" aria-hidden />Edit it
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => setOpen(null)}>Back</Button>
+              </div>
+            </div>
+            <ProgrammeForm
+              programId={chosen as number}
+              stage={form.stage}
+              preview={{
+                title: form.title ?? '',
+                intro: form.intro ?? '',
+                questions: (form.questions ?? []) as never,
+              }}
+            />
+          </div>
+        );
+      })()}
+
       {data && open?.what === 'editor' && (() => {
         const form = data.forms.find(f => f.stage === open.stage);
-        if (!form?.exists) return null;
+        // Never a blank screen. A form that is not there yet says so and
+        // offers the way back, rather than rendering nothing and stranding
+        // somebody on a page with no controls at all.
+        if (!form?.exists) {
+          return <MissingForm stage={open.stage} onBack={() => setOpen(null)} />;
+        }
         return <FormEditor programId={chosen as number} form={form} onDone={() => setOpen(null)} />;
       })()}
 
@@ -152,6 +206,7 @@ export default function FormsAdmin() {
               busy={create.isPending || publish.isPending}
               onCreate={() => create.mutate({ id: chosen as number, stage: form.stage })}
               onEdit={() => setOpen({ what: 'editor', stage: form.stage })}
+              onPreview={() => setOpen({ what: 'preview', stage: form.stage })}
               onPublish={(published) => {
                 if (published && form.stage === 'after' && !confirm(
                   'Publish the closing survey?\n\n'
@@ -169,13 +224,14 @@ export default function FormsAdmin() {
   );
 }
 
-function FormCard({ form, enrolled, busy, onCreate, onPublish, onEdit }: {
+function FormCard({ form, enrolled, busy, onCreate, onPublish, onEdit, onPreview }: {
   form: ProgramFormSummary;
   enrolled: number;
   busy: boolean;
   onCreate: () => void;
   onPublish: (published: boolean) => void;
   onEdit: () => void;
+  onPreview: () => void;
 }) {
   const opening = form.stage === 'before';
   const name = opening ? 'Opening assessment' : 'Closing survey';
@@ -235,6 +291,9 @@ function FormCard({ form, enrolled, busy, onCreate, onPublish, onEdit }: {
           )}
 
           <div className="mt-3 flex flex-wrap gap-2">
+            <Button size="sm" variant="outline" onClick={onPreview}>
+              <BookOpen className="mr-1.5 h-3.5 w-3.5" aria-hidden />Read it
+            </Button>
             <Button size="sm" variant="outline" onClick={onEdit}>
               <Pencil className="mr-1.5 h-3.5 w-3.5" aria-hidden />Edit the questions
             </Button>
@@ -266,6 +325,27 @@ function FormCard({ form, enrolled, busy, onCreate, onPublish, onEdit }: {
           )}
         </>
       )}
+    </div>
+  );
+}
+
+/**
+ * What to draw when somebody asks for a form that has not been created.
+ *
+ * This replaced `return null`, which rendered an empty page with no controls
+ * and no way back — the same fault, for the third time in this codebase, of
+ * something that draws nothing when a condition quietly fails to hold.
+ */
+function MissingForm({ stage, onBack }: { stage: 'before' | 'after'; onBack: () => void }) {
+  return (
+    <div className="rounded-lg border border-border bg-card p-4">
+      <p className="text-sm font-medium">
+        There is no {stage === 'before' ? 'opening assessment' : 'closing survey'} yet.
+      </p>
+      <p className="mt-1 text-xs text-muted-foreground">
+        Create it from the Lab's standard questions first, then you can read it and edit it.
+      </p>
+      <Button size="sm" variant="outline" className="mt-3" onClick={onBack}>Back</Button>
     </div>
   );
 }
