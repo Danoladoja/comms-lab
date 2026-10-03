@@ -119,6 +119,23 @@ export async function generateDebrief(input: {
   return { ok: true, value: debrief };
 }
 
+/**
+ * How many times to ask for the running order before giving up.
+ *
+ * A model's reply is not deterministic, and the shapes that this one comes
+ * back in are not all usable: an empty list where there should be four
+ * objectives, the objectives written out as prose, a field under a name the
+ * schema did not ask for. Each of those reached an admin as a refusal and a
+ * button to press again — so the Lab was asking a person to do, by hand and
+ * without being told that was what they were doing, the one thing it could
+ * perfectly well do itself.
+ *
+ * Three, because the second attempt usually lands and the third is for the day
+ * it does not. The ceiling matters: this is a paid call, and a loop with no end
+ * on it is a bill nobody can explain.
+ */
+const PLAN_ATTEMPTS = 3;
+
 /** Plan a group session: what it tests, and what happens when. */
 export async function generateGroupPlan(args: {
   openingBrief: string;
@@ -127,6 +144,36 @@ export async function generateGroupPlan(args: {
   durationMinutes: number;
   programme?: StudioProgrammeContext | null;
 }): Promise<AiResult<ValidatedGroupPlan>> {
+  let lastProblem = "";
+
+  for (let attempt = 1; attempt <= PLAN_ATTEMPTS; attempt += 1) {
+    const result = await onePlanAttempt(args, attempt);
+    if (result.ok) return result;
+    // A failure that asking again cannot mend: no key, a rejected key, a model
+    // that is not served any more, a timeout. Pressing on would spend three
+    // calls to say the same thing three times.
+    if (result.fatal) return { ok: false, error: result.error };
+    lastProblem = result.error;
+  }
+
+  return {
+    ok: false,
+    error: `${lastProblem} Asked ${PLAN_ATTEMPTS} times and it came back unusable each time.`,
+  };
+}
+
+/** Whether asking the same question again could plausibly answer it. */
+function worthAskingAgain(error: string): boolean {
+  return !/key|no longer|unavailable|busy|overloaded|took too long|could not reach/i.test(error);
+}
+
+async function onePlanAttempt(args: {
+  openingBrief: string;
+  teams: readonly { id: string; name: string; roleName: string }[];
+  objective: string;
+  durationMinutes: number;
+  programme?: StudioProgrammeContext | null;
+}, attempt: number): Promise<{ ok: true; value: ValidatedGroupPlan } | { ok: false; error: string; fatal: boolean }> {
   const answer = await askClaude({
     system: groupPlanSystemPrompt(),
     user: groupPlanUserPrompt(args),
@@ -140,12 +187,14 @@ export async function generateGroupPlan(args: {
     // rather than as a plan with nowhere to go. A ceiling is a cap, not a
     // spend: raising it costs nothing on the replies that already fitted.
     maxTokens: 8000,
-    label: "studio-group-plan",
+    label: `studio-group-plan-${attempt}`,
   });
-  if ("error" in answer) return { ok: false, error: answer.error };
+  if ("error" in answer) {
+    return { ok: false, error: answer.error, fatal: !worthAskingAgain(answer.error) };
+  }
 
   const { plan, problem } = validateGroupPlan(answer.input, args.durationMinutes);
-  if (!plan) return { ok: false, error: problem };
+  if (!plan) return { ok: false, error: problem, fatal: false };
   return { ok: true, value: plan };
 }
 

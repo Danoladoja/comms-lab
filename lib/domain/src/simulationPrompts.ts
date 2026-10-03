@@ -851,6 +851,21 @@ function asList(value: unknown): unknown[] {
   // A single item sent bare. Nearly right, and throwing it away would refuse a
   // session over a punctuation-level difference in what the model sent.
   if (value && typeof value === "object") return [value];
+  /*
+    The whole list written out as prose.
+
+    A model asked for objectives sometimes answers with them as one block of
+    text — numbered, bulleted or one per line — rather than as a list. The
+    content is right there and was being thrown away whole, which read on the
+    screen as "the plan came back with no objectives" when it had come back
+    with four.
+  */
+  if (typeof value === "string") {
+    return value
+      .split(/\r?\n+/)
+      .map((line) => line.replace(/^\s*(?:[-*\u2022]|\d+[.)])\s*/, "").trim())
+      .filter((line) => line.length > 0);
+  }
   return [];
 }
 

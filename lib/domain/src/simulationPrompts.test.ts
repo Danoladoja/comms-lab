@@ -617,10 +617,24 @@ describe("a group plan that came back in an odd shape", () => {
     expect(said).not.toContain("Dawn Energy");
   });
 
+  it("reads a list of objectives written out as prose", () => {
+    // One block of text where a list was asked for. The content is right there.
+    const { plan } = validateGroupPlan({
+      ...goodPlan,
+      objectives: "1. Lead with the figure that hurts\n2. Hold a line under pressure\n- Say it first",
+    }, 45);
+    expect(plan?.objectives).toHaveLength(3);
+    expect(plan?.objectives[0].text).toBe("Lead with the figure that hurts");
+    expect(plan?.objectives[2].text).toBe("Say it first");
+  });
+
   it("refuses in words rather than throwing, whatever it is handed", () => {
     // The actual fault. Each of these used to be a TypeError.
     const shapes: unknown[] = [
-      { objectives: "a sentence where a list should be", beats: goodPlan.beats },
+      // A sentence under `objectives` is NOT here any more: it is now read as
+      // one objective, because that is plainly what it is and refusing a
+      // session over it helped nobody. A sentence under `beats` still refuses —
+      // a beat needs a minute and a scope, and prose has neither.
       { objectives: goodPlan.objectives, beats: "a sentence where a list should be" },
       { objectives: 7, beats: 9 },
       { objectives: null, beats: null },
