@@ -13,6 +13,8 @@ import {
   validateDebrief,
   validateDevelopment,
   validateScenario,
+  validateGroupPlan,
+  validateSessionDebrief,
 } from "./simulationPrompts";
 
 const goodDevelopment = {
@@ -523,5 +525,104 @@ describe("the admin's steer in the prompt", () => {
     expect(prompt).toMatch(/does not replace anything above it/);
     // Still asked for what it was always asked for.
     expect(prompt).toContain("Say the hard number first");
+  });
+});
+
+/**
+ * A reply in an odd shape is a sentence, never a crash.
+ *
+ * This is the bug that took the Studio down for a week and could not be
+ * reported from the screen. `validateGroupPlan` did `(raw?.objectives ?? [])
+ * .map(...)`, which is correct for every reply where the model sends an array
+ * and a TypeError for the ones where it sends a single object instead. A
+ * TypeError is a 500, a 500 is "Something went wrong. Please try again.", and
+ * an admin pressing "Plan a session" before a cohort had no way to learn any
+ * more than that.
+ *
+ * Every other validator in this file already used Array.isArray. This one did
+ * not, and it was the only one behind a button.
+ */
+
+const goodPlan = {
+  objectives: [
+    { text: "Say something true within the hour", note: "Watch who they address first." },
+    { text: "Hold a line under pressure", note: "Watch for over-claiming." },
+  ],
+  beats: [
+    { atMinute: 0, scope: "all", title: "The photographs run", content: "It is on the front page.", responsePrompt: "First statement?", responseMinutes: 8 },
+    { atMinute: 20, scope: "team", teamId: "operator", title: "An email leaks", content: "Day-one knowledge is published.", responsePrompt: "Correct the record?", responseMinutes: 8 },
+  ],
+};
+
+describe("a group plan that came back in an odd shape", () => {
+  it("reads a well-formed plan", () => {
+    const { plan } = validateGroupPlan(goodPlan, 45);
+    expect(plan?.objectives).toHaveLength(2);
+    expect(plan?.beats).toHaveLength(2);
+  });
+
+  it("reads a lone objective sent bare as a list of one", () => {
+    // Nearly right. Refusing the session over it would be refusing it over
+    // punctuation, and the admin cannot make the model send it differently.
+    const { plan } = validateGroupPlan(
+      { ...goodPlan, objectives: { text: "Lead with the figure that hurts", note: "n" } }, 45,
+    );
+    expect(plan?.objectives).toHaveLength(1);
+    expect(plan?.objectives[0].text).toBe("Lead with the figure that hurts");
+  });
+
+  it("reads a lone beat sent bare as a list of one", () => {
+    const { plan } = validateGroupPlan(
+      { ...goodPlan, beats: { atMinute: 5, scope: "all", title: "t", content: "It lands.", responsePrompt: "p" } }, 45,
+    );
+    expect(plan?.beats).toHaveLength(1);
+  });
+
+  it("refuses in words rather than throwing, whatever it is handed", () => {
+    // The actual fault. Each of these used to be a TypeError.
+    const shapes: unknown[] = [
+      { objectives: "a sentence where a list should be", beats: goodPlan.beats },
+      { objectives: goodPlan.objectives, beats: "a sentence where a list should be" },
+      { objectives: 7, beats: 9 },
+      { objectives: null, beats: null },
+      { beats: goodPlan.beats },
+      {},
+      [],
+      "the model wrote prose",
+      null,
+      undefined,
+      42,
+    ];
+    for (const shape of shapes) {
+      expect(() => validateGroupPlan(shape, 45), `${JSON.stringify(shape)} threw`).not.toThrow();
+      const { plan, problem } = validateGroupPlan(shape, 45);
+      expect(plan, `${JSON.stringify(shape)} was accepted`).toBeNull();
+      expect(problem, `${JSON.stringify(shape)} refused without saying why`).not.toBe("");
+    }
+  });
+
+  it("survives a list whose items are not objects", () => {
+    expect(() => validateGroupPlan({ objectives: ["a string", null, 7], beats: [null, "x"] }, 45)).not.toThrow();
+  });
+});
+
+describe("no validator in this file throws on a reply it did not expect", () => {
+  it("because what it guards is a model's output, not our own", () => {
+    // A sweep rather than a case, because the next validator added here will be
+    // written on the same assumption that caught this one.
+    const nonsense: unknown[] = [
+      null, undefined, 0, "", "prose", 42, true, [], {}, [1, 2], { objectives: 1, beats: 2 },
+      { stakeholderGroups: "x", evaluationDimensions: 3 },
+      { byObjective: "x", recommendations: 4 },
+      { ratings: "x", strengths: 1, risks: {} },
+    ];
+    for (const value of nonsense) {
+      const where = JSON.stringify(value) ?? String(value);
+      expect(() => validateScenario(value), `validateScenario threw on ${where}`).not.toThrow();
+      expect(() => validateDevelopment(value, "opening"), `validateDevelopment threw on ${where}`).not.toThrow();
+      expect(() => validateDebrief(value), `validateDebrief threw on ${where}`).not.toThrow();
+      expect(() => validateGroupPlan(value, 45), `validateGroupPlan threw on ${where}`).not.toThrow();
+      expect(() => validateSessionDebrief(value), `validateSessionDebrief threw on ${where}`).not.toThrow();
+    }
   });
 });

@@ -832,6 +832,29 @@ export type ValidatedGroupPlan = {
 };
 
 /**
+ * Whatever came back, as a list.
+ *
+ * A tool schema says `type: "array"` and a model mostly sends an array. Mostly
+ * is the whole problem: asked for three or four objectives it occasionally
+ * sends one, as a bare object rather than a list of one, and `.map` is not a
+ * function on an object. That is a TypeError, a TypeError is a 500, and a 500
+ * is "Something went wrong. Please try again." in front of somebody about to
+ * run a session for a cohort.
+ *
+ * So a lone object is read as a list of one, which is what it plainly means,
+ * and anything else becomes an empty list for the checks below to refuse in
+ * words. Every other validator in this file already guards this way; this one
+ * did not, and it is the only one reached by a button an admin presses.
+ */
+function asList(value: unknown): unknown[] {
+  if (Array.isArray(value)) return value;
+  // A single item sent bare. Nearly right, and throwing it away would refuse a
+  // session over a punctuation-level difference in what the model sent.
+  if (value && typeof value === "object") return [value];
+  return [];
+}
+
+/**
  * Make the plan safe to store and to run.
  *
  * Every number is clamped and every beat is given an id here rather than
@@ -839,41 +862,50 @@ export type ValidatedGroupPlan = {
  * whatever it is handed: a beat at minute 9999 never fires, one at minute -3
  * fires immediately and repeatedly, and two beats sharing an id means the
  * second is silently treated as already delivered.
+ *
+ * And nothing in here may throw. It is the last thing between a model's reply
+ * and an admin's screen, so a reply in an unexpected shape has to come back as
+ * a sentence — "the plan came back with no objectives" — rather than as a
+ * crash, which says nothing and cannot be acted on.
  */
 export function validateGroupPlan(input: unknown, durationMinutes: number): {
   plan: ValidatedGroupPlan | null;
   problem: string;
 } {
   const raw = input as {
-    objectives?: { text?: unknown; note?: unknown }[];
-    beats?: {
-      atMinute?: unknown; scope?: unknown; teamId?: unknown; title?: unknown;
-      content?: unknown; responsePrompt?: unknown; responseMinutes?: unknown;
-    }[];
+    objectives?: unknown;
+    beats?: unknown;
   } | null;
 
   const text = (value: unknown): string => (typeof value === "string" ? value.trim() : "");
 
-  const objectives = (raw?.objectives ?? [])
-    .map((o, i) => ({ id: `obj-${i + 1}`, text: text(o?.text), note: text(o?.note), enabled: true }))
+  const objectives = asList(raw?.objectives)
+    .map((value, i) => {
+      const o = (value ?? {}) as { text?: unknown; note?: unknown };
+      return { id: `obj-${i + 1}`, text: text(o.text), note: text(o.note), enabled: true };
+    })
     .filter((o) => o.text.length > 0);
   if (objectives.length === 0) return { plan: null, problem: "The plan came back with no objectives." };
 
-  const beats = (raw?.beats ?? [])
-    .map((b, i) => {
-      const minute = Number(b?.atMinute);
-      const scope = b?.scope === "team" ? "team" as const : "all" as const;
-      const response = Number(b?.responseMinutes);
+  const beats = asList(raw?.beats)
+    .map((value, i) => {
+      const b = (value ?? {}) as {
+        atMinute?: unknown; scope?: unknown; teamId?: unknown; title?: unknown;
+        content?: unknown; responsePrompt?: unknown; responseMinutes?: unknown;
+      };
+      const minute = Number(b.atMinute);
+      const scope = b.scope === "team" ? "team" as const : "all" as const;
+      const response = Number(b.responseMinutes);
       return {
         id: `beat-${i + 1}`,
         // Inside the session, and never negative. A beat past the end never
         // fires; one before the start fires the instant it begins.
         atMinute: Number.isFinite(minute) ? Math.min(Math.max(0, Math.round(minute)), durationMinutes - 1) : 0,
         scope,
-        ...(scope === "team" && text(b?.teamId) ? { teamId: text(b?.teamId) } : {}),
-        title: text(b?.title) || "A development",
-        content: text(b?.content),
-        responsePrompt: text(b?.responsePrompt) || "What do you do?",
+        ...(scope === "team" && text(b.teamId) ? { teamId: text(b.teamId) } : {}),
+        title: text(b.title) || "A development",
+        content: text(b.content),
+        responsePrompt: text(b.responsePrompt) || "What do you do?",
         responseMinutes: Number.isFinite(response) ? Math.min(Math.max(2, Math.round(response)), 15) : 5,
       };
     })
