@@ -483,8 +483,13 @@ export function whatToDoAboutPlanning(status: number | null): string | null {
       + "thing to change.";
   }
   if (status !== null && status >= 500) {
-    return "The Lab had a problem at its end. Try once more, and if it says the same thing "
-      + "again the server log will have the detail.";
+    // The server now names the step it crashed at and the kind of fault, so the
+    // useful thing to do with this is pass the sentence on rather than go
+    // looking for a log. Trying again is still worth one attempt: a crash in
+    // one of the two AI steps can be a one-off reply in an odd shape.
+    return "This is a fault in the Lab, not in anything you did, and nothing reached the cohort. "
+      + "Try once more; if it says the same thing, send the sentence above on — it names the "
+      + "step that broke.";
   }
   return null;
 }

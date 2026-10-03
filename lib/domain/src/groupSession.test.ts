@@ -423,6 +423,13 @@ describe("what to do when planning is refused", () => {
     expect(whatToDoAboutPlanning(502)).toContain("ANTHROPIC_MODEL");
   });
 
+  it("tells a crash apart from a refusal, and says the message is worth passing on", () => {
+    const said = whatToDoAboutPlanning(500);
+    expect(said).toContain("not in anything you did");
+    expect(said).toContain("nothing reached the cohort");
+    expect(said).toContain("names the");
+  });
+
   it("says nothing rather than guessing", () => {
     // A suggestion invented for a code we do not recognise sends somebody
     // looking in the wrong place, which is worse than the server's own

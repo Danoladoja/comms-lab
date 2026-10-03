@@ -527,6 +527,45 @@ describe("planning a group session, and being told why not", () => {
     expect(ai.generateGroupPlan, "the running order is not written for a crisis that was not").not.toHaveBeenCalled();
   });
 
+  it("names the step it crashed at, instead of shrugging", async () => {
+    // The fault that started all this: a 500 somewhere in a run of five steps,
+    // reported to the admin as "Something went wrong. Please try again." — true
+    // of every one of them and useful about none.
+    mocks.setUser({ id: 1, role: "superadmin" });
+    mocks.setRows({ programs: [PROGRAMME], sessions: [] });
+    ai.generateScenario.mockRejectedValueOnce(Object.assign(new Error("boom"), { code: "23502" }));
+
+    const res = await plan();
+    expect(res.status).toBe(500);
+    const said = (await res.json() as { error: string }).error;
+    expect(said, "it must say which step").toContain("writing the crisis");
+    expect(said, "and what kind of fault").toContain("23502");
+    expect(said, "and that nothing reached the cohort").toContain("Nothing was sent to the cohort");
+    expect(said, "never the error's own message").not.toContain("boom");
+  });
+
+  it("names a crash in the last step as the last step, not the first", async () => {
+    // The stage has to move as the run does. A marker set once at the top would
+    // send somebody to look at the programme for a fault in the read-back.
+    mocks.setUser({ id: 1, role: "superadmin" });
+    mocks.setRows({ programs: [PROGRAMME], sessions: [] });
+    ai.generateScenario.mockResolvedValueOnce({
+      ok: true,
+      value: {
+        title: "Pipeline leak", openingBrief: "A leak.",
+        stakeholderGroups: [{ id: "operator", name: "The operator", roleName: "Lead", confidentialBrief: "b" }],
+        initialDevelopment: { id: "opening", title: "t", content: "c", responsePrompt: "p" },
+        evaluationDimensions: [{ name: "Speed", description: "d" }],
+        debriefQuestions: [],
+      },
+    });
+    ai.generateGroupPlan.mockRejectedValueOnce(new TypeError("nope"));
+
+    const said = (await (await plan()).json() as { error: string }).error;
+    expect(said).toContain("writing the running order");
+    expect(said).toContain("TypeError");
+  });
+
   it("passes the reason on, under 502, when the running order cannot be written", async () => {
     mocks.setUser({ id: 1, role: "superadmin" });
     mocks.setRows({ programs: [PROGRAMME], sessions: [] });

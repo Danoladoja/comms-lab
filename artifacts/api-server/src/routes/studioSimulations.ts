@@ -38,6 +38,7 @@ import {
 } from "@workspace/domain";
 import { getCurrentUser } from "../lib/auth";
 import { aiStatus } from "../lib/anthropic";
+import { whatBroke } from "../lib/whatBroke";
 import { logger } from "../lib/logger";
 import { createBudget } from "../lib/rateBudget";
 import { emailConfigured, sendEmail } from "../lib/email";
@@ -1177,96 +1178,123 @@ router.post("/admin/studio/group-sessions", async (req, res): Promise<void> => {
     return;
   }
 
-  const programme = await programmeContext(body.data.programId);
-  if (!programme) { res.status(404).json(message("Programme not found")); return; }
+  /*
+    Which step this got to, so a crash can say where it happened.
 
-  const [row] = await db.select().from(programsTable).where(eq(programsTable.id, body.data.programId));
-  const moduleTitles = programme.moduleTitles ?? [];
-  const objective = objectiveFor({
-    programmeTitle: row.title,
-    programmeDescription: row.description,
-    moduleTitles,
-  });
-  const durationMinutes = body.data.durationMinutes ?? GROUP_SESSION_MINUTES;
+    Everything below was one unbroken run that answered "Something went wrong.
+    Please try again." for any fault anywhere in it — reading the programme,
+    two calls to the AI, two inserts and a read-back. That sentence is true of
+    all five and useful about none, and it is the only thing the person who
+    pressed the button can report.
+  */
+  let stage = "reading the programme";
+  try {
 
-  // The situation is drawn the same way an individual's is, from a seed — so a
-  // second session on the same programme is a different crisis rather than the
-  // same one again.
-  const seed = `group:${body.data.programId}:${randomBytes(6).toString("hex")}`;
-  const situation = situationFor(seed);
+    const programme = await programmeContext(body.data.programId);
+    if (!programme) { res.status(404).json(message("Programme not found")); return; }
 
-  const scenario = await generateScenario({
-    sectorTopic: situationBrief(situation),
-    objective,
-    participantPerspective: "Head of Communications",
-    mode: "facilitated",
-    difficulty: body.data.difficulty ?? "intermediate",
-    durationMinutes,
-    programme,
-  });
-  if (!scenario.ok) {
-    req.log.error({ reason: scenario.error, by: user.id }, "Group scenario generation failed");
-    res.status(502).json(message(scenario.error));
-    return;
+    const [row] = await db.select().from(programsTable).where(eq(programsTable.id, body.data.programId));
+    const moduleTitles = programme.moduleTitles ?? [];
+    const objective = objectiveFor({
+      programmeTitle: row.title,
+      programmeDescription: row.description,
+      moduleTitles,
+    });
+    const durationMinutes = body.data.durationMinutes ?? GROUP_SESSION_MINUTES;
+
+    // The situation is drawn the same way an individual's is, from a seed — so a
+    // second session on the same programme is a different crisis rather than the
+    // same one again.
+    const seed = `group:${body.data.programId}:${randomBytes(6).toString("hex")}`;
+    const situation = situationFor(seed);
+
+    stage = "writing the crisis";
+    const scenario = await generateScenario({
+      sectorTopic: situationBrief(situation),
+      objective,
+      participantPerspective: "Head of Communications",
+      mode: "facilitated",
+      difficulty: body.data.difficulty ?? "intermediate",
+      durationMinutes,
+      programme,
+    });
+    if (!scenario.ok) {
+      req.log.error({ reason: scenario.error, by: user.id }, "Group scenario generation failed");
+      res.status(502).json(message(scenario.error));
+      return;
+    }
+
+    stage = "writing the running order";
+    const plan = await generateGroupPlan({
+      openingBrief: scenario.value.openingBrief,
+      teams: scenario.value.stakeholderGroups.map((g) => ({ id: g.id, name: g.name, roleName: g.roleName })),
+      objective,
+      durationMinutes,
+      programme,
+    });
+    if (!plan.ok) {
+      req.log.error({ reason: plan.error, by: user.id }, "Group plan generation failed");
+      res.status(502).json(message(plan.error));
+      return;
+    }
+
+    stage = "saving the draft";
+    const [definition] = await db.insert(simulationDefinitionsTable).values({
+      ownerId: user.id, programId: body.data.programId,
+      // Not published. A group scenario is not something a learner opens on their
+      // own — they reach it only through the session, when it goes live.
+      published: false,
+      mode: "facilitated", title: scenario.value.title, context: situationBrief(situation),
+      learningObjective: objective, difficulty: body.data.difficulty ?? "intermediate",
+      durationMinutes, participantPerspective: "Head of Communications",
+      openingBrief: scenario.value.openingBrief, groups: scenario.value.stakeholderGroups,
+      injects: [openingInject(scenario.value.initialDevelopment)],
+      evaluationDimensions: scenario.value.evaluationDimensions,
+      debriefQuestions: scenario.value.debriefQuestions,
+    }).returning();
+
+    const [session] = await db.insert(studioGroupSessionsTable).values({
+      programId: body.data.programId,
+      definitionId: definition.id,
+      title: scenario.value.title,
+      objectives: plan.value.objectives,
+      beats: plan.value.beats.map((b) => ({
+        id: b.id, atMinute: b.atMinute, scope: b.scope, title: b.title,
+        content: b.content, responsePrompt: b.responsePrompt, responseMinutes: b.responseMinutes,
+      })),
+      scheduledAt: body.data.scheduledAt ? new Date(body.data.scheduledAt) : null,
+      durationMinutes,
+      sessionId: body.data.sessionId ?? null,
+      createdByUserId: user.id,
+    }).returning();
+
+    const linkProblem = await linkSessionToModule(
+      session.sessionId, session.programId, session.scheduledAt, session.durationMinutes,
+    );
+    if (linkProblem) {
+      // Said rather than swallowed, and the draft is left standing: the scenario
+      // cost a model call and is perfectly good. Only the link failed, and the
+      // admin can point it at a module from the same screen.
+      await db.update(studioGroupSessionsTable).set({ sessionId: null })
+        .where(eq(studioGroupSessionsTable.id, session.id));
+      session.sessionId = null;
+      req.log.warn({ sessionId: session.id, asked: body.data.sessionId, linkProblem }, "Could not put a group session on a module");
+    }
+
+    req.log.info({ sessionId: session.id, programId: body.data.programId, module: session.sessionId, by: user.id }, "Group session drafted");
+    stage = "reading the draft back";
+    res.status(201).json(GetGroupSessionResponse.parse(await groupSessionView(session)));
+
+  } catch (err) {
+    // Logged in full, as every unhandled error already is. What goes back is
+    // the step and a safe name for the fault — never the message, which on
+    // this platform can quote somebody's coursework back at the screen.
+    req.log.error({ err, stage, programId: body.data.programId, by: user.id }, "Planning a group session threw");
+    res.status(500).json(message(
+      `The Lab broke while ${stage}: ${whatBroke(err)}. `
+      + "Nothing was sent to the cohort. Send this sentence on — it names the step.",
+    ));
   }
-
-  const plan = await generateGroupPlan({
-    openingBrief: scenario.value.openingBrief,
-    teams: scenario.value.stakeholderGroups.map((g) => ({ id: g.id, name: g.name, roleName: g.roleName })),
-    objective,
-    durationMinutes,
-    programme,
-  });
-  if (!plan.ok) {
-    req.log.error({ reason: plan.error, by: user.id }, "Group plan generation failed");
-    res.status(502).json(message(plan.error));
-    return;
-  }
-
-  const [definition] = await db.insert(simulationDefinitionsTable).values({
-    ownerId: user.id, programId: body.data.programId,
-    // Not published. A group scenario is not something a learner opens on their
-    // own — they reach it only through the session, when it goes live.
-    published: false,
-    mode: "facilitated", title: scenario.value.title, context: situationBrief(situation),
-    learningObjective: objective, difficulty: body.data.difficulty ?? "intermediate",
-    durationMinutes, participantPerspective: "Head of Communications",
-    openingBrief: scenario.value.openingBrief, groups: scenario.value.stakeholderGroups,
-    injects: [openingInject(scenario.value.initialDevelopment)],
-    evaluationDimensions: scenario.value.evaluationDimensions,
-    debriefQuestions: scenario.value.debriefQuestions,
-  }).returning();
-
-  const [session] = await db.insert(studioGroupSessionsTable).values({
-    programId: body.data.programId,
-    definitionId: definition.id,
-    title: scenario.value.title,
-    objectives: plan.value.objectives,
-    beats: plan.value.beats.map((b) => ({
-      id: b.id, atMinute: b.atMinute, scope: b.scope, title: b.title,
-      content: b.content, responsePrompt: b.responsePrompt, responseMinutes: b.responseMinutes,
-    })),
-    scheduledAt: body.data.scheduledAt ? new Date(body.data.scheduledAt) : null,
-    durationMinutes,
-    sessionId: body.data.sessionId ?? null,
-    createdByUserId: user.id,
-  }).returning();
-
-  const linkProblem = await linkSessionToModule(
-    session.sessionId, session.programId, session.scheduledAt, session.durationMinutes,
-  );
-  if (linkProblem) {
-    // Said rather than swallowed, and the draft is left standing: the scenario
-    // cost a model call and is perfectly good. Only the link failed, and the
-    // admin can point it at a module from the same screen.
-    await db.update(studioGroupSessionsTable).set({ sessionId: null })
-      .where(eq(studioGroupSessionsTable.id, session.id));
-    session.sessionId = null;
-    req.log.warn({ sessionId: session.id, asked: body.data.sessionId, linkProblem }, "Could not put a group session on a module");
-  }
-
-  req.log.info({ sessionId: session.id, programId: body.data.programId, module: session.sessionId, by: user.id }, "Group session drafted");
-  res.status(201).json(GetGroupSessionResponse.parse(await groupSessionView(session)));
 });
 
 /** Read one, to approve it. */
