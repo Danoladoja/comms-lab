@@ -2007,6 +2007,14 @@ export interface StudioAiStatus {
   concern: string | null;
 }
 
+export type PlanGroupSessionFormat = typeof PlanGroupSessionFormat[keyof typeof PlanGroupSessionFormat];
+
+
+export const PlanGroupSessionFormat = {
+  rapid: 'rapid',
+  room: 'room',
+} as const;
+
 export type PlanGroupSessionDifficulty = typeof PlanGroupSessionDifficulty[keyof typeof PlanGroupSessionDifficulty];
 
 
@@ -2018,6 +2026,7 @@ export const PlanGroupSessionDifficulty = {
 
 export interface PlanGroupSession {
   programId: number;
+  format?: PlanGroupSessionFormat;
   scheduledAt?: string;
   /**
      * @minimum 15
@@ -2069,6 +2078,14 @@ export interface GroupSessionBeat {
   approvalNote: string;
 }
 
+export type GroupSessionFormat = typeof GroupSessionFormat[keyof typeof GroupSessionFormat];
+
+
+export const GroupSessionFormat = {
+  rapid: 'rapid',
+  room: 'room',
+} as const;
+
 export type GroupSessionState = typeof GroupSessionState[keyof typeof GroupSessionState];
 
 
@@ -2108,6 +2125,7 @@ export type GroupSessionSessionDebrief = {
 } | null;
 
 export interface GroupSession {
+  format: GroupSessionFormat;
   id: number;
   programId: number;
   title: string;
@@ -2354,6 +2372,14 @@ export interface StudioCohort {
   learners: StudioCohortLearnersItem[];
 }
 
+export type MyGroupSessionFormat = typeof MyGroupSessionFormat[keyof typeof MyGroupSessionFormat];
+
+
+export const MyGroupSessionFormat = {
+  rapid: 'rapid',
+  room: 'room',
+} as const;
+
 export type MyGroupSessionState = typeof MyGroupSessionState[keyof typeof MyGroupSessionState];
 
 
@@ -2365,6 +2391,7 @@ export const MyGroupSessionState = {
 } as const;
 
 export interface MyGroupSession {
+  format?: MyGroupSessionFormat;
   hasSession: boolean;
   id?: number;
   title?: string;
@@ -2673,6 +2700,17 @@ export interface StudioRunClock {
   responseExpired: boolean;
 }
 
+/**
+ * @nullable
+ */
+export type StudioSimulationRunSessionFormat = typeof StudioSimulationRunSessionFormat[keyof typeof StudioSimulationRunSessionFormat] | null;
+
+
+export const StudioSimulationRunSessionFormat = {
+  rapid: 'rapid',
+  room: 'room',
+} as const;
+
 export type StudioSimulationRunMode = typeof StudioSimulationRunMode[keyof typeof StudioSimulationRunMode];
 
 
@@ -2690,6 +2728,8 @@ export const StudioSimulationRunStatus = {
 } as const;
 
 export interface StudioSimulationRun {
+  /** @nullable */
+  sessionFormat?: StudioSimulationRunSessionFormat;
   id: number;
   simulationId: number;
   mode: StudioSimulationRunMode;

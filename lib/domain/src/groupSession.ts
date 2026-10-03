@@ -493,3 +493,81 @@ export function whatToDoAboutPlanning(status: number | null): string | null {
   }
   return null;
 }
+
+/* ------------------------------------------------------------------ *
+ * The two shapes a session can take
+ * ------------------------------------------------------------------ */
+
+/**
+ * One crisis, two ways of being in it.
+ *
+ * These are different exercises, not a setting and its default, and the words
+ * on the screen say so: picking one decides what the cohort is being tested on
+ * for forty-five minutes.
+ *
+ *   **Rapid Response Session.** Anyone on the team can answer and the first
+ *   answer in is the team's answer. Nerve, speed, and the judgement to go
+ *   without waiting to be told you may. It is the shape the Lab started with
+ *   and the one learners ask for by name.
+ *
+ *   **Group Session.** The team argues in a room nobody else sees, chooses
+ *   somebody to speak for it, and sends nothing until seventy per cent of the
+ *   people present are behind the words. Deliberation under a clock that does
+ *   not stop for it.
+ *
+ * Nothing shares a rule between them, which is the point. A rapid session with
+ * a seventy per cent threshold is not rapid, and a room where anybody can post
+ * around the room is not a room.
+ */
+export type SessionFormat = "rapid" | "room";
+
+export const SESSION_FORMATS: readonly SessionFormat[] = ["rapid", "room"];
+
+export function isSessionFormat(value: unknown): value is SessionFormat {
+  return value === "rapid" || value === "room";
+}
+
+/** What it is called on the screen, in the Lab's own words. */
+export function formatName(format: SessionFormat): string {
+  return format === "room" ? "Group Session" : "Rapid Response Session";
+}
+
+/** The one line that tells an admin what they are choosing. */
+export function formatNote(format: SessionFormat): string {
+  return format === "room"
+    ? "Each team talks in a room only they can see, chooses somebody to speak for it, and sends "
+      + "nothing until 70% of the people present are behind the words."
+    : "Anyone on a team can answer, and the first answer in is the team's answer. No chat, no "
+      + "leader, no threshold — speed and nerve.";
+}
+
+/** What a learner is told before they type. */
+export function formatBrief(format: SessionFormat): string {
+  return format === "room"
+    ? "Your team agrees before anything is sent."
+    : "Fastest finger. The first answer from your team is the one that lands.";
+}
+
+/** Whether the first answer in wins and the rest are too late. */
+export function firstAnswerWins(format: SessionFormat): boolean {
+  return format === "rapid";
+}
+
+/** Whether this session's teams get a room to argue in. */
+export function usesTeamRoom(format: SessionFormat): boolean {
+  return format === "room";
+}
+
+/**
+ * What to tell somebody whose answer arrived second.
+ *
+ * Not an error. They did the exercise, somebody on their team was quicker, and
+ * that is the result rather than a fault — so it names who got there and shows
+ * what went, because a person told only "too late" will spend the next beat
+ * wondering whether the Lab lost their work.
+ */
+export function beatenToIt(by: string | null): string {
+  return by
+    ? `${by} got there first. Theirs is your team's answer for this one.`
+    : "Somebody on your team got there first. Theirs is your team's answer for this one.";
+}

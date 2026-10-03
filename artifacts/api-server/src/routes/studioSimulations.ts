@@ -27,6 +27,7 @@ import {
   mayControlStudioRun, mayEnterStudio, mayJoinFacilitatedRun, maySeeStudioSimulation, normaliseJoinCode,
   clampResponseSeconds, nextStudioStep, operationLeaseIsActive, plannedTurns, practiceRecord, runClock,
   satisfiesRole, isStaffRole, studioInviteLetter, whatTheClockSays, type StudioProgrammeContext,
+  isSessionFormat, usesTeamRoom, firstAnswerWins, beatenToIt, type SessionFormat,
   inviteState, beginProblem, situationFor, situationBrief, situationSummary,
   objectiveFor, invitationProblem, invitationNote, exerciseInviteLetter,
   steerProblem, standaloneProblem, validityProblem, exerciseSubject, durationProblem,
@@ -349,6 +350,16 @@ async function runView(
       who does not exist.
     */
     unattended: isUnattendedRoom(run),
+    /*
+      Which exercise this run belongs to, so the room appears only where there
+      is one.
+
+      Read from the session rather than guessed from the run: a run has no
+      opinion about whether its teams deliberate, and the two shapes are
+      different exercises rather than two settings of the same one. Null is a
+      solo exercise, which belongs to no session at all.
+    */
+    sessionFormat: await formatOfRun(run.id),
     teamName: definition.groups.find((group) => group.id === participantGroupId)?.name ?? null,
     openingBrief: definition.openingBrief, stakeholderGroups: safeGroups, participantGroupId,
     clock: clockFor(run, definition),
@@ -1066,6 +1077,32 @@ async function linkSessionToModule(
   return null;
 }
 
+/**
+ * The stored format, as a value the rest of the code can switch on.
+ *
+ * A text column can hold anything, and a row written by hand or by a migration
+ * that went sideways would otherwise reach the rules as neither shape. Anything
+ * unrecognised reads as rapid, which is what every session was before the room
+ * existed — the safe wrong answer here is the old behaviour, not a crash in
+ * front of a cohort.
+ */
+function asFormat(value: string | null | undefined): SessionFormat {
+  return isSessionFormat(value) ? value : "rapid";
+}
+
+/**
+ * Which session shape a run belongs to, if it belongs to one at all.
+ *
+ * Null for a solo exercise. Used by the response route to decide whether the
+ * first answer wins, whether the room's gate applies, or whether neither does.
+ */
+async function formatOfRun(runId: number): Promise<SessionFormat | null> {
+  const [session] = await db.select({ format: studioGroupSessionsTable.format })
+    .from(studioGroupSessionsTable)
+    .where(eq(studioGroupSessionsTable.runId, runId));
+  return session ? asFormat(session.format) : null;
+}
+
 async function groupSessionView(session: typeof studioGroupSessionsTable.$inferSelect) {
   const [definition] = await db.select().from(simulationDefinitionsTable)
     .where(eq(simulationDefinitionsTable.id, session.definitionId));
@@ -1147,6 +1184,7 @@ async function groupSessionView(session: typeof studioGroupSessionsTable.$inferS
       })
       : null,
     runId: session.runId,
+    format: asFormat(session.format),
     // Only ever reaches an admin: this route is admin-only, and it is the one
     // view in the Studio that reads across teams.
     sessionDebrief: session.sessionDebrief,
@@ -1256,6 +1294,10 @@ router.post("/admin/studio/group-sessions", async (req, res): Promise<void> => {
     const [session] = await db.insert(studioGroupSessionsTable).values({
       programId: body.data.programId,
       definitionId: definition.id,
+      // Absent means rapid: the shape every session had before the room
+      // existed, so an admin who does not touch the control gets what the Lab
+      // has always done rather than a different exercise.
+      format: body.data.format ?? "rapid",
       title: scenario.value.title,
       objectives: plan.value.objectives,
       beats: plan.value.beats.map((b) => ({
@@ -1769,6 +1811,7 @@ router.get("/studio/my-group-session", requireStudioAccess, async (req, res): Pr
     id: session.id,
     title: session.title,
     state,
+    format: asFormat(session.format),
     scheduledAt: session.scheduledAt?.toISOString() ?? null,
     durationMinutes: session.durationMinutes,
     teamName,
@@ -2452,16 +2495,85 @@ router.post("/simulation-runs/:runId/response", requireStudioAccess, async (req,
     if (run.operationToken && operationLeaseIsActive(run.operationStartedAt, new Date(), operationLeaseMs)) return { kind: "busy" as const };
     const [assignment] = await tx.select().from(simulationGroupAssignmentsTable).where(and(eq(simulationGroupAssignmentsTable.runId, run.id), eq(simulationGroupAssignmentsTable.userId, user.id)));
     if (!assignment) return { kind: "forbidden" as const };
-    await tx.insert(simulationResponsesTable).values({ runId: run.id, groupId: assignment.groupId, injectId: run.currentDevelopment.id, body: body.data.body, authorId: user.id }).onConflictDoUpdate({
-      target: [simulationResponsesTable.runId, simulationResponsesTable.groupId, simulationResponsesTable.injectId],
-      set: { body: body.data.body, authorId: user.id, updatedAt: new Date() },
-    });
+
+    const format = await formatOfRun(run.id);
+
+    /*
+      A Group Session answers through its room, and only through its room.
+
+      This endpoint is the back door. The room screen replaced the answer box
+      in the browser, but the route it used stayed open — so a team that had
+      agreed nothing could still put words in the team's name by calling this
+      directly, and seventy per cent of a team would read about it afterwards.
+      A gate with a second door is not a gate.
+    */
+    if (format !== null && usesTeamRoom(format)) return { kind: "use-the-room" as const };
+
+    /*
+      A Rapid Response Session is first past the post.
+
+      It used to be the opposite by accident: the insert upserted, so the last
+      answer in overwrote every one before it and a team's published position
+      was whoever typed slowest. Nobody chose that and it inverted the exercise
+      — the point is the judgement to go without waiting to be told you may.
+
+      `onConflictDoNothing` is the whole mechanism, and it is atomic: two people
+      pressing in the same second are settled by the database rather than by
+      whichever request happened to be read first.
+    */
+    const firstPastThePost = format !== null && firstAnswerWins(format);
+    const values = {
+      runId: run.id, groupId: assignment.groupId,
+      injectId: run.currentDevelopment.id, body: body.data.body, authorId: user.id,
+    };
+
+    // Two plain statements rather than one clever one. `do nothing … returning`
+    // comes back empty exactly when somebody else got there first, which is the
+    // fact the rest of this turns on, and it is worth being able to read.
+    const inserted = firstPastThePost
+      ? await tx.insert(simulationResponsesTable).values(values)
+        .onConflictDoNothing({
+          target: [simulationResponsesTable.runId, simulationResponsesTable.groupId, simulationResponsesTable.injectId],
+        })
+        .returning({ id: simulationResponsesTable.id })
+      : await tx.insert(simulationResponsesTable).values(values)
+        .onConflictDoUpdate({
+          target: [simulationResponsesTable.runId, simulationResponsesTable.groupId, simulationResponsesTable.injectId],
+          set: { body: body.data.body, authorId: user.id, updatedAt: new Date() },
+        })
+        .returning({ id: simulationResponsesTable.id });
+
+    if (firstPastThePost && inserted.length === 0) {
+      // Somebody was quicker. Who, so the person reading it is told a result
+      // rather than left wondering whether the Lab lost their work.
+      const [theirs] = await tx
+        .select({ body: simulationResponsesTable.body, name: usersTable.name, email: usersTable.email })
+        .from(simulationResponsesTable)
+        .innerJoin(usersTable, eq(usersTable.id, simulationResponsesTable.authorId))
+        .where(and(
+          eq(simulationResponsesTable.runId, run.id),
+          eq(simulationResponsesTable.groupId, assignment.groupId),
+          eq(simulationResponsesTable.injectId, run.currentDevelopment.id),
+        ));
+      return {
+        kind: "too-late" as const,
+        by: theirs?.name?.trim() || theirs?.email.split("@")[0] || null,
+      };
+    }
+
     const [updated] = await tx.update(simulationRunsTable).set({ responseVersion: sql`${simulationRunsTable.responseVersion} + 1` }).where(eq(simulationRunsTable.id, run.id)).returning();
     return { kind: "saved" as const, run: updated };
   });
   if (outcome.kind === "inactive") { res.status(409).json(message("This run is not accepting responses")); return; }
   if (outcome.kind === "busy") { res.status(409).json(message("This run is busy. Try again shortly.")); return; }
   if (outcome.kind === "forbidden") { res.status(403).json(message("Not a participant in this simulation run")); return; }
+  if (outcome.kind === "use-the-room") {
+    res.status(409).json(message(
+      "This is a Group Session: your team's reply goes through your room, once enough of you are behind it.",
+    ));
+    return;
+  }
+  if (outcome.kind === "too-late") { res.status(409).json(message(beatenToIt(outcome.by))); return; }
 
   /*
    * A solo exercise carries itself.

@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { GroupSessionBeat } from './groupSessionBeat';
+import type { GroupSessionFormat } from './groupSessionFormat';
 import type { GroupSessionMissingItem } from './groupSessionMissingItem';
 import type { GroupSessionObjective } from './groupSessionObjective';
 import type { GroupSessionSessionDebrief } from './groupSessionSessionDebrief';
@@ -13,6 +14,7 @@ import type { GroupSessionState } from './groupSessionState';
 import type { GroupSessionTeamsItem } from './groupSessionTeamsItem';
 
 export interface GroupSession {
+  format: GroupSessionFormat;
   id: number;
   programId: number;
   title: string;

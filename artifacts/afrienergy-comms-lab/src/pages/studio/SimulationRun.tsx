@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from 'react';
-import { formatClock, apiReason } from '@workspace/domain';
+import { formatClock, apiReason, formatBrief } from '@workspace/domain';
 import { useLocation } from 'wouter';
 import {
   useGetSimulationRun,
@@ -184,13 +184,15 @@ export default function SimulationRun({ id }: { id?: string }) {
    */
   const watching = !!run?.readOnly;
   /*
-    Whether this person answers through a team room.
+    Which of the two exercises this is, and therefore which panel.
 
-    An unattended group session and an actual seat in a team. An admin reading
-    somebody else's run is in no team and gets the old panel; so does anybody
-    on a solo exercise, who has nobody to agree with.
+    A Group Session answers through its room. A Rapid Response Session answers
+    through the box, where the first answer in is the team's answer. An admin
+    reading somebody else's run gets the box either way: they are in no team.
   */
-  const inTeamRoom = unattended && !watching && !!run?.participantGroupId;
+  const sessionFormat = run?.sessionFormat ?? null;
+  const inTeamRoom = !watching && sessionFormat === 'room' && !!run?.participantGroupId;
+  const fastestFinger = !watching && sessionFormat === 'rapid' && !!run?.participantGroupId;
   const sessionLeft = useTicking(run?.clock?.sessionSecondsLeft);
   const responseLeft = useTicking(run?.clock?.responseSecondsLeft);
   // Under a minute is when people start typing faster. It is the only moment
@@ -587,6 +589,14 @@ export default function SimulationRun({ id }: { id?: string }) {
                     What you need to do
                   </h4>
                   <p className="text-white/90 text-sm font-mono leading-relaxed">{currentDev.responsePrompt}</p>
+                  {/* The rule of this exercise, said before the typing rather
+                      than discovered by losing to it. */}
+                  {fastestFinger && !missed && (
+                    <p className="mt-4 flex items-start gap-2 text-xs text-[#f97316] leading-relaxed">
+                      <Zap className="w-3.5 h-3.5 mt-0.5 shrink-0" aria-hidden />
+                      {formatBrief('rapid')}
+                    </p>
+                  )}
                   {missed && (
                     <p className="text-white/50 text-xs mt-4 leading-relaxed">
                       The deadline has gone. The story is moving on without you, which is itself an

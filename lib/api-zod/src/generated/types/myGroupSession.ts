@@ -5,9 +5,11 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { MyGroupSessionFormat } from './myGroupSessionFormat';
 import type { MyGroupSessionState } from './myGroupSessionState';
 
 export interface MyGroupSession {
+  format?: MyGroupSessionFormat;
   hasSession: boolean;
   id?: number;
   title?: string;

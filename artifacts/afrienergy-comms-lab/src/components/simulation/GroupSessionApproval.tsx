@@ -13,6 +13,7 @@ import {
 import { useQueryClient } from '@tanstack/react-query';
 import {
   apiReason, sessionDateTimeFromInput, sessionDateTimeInput, whatToDoAboutPlanning,
+  formatName, formatNote, SESSION_FORMATS, type SessionFormat,
 } from '@workspace/domain';
 import { useToast } from '@/hooks/use-toast';
 import { Users, Clock, AlertTriangle, CheckCircle2, Loader2, DoorOpen, PhoneCall } from 'lucide-react';
@@ -34,6 +35,15 @@ export default function GroupSessionApproval({ programmes }: { programmes: { id:
   const { toast } = useToast();
   const [programId, setProgramId] = useState('');
   const [openId, setOpenId] = useState<number | null>(null);
+  /*
+    Which exercise this is going to be.
+
+    Defaults to rapid, which is what every session the Lab has run already was.
+    An admin who does not touch this gets what they have always got; choosing
+    the other one is a deliberate act, because it is a different exercise rather
+    than a setting.
+  */
+  const [format, setFormat] = useState<SessionFormat>('rapid');
 
   const { data: sessions = [] } = useListGroupSessions({
     query: {
@@ -110,6 +120,32 @@ export default function GroupSessionApproval({ programmes }: { programmes: { id:
         cohort until you have read it.
       </p>
 
+      {/* Chosen before the programme, because it decides what the cohort is
+          being tested on and the programme only decides who. */}
+      <fieldset className="mb-4 border border-white/10 p-3">
+        <legend className="px-1.5 text-[10px] uppercase tracking-widest text-white/40">
+          Which exercise
+        </legend>
+        <div className="grid gap-2 sm:grid-cols-2">
+          {SESSION_FORMATS.map((option) => (
+            <button
+              key={option}
+              type="button"
+              onClick={() => setFormat(option)}
+              aria-pressed={format === option}
+              className={`text-left p-3 border transition-colors ${
+                format === option
+                  ? 'border-[#f97316] bg-[#f97316]/10'
+                  : 'border-white/10 hover:border-white/25'
+              }`}
+            >
+              <span className="block text-sm font-bold text-white mb-1">{formatName(option)}</span>
+              <span className="block text-xs text-white/50 leading-relaxed">{formatNote(option)}</span>
+            </button>
+          ))}
+        </div>
+      </fieldset>
+
       <div className="flex flex-col sm:flex-row gap-3">
         <select
           className="flex-1 bg-[#030811] border border-white/20 text-white px-3 py-2 text-sm"
@@ -122,7 +158,7 @@ export default function GroupSessionApproval({ programmes }: { programmes: { id:
         <button
           type="button"
           disabled={!programId || plan.isPending}
-          onClick={() => { setRefused(null); plan.mutate({ data: { programId: Number(programId) } }); }}
+          onClick={() => { setRefused(null); plan.mutate({ data: { programId: Number(programId), format } }); }}
           className="bg-[#f97316] text-[#030811] px-5 py-2.5 text-[11px] font-bold uppercase tracking-widest disabled:opacity-50 inline-flex items-center gap-2"
         >
           {plan.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden />}
@@ -169,7 +205,8 @@ export default function GroupSessionApproval({ programmes }: { programmes: { id:
                 <span className="min-w-0">
                   <span className="block text-sm text-white truncate">{s.title || 'Untitled session'}</span>
                   <span className="block text-xs text-white/40">
-                    {s.learners} on the cohort · {s.teams.length} teams · {s.durationMinutes} min
+                    {formatName(s.format)} · {s.learners} on the cohort · {s.teams.length} teams
+                    {' · '}{s.durationMinutes} min
                   </span>
                 </span>
                 <StateChip state={s.state} />

@@ -6,9 +6,11 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { PlanGroupSessionDifficulty } from './planGroupSessionDifficulty';
+import type { PlanGroupSessionFormat } from './planGroupSessionFormat';
 
 export interface PlanGroupSession {
   programId: number;
+  format?: PlanGroupSessionFormat;
   scheduledAt?: Date;
   /**
      * @minimum 15

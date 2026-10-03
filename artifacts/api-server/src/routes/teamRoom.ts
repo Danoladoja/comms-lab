@@ -6,6 +6,7 @@ import {
   simulationDefinitionsTable,
   simulationGroupAssignmentsTable,
   simulationResponsesTable,
+  studioGroupSessionsTable,
   teamRoomMessagesTable,
   teamRoomVotesTable,
   teamRoomDraftsTable,
@@ -19,6 +20,7 @@ import {
 import {
   present, speaksForTeam, tally, electionIsOpen, electionMinutesLeft,
   nodsNeeded, standingNods, postCheck, messageProblem, roomStanding,
+  usesTeamRoom, isSessionFormat,
   type RoomMember,
 } from "@workspace/domain";
 import { getCurrentUser } from "../lib/auth";
@@ -66,7 +68,7 @@ type Loaded = {
  * Refuses anybody without an assignment on this run, which is the whole of the
  * access rule: you are in exactly one team's room, the one you were put in.
  */
-async function loadTeam(runId: number, userId: number): Promise<Loaded | "no-run" | "not-mine"> {
+async function loadTeam(runId: number, userId: number): Promise<Loaded | "no-run" | "not-mine" | "no-room"> {
   const [run] = await db.select().from(simulationRunsTable).where(eq(simulationRunsTable.id, runId));
   if (!run) return "no-run";
 
@@ -89,6 +91,20 @@ async function loadTeam(runId: number, userId: number): Promise<Loaded | "no-run
       eq(simulationGroupAssignmentsTable.runId, runId),
       eq(simulationGroupAssignmentsTable.groupId, mine.groupId),
     ));
+
+  /*
+    A Rapid Response Session has no room, and saying so is not pedantry.
+
+    The two are different exercises. Opening a chat on a rapid session would
+    quietly turn it into a slower, worse version of the deliberative one — the
+    whole point of fastest-finger is that there is nobody to check with.
+  */
+  const [session] = await db.select({ format: studioGroupSessionsTable.format })
+    .from(studioGroupSessionsTable)
+    .where(eq(studioGroupSessionsTable.runId, runId));
+  if (!session || !usesTeamRoom(isSessionFormat(session.format) ? session.format : "rapid")) {
+    return "no-room";
+  }
 
   const [definition] = await db.select().from(simulationDefinitionsTable)
     .where(eq(simulationDefinitionsTable.id, run.definitionId));
@@ -228,6 +244,12 @@ async function open(req: Parameters<typeof getCurrentUser>[0], runId: number): P
   if (loaded === "no-run") return { kind: "refused", code: 404, said: "That exercise is not there." };
   if (loaded === "not-mine") {
     return { kind: "refused", code: 403, said: "You are not in a team on this exercise." };
+  }
+  if (loaded === "no-room") {
+    return {
+      kind: "refused", code: 409,
+      said: "This is a Rapid Response Session — there is no room. The first answer from your team is the one that lands.",
+    };
   }
   return { kind: "ok", user, loaded };
 }

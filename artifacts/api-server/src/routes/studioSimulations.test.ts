@@ -615,3 +615,70 @@ describe("what the console can see about the AI", () => {
     expect((await fetch(`${baseUrl}/api/admin/studio/ai`)).status).toBe(403);
   });
 });
+
+/**
+ * A Group Session's gate has one door.
+ *
+ * The room screen replaced the answer box in the browser. The route that box
+ * used stayed open, and for one patch anybody on a team could call it directly
+ * and publish in the team's name with nobody behind the words — past the
+ * leader, past the seventy per cent, past the whole point of the room. The
+ * browser was the only thing stopping them, which is to say nothing was.
+ *
+ * Pinned here rather than only in the shape of the code, because the fix is one
+ * early return in a long handler and the next person to touch that handler will
+ * not know what it is for.
+ */
+describe("a Group Session cannot be answered around its room", () => {
+  const roomSession = { id: 9, runId: 1, format: "room", programId: 1, definitionId: 2 };
+  const rapidSession = { ...roomSession, format: "rapid" };
+
+  const run = {
+    id: 1, ownerId: 5, definitionId: 2, mode: "facilitated", status: "active", responseVersion: 0,
+    operationToken: null, operationStartedAt: null, joinCode: null, debrief: null,
+    startedAt: new Date(), endedAt: null,
+    currentDevelopment: { id: "opening", title: "t", content: "c", responsePrompt: "p" },
+    developments: [],
+  };
+
+  const answer = () => fetch(`${baseUrl}/api/simulation-runs/1/response`, {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ body: "I speak for all of us, apparently." }),
+  });
+
+  it("refuses the old answer box, and says where the reply goes instead", async () => {
+    mocks.setUser({ id: 7, role: "learner" });
+    mocks.setRows({
+      simulationRuns: [run],
+      simulationGroupAssignments: [{ id: 1, runId: 1, userId: 7, groupId: "operator" }],
+      studioGroupSessions: [roomSession],
+      studioInvitations: [{ id: 1, userId: 7, programId: 1, expiresAt: null }],
+    });
+
+    const res = await answer();
+    expect(res.status, "a response got in around the room").toBe(409);
+    expect((await res.json() as { error: string }).error).toContain("through your room");
+  });
+
+  it("sends a Rapid Response Session down the other path entirely", async () => {
+    // The other half of the same rule: closing the door on one shape must not
+    // close it on the other, which is the exercise the cohort asks for by name.
+    //
+    // This mock answers every insert with no rows, which is exactly what
+    // Postgres does when somebody else got there first — so a rapid session
+    // here reports being beaten rather than saved. That is the wrong outcome
+    // for a real first answer and the right proof for this test: it can only
+    // be reached down the fastest-finger branch.
+    mocks.setUser({ id: 7, role: "learner" });
+    mocks.setRows({
+      simulationRuns: [run],
+      simulationGroupAssignments: [{ id: 1, runId: 1, userId: 7, groupId: "operator" }],
+      studioGroupSessions: [rapidSession],
+      studioInvitations: [{ id: 1, userId: 7, programId: 1, expiresAt: null }],
+    });
+
+    const said = (await (await answer()).json() as { error: string }).error;
+    expect(said, "a rapid session was sent to the room").not.toContain("through your room");
+    expect(said).toContain("got there first");
+  });
+});

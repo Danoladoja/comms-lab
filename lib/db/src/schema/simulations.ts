@@ -376,6 +376,26 @@ export const studioGroupSessionsTable = pgTable("studio_group_sessions", {
   title: text("title").notNull().default(""),
 
   /**
+   * Which of the two shapes this session is: "rapid" or "room".
+   *
+   * **rapid** — a Rapid Response Session. Everyone in a team is in the same
+   * crisis and anyone can answer; the first answer in is the team's answer and
+   * the rest arrive too late. No chat, no leader, no threshold. It is a test of
+   * nerve and speed rather than of a team's deliberation, and the cohort likes
+   * it, which is reason enough to keep it.
+   *
+   * **room** — a Group Session. The team talks in a room nobody else can see,
+   * elects somebody to speak for it, and sends nothing until seventy per cent
+   * of the people present are behind the words.
+   *
+   * Defaults to "rapid", which is what every session written before this one
+   * already was: the default has to be the old behaviour, or sessions already
+   * approved and sitting in a cohort's diary would quietly change shape under
+   * them.
+   */
+  format: text("format").notNull().default("rapid"),
+
+  /**
    * What the debriefs will be written against, after the admin has edited and
    * switched off whatever this cohort has not covered.
    */

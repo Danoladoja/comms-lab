@@ -20,6 +20,8 @@ import {
   debriefForTeam,
   isUnattendedRoom,
   whatToDoAboutPlanning,
+  formatName, formatNote, formatBrief, firstAnswerWins, usesTeamRoom,
+  isSessionFormat, beatenToIt, SESSION_FORMATS,
   type GroupSessionFacts,
   MIN_NOTICE_MINUTES,
   type GroupBeat,
@@ -437,5 +439,45 @@ describe("what to do when planning is refused", () => {
     expect(whatToDoAboutPlanning(null)).toBeNull();
     expect(whatToDoAboutPlanning(400)).toBeNull();
     expect(whatToDoAboutPlanning(429)).toBeNull();
+  });
+});
+
+describe("the two shapes a session can take", () => {
+  it("knows both, and nothing else", () => {
+    expect(SESSION_FORMATS).toEqual(["rapid", "room"]);
+    expect(isSessionFormat("rapid")).toBe(true);
+    expect(isSessionFormat("room")).toBe(true);
+    for (const wrong of ["group", "chat", "", null, undefined, 1, {}]) {
+      expect(isSessionFormat(wrong), `${String(wrong)} was accepted`).toBe(false);
+    }
+  });
+
+  it("calls them what the Lab calls them", () => {
+    expect(formatName("rapid")).toBe("Rapid Response Session");
+    expect(formatName("room")).toBe("Group Session");
+  });
+
+  it("gives each one its own rules, shared with neither", () => {
+    // The whole point of there being two. A rapid session with a threshold is
+    // not rapid, and a room anybody can post around is not a room.
+    expect(firstAnswerWins("rapid")).toBe(true);
+    expect(firstAnswerWins("room")).toBe(false);
+    expect(usesTeamRoom("room")).toBe(true);
+    expect(usesTeamRoom("rapid")).toBe(false);
+  });
+
+  it("tells a learner which exercise they are in before they type", () => {
+    expect(formatBrief("rapid")).toContain("first answer");
+    expect(formatBrief("room")).toContain("agrees");
+    expect(formatNote("rapid")).toContain("first answer in");
+    expect(formatNote("room")).toContain("70%");
+  });
+
+  it("names who got there first, rather than calling it a failure", () => {
+    // Being second is a result, not an error. Somebody told only "too late"
+    // spends the next beat wondering whether the Lab lost their work.
+    expect(beatenToIt("Chioma")).toContain("Chioma");
+    expect(beatenToIt("Chioma")).toContain("your team's answer");
+    expect(beatenToIt(null)).toContain("Somebody on your team");
   });
 });

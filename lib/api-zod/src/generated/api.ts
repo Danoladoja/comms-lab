@@ -2633,6 +2633,7 @@ export const GetStudioAiResponse = zod.object({
  * @summary Group sessions, newest first
  */
 export const ListGroupSessionsResponseItem = zod.object({
+  "format": zod.enum(['rapid', 'room']),
   "id": zod.int(),
   "programId": zod.int(),
   "title": zod.string(),
@@ -2700,6 +2701,7 @@ export const planGroupSessionBodyDurationMinutesMax = 180;
 
 export const PlanGroupSessionBody = zod.object({
   "programId": zod.int(),
+  "format": zod.enum(['rapid', 'room']).optional(),
   "scheduledAt": zod.coerce.date().optional(),
   "durationMinutes": zod.int().min(planGroupSessionBodyDurationMinutesMin).max(planGroupSessionBodyDurationMinutesMax).optional(),
   "difficulty": zod.enum(['foundation', 'intermediate', 'advanced']).optional(),
@@ -2707,6 +2709,7 @@ export const PlanGroupSessionBody = zod.object({
 })
 
 export const PlanGroupSessionResponse = zod.object({
+  "format": zod.enum(['rapid', 'room']),
   "id": zod.int(),
   "programId": zod.int(),
   "title": zod.string(),
@@ -2770,6 +2773,7 @@ export const GetGroupSessionParams = zod.object({
 })
 
 export const GetGroupSessionResponse = zod.object({
+  "format": zod.enum(['rapid', 'room']),
   "id": zod.int(),
   "programId": zod.int(),
   "title": zod.string(),
@@ -2844,6 +2848,7 @@ export const EditGroupSessionBody = zod.object({
 })
 
 export const EditGroupSessionResponse = zod.object({
+  "format": zod.enum(['rapid', 'room']),
   "id": zod.int(),
   "programId": zod.int(),
   "title": zod.string(),
@@ -2907,6 +2912,7 @@ export const ApproveGroupSessionParams = zod.object({
 })
 
 export const ApproveGroupSessionResponse = zod.object({
+  "format": zod.enum(['rapid', 'room']),
   "id": zod.int(),
   "programId": zod.int(),
   "title": zod.string(),
@@ -3153,6 +3159,7 @@ export const ResendStudioExerciseResponse = zod.object({
  * @summary The group session this learner's cohort is turning up to
  */
 export const GetMyGroupSessionResponse = zod.object({
+  "format": zod.enum(['rapid', 'room']).optional(),
   "hasSession": zod.boolean(),
   "id": zod.int().optional(),
   "title": zod.string().optional(),
@@ -3722,6 +3729,7 @@ export const createSimulationRunResponseDebriefOneRatingsItemScoreMax = 100;
 
 
 export const CreateSimulationRunResponse = zod.object({
+  "sessionFormat": zod.union([zod.literal('rapid'),zod.literal('room'),zod.literal(null)]).nullish(),
   "id": zod.int(),
   "simulationId": zod.int(),
   "mode": zod.enum(['autonomous', 'facilitated']),
@@ -3845,6 +3853,7 @@ export const joinSimulationRunResponseDebriefOneRatingsItemScoreMax = 100;
 
 
 export const JoinSimulationRunResponse = zod.object({
+  "sessionFormat": zod.union([zod.literal('rapid'),zod.literal('room'),zod.literal(null)]).nullish(),
   "id": zod.int(),
   "simulationId": zod.int(),
   "mode": zod.enum(['autonomous', 'facilitated']),
@@ -3964,6 +3973,7 @@ export const getSimulationRunResponseDebriefOneRatingsItemScoreMax = 100;
 
 
 export const GetSimulationRunResponse = zod.object({
+  "sessionFormat": zod.union([zod.literal('rapid'),zod.literal('room'),zod.literal(null)]).nullish(),
   "id": zod.int(),
   "simulationId": zod.int(),
   "mode": zod.enum(['autonomous', 'facilitated']),
@@ -4090,6 +4100,7 @@ export const submitSimulationResponseResponseDebriefOneRatingsItemScoreMax = 100
 
 
 export const SubmitSimulationResponseResponse = zod.object({
+  "sessionFormat": zod.union([zod.literal('rapid'),zod.literal('room'),zod.literal(null)]).nullish(),
   "id": zod.int(),
   "simulationId": zod.int(),
   "mode": zod.enum(['autonomous', 'facilitated']),
@@ -4209,6 +4220,7 @@ export const advanceSimulationRunResponseDebriefOneRatingsItemScoreMax = 100;
 
 
 export const AdvanceSimulationRunResponse = zod.object({
+  "sessionFormat": zod.union([zod.literal('rapid'),zod.literal('room'),zod.literal(null)]).nullish(),
   "id": zod.int(),
   "simulationId": zod.int(),
   "mode": zod.enum(['autonomous', 'facilitated']),
@@ -4328,6 +4340,7 @@ export const completeSimulationRunResponseDebriefOneRatingsItemScoreMax = 100;
 
 
 export const CompleteSimulationRunResponse = zod.object({
+  "sessionFormat": zod.union([zod.literal('rapid'),zod.literal('room'),zod.literal(null)]).nullish(),
   "id": zod.int(),
   "simulationId": zod.int(),
   "mode": zod.enum(['autonomous', 'facilitated']),

@@ -2,6 +2,7 @@ import { useLocation } from 'wouter';
 import { motion } from 'framer-motion';
 import { useGetMyGroupSession, getGetMyGroupSessionQueryKey } from '@workspace/api-client-react';
 import { Users, Clock, DoorOpen, FileText } from 'lucide-react';
+import { formatName, formatBrief } from '@workspace/domain';
 
 /**
  * The only thing that tells a learner their cohort has a group session.
@@ -60,7 +61,7 @@ export default function MyGroupSessionCard() {
     >
       <p className="flex items-center gap-2 text-[10px] uppercase tracking-widest text-emerald-300 mb-3">
         <Users className="w-3.5 h-3.5" aria-hidden />
-        Your cohort · group exercise
+        Your cohort · {session.format ? formatName(session.format) : 'group exercise'}
       </p>
 
       <h3 className="text-lg font-bold text-white mb-2">{session.title || 'A group exercise'}</h3>
@@ -80,10 +81,12 @@ export default function MyGroupSessionCard() {
             <DoorOpen className="w-4 h-4" aria-hidden />Go in
           </button>
           {/* Said plainly, because it is the thing that makes the exercise what
-              it is. Nobody is at the front of this room. */}
+              it is. Nobody is at the front of this room, and the two shapes
+              ask different things of a team. */}
           <p className="mt-3 text-xs text-white/50">
             Nobody is running this one. The story moves on the clock whether your team has answered
             or not, and it ends itself.
+            {session.format && <> {formatBrief(session.format)}</>}
           </p>
         </div>
       ) : finished && session.runId ? (

@@ -10,10 +10,13 @@ import type { SimulationResponse } from './simulationResponse';
 import type { StudioDevelopment } from './studioDevelopment';
 import type { StudioRunClock } from './studioRunClock';
 import type { StudioSimulationRunMode } from './studioSimulationRunMode';
+import type { StudioSimulationRunSessionFormat } from './studioSimulationRunSessionFormat';
 import type { StudioSimulationRunStatus } from './studioSimulationRunStatus';
 import type { StudioStakeholderGroup } from './studioStakeholderGroup';
 
 export interface StudioSimulationRun {
+  /** @nullable */
+  sessionFormat?: StudioSimulationRunSessionFormat;
   id: number;
   simulationId: number;
   mode: StudioSimulationRunMode;
