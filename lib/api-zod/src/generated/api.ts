@@ -2619,6 +2619,17 @@ export const ListSimulationsResponse = zod.array(ListSimulationsResponseItem)
 
 
 /**
+ * Says whether a key is set on the server and which model it is configured to ask for, so an admin can see that the Studio cannot work before pressing a button that needs it rather than afterwards. Never includes the key itself.
+ * @summary Whether the Studio can reach the AI, and which model it asks for
+ */
+export const GetStudioAiResponse = zod.object({
+  "configured": zod.boolean().describe('Whether a key is set on the server at all'),
+  "model": zod.string().describe('The model the server asks for'),
+  "concern": zod.string().nullable()
+})
+
+
+/**
  * @summary Group sessions, newest first
  */
 export const ListGroupSessionsResponseItem = zod.object({

@@ -34,7 +34,81 @@ function apiUrl(): string {
   return base ? `${base}/v1/messages` : "https://api.anthropic.com/v1/messages";
 }
 
-export const MODEL = process.env.ANTHROPIC_MODEL ?? "claude-sonnet-4-5";
+/**
+ * Which model the Lab asks for, when Railway does not say.
+ *
+ * This default was `claude-sonnet-4-5`, which Anthropic deprecated on
+ * 30 September 2026 and stops serving on 30 November 2026. A model that is no
+ * longer served is a 404, and a 404 here is not a degraded answer: the scenario
+ * does not get written, the debrief does not get written, and the draft help on
+ * a learner's task does not appear. One line in this file would have taken the
+ * Studio down in front of a cohort, on a date nobody in the Lab had written
+ * down.
+ *
+ * So the default moves forward, and `modelConcern` below says so out loud
+ * rather than waiting for the outage. Railway's `ANTHROPIC_MODEL` still wins:
+ * a deployment that pins a model keeps the model it pinned, which is the point
+ * of pinning one.
+ */
+export const MODEL = process.env.ANTHROPIC_MODEL ?? "claude-sonnet-5-5";
+
+/**
+ * Models Anthropic has stopped serving, or has said when it will.
+ *
+ * Deliberately short and deliberately dated. This is not a catalogue and it
+ * will go out of date; what it buys is that the two failures worth catching —
+ * a model that already does not exist, and one with a date on it — are said in
+ * the console by somebody who can change the setting, instead of arriving as
+ * "error 404" in the middle of a live session.
+ *
+ * Checked at https://platform.claude.com/docs/en/about-claude/model-deprecations
+ * on 3 October 2026.
+ */
+const MODEL_DATES: { readonly match: string; readonly retiresMs: number; readonly instead: string }[] = [
+  { match: "claude-sonnet-4-5", retiresMs: Date.UTC(2026, 10, 30), instead: "claude-sonnet-5-5" },
+  { match: "claude-opus-4-1", retiresMs: Date.UTC(2026, 7, 5), instead: "claude-opus-5-5" },
+  { match: "claude-sonnet-4-20", retiresMs: Date.UTC(2026, 5, 15), instead: "claude-sonnet-5-5" },
+  { match: "claude-opus-4-20", retiresMs: Date.UTC(2026, 5, 15), instead: "claude-opus-5-5" },
+  { match: "claude-3-haiku", retiresMs: Date.UTC(2026, 3, 20), instead: "claude-haiku-4-5" },
+  { match: "claude-3-5-haiku", retiresMs: Date.UTC(2026, 1, 19), instead: "claude-haiku-4-5" },
+  { match: "claude-3-7-sonnet", retiresMs: Date.UTC(2026, 1, 19), instead: "claude-sonnet-5-5" },
+  { match: "claude-3-5-sonnet", retiresMs: Date.UTC(2025, 9, 28), instead: "claude-sonnet-5-5" },
+  { match: "claude-3-opus", retiresMs: Date.UTC(2026, 0, 5), instead: "claude-opus-5-5" },
+];
+
+/** When a date matters, in the way a person writes it. */
+function onThe(ms: number): string {
+  return new Date(ms).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
+}
+
+/**
+ * Anything worth saying about the model this server is configured to ask for.
+ *
+ * Pure, so it can be tested without a network or an environment, and read by
+ * both the startup log and the admin console.
+ */
+export function modelConcern(model: string, nowMs: number): string | null {
+  const known = MODEL_DATES.find((m) => model.startsWith(m.match));
+  if (!known) return null;
+  if (nowMs >= known.retiresMs) {
+    return `The AI model this server asks for, ${model}, stopped being served on ${onThe(known.retiresMs)}. `
+      + `Every AI feature in the Lab will fail until ANTHROPIC_MODEL is changed — ${known.instead} replaces it.`;
+  }
+  return `The AI model this server asks for, ${model}, stops being served on ${onThe(known.retiresMs)}. `
+    + `Change ANTHROPIC_MODEL to ${known.instead} before then, or every AI feature in the Lab will stop.`;
+}
+
+/** What an admin can be told about the AI, without being told the key. */
+export function aiStatus(nowMs = Date.now()): {
+  configured: boolean; model: string; fastModel: string; concern: string | null;
+} {
+  return {
+    configured: anthropicConfigured(),
+    model: MODEL,
+    fastModel: FAST_MODEL,
+    concern: modelConcern(MODEL, nowMs) ?? modelConcern(FAST_MODEL, nowMs),
+  };
+}
 
 /**
  * For the turns in the middle of a run, where waiting is the whole problem.

@@ -274,6 +274,7 @@ export * from './studioAccessCodeRequestExercise';
 export * from './studioAccessCodeRequestExerciseDifficulty';
 export * from './studioAccessGrantSummary';
 export * from './studioAccessSource';
+export * from './studioAiStatus';
 export * from './studioCohort';
 export * from './studioCohortLearnersItem';
 export * from './studioCohortLearnersItemStanding';

@@ -439,3 +439,52 @@ export function debriefForTeam<T extends { teamId: string }>(
 export function isUnattendedRoom(run: { mode: string; joinCode: string | null }): boolean {
   return run.mode === "facilitated" && !run.joinCode;
 }
+
+/* ------------------------------------------------------------------ *
+ * When planning is refused
+ * ------------------------------------------------------------------ */
+
+/**
+ * What to do about a refusal, as well as what it said.
+ *
+ * Planning a session is the longest chain of preconditions in the Lab: a role,
+ * a key on the server, a model that is still served, a programme, and two model
+ * calls that each have to come back usable. Every one of those produced the
+ * same four words on the screen — "Could not plan the session" — in a toast
+ * that cleared itself before anybody could write it down. The reason had been
+ * written by the server, sent over the wire, received by the browser and shown
+ * for four seconds, which from the outside is the same as never saying it.
+ *
+ * The reason now stays on the screen. This adds the second half of it: the
+ * thing to actually do, which the server cannot say because it is a thing in
+ * Railway or in somebody's Clerk role and not in the request.
+ *
+ * Deliberately not a mapping of every code. Where there is nothing useful to
+ * add, this says nothing and the server's own sentence stands alone — a made-up
+ * suggestion is worse than none, because it sends somebody looking in the wrong
+ * place.
+ */
+export function whatToDoAboutPlanning(status: number | null): string | null {
+  if (status === 403) {
+    return "Planning a session needs an admin role. If that is you, sign out and back in — "
+      + "a role changed in Clerk reaches the Lab on your next sign-in.";
+  }
+  if (status === 503) {
+    return "The server has no AI key set, so it cannot write anything. Set ANTHROPIC_API_KEY "
+      + "in Railway, then redeploy.";
+  }
+  if (status === 404) {
+    return "That programme is no longer there. Refresh the page and choose it again.";
+  }
+  if (status === 502) {
+    return "Nothing is wrong with the Lab: the AI either refused or came back with something "
+      + "unusable. Pressing it again usually works, because each attempt writes a different "
+      + "crisis. If the message mentions a model, the model named in ANTHROPIC_MODEL is the "
+      + "thing to change.";
+  }
+  if (status !== null && status >= 500) {
+    return "The Lab had a problem at its end. Try once more, and if it says the same thing "
+      + "again the server log will have the detail.";
+  }
+  return null;
+}

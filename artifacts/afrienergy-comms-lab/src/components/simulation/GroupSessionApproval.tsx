@@ -4,13 +4,16 @@ import {
   usePlanGroupSession,
   useEditGroupSession,
   useApproveGroupSession,
+  useGetStudioAi,
   getListGroupSessionsQueryKey,
   useListProgramSessions,
   getListProgramSessionsQueryKey,
   type GroupSession,
 } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
-import { apiReason, sessionDateTimeFromInput, sessionDateTimeInput } from '@workspace/domain';
+import {
+  apiReason, sessionDateTimeFromInput, sessionDateTimeInput, whatToDoAboutPlanning,
+} from '@workspace/domain';
 import { useToast } from '@/hooks/use-toast';
 import { Users, Clock, AlertTriangle, CheckCircle2, Loader2, DoorOpen, PhoneCall } from 'lucide-react';
 
@@ -53,18 +56,44 @@ export default function GroupSessionApproval({ programmes }: { programmes: { id:
   });
   const refresh = () => qc.invalidateQueries({ queryKey: getListGroupSessionsQueryKey() });
 
+  /*
+    What the server is configured to do, read before anybody presses anything.
+
+    Two of the five ways planning can fail are knowable in advance — there is
+    no AI key, or the model named in Railway is one Anthropic no longer serves —
+    and both of them used to be discovered by pressing a button and reading a
+    toast that cleared itself. A sentence above the button costs one request a
+    minute and saves an afternoon.
+  */
+  const { data: ai } = useGetStudioAi();
+
+  /*
+    The refusal stays until it is dismissed.
+
+    It was a toast, which is the right shape for "Session drafted" and the wrong
+    shape for the only sentence that says why nothing happened. An admin cannot
+    report a message that has already gone, and "it says cannot plan a group
+    session" is as much as anybody can carry away from four seconds.
+  */
+  const [refused, setRefused] = useState<{ reason: string; whatToDo: string | null } | null>(null);
+
   const plan = usePlanGroupSession({
     mutation: {
       onSuccess: (s) => {
         setOpenId(s.id);
+        setRefused(null);
         refresh();
         toast({ title: 'Session drafted', description: 'Read it before anybody else can.' });
       },
-      onError: (err) => toast({
-        title: 'Could not plan the session',
-        description: apiReason(err, 'Try again in a moment.'),
-        variant: 'destructive',
-      }),
+      onError: (err) => {
+        const status = typeof (err as { status?: unknown })?.status === 'number'
+          ? (err as { status: number }).status
+          : null;
+        setRefused({
+          reason: apiReason(err, 'The Lab did not say why. The server log will have the detail.'),
+          whatToDo: whatToDoAboutPlanning(status),
+        });
+      },
     },
   });
 
@@ -93,13 +122,40 @@ export default function GroupSessionApproval({ programmes }: { programmes: { id:
         <button
           type="button"
           disabled={!programId || plan.isPending}
-          onClick={() => plan.mutate({ data: { programId: Number(programId) } })}
+          onClick={() => { setRefused(null); plan.mutate({ data: { programId: Number(programId) } }); }}
           className="bg-[#f97316] text-[#030811] px-5 py-2.5 text-[11px] font-bold uppercase tracking-widest disabled:opacity-50 inline-flex items-center gap-2"
         >
           {plan.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden />}
           {plan.isPending ? 'Writing it…' : 'Plan a session'}
         </button>
       </div>
+
+      {plan.isPending && (
+        <p className="mt-3 text-xs text-white/40">
+          Writing the crisis, then the running order. Two passes, so this takes up to a minute.
+        </p>
+      )}
+
+      {ai && !ai.configured && (
+        <Trouble
+          heading="The Studio has no AI key"
+          reason="Nothing here can be written until there is one."
+          whatToDo="Set ANTHROPIC_API_KEY in Railway, then redeploy. Nothing else on this screen will work until you do."
+        />
+      )}
+
+      {ai?.configured && ai.concern && (
+        <Trouble heading="The AI model needs changing" reason={ai.concern} whatToDo={null} />
+      )}
+
+      {refused && (
+        <Trouble
+          heading="Could not plan the session"
+          reason={refused.reason}
+          whatToDo={refused.whatToDo}
+          onDismiss={() => setRefused(null)}
+        />
+      )}
 
       {sessions.length > 0 && (
         <ul className="mt-4 divide-y divide-white/10 border-t border-white/10">
@@ -124,6 +180,44 @@ export default function GroupSessionApproval({ programmes }: { programmes: { id:
       )}
 
       {open && <SessionSheet session={open} onChanged={refresh} />}
+    </div>
+  );
+}
+
+/**
+ * Something is wrong, and it stays on the screen until it is not.
+ *
+ * Three rules, all learned the hard way on this screen. It says what happened.
+ * It says what to do, where there is anything useful to say — a reason with no
+ * next step is a shrug with a sentence attached. And it does not disappear,
+ * because the person reading it is often about to type it into a message to
+ * somebody else, and a message that vanished cannot be quoted.
+ */
+function Trouble({ heading, reason, whatToDo, onDismiss }: {
+  heading: string;
+  reason: string;
+  whatToDo: string | null;
+  onDismiss?: () => void;
+}) {
+  return (
+    <div className="mt-4 border border-[#f97316]/40 bg-[#f97316]/[0.07] p-4" role="alert">
+      <div className="flex items-start gap-2.5">
+        <AlertTriangle className="w-4 h-4 text-[#f97316] mt-0.5 shrink-0" aria-hidden />
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-bold text-white">{heading}</p>
+          <p className="mt-1 text-xs text-white/70 break-words">{reason}</p>
+          {whatToDo && <p className="mt-2 text-xs text-white/50">{whatToDo}</p>}
+        </div>
+        {onDismiss && (
+          <button
+            type="button"
+            onClick={onDismiss}
+            className="text-[11px] uppercase tracking-widest text-white/40 hover:text-white/70 shrink-0"
+          >
+            Dismiss
+          </button>
+        )}
+      </div>
     </div>
   );
 }

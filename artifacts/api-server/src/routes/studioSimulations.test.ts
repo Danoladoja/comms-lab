@@ -108,6 +108,12 @@ vi.mock("@workspace/db", () => {
   programsTable: table("programs", { id: "id", title: "title", description: "description", tag: "tag" }),
   sessionsTable: table("sessions", { id: "id", programId: "program_id", title: "title", startsAt: "starts_at" }),
   usersTable: table("users", { id: "id", name: "name", email: "email" }),
+  // Read by programmeContext, which every planning request goes through. Absent
+  // from this mock, so the two tests that reach it got a 500 instead of the
+  // refusal they were checking for — the same shape of problem as the comments
+  // above, for the same reason.
+  assignmentsTable: table("assignments", { id: "id", sessionId: "session_id", title: "title", draft: "draft" }),
+  sessionReadingsTable: table("sessionReadings", { id: "id", sessionId: "session_id", title: "title", sortOrder: "sort_order" }),
   });
 });
 vi.mock("../lib/auth", () => ({ getCurrentUser: mocks.getCurrentUser }));
@@ -115,10 +121,17 @@ vi.mock("../lib/email", () => ({ emailConfigured: () => false, sendEmail: vi.fn(
 vi.mock("../lib/logger", () => ({ logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() } }));
 const ai = vi.hoisted(() => ({
   generateScenario: vi.fn(),
+  // Was missing, and so was every test that would have needed it: the route
+  // that plans a group session had no coverage at all, which is how five
+  // different refusals came to share one unreportable sentence on the screen.
+  generateGroupPlan: vi.fn(),
   generateDevelopment: vi.fn(async () => ({ ok: true, value: { id: "turn-2", title: "Next", source: "Wire", channel: "wire", content: "c", responsePrompt: "p" } })),
   generateDebrief: vi.fn(async () => ({ ok: true, value: { score: 60, headline: "h", ratings: [], strengths: [], risks: [], stakeholderImpact: "s", recommendations: [] } })),
 }));
-vi.mock("../lib/simulationAi", () => ({ simulationAiConfigured: () => true, ...ai }));
+// Switchable, because "there is no AI key on this server" is one of the ways
+// planning is refused and it has to be reachable from a test.
+const aiKey = vi.hoisted(() => ({ present: true }));
+vi.mock("../lib/simulationAi", () => ({ simulationAiConfigured: () => aiKey.present, ...ai }));
 
 import studioRouter from "./studioSimulations";
 
@@ -131,6 +144,7 @@ const NEIGHBOURS = ["/api/reviews/queue", "/api/partnership-enquiries", "/api/se
 beforeEach(async () => {
   vi.clearAllMocks();
   mocks.reset();
+  aiKey.present = true;
 
   const app = express();
   app.use(express.json());
@@ -433,5 +447,132 @@ describe("the clock, on the way in and out", () => {
     expect(res.status).toBe(200);
     expect(ai.generateDevelopment).not.toHaveBeenCalled();
     expect(ai.generateDebrief).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * Why planning a group session was refused.
+ *
+ * This route had no tests. Not thin ones — none. It is the longest chain of
+ * preconditions in the Lab (a role, a key, a programme, two model calls that
+ * each have to come back usable) and every link in it answered with the same
+ * four words on the screen, in a toast that cleared itself after four seconds.
+ * The report that reached us was "it says cannot plan a group session", which
+ * is as much as anybody could carry away, and it narrows the cause to five.
+ *
+ * So each refusal is pinned to its own status code here, because that is what
+ * the screen now turns into a sentence about what to do: 403 is a role, 503 is
+ * a missing key, 404 is a programme, 502 is the model. A refusal that came back
+ * under the wrong code would send an admin to Railway over a Clerk problem.
+ */
+describe("planning a group session, and being told why not", () => {
+  const PROGRAMME = { id: 1, title: "Energy Communications Intensive", description: "Eight weeks.", tag: "cohort-1" };
+  const plan = (body: unknown = { programId: 1 }) => fetch(`${baseUrl}/api/admin/studio/group-sessions`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
+
+  it("refuses a learner with 403, and does not spend a model call finding out", async () => {
+    mocks.setUser({ id: 5, role: "learner" });
+    const res = await plan();
+    expect(res.status).toBe(403);
+    expect(ai.generateScenario, "the role is checked before anything is written").not.toHaveBeenCalled();
+  });
+
+  it("refuses an instructor with 403 rather than letting them write to a cohort", async () => {
+    mocks.setUser({ id: 6, role: "instructor" });
+    expect((await plan()).status).toBe(403);
+  });
+
+  it("lets an admin and a super admin through the role check", async () => {
+    for (const role of ["admin", "superadmin"]) {
+      mocks.setUser({ id: 1, role });
+      mocks.setRows({ programs: [] });
+      // Past the role check and refused later, for a reason that is not the role.
+      expect((await plan()).status, `${role} was refused by the role check`).not.toBe(403);
+    }
+  });
+
+  it("says the server has no AI key, as a 503 rather than as a failure", async () => {
+    mocks.setUser({ id: 1, role: "superadmin" });
+    aiKey.present = false;
+    const res = await plan();
+    expect(res.status).toBe(503);
+    expect((await res.json() as { error: string }).error).toContain("AI key");
+  });
+
+  it("refuses a programme that is not there with 404", async () => {
+    mocks.setUser({ id: 1, role: "superadmin" });
+    mocks.setRows({ programs: [] });
+    expect((await plan()).status).toBe(404);
+  });
+
+  it("refuses a body with no programme at all with 400", async () => {
+    mocks.setUser({ id: 1, role: "superadmin" });
+    expect((await plan({})).status).toBe(400);
+  });
+
+  it("passes the AI's own reason on, under 502, when the crisis cannot be written", async () => {
+    mocks.setUser({ id: 1, role: "superadmin" });
+    mocks.setRows({ programs: [PROGRAMME], sessions: [] });
+    ai.generateScenario.mockResolvedValueOnce({ ok: false, error: "The AI service is unavailable right now (error 404)." });
+
+    const res = await plan();
+    expect(res.status).toBe(502);
+    // The sentence an admin reads has to be the server's own, not a summary of
+    // it: "error 404" is the difference between a retired model and a bad key,
+    // and it is the only clue either way.
+    expect((await res.json() as { error: string }).error).toBe("The AI service is unavailable right now (error 404).");
+    expect(ai.generateGroupPlan, "the running order is not written for a crisis that was not").not.toHaveBeenCalled();
+  });
+
+  it("passes the reason on, under 502, when the running order cannot be written", async () => {
+    mocks.setUser({ id: 1, role: "superadmin" });
+    mocks.setRows({ programs: [PROGRAMME], sessions: [] });
+    ai.generateScenario.mockResolvedValueOnce({
+      ok: true,
+      value: {
+        title: "Pipeline leak", openingBrief: "A leak, and three days of silence.",
+        stakeholderGroups: [
+          { id: "operator", name: "The operator", roleName: "Head of Communications", confidentialBrief: "You knew." },
+          { id: "regulator", name: "The regulator", roleName: "Spokesperson", confidentialBrief: "You did not." },
+        ],
+        initialDevelopment: { id: "opening", title: "A reporter calls", content: "c", responsePrompt: "p" },
+        evaluationDimensions: [{ name: "Speed", description: "d" }],
+        debriefQuestions: ["Who first?"],
+      },
+    });
+    ai.generateGroupPlan.mockResolvedValueOnce({ ok: false, error: "The plan came back with nothing that happens to every team." });
+
+    const res = await plan();
+    expect(res.status).toBe(502);
+    expect((await res.json() as { error: string }).error).toContain("nothing that happens to every team");
+  });
+});
+
+describe("what the console can see about the AI", () => {
+  it("tells staff whether there is a key, without telling them the key", async () => {
+    mocks.setUser({ id: 1, role: "superadmin" });
+    const res = await fetch(`${baseUrl}/api/admin/studio/ai`);
+    expect(res.status).toBe(200);
+    const body = await res.json() as Record<string, unknown>;
+    expect(Object.keys(body).sort()).toEqual(["concern", "configured", "model"]);
+    expect(JSON.stringify(body)).not.toContain("sk-");
+  });
+
+  it("is open to instructors, not only admins", async () => {
+    // The Forms tab was blank for every admin in the Lab for a fortnight
+    // because a staff check was written as satisfiesRole(role, ["instructor"]).
+    // This one is the other way round and would be just as wrong.
+    for (const role of ["instructor", "admin", "superadmin"]) {
+      mocks.setUser({ id: 1, role });
+      expect((await fetch(`${baseUrl}/api/admin/studio/ai`)).status, `${role} could not read it`).toBe(200);
+    }
+  });
+
+  it("is closed to learners", async () => {
+    mocks.setUser({ id: 5, role: "learner" });
+    expect((await fetch(`${baseUrl}/api/admin/studio/ai`)).status).toBe(403);
   });
 });

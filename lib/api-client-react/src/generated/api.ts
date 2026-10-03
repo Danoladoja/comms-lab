@@ -160,6 +160,7 @@ import type {
   StudioAccessCodeInput,
   StudioAccessCodeRequest,
   StudioAccessGrantSummary,
+  StudioAiStatus,
   StudioCohort,
   StudioPracticeRecord,
   StudioSimulation,
@@ -7262,6 +7263,84 @@ export function useListSimulations<TData = Awaited<ReturnType<typeof listSimulat
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getListSimulationsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetStudioAiUrl = () => {
+
+
+
+
+  return `/api/admin/studio/ai`
+}
+
+/**
+ * Says whether a key is set on the server and which model it is configured to ask for, so an admin can see that the Studio cannot work before pressing a button that needs it rather than afterwards. Never includes the key itself.
+ * @summary Whether the Studio can reach the AI, and which model it asks for
+ */
+export const getStudioAi = async ( options?: Parameters<typeof customFetch>[1]): Promise<StudioAiStatus> => {
+
+  return customFetch<StudioAiStatus>(getGetStudioAiUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetStudioAiQueryKey = () => {
+    return [
+    `/api/admin/studio/ai`
+    ] as const;
+    }
+
+
+export const getGetStudioAiQueryOptions = <TData = Awaited<ReturnType<typeof getStudioAi>>, TError = ErrorType<UnauthorizedResponse | ForbiddenResponse>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getStudioAi>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetStudioAiQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getStudioAi>>> = ({ signal }) => getStudioAi({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getStudioAi>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetStudioAiQueryResult = NonNullable<Awaited<ReturnType<typeof getStudioAi>>>
+export type GetStudioAiQueryError = ErrorType<UnauthorizedResponse | ForbiddenResponse>
+
+
+/**
+ * @summary Whether the Studio can reach the AI, and which model it asks for
+ */
+
+export function useGetStudioAi<TData = Awaited<ReturnType<typeof getStudioAi>>, TError = ErrorType<UnauthorizedResponse | ForbiddenResponse>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getStudioAi>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetStudioAiQueryOptions(options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

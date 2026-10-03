@@ -19,6 +19,7 @@ import {
   cohortNote,
   debriefForTeam,
   isUnattendedRoom,
+  whatToDoAboutPlanning,
   type GroupSessionFacts,
   MIN_NOTICE_MINUTES,
   type GroupBeat,
@@ -398,5 +399,36 @@ describe("what a learner on the cohort is told", () => {
     expect(isUnattendedRoom({ mode: "facilitated", joinCode: "K7PQ2M" })).toBe(false);
     // A solo exercise is not a room at all.
     expect(isUnattendedRoom({ mode: "autonomous", joinCode: null })).toBe(false);
+  });
+});
+
+describe("what to do when planning is refused", () => {
+  it("sends a role problem to Clerk, not to Railway", () => {
+    const said = whatToDoAboutPlanning(403);
+    expect(said).toContain("admin");
+    expect(said).toContain("sign out");
+    expect(said).not.toContain("ANTHROPIC");
+  });
+
+  it("sends a missing key to Railway, not to Clerk", () => {
+    const said = whatToDoAboutPlanning(503);
+    expect(said).toContain("ANTHROPIC_API_KEY");
+    expect(said).toContain("Railway");
+  });
+
+  it("says a failed model call is worth pressing again", () => {
+    // It genuinely is: each attempt draws a different crisis from a new seed,
+    // so the same button is not the same request.
+    expect(whatToDoAboutPlanning(502)).toContain("again");
+    expect(whatToDoAboutPlanning(502)).toContain("ANTHROPIC_MODEL");
+  });
+
+  it("says nothing rather than guessing", () => {
+    // A suggestion invented for a code we do not recognise sends somebody
+    // looking in the wrong place, which is worse than the server's own
+    // sentence standing on its own.
+    expect(whatToDoAboutPlanning(null)).toBeNull();
+    expect(whatToDoAboutPlanning(400)).toBeNull();
+    expect(whatToDoAboutPlanning(429)).toBeNull();
   });
 });

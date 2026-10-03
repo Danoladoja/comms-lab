@@ -1927,6 +1927,15 @@ export interface StudioSimulation {
   yourRun?: StudioSimulationYourRun;
 }
 
+export interface StudioAiStatus {
+  /** Whether a key is set on the server at all */
+  configured: boolean;
+  /** The model the server asks for */
+  model: string;
+  /** @nullable */
+  concern: string | null;
+}
+
 export type PlanGroupSessionDifficulty = typeof PlanGroupSessionDifficulty[keyof typeof PlanGroupSessionDifficulty];
 
 

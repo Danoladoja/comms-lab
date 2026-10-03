@@ -20,12 +20,13 @@ import {
   ResendStudioExerciseBody, ResendStudioExerciseResponse,
   InviteToStudioBody, InviteToStudioResponse,
   PlanGroupSessionBody, EditGroupSessionBody, GetGroupSessionResponse, ListGroupSessionsResponse,
+  GetStudioAiResponse,
 } from "@workspace/api-zod";
 import {
   JOIN_CODE_ALPHABET, JOIN_CODE_LENGTH, accessCodeCount, mayAdvanceStudioRun, mayCompleteStudioRun,
   mayControlStudioRun, mayEnterStudio, mayJoinFacilitatedRun, maySeeStudioSimulation, normaliseJoinCode,
   clampResponseSeconds, nextStudioStep, operationLeaseIsActive, plannedTurns, practiceRecord, runClock,
-  satisfiesRole, studioInviteLetter, whatTheClockSays, type StudioProgrammeContext,
+  satisfiesRole, isStaffRole, studioInviteLetter, whatTheClockSays, type StudioProgrammeContext,
   inviteState, beginProblem, situationFor, situationBrief, situationSummary,
   objectiveFor, invitationProblem, invitationNote, exerciseInviteLetter,
   steerProblem, standaloneProblem, validityProblem, exerciseSubject, durationProblem,
@@ -36,6 +37,7 @@ import {
   attachProblem, attachedNote, resendProblem, resentNote, letterMoment,
 } from "@workspace/domain";
 import { getCurrentUser } from "../lib/auth";
+import { aiStatus } from "../lib/anthropic";
 import { logger } from "../lib/logger";
 import { createBudget } from "../lib/rateBudget";
 import { emailConfigured, sendEmail } from "../lib/email";
@@ -1379,6 +1381,29 @@ router.post("/admin/studio/group-sessions/:id/approve", async (req, res): Promis
 
   req.log.info({ sessionId: session.id, by: user.id }, "Group session approved");
   res.json(GetGroupSessionResponse.parse(await groupSessionView(approved)));
+});
+
+/**
+ * Whether the Studio can reach the AI at all, said before the button is pressed.
+ *
+ * Planning a session is two model calls, and every way they can fail arrived as
+ * the same thing: a toast that said "Could not plan the session", stayed for
+ * four seconds, and took the actual reason with it. An admin could not report
+ * what they had been told, which made the difference between "no key is set"
+ * and "the model is no longer served" unaskable from the outside.
+ *
+ * So the two facts that are knowable in advance are knowable in advance. The
+ * key itself is never in here — only whether there is one.
+ */
+router.get("/admin/studio/ai", async (req, res): Promise<void> => {
+  const user = await getCurrentUser(req);
+  if (!user) { res.status(401).json(message("Unauthorized")); return; }
+  if (!isStaffRole(user.role)) { res.status(403).json(message("Only staff can read the Studio's settings")); return; }
+
+  const status = aiStatus();
+  res.json(GetStudioAiResponse.parse({
+    configured: status.configured, model: status.model, concern: status.concern,
+  }));
 });
 
 /** Every session on a programme, newest first. */

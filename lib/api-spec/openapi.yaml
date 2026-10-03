@@ -3047,6 +3047,25 @@ paths:
           content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/StudioSimulation" } } } }
         "401": { $ref: "#/components/responses/Unauthorized" }
         "403": { $ref: "#/components/responses/Forbidden" }
+  /admin/studio/ai:
+    get:
+      operationId: getStudioAi
+      tags: [admin]
+      summary: Whether the Studio can reach the AI, and which model it asks for
+      description: >
+        Says whether a key is set on the server and which model it is
+        configured to ask for, so an admin can see that the Studio cannot work
+        before pressing a button that needs it rather than afterwards. Never
+        includes the key itself.
+      responses:
+        "200":
+          description: What the server is configured to do
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StudioAiStatus"
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
   /admin/studio/group-sessions:
     get:
       operationId: listGroupSessions
@@ -6243,6 +6262,15 @@ components:
           properties:
             id: { type: integer }
             status: { type: string, enum: [active, completed] }
+    StudioAiStatus:
+      type: object
+      required: [configured, model, concern]
+      properties:
+        configured: { type: boolean, description: Whether a key is set on the server at all }
+        model: { type: string, description: The model the server asks for }
+        # Dated news about that model, written as a sentence an admin can act
+        # on. Null when there is nothing to say.
+        concern: { type: ["string", "null"] }
     PlanGroupSession:
       type: object
       required: [programId]

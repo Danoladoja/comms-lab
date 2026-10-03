@@ -7,6 +7,7 @@ import {
   type MigrationOutcome,
 } from "@workspace/domain";
 import { applyPendingMigrations } from "./lib/migrateAtStartup";
+import { aiStatus } from "./lib/anthropic";
 import { logger } from "./lib/logger";
 import { startReminderScheduler } from "./lib/reminders";
 import { startRecordingSync } from "./lib/recordingSync";
@@ -109,6 +110,24 @@ async function main(): Promise<void> {
 
   if (!await databaseIsReady()) {
     process.exit(1);
+  }
+
+  /*
+    Said at startup, because the alternative is finding out during a session.
+
+    A model that is no longer served answers every call with a 404, and from
+    the outside that looks like the Studio being broken rather than like a
+    setting being out of date. Printed as well as logged: a deploy log is read
+    by a person scanning for anything that is not routine.
+  */
+  const ai = aiStatus();
+  if (!ai.configured) {
+    logger.warn("No ANTHROPIC_API_KEY is set, so nothing in the Lab that needs the AI will work");
+  } else if (ai.concern) {
+    console.error(ai.concern);
+    logger.error({ model: ai.model, fastModel: ai.fastModel }, ai.concern);
+  } else {
+    logger.info({ model: ai.model, fastModel: ai.fastModel }, "AI configured");
   }
 
   app.listen(port, (err) => {
