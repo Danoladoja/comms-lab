@@ -193,7 +193,7 @@ async function onePlanAttempt(args: {
     return { ok: false, error: answer.error, fatal: !worthAskingAgain(answer.error) };
   }
 
-  const { plan, problem } = validateGroupPlan(answer.input, args.durationMinutes);
+  const { plan, problem } = validateGroupPlan(answer.input, args.durationMinutes, args.objective);
   if (!plan) return { ok: false, error: problem, fatal: false };
   return { ok: true, value: plan };
 }

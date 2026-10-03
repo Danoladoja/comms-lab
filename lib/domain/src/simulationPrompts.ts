@@ -904,7 +904,21 @@ function whatArrived(raw: unknown, counted: number): string {
  * a sentence — "the plan came back with no objectives" — rather than as a
  * crash, which says nothing and cannot be acted on.
  */
-export function validateGroupPlan(input: unknown, durationMinutes: number): {
+export function validateGroupPlan(
+  input: unknown,
+  durationMinutes: number,
+  /*
+    What this cohort is practising, in the programme's own words.
+
+    Supplied so that a missing set of objectives does not throw away a good
+    running order. The objectives are the one part of a draft an admin is
+    expected to rewrite before approving — the approval screen puts them at the
+    top with a switch beside each — so a starter drawn from the programme is a
+    worse first draft, not a wrong session. A running order cannot be stood in
+    for that way, and is not.
+  */
+  fallbackObjective?: string,
+): {
   plan: ValidatedGroupPlan | null;
   problem: string;
 } {
@@ -937,9 +951,6 @@ export function validateGroupPlan(input: unknown, durationMinutes: number): {
       };
     })
     .filter((o) => o.text.length > 0);
-  if (objectives.length === 0) {
-    return { plan: null, problem: `The plan came back with no objectives${whatArrived(raw, objectivesGiven.length)}.` };
-  }
 
   const beats = asList(raw?.beats)
     .map((value, i) => {
@@ -971,6 +982,37 @@ export function validateGroupPlan(input: unknown, durationMinutes: number): {
   }
   if (!beats.some((b) => b.scope === "all")) {
     return { plan: null, problem: "The plan came back with nothing that happens to every team." };
+  }
+
+  /*
+    A running order with nothing said about what it is for.
+
+    Checked here rather than above the beats, and on purpose. The model has
+    returned a usable session and left out the one field the admin was going to
+    rewrite anyway; refusing the whole thing over that was throwing away two
+    model calls and a crisis in front of somebody with a cohort waiting.
+
+    The stand-in says what it is, so nobody approves it thinking the AI wrote
+    it. If there is nothing to stand in with, this still refuses.
+  */
+  if (objectives.length === 0) {
+    const standIn = (fallbackObjective ?? "").trim();
+    if (!standIn) {
+      return { plan: null, problem: `The plan came back with no objectives${whatArrived(raw, objectivesGiven.length)}.` };
+    }
+    return {
+      plan: {
+        objectives: [{
+          id: "obj-1",
+          text: standIn,
+          note: "Taken from the programme, because the AI did not send any objectives with this plan. "
+            + "Rewrite it into the specific things this session should show before you approve it.",
+          enabled: true,
+        }],
+        beats,
+      },
+      problem: "",
+    };
   }
 
   return { plan: { objectives, beats }, problem: "" };

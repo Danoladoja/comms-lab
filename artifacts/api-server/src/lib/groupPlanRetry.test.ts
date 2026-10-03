@@ -64,9 +64,11 @@ describe("planning asks again for itself", () => {
   });
 
   it("asks again when the first answer is unusable, and succeeds", async () => {
-    // The actual fault, as it reached the Lab: an empty list where four
-    // objectives should be.
-    replies = [{ objectives: [], beats: GOOD.beats }, GOOD]; asked = 0;
+    // A running order with nothing in it. Note what is NOT used here any more:
+    // beats with no objectives is no longer a failure, because the objectives
+    // now fall back to the programme's own words rather than throwing a good
+    // session away. Only a plan with no session in it still fails.
+    replies = [{ objectives: [], beats: [] }, GOOD]; asked = 0;
     const result = await plan();
     expect(result.ok, "a second ask would have fixed this and was never made").toBe(true);
     expect(asked).toBe(2);

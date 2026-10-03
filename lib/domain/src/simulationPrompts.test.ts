@@ -628,6 +628,40 @@ describe("a group plan that came back in an odd shape", () => {
     expect(plan?.objectives[2].text).toBe("Say it first");
   });
 
+  it("keeps a good running order when the objectives are missing", () => {
+    // What actually happened, three attempts in a row: beats and no objectives
+    // at all. Two model calls and a written crisis were thrown away over the
+    // one field the admin rewrites before approving anyway.
+    const { plan, problem } = validateGroupPlan(
+      { beats: goodPlan.beats }, 45, "Handle a live energy crisis in front of a hostile room",
+    );
+    expect(problem).toBe("");
+    expect(plan?.beats).toHaveLength(2);
+    expect(plan?.objectives).toHaveLength(1);
+    expect(plan?.objectives[0].text).toBe("Handle a live energy crisis in front of a hostile room");
+    // And it must say it is a stand-in, so nobody approves it believing the AI
+    // wrote it.
+    expect(plan?.objectives[0].note).toContain("did not send");
+    expect(plan?.objectives[0].note).toContain("before you approve");
+  });
+
+  it("still refuses when there is nothing to stand in with", () => {
+    expect(validateGroupPlan({ beats: goodPlan.beats }, 45).plan).toBeNull();
+    expect(validateGroupPlan({ beats: goodPlan.beats }, 45, "   ").plan).toBeNull();
+  });
+
+  it("never stands in for the running order itself", () => {
+    // An objective is a line an admin edits. A running order is the session.
+    expect(validateGroupPlan({ objectives: goodPlan.objectives }, 45, "An objective").plan).toBeNull();
+    expect(validateGroupPlan({ objectives: goodPlan.objectives, beats: [] }, 45, "An objective").plan).toBeNull();
+  });
+
+  it("prefers the model's own objectives over the stand-in", () => {
+    const { plan } = validateGroupPlan(goodPlan, 45, "The programme's own words");
+    expect(plan?.objectives).toHaveLength(2);
+    expect(plan?.objectives[0].text).toBe("Say something true within the hour");
+  });
+
   it("refuses in words rather than throwing, whatever it is handed", () => {
     // The actual fault. Each of these used to be a TypeError.
     const shapes: unknown[] = [
