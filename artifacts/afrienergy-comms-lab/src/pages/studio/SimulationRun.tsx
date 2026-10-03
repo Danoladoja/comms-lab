@@ -12,6 +12,7 @@ import { StudioLayout } from '@/components/simulation/StudioLayout';
 import { DevelopmentCard } from '@/components/simulation/DevelopmentCard';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
+import TeamRoomPanel from '@/components/simulation/TeamRoomPanel';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Loader2, Send, ShieldAlert, CheckCircle2, ChevronRight, RefreshCw, Target, Users,
@@ -182,6 +183,14 @@ export default function SimulationRun({ id }: { id?: string }) {
    * a button that answers 403 and a clock that is not theirs to run.
    */
   const watching = !!run?.readOnly;
+  /*
+    Whether this person answers through a team room.
+
+    An unattended group session and an actual seat in a team. An admin reading
+    somebody else's run is in no team and gets the old panel; so does anybody
+    on a solo exercise, who has nobody to agree with.
+  */
+  const inTeamRoom = unattended && !watching && !!run?.participantGroupId;
   const sessionLeft = useTicking(run?.clock?.sessionSecondsLeft);
   const responseLeft = useTicking(run?.clock?.responseSecondsLeft);
   // Under a minute is when people start typing faster. It is the only moment
@@ -435,11 +444,23 @@ export default function SimulationRun({ id }: { id?: string }) {
         <div className={cn("w-full lg:w-[420px] shrink-0 flex flex-col min-h-0 h-[60vh] lg:h-auto z-10 shadow-2xl lg:shadow-none border-t lg:border-t-0", t.terminalBg, t.panelBorder)}>
           <div className={cn("h-14 border-b flex items-center justify-between px-6 shrink-0", t.panelBorder)}>
             <span className={cn("text-[10px] uppercase tracking-[0.2em]", t.accentText, t.headerStyle)}>
-              {watching ? 'Their response' : 'Your response'}
+              {inTeamRoom ? "Your team" : watching ? 'Their response' : 'Your response'}
             </span>
             <span className="text-white/30 text-[10px] font-mono uppercase">User: {run.participantGroupId || 'Local'}</span>
           </div>
 
+          {/*
+            A team answers through its room; a person answers for themselves.
+
+            Swapped here rather than bolted on beside the old box, because two
+            ways to send the same answer is how a team ends up publishing
+            something seventy per cent of it never saw. The box below is for a
+            solo exercise and for an admin watching, neither of which has a
+            team to agree with.
+          */}
+          {inTeamRoom ? (
+            <TeamRoomPanel runId={numericId} tone={t} />
+          ) : (
           <div className="flex-1 flex flex-col p-6 min-h-0">
             {isCompleted ? (
               <div className="flex-1 flex flex-col items-center justify-center text-center">
@@ -601,6 +622,7 @@ export default function SimulationRun({ id }: { id?: string }) {
               </div>
             )}
           </div>
+          )}
         </div>
 
       </main>

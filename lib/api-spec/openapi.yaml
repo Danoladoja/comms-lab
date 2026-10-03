@@ -3827,6 +3827,119 @@ paths:
         "403": { $ref: "#/components/responses/Forbidden" }
         "409": { $ref: "#/components/responses/Conflict" }
         "502": { $ref: "#/components/responses/ApiError" }
+  /simulation-runs/{runId}/room:
+    get:
+      operationId: getTeamRoom
+      tags: [enrollments]
+      summary: Your team's room — the talk, the election, the draft and who is behind it
+      description: >
+        Everything one participant may see of their own team's room. Never
+        another team's: what a team says to each other before it answers is not
+        part of the exercise other teams are in.
+      parameters:
+        - $ref: "#/components/parameters/SimulationRunId"
+      responses:
+        "200":
+          description: The room
+          content: { application/json: { schema: { $ref: "#/components/schemas/TeamRoom" } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /simulation-runs/{runId}/room/messages:
+    post:
+      operationId: sendTeamRoomMessage
+      tags: [enrollments]
+      summary: Say something to your own team
+      parameters:
+        - $ref: "#/components/parameters/SimulationRunId"
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/TeamRoomMessageDraft" } } }
+      responses:
+        "200":
+          description: The room, with it in
+          content: { application/json: { schema: { $ref: "#/components/schemas/TeamRoom" } } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+  /simulation-runs/{runId}/room/leader:
+    post:
+      operationId: voteForTeamLeader
+      tags: [enrollments]
+      summary: Vote for who should speak for your team
+      description: >
+        One vote each, changeable while the five minutes are open. A vote for
+        somebody who has not opened the room is refused: electing an empty
+        chair is the same as electing nobody.
+      parameters:
+        - $ref: "#/components/parameters/SimulationRunId"
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/TeamLeaderVote" } } }
+      responses:
+        "200":
+          description: The room, with the standings
+          content: { application/json: { schema: { $ref: "#/components/schemas/TeamRoom" } } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /simulation-runs/{runId}/room/draft:
+    put:
+      operationId: saveTeamRoomDraft
+      tags: [enrollments]
+      summary: The leader writes or rewrites the team's reply
+      description: >
+        Changing the words clears every nod, the author's own included. A team
+        approves a sentence, not a person.
+      parameters:
+        - $ref: "#/components/parameters/SimulationRunId"
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/TeamRoomDraftBody" } } }
+      responses:
+        "200":
+          description: The room, with the draft
+          content: { application/json: { schema: { $ref: "#/components/schemas/TeamRoom" } } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /simulation-runs/{runId}/room/nod:
+    post:
+      operationId: nodTeamRoomDraft
+      tags: [enrollments]
+      summary: Say you are behind the draft as it stands
+      parameters:
+        - $ref: "#/components/parameters/SimulationRunId"
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/TeamRoomNod" } } }
+      responses:
+        "200":
+          description: The room, with the tally
+          content: { application/json: { schema: { $ref: "#/components/schemas/TeamRoom" } } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /simulation-runs/{runId}/room/post:
+    post:
+      operationId: postTeamRoomDraft
+      tags: [enrollments]
+      summary: Send the team's reply, once enough of them are behind it
+      description: >
+        The gate is here as well as in the browser, because a gate enforced
+        only in the browser is a gate with a hole in it.
+      parameters:
+        - $ref: "#/components/parameters/SimulationRunId"
+      responses:
+        "200":
+          description: The room, with the reply in
+          content: { application/json: { schema: { $ref: "#/components/schemas/TeamRoom" } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "409": { $ref: "#/components/responses/Conflict" }
   /programs/{id}/form/{stage}:
     get:
       operationId: getProgramForm
@@ -6262,6 +6375,71 @@ components:
           properties:
             id: { type: integer }
             status: { type: string, enum: [active, completed] }
+    TeamRoomMessage:
+      type: object
+      required: [id, userId, name, body, createdAt, mine]
+      properties:
+        id: { type: integer }
+        userId: { type: integer }
+        name: { type: string }
+        body: { type: string }
+        createdAt: { type: string, format: date-time }
+        mine: { type: boolean, description: Whether the reader wrote it }
+    TeamRoomMember:
+      type: object
+      required: [userId, name, present, votes, nodded]
+      properties:
+        userId: { type: integer }
+        name: { type: string }
+        present: { type: boolean, description: Whether they have ever opened the room }
+        votes: { type: integer, description: How many of the team want them speaking }
+        nodded: { type: boolean, description: Whether they are behind the draft as it stands }
+    TeamRoom:
+      type: object
+      required:
+        [groupId, teamName, members, messages, standing, electionOpen, electionMinutesLeft,
+         leaderId, leaderName, iAmLeader, myVoteFor, draft, draftVersion, nodsHave, nodsNeeded,
+         iHaveNodded, mayPost, waitingOn, posted]
+      properties:
+        groupId: { type: string }
+        teamName: { type: string }
+        members: { type: array, items: { $ref: "#/components/schemas/TeamRoomMember" } }
+        messages: { type: array, items: { $ref: "#/components/schemas/TeamRoomMessage" } }
+        standing: { type: string, description: One line saying where the team is up to }
+        electionOpen: { type: boolean }
+        electionMinutesLeft: { type: integer }
+        leaderId: { type: ["integer", "null"] }
+        leaderName: { type: ["string", "null"] }
+        iAmLeader: { type: boolean }
+        myVoteFor: { type: ["integer", "null"] }
+        draft: { type: string }
+        draftVersion: { type: integer }
+        nodsHave: { type: integer }
+        nodsNeeded: { type: integer }
+        iHaveNodded: { type: boolean }
+        mayPost: { type: boolean }
+        waitingOn: { type: ["string", "null"] }
+        posted: { type: boolean, description: Whether this team's reply is already in }
+    TeamRoomMessageDraft:
+      type: object
+      required: [body]
+      properties:
+        body: { type: string, minLength: 1, maxLength: 2000 }
+    TeamLeaderVote:
+      type: object
+      required: [forUserId]
+      properties:
+        forUserId: { type: integer }
+    TeamRoomDraftBody:
+      type: object
+      required: [body]
+      properties:
+        body: { type: string, maxLength: 8000 }
+    TeamRoomNod:
+      type: object
+      required: [version]
+      properties:
+        version: { type: integer, description: The wording being agreed to }
     StudioAiStatus:
       type: object
       required: [configured, model, concern]

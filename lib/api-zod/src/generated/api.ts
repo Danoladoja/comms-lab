@@ -4425,6 +4425,292 @@ export const CompleteSimulationRunResponse = zod.object({
 
 
 /**
+ * Everything one participant may see of their own team's room. Never another team's: what a team says to each other before it answers is not part of the exercise other teams are in.
+ * @summary Your team's room — the talk, the election, the draft and who is behind it
+ */
+export const GetTeamRoomParams = zod.object({
+  "runId": zod.coerce.number().int()
+})
+
+export const GetTeamRoomResponse = zod.object({
+  "groupId": zod.string(),
+  "teamName": zod.string(),
+  "members": zod.array(zod.object({
+  "userId": zod.int(),
+  "name": zod.string(),
+  "present": zod.boolean().describe('Whether they have ever opened the room'),
+  "votes": zod.int().describe('How many of the team want them speaking'),
+  "nodded": zod.boolean().describe('Whether they are behind the draft as it stands')
+})),
+  "messages": zod.array(zod.object({
+  "id": zod.int(),
+  "userId": zod.int(),
+  "name": zod.string(),
+  "body": zod.string(),
+  "createdAt": zod.coerce.date(),
+  "mine": zod.boolean().describe('Whether the reader wrote it')
+})),
+  "standing": zod.string().describe('One line saying where the team is up to'),
+  "electionOpen": zod.boolean(),
+  "electionMinutesLeft": zod.int(),
+  "leaderId": zod.int().nullable(),
+  "leaderName": zod.string().nullable(),
+  "iAmLeader": zod.boolean(),
+  "myVoteFor": zod.int().nullable(),
+  "draft": zod.string(),
+  "draftVersion": zod.int(),
+  "nodsHave": zod.int(),
+  "nodsNeeded": zod.int(),
+  "iHaveNodded": zod.boolean(),
+  "mayPost": zod.boolean(),
+  "waitingOn": zod.string().nullable(),
+  "posted": zod.boolean().describe('Whether this team\'s reply is already in')
+})
+
+
+/**
+ * @summary Say something to your own team
+ */
+export const SendTeamRoomMessageParams = zod.object({
+  "runId": zod.coerce.number().int()
+})
+
+export const sendTeamRoomMessageBodyBodyMax = 2000;
+
+
+
+export const SendTeamRoomMessageBody = zod.object({
+  "body": zod.string().min(1).max(sendTeamRoomMessageBodyBodyMax)
+})
+
+export const SendTeamRoomMessageResponse = zod.object({
+  "groupId": zod.string(),
+  "teamName": zod.string(),
+  "members": zod.array(zod.object({
+  "userId": zod.int(),
+  "name": zod.string(),
+  "present": zod.boolean().describe('Whether they have ever opened the room'),
+  "votes": zod.int().describe('How many of the team want them speaking'),
+  "nodded": zod.boolean().describe('Whether they are behind the draft as it stands')
+})),
+  "messages": zod.array(zod.object({
+  "id": zod.int(),
+  "userId": zod.int(),
+  "name": zod.string(),
+  "body": zod.string(),
+  "createdAt": zod.coerce.date(),
+  "mine": zod.boolean().describe('Whether the reader wrote it')
+})),
+  "standing": zod.string().describe('One line saying where the team is up to'),
+  "electionOpen": zod.boolean(),
+  "electionMinutesLeft": zod.int(),
+  "leaderId": zod.int().nullable(),
+  "leaderName": zod.string().nullable(),
+  "iAmLeader": zod.boolean(),
+  "myVoteFor": zod.int().nullable(),
+  "draft": zod.string(),
+  "draftVersion": zod.int(),
+  "nodsHave": zod.int(),
+  "nodsNeeded": zod.int(),
+  "iHaveNodded": zod.boolean(),
+  "mayPost": zod.boolean(),
+  "waitingOn": zod.string().nullable(),
+  "posted": zod.boolean().describe('Whether this team\'s reply is already in')
+})
+
+
+/**
+ * One vote each, changeable while the five minutes are open. A vote for somebody who has not opened the room is refused: electing an empty chair is the same as electing nobody.
+ * @summary Vote for who should speak for your team
+ */
+export const VoteForTeamLeaderParams = zod.object({
+  "runId": zod.coerce.number().int()
+})
+
+export const VoteForTeamLeaderBody = zod.object({
+  "forUserId": zod.int()
+})
+
+export const VoteForTeamLeaderResponse = zod.object({
+  "groupId": zod.string(),
+  "teamName": zod.string(),
+  "members": zod.array(zod.object({
+  "userId": zod.int(),
+  "name": zod.string(),
+  "present": zod.boolean().describe('Whether they have ever opened the room'),
+  "votes": zod.int().describe('How many of the team want them speaking'),
+  "nodded": zod.boolean().describe('Whether they are behind the draft as it stands')
+})),
+  "messages": zod.array(zod.object({
+  "id": zod.int(),
+  "userId": zod.int(),
+  "name": zod.string(),
+  "body": zod.string(),
+  "createdAt": zod.coerce.date(),
+  "mine": zod.boolean().describe('Whether the reader wrote it')
+})),
+  "standing": zod.string().describe('One line saying where the team is up to'),
+  "electionOpen": zod.boolean(),
+  "electionMinutesLeft": zod.int(),
+  "leaderId": zod.int().nullable(),
+  "leaderName": zod.string().nullable(),
+  "iAmLeader": zod.boolean(),
+  "myVoteFor": zod.int().nullable(),
+  "draft": zod.string(),
+  "draftVersion": zod.int(),
+  "nodsHave": zod.int(),
+  "nodsNeeded": zod.int(),
+  "iHaveNodded": zod.boolean(),
+  "mayPost": zod.boolean(),
+  "waitingOn": zod.string().nullable(),
+  "posted": zod.boolean().describe('Whether this team\'s reply is already in')
+})
+
+
+/**
+ * Changing the words clears every nod, the author's own included. A team approves a sentence, not a person.
+ * @summary The leader writes or rewrites the team's reply
+ */
+export const SaveTeamRoomDraftParams = zod.object({
+  "runId": zod.coerce.number().int()
+})
+
+export const saveTeamRoomDraftBodyBodyMax = 8000;
+
+
+
+export const SaveTeamRoomDraftBody = zod.object({
+  "body": zod.string().max(saveTeamRoomDraftBodyBodyMax)
+})
+
+export const SaveTeamRoomDraftResponse = zod.object({
+  "groupId": zod.string(),
+  "teamName": zod.string(),
+  "members": zod.array(zod.object({
+  "userId": zod.int(),
+  "name": zod.string(),
+  "present": zod.boolean().describe('Whether they have ever opened the room'),
+  "votes": zod.int().describe('How many of the team want them speaking'),
+  "nodded": zod.boolean().describe('Whether they are behind the draft as it stands')
+})),
+  "messages": zod.array(zod.object({
+  "id": zod.int(),
+  "userId": zod.int(),
+  "name": zod.string(),
+  "body": zod.string(),
+  "createdAt": zod.coerce.date(),
+  "mine": zod.boolean().describe('Whether the reader wrote it')
+})),
+  "standing": zod.string().describe('One line saying where the team is up to'),
+  "electionOpen": zod.boolean(),
+  "electionMinutesLeft": zod.int(),
+  "leaderId": zod.int().nullable(),
+  "leaderName": zod.string().nullable(),
+  "iAmLeader": zod.boolean(),
+  "myVoteFor": zod.int().nullable(),
+  "draft": zod.string(),
+  "draftVersion": zod.int(),
+  "nodsHave": zod.int(),
+  "nodsNeeded": zod.int(),
+  "iHaveNodded": zod.boolean(),
+  "mayPost": zod.boolean(),
+  "waitingOn": zod.string().nullable(),
+  "posted": zod.boolean().describe('Whether this team\'s reply is already in')
+})
+
+
+/**
+ * @summary Say you are behind the draft as it stands
+ */
+export const NodTeamRoomDraftParams = zod.object({
+  "runId": zod.coerce.number().int()
+})
+
+export const NodTeamRoomDraftBody = zod.object({
+  "version": zod.int().describe('The wording being agreed to')
+})
+
+export const NodTeamRoomDraftResponse = zod.object({
+  "groupId": zod.string(),
+  "teamName": zod.string(),
+  "members": zod.array(zod.object({
+  "userId": zod.int(),
+  "name": zod.string(),
+  "present": zod.boolean().describe('Whether they have ever opened the room'),
+  "votes": zod.int().describe('How many of the team want them speaking'),
+  "nodded": zod.boolean().describe('Whether they are behind the draft as it stands')
+})),
+  "messages": zod.array(zod.object({
+  "id": zod.int(),
+  "userId": zod.int(),
+  "name": zod.string(),
+  "body": zod.string(),
+  "createdAt": zod.coerce.date(),
+  "mine": zod.boolean().describe('Whether the reader wrote it')
+})),
+  "standing": zod.string().describe('One line saying where the team is up to'),
+  "electionOpen": zod.boolean(),
+  "electionMinutesLeft": zod.int(),
+  "leaderId": zod.int().nullable(),
+  "leaderName": zod.string().nullable(),
+  "iAmLeader": zod.boolean(),
+  "myVoteFor": zod.int().nullable(),
+  "draft": zod.string(),
+  "draftVersion": zod.int(),
+  "nodsHave": zod.int(),
+  "nodsNeeded": zod.int(),
+  "iHaveNodded": zod.boolean(),
+  "mayPost": zod.boolean(),
+  "waitingOn": zod.string().nullable(),
+  "posted": zod.boolean().describe('Whether this team\'s reply is already in')
+})
+
+
+/**
+ * The gate is here as well as in the browser, because a gate enforced only in the browser is a gate with a hole in it.
+ * @summary Send the team's reply, once enough of them are behind it
+ */
+export const PostTeamRoomDraftParams = zod.object({
+  "runId": zod.coerce.number().int()
+})
+
+export const PostTeamRoomDraftResponse = zod.object({
+  "groupId": zod.string(),
+  "teamName": zod.string(),
+  "members": zod.array(zod.object({
+  "userId": zod.int(),
+  "name": zod.string(),
+  "present": zod.boolean().describe('Whether they have ever opened the room'),
+  "votes": zod.int().describe('How many of the team want them speaking'),
+  "nodded": zod.boolean().describe('Whether they are behind the draft as it stands')
+})),
+  "messages": zod.array(zod.object({
+  "id": zod.int(),
+  "userId": zod.int(),
+  "name": zod.string(),
+  "body": zod.string(),
+  "createdAt": zod.coerce.date(),
+  "mine": zod.boolean().describe('Whether the reader wrote it')
+})),
+  "standing": zod.string().describe('One line saying where the team is up to'),
+  "electionOpen": zod.boolean(),
+  "electionMinutesLeft": zod.int(),
+  "leaderId": zod.int().nullable(),
+  "leaderName": zod.string().nullable(),
+  "iAmLeader": zod.boolean(),
+  "myVoteFor": zod.int().nullable(),
+  "draft": zod.string(),
+  "draftVersion": zod.int(),
+  "nodsHave": zod.int(),
+  "nodsNeeded": zod.int(),
+  "iHaveNodded": zod.boolean(),
+  "mayPost": zod.boolean(),
+  "waitingOn": zod.string().nullable(),
+  "posted": zod.boolean().describe('Whether this team\'s reply is already in')
+})
+
+
+/**
  * A draft form reports itself as unpublished with no questions, exactly as a draft quiz does. The learner's own answers travel back once filed so they can read what they said; the form cannot be filed twice.
  * @summary The opening assessment or closing survey, and anything already filed
  */

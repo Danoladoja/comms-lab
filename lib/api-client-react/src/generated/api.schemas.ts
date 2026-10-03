@@ -1927,6 +1927,77 @@ export interface StudioSimulation {
   yourRun?: StudioSimulationYourRun;
 }
 
+export interface TeamRoomMessage {
+  id: number;
+  userId: number;
+  name: string;
+  body: string;
+  createdAt: string;
+  /** Whether the reader wrote it */
+  mine: boolean;
+}
+
+export interface TeamRoomMember {
+  userId: number;
+  name: string;
+  /** Whether they have ever opened the room */
+  present: boolean;
+  /** How many of the team want them speaking */
+  votes: number;
+  /** Whether they are behind the draft as it stands */
+  nodded: boolean;
+}
+
+export interface TeamRoom {
+  groupId: string;
+  teamName: string;
+  members: TeamRoomMember[];
+  messages: TeamRoomMessage[];
+  /** One line saying where the team is up to */
+  standing: string;
+  electionOpen: boolean;
+  electionMinutesLeft: number;
+  /** @nullable */
+  leaderId: number | null;
+  /** @nullable */
+  leaderName: string | null;
+  iAmLeader: boolean;
+  /** @nullable */
+  myVoteFor: number | null;
+  draft: string;
+  draftVersion: number;
+  nodsHave: number;
+  nodsNeeded: number;
+  iHaveNodded: boolean;
+  mayPost: boolean;
+  /** @nullable */
+  waitingOn: string | null;
+  /** Whether this team's reply is already in */
+  posted: boolean;
+}
+
+export interface TeamRoomMessageDraft {
+  /**
+     * @minLength 1
+     * @maxLength 2000
+     */
+  body: string;
+}
+
+export interface TeamLeaderVote {
+  forUserId: number;
+}
+
+export interface TeamRoomDraftBody {
+  /** @maxLength 8000 */
+  body: string;
+}
+
+export interface TeamRoomNod {
+  /** The wording being agreed to */
+  version: number;
+}
+
 export interface StudioAiStatus {
   /** Whether a key is set on the server at all */
   configured: boolean;

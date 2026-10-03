@@ -430,3 +430,98 @@ export const studioGroupSessionsTable = pgTable("studio_group_sessions", {
 ]);
 
 export type StudioGroupSession = typeof studioGroupSessionsTable.$inferSelect;
+
+/* ------------------------------------------------------------------ *
+ * The room a team argues in
+ * ------------------------------------------------------------------ */
+
+/**
+ * What a team says to each other, as opposed to what it says to the world.
+ *
+ * Kept separate from `simulation_responses` on purpose and permanently. A
+ * response is published — other teams read it, the debrief marks it, it is
+ * part of the record. This is the room before that: half-formed, argued over,
+ * occasionally wrong, and none of anybody else's business.
+ *
+ * It is still kept rather than thrown away, because how a team got to its
+ * answer is most of what a debrief has to say about them — who convened it,
+ * who was never asked, how long the argument took. But nothing in here is ever
+ * shown to another team, during or after.
+ */
+export const teamRoomMessagesTable = pgTable("team_room_messages", {
+  id: serial("id").primaryKey(),
+  runId: integer("run_id").notNull().references(() => simulationRunsTable.id, { onDelete: "cascade" }),
+  groupId: text("group_id").notNull(),
+  userId: integer("user_id").notNull().references(() => usersTable.id, { onDelete: "cascade" }),
+  body: text("body").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("team_room_messages_run_group_idx").on(t.runId, t.groupId, t.createdAt),
+]);
+
+/**
+ * Who each person wants speaking for them.
+ *
+ * One row per voter per team, replaced when they change their mind, so the
+ * count is always of people rather than of clicks. Kept after the election
+ * closes: a leader who cannot be shown to have been chosen is just somebody
+ * who was in charge.
+ */
+export const teamRoomVotesTable = pgTable("team_room_votes", {
+  id: serial("id").primaryKey(),
+  runId: integer("run_id").notNull().references(() => simulationRunsTable.id, { onDelete: "cascade" }),
+  groupId: text("group_id").notNull(),
+  voterId: integer("voter_id").notNull().references(() => usersTable.id, { onDelete: "cascade" }),
+  forUserId: integer("for_user_id").notNull().references(() => usersTable.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+}, (t) => [
+  uniqueIndex("team_room_votes_run_group_voter_unique").on(t.runId, t.groupId, t.voterId),
+]);
+
+/**
+ * The leader's draft, and the version number the nods hang off.
+ *
+ * `version` is the whole mechanism. It goes up every time the words change,
+ * and a nod records the version it was given to — so an edit does not need to
+ * go and delete anybody's approval, it simply leaves it behind. Approving one
+ * sentence and publishing another is the failure this table exists to make
+ * impossible.
+ *
+ * One draft per team per development: the team is answering this one thing,
+ * and a second draft for the same thing is two teams.
+ */
+export const teamRoomDraftsTable = pgTable("team_room_drafts", {
+  id: serial("id").primaryKey(),
+  runId: integer("run_id").notNull().references(() => simulationRunsTable.id, { onDelete: "cascade" }),
+  groupId: text("group_id").notNull(),
+  injectId: text("inject_id").notNull(),
+  body: text("body").notNull().default(""),
+  version: integer("version").notNull().default(1),
+  authorId: integer("author_id").notNull().references(() => usersTable.id, { onDelete: "restrict" }),
+  /** Stamped when it was actually sent, so a room can show what went out. */
+  postedAt: timestamp("posted_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+}, (t) => [
+  uniqueIndex("team_room_drafts_run_group_inject_unique").on(t.runId, t.groupId, t.injectId),
+]);
+
+/**
+ * Who is behind the draft, and behind which wording of it.
+ *
+ * The version is carried here rather than inferred, because the question a nod
+ * answers is not "do you back the team" but "do you back these words". A row
+ * whose version is behind the draft's is not stale data to be cleaned up — it
+ * is the honest record that somebody agreed to something that has since
+ * changed.
+ */
+export const teamRoomNodsTable = pgTable("team_room_nods", {
+  id: serial("id").primaryKey(),
+  draftId: integer("draft_id").notNull().references(() => teamRoomDraftsTable.id, { onDelete: "cascade" }),
+  userId: integer("user_id").notNull().references(() => usersTable.id, { onDelete: "cascade" }),
+  version: integer("version").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("team_room_nods_draft_user_version_unique").on(t.draftId, t.userId, t.version),
+]);

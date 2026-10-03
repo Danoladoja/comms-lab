@@ -171,6 +171,11 @@ import type {
   TaskDraftInput,
   TaskDraftResult,
   TaughtCohort,
+  TeamLeaderVote,
+  TeamRoom,
+  TeamRoomDraftBody,
+  TeamRoomMessageDraft,
+  TeamRoomNod,
   ThreadDetail,
   ThreadInput,
   ThreadList,
@@ -10034,6 +10039,446 @@ export const useCompleteSimulationRun = <TError = ErrorType<UnauthorizedResponse
         TContext
       > => {
       return useMutation(getCompleteSimulationRunMutationOptions(options));
+    }
+
+export const getGetTeamRoomUrl = (runId: number,) => {
+
+
+
+
+  return `/api/simulation-runs/${runId}/room`
+}
+
+/**
+ * Everything one participant may see of their own team's room. Never another team's: what a team says to each other before it answers is not part of the exercise other teams are in.
+ * @summary Your team's room — the talk, the election, the draft and who is behind it
+ */
+export const getTeamRoom = async (runId: number, options?: Parameters<typeof customFetch>[1]): Promise<TeamRoom> => {
+
+  return customFetch<TeamRoom>(getGetTeamRoomUrl(runId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetTeamRoomQueryKey = (runId: number,) => {
+    return [
+    `/api/simulation-runs/${runId}/room`
+    ] as const;
+    }
+
+
+export const getGetTeamRoomQueryOptions = <TData = Awaited<ReturnType<typeof getTeamRoom>>, TError = ErrorType<UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>>(runId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getTeamRoom>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetTeamRoomQueryKey(runId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getTeamRoom>>> = ({ signal }) => getTeamRoom(runId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: runId !== null && runId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getTeamRoom>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetTeamRoomQueryResult = NonNullable<Awaited<ReturnType<typeof getTeamRoom>>>
+export type GetTeamRoomQueryError = ErrorType<UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>
+
+
+/**
+ * @summary Your team's room — the talk, the election, the draft and who is behind it
+ */
+
+export function useGetTeamRoom<TData = Awaited<ReturnType<typeof getTeamRoom>>, TError = ErrorType<UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>>(
+ runId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getTeamRoom>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetTeamRoomQueryOptions(runId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getSendTeamRoomMessageUrl = (runId: number,) => {
+
+
+
+
+  return `/api/simulation-runs/${runId}/room/messages`
+}
+
+/**
+ * @summary Say something to your own team
+ */
+export const sendTeamRoomMessage = async (runId: number,
+    teamRoomMessageDraft: TeamRoomMessageDraft, options?: Parameters<typeof customFetch>[1]): Promise<TeamRoom> => {
+
+  return customFetch<TeamRoom>(getSendTeamRoomMessageUrl(runId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(teamRoomMessageDraft)
+  }
+);}
+
+
+
+
+
+export const getSendTeamRoomMessageMutationOptions = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ForbiddenResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sendTeamRoomMessage>>, TError,{runId: number;data: BodyType<TeamRoomMessageDraft>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof sendTeamRoomMessage>>, TError,{runId: number;data: BodyType<TeamRoomMessageDraft>}, TContext> => {
+
+const mutationKey = ['sendTeamRoomMessage'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof sendTeamRoomMessage>>, {runId: number;data: BodyType<TeamRoomMessageDraft>}> = (props) => {
+          const {runId,data} = props ?? {};
+
+          return  sendTeamRoomMessage(runId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SendTeamRoomMessageMutationResult = NonNullable<Awaited<ReturnType<typeof sendTeamRoomMessage>>>
+    export type SendTeamRoomMessageMutationBody = BodyType<TeamRoomMessageDraft>
+    export type SendTeamRoomMessageMutationError = ErrorType<BadRequestResponse | UnauthorizedResponse | ForbiddenResponse>
+
+    /**
+ * @summary Say something to your own team
+ */
+export const useSendTeamRoomMessage = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ForbiddenResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sendTeamRoomMessage>>, TError,{runId: number;data: BodyType<TeamRoomMessageDraft>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof sendTeamRoomMessage>>,
+        TError,
+        {runId: number;data: BodyType<TeamRoomMessageDraft>},
+        TContext
+      > => {
+      return useMutation(getSendTeamRoomMessageMutationOptions(options));
+    }
+
+export const getVoteForTeamLeaderUrl = (runId: number,) => {
+
+
+
+
+  return `/api/simulation-runs/${runId}/room/leader`
+}
+
+/**
+ * One vote each, changeable while the five minutes are open. A vote for somebody who has not opened the room is refused: electing an empty chair is the same as electing nobody.
+ * @summary Vote for who should speak for your team
+ */
+export const voteForTeamLeader = async (runId: number,
+    teamLeaderVote: TeamLeaderVote, options?: Parameters<typeof customFetch>[1]): Promise<TeamRoom> => {
+
+  return customFetch<TeamRoom>(getVoteForTeamLeaderUrl(runId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(teamLeaderVote)
+  }
+);}
+
+
+
+
+
+export const getVoteForTeamLeaderMutationOptions = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ForbiddenResponse | ConflictResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof voteForTeamLeader>>, TError,{runId: number;data: BodyType<TeamLeaderVote>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof voteForTeamLeader>>, TError,{runId: number;data: BodyType<TeamLeaderVote>}, TContext> => {
+
+const mutationKey = ['voteForTeamLeader'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof voteForTeamLeader>>, {runId: number;data: BodyType<TeamLeaderVote>}> = (props) => {
+          const {runId,data} = props ?? {};
+
+          return  voteForTeamLeader(runId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type VoteForTeamLeaderMutationResult = NonNullable<Awaited<ReturnType<typeof voteForTeamLeader>>>
+    export type VoteForTeamLeaderMutationBody = BodyType<TeamLeaderVote>
+    export type VoteForTeamLeaderMutationError = ErrorType<BadRequestResponse | UnauthorizedResponse | ForbiddenResponse | ConflictResponse>
+
+    /**
+ * @summary Vote for who should speak for your team
+ */
+export const useVoteForTeamLeader = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ForbiddenResponse | ConflictResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof voteForTeamLeader>>, TError,{runId: number;data: BodyType<TeamLeaderVote>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof voteForTeamLeader>>,
+        TError,
+        {runId: number;data: BodyType<TeamLeaderVote>},
+        TContext
+      > => {
+      return useMutation(getVoteForTeamLeaderMutationOptions(options));
+    }
+
+export const getSaveTeamRoomDraftUrl = (runId: number,) => {
+
+
+
+
+  return `/api/simulation-runs/${runId}/room/draft`
+}
+
+/**
+ * Changing the words clears every nod, the author's own included. A team approves a sentence, not a person.
+ * @summary The leader writes or rewrites the team's reply
+ */
+export const saveTeamRoomDraft = async (runId: number,
+    teamRoomDraftBody: TeamRoomDraftBody, options?: Parameters<typeof customFetch>[1]): Promise<TeamRoom> => {
+
+  return customFetch<TeamRoom>(getSaveTeamRoomDraftUrl(runId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(teamRoomDraftBody)
+  }
+);}
+
+
+
+
+
+export const getSaveTeamRoomDraftMutationOptions = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ForbiddenResponse | ConflictResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveTeamRoomDraft>>, TError,{runId: number;data: BodyType<TeamRoomDraftBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof saveTeamRoomDraft>>, TError,{runId: number;data: BodyType<TeamRoomDraftBody>}, TContext> => {
+
+const mutationKey = ['saveTeamRoomDraft'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof saveTeamRoomDraft>>, {runId: number;data: BodyType<TeamRoomDraftBody>}> = (props) => {
+          const {runId,data} = props ?? {};
+
+          return  saveTeamRoomDraft(runId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SaveTeamRoomDraftMutationResult = NonNullable<Awaited<ReturnType<typeof saveTeamRoomDraft>>>
+    export type SaveTeamRoomDraftMutationBody = BodyType<TeamRoomDraftBody>
+    export type SaveTeamRoomDraftMutationError = ErrorType<BadRequestResponse | UnauthorizedResponse | ForbiddenResponse | ConflictResponse>
+
+    /**
+ * @summary The leader writes or rewrites the team's reply
+ */
+export const useSaveTeamRoomDraft = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ForbiddenResponse | ConflictResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveTeamRoomDraft>>, TError,{runId: number;data: BodyType<TeamRoomDraftBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof saveTeamRoomDraft>>,
+        TError,
+        {runId: number;data: BodyType<TeamRoomDraftBody>},
+        TContext
+      > => {
+      return useMutation(getSaveTeamRoomDraftMutationOptions(options));
+    }
+
+export const getNodTeamRoomDraftUrl = (runId: number,) => {
+
+
+
+
+  return `/api/simulation-runs/${runId}/room/nod`
+}
+
+/**
+ * @summary Say you are behind the draft as it stands
+ */
+export const nodTeamRoomDraft = async (runId: number,
+    teamRoomNod: TeamRoomNod, options?: Parameters<typeof customFetch>[1]): Promise<TeamRoom> => {
+
+  return customFetch<TeamRoom>(getNodTeamRoomDraftUrl(runId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(teamRoomNod)
+  }
+);}
+
+
+
+
+
+export const getNodTeamRoomDraftMutationOptions = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ForbiddenResponse | ConflictResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof nodTeamRoomDraft>>, TError,{runId: number;data: BodyType<TeamRoomNod>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof nodTeamRoomDraft>>, TError,{runId: number;data: BodyType<TeamRoomNod>}, TContext> => {
+
+const mutationKey = ['nodTeamRoomDraft'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof nodTeamRoomDraft>>, {runId: number;data: BodyType<TeamRoomNod>}> = (props) => {
+          const {runId,data} = props ?? {};
+
+          return  nodTeamRoomDraft(runId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type NodTeamRoomDraftMutationResult = NonNullable<Awaited<ReturnType<typeof nodTeamRoomDraft>>>
+    export type NodTeamRoomDraftMutationBody = BodyType<TeamRoomNod>
+    export type NodTeamRoomDraftMutationError = ErrorType<BadRequestResponse | UnauthorizedResponse | ForbiddenResponse | ConflictResponse>
+
+    /**
+ * @summary Say you are behind the draft as it stands
+ */
+export const useNodTeamRoomDraft = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ForbiddenResponse | ConflictResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof nodTeamRoomDraft>>, TError,{runId: number;data: BodyType<TeamRoomNod>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof nodTeamRoomDraft>>,
+        TError,
+        {runId: number;data: BodyType<TeamRoomNod>},
+        TContext
+      > => {
+      return useMutation(getNodTeamRoomDraftMutationOptions(options));
+    }
+
+export const getPostTeamRoomDraftUrl = (runId: number,) => {
+
+
+
+
+  return `/api/simulation-runs/${runId}/room/post`
+}
+
+/**
+ * The gate is here as well as in the browser, because a gate enforced only in the browser is a gate with a hole in it.
+ * @summary Send the team's reply, once enough of them are behind it
+ */
+export const postTeamRoomDraft = async (runId: number, options?: Parameters<typeof customFetch>[1]): Promise<TeamRoom> => {
+
+  return customFetch<TeamRoom>(getPostTeamRoomDraftUrl(runId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getPostTeamRoomDraftMutationOptions = <TError = ErrorType<UnauthorizedResponse | ForbiddenResponse | ConflictResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postTeamRoomDraft>>, TError,{runId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof postTeamRoomDraft>>, TError,{runId: number}, TContext> => {
+
+const mutationKey = ['postTeamRoomDraft'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof postTeamRoomDraft>>, {runId: number}> = (props) => {
+          const {runId} = props ?? {};
+
+          return  postTeamRoomDraft(runId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PostTeamRoomDraftMutationResult = NonNullable<Awaited<ReturnType<typeof postTeamRoomDraft>>>
+
+    export type PostTeamRoomDraftMutationError = ErrorType<UnauthorizedResponse | ForbiddenResponse | ConflictResponse>
+
+    /**
+ * @summary Send the team's reply, once enough of them are behind it
+ */
+export const usePostTeamRoomDraft = <TError = ErrorType<UnauthorizedResponse | ForbiddenResponse | ConflictResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postTeamRoomDraft>>, TError,{runId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof postTeamRoomDraft>>,
+        TError,
+        {runId: number},
+        TContext
+      > => {
+      return useMutation(getPostTeamRoomDraftMutationOptions(options));
     }
 
 export const getGetProgramFormUrl = (id: number,

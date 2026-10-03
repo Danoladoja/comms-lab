@@ -20,6 +20,7 @@ import liveSessionsRouter from "./liveSessions";
 import studioSimulationsRouter from "./studioSimulations";
 import progressAuditRouter from "./progressAudit";
 import programFormsRouter from "./programForms";
+import teamRoomRouter from "./teamRoom";
 
 const router: IRouter = Router();
 
@@ -36,6 +37,7 @@ router.use(liveSessionsRouter);
 router.use(studioSimulationsRouter);
 router.use(progressAuditRouter);
 router.use(programFormsRouter);
+router.use(teamRoomRouter);
 router.use(reviewsRouter);
 router.use(presenceRouter);
 router.use(slidesRouter);

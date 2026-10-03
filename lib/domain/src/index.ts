@@ -54,6 +54,7 @@ export * from "./googleCalendarError";
 export * from "./startupMigrations";
 export * from "./studioInvites";
 export * from "./groupSession";
+export * from "./teamRoom";
 export * from "./reminderWords";
 export * from "./progressAudit";
 export * from "./programForm";
