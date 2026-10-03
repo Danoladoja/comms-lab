@@ -56,7 +56,11 @@ export async function generateScenario(brief: StudioBrief): Promise<AiResult<Val
     toolName: "submit_scenario",
     toolDescription: "Return the exercise you have written.",
     schema: scenarioSchema(),
-    maxTokens: 6000,
+    // Four stakeholder groups, each with a confidential brief of up to two
+    // thousand characters, plus the opening situation, the first development,
+    // the dimensions and the debrief questions. Six thousand was close enough
+    // to the edge to matter.
+    maxTokens: 8000,
     label: "studio-scenario",
   });
   if ("error" in answer) return { ok: false, error: answer.error };
@@ -129,7 +133,13 @@ export async function generateGroupPlan(args: {
     toolName: "submit_plan",
     toolDescription: "Return the objectives and the running order.",
     schema: groupPlanSchema(),
-    maxTokens: 4000,
+    // Up to five objectives with notes and ten beats, each with a title, what
+    // it says and what it asks for. Four thousand was the tightest ceiling of
+    // any call here and the only one behind a button an admin presses; a reply
+    // that does not fit comes back half-written, which read as a bad plan
+    // rather than as a plan with nowhere to go. A ceiling is a cap, not a
+    // spend: raising it costs nothing on the replies that already fitted.
+    maxTokens: 8000,
     label: "studio-group-plan",
   });
   if ("error" in answer) return { ok: false, error: answer.error };

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { modelConcern } from "./anthropic";
 
 /**
@@ -64,5 +64,56 @@ describe("what is worth saying about the model", () => {
     // and a prefix match that caught the wrong one would print the wrong date.
     expect(modelConcern("claude-sonnet-4-5", BEFORE)).toContain("30 November 2026");
     expect(modelConcern("claude-sonnet-4-20250514", BEFORE)).toContain("stopped being served");
+  });
+});
+
+/**
+ * A reply that ran out of room.
+ *
+ * The quietest failure in the file. A reply stopped at the token ceiling comes
+ * back 200, with a tool_use block on it, and with an `input` — just an
+ * incomplete one, because the JSON was mid-sentence when the budget ran out. So
+ * it reached the validators looking like a bad answer and was reported as one:
+ * "the plan came back with no objectives", when the plan had come back with
+ * nowhere to go.
+ *
+ * Trying again does not fix a ceiling that is too low, so saying the wrong
+ * thing here costs an afternoon of pressing a button.
+ */
+describe("when the AI runs out of room", () => {
+  const server = { url: "", close: async () => {} };
+
+  beforeAll(async () => {
+    const { createServer } = await import("node:http");
+    const s = createServer((_req, res) => {
+      res.writeHead(200, { "content-type": "application/json" });
+      // What the API actually sends: a 200, a partial tool call, and the one
+      // field that says it was cut off.
+      res.end(JSON.stringify({
+        stop_reason: "max_tokens",
+        usage: { output_tokens: 4000 },
+        content: [{ type: "tool_use", name: "submit_plan", input: { objectives: [{ text: "Half a thou" }] } }],
+      }));
+    });
+    await new Promise<void>((r) => s.listen(0, r));
+    const port = (s.address() as { port: number }).port;
+    server.url = `http://127.0.0.1:${port}`;
+    server.close = () => new Promise<void>((r) => { s.close(() => r()); });
+  });
+
+  afterAll(async () => { await server.close(); });
+
+  it("says it ran out of room, rather than passing half an answer on", async () => {
+    process.env.ANTHROPIC_API_KEY = "test-key";
+    process.env.ANTHROPIC_BASE_URL = server.url;
+    const { askClaude } = await import("./anthropic");
+
+    const answer = await askClaude({
+      system: "s", user: "u", toolName: "submit_plan", toolDescription: "d",
+      schema: { type: "object" }, label: "test",
+    });
+
+    expect("error" in answer, "half an answer was passed on as an answer").toBe(true);
+    expect((answer as { error: string }).error).toContain("ran out of room");
   });
 });

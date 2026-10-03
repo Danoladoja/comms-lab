@@ -855,6 +855,27 @@ function asList(value: unknown): unknown[] {
 }
 
 /**
+ * What actually arrived, in a few words, for the sentence that refuses it.
+ *
+ * "The plan came back with no objectives" is true and leaves an admin with
+ * nothing to do but press the button again and hope. "...(it sent 4, none with
+ * any text)" and "...(it sent nothing under that name; it did send: summary,
+ * agenda)" are two different faults with two different fixes, and the
+ * difference is free to report.
+ *
+ * Only the key names, never the values: a key is a word the model chose from
+ * our own schema, and a value is whatever it wrote.
+ */
+function whatArrived(raw: unknown, counted: number): string {
+  if (counted > 0) return ` (it sent ${counted}, none of them with any text)`;
+  const keys = raw && typeof raw === "object" && !Array.isArray(raw)
+    ? Object.keys(raw).filter((k) => /^[A-Za-z0-9_]{1,30}$/.test(k)).slice(0, 6)
+    : [];
+  if (keys.length === 0) return " (it sent nothing this could be read from)";
+  return ` (it sent nothing under that name; it did send: ${keys.join(", ")})`;
+}
+
+/**
  * Make the plan safe to store and to run.
  *
  * Every number is clamped and every beat is given an id here rather than
@@ -879,13 +900,31 @@ export function validateGroupPlan(input: unknown, durationMinutes: number): {
 
   const text = (value: unknown): string => (typeof value === "string" ? value.trim() : "");
 
-  const objectives = asList(raw?.objectives)
+  const objectivesGiven = asList(raw?.objectives);
+  const objectives = objectivesGiven
     .map((value, i) => {
-      const o = (value ?? {}) as { text?: unknown; note?: unknown };
-      return { id: `obj-${i + 1}`, text: text(o.text), note: text(o.note), enabled: true };
+      // An objective written as a plain sentence is an objective. Asked for
+      // "three or four objectives" a model sometimes answers with the
+      // sentences rather than with objects holding them, which is not wrong
+      // and used to be discarded in full.
+      if (typeof value === "string") {
+        return { id: `obj-${i + 1}`, text: value.trim(), note: "", enabled: true };
+      }
+      const o = (value ?? {}) as Record<string, unknown>;
+      // The schema asks for `text` and `note`. These are the names a model
+      // reaches for instead when it paraphrases the schema rather than
+      // following it — each one was a whole session refused over a synonym.
+      return {
+        id: `obj-${i + 1}`,
+        text: text(o.text) || text(o.objective) || text(o.goal) || text(o.title),
+        note: text(o.note) || text(o.why) || text(o.detail) || text(o.description),
+        enabled: true,
+      };
     })
     .filter((o) => o.text.length > 0);
-  if (objectives.length === 0) return { plan: null, problem: "The plan came back with no objectives." };
+  if (objectives.length === 0) {
+    return { plan: null, problem: `The plan came back with no objectives${whatArrived(raw, objectivesGiven.length)}.` };
+  }
 
   const beats = asList(raw?.beats)
     .map((value, i) => {
@@ -912,7 +951,9 @@ export function validateGroupPlan(input: unknown, durationMinutes: number): {
     .filter((b) => b.content.length > 0)
     .sort((a, b) => a.atMinute - b.atMinute);
 
-  if (beats.length === 0) return { plan: null, problem: "The plan came back with nothing happening in it." };
+  if (beats.length === 0) {
+    return { plan: null, problem: `The plan came back with nothing happening in it${whatArrived(raw, asList(raw?.beats).length)}.` };
+  }
   if (!beats.some((b) => b.scope === "all")) {
     return { plan: null, problem: "The plan came back with nothing that happens to every team." };
   }

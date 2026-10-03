@@ -190,11 +190,41 @@ export async function askClaude(args: {
       return { error: `The AI service is unavailable right now (error ${res.status}).` };
     }
 
+    const json = (await res.json()) as {
+      content?: { type: string; name?: string; input?: unknown }[];
+      stop_reason?: string;
+      usage?: { output_tokens?: number };
+    };
+
     logger.info(
-      { label: args.label, model: body.model, ms: Date.now() - startedAt },
+      {
+        label: args.label, model: body.model, ms: Date.now() - startedAt,
+        stop: json.stop_reason, out: json.usage?.output_tokens, cap: body.max_tokens,
+      },
       "Claude call finished",
     );
-    const json = (await res.json()) as { content?: { type: string; name?: string; input?: unknown }[] };
+
+    /*
+      It ran out of room, and the answer is a sentence cut in half.
+
+      This was invisible. A reply stopped at the token ceiling still comes back
+      200, still has a tool_use block on it, and still has an `input` — just an
+      incomplete one, because the JSON was being written when the budget ran
+      out. So a truncated answer reached the validators looking like a bad
+      answer, and was reported as one: "the plan came back with no objectives",
+      when what actually happened was that the plan came back with no room.
+
+      Checked before the shape, because "it did not fit" explains the shape and
+      the shape explains nothing.
+    */
+    if (json.stop_reason === "max_tokens") {
+      logger.error(
+        { label: args.label, model: body.model, cap: body.max_tokens, out: json.usage?.output_tokens },
+        "Claude call hit the token ceiling",
+      );
+      return { error: "The AI ran out of room before it finished writing. Try again, and if it keeps happening the limit for this step is too low." };
+    }
+
     const toolUse = json.content?.find((b) => b.type === "tool_use" && b.name === args.toolName);
     if (!toolUse?.input) return { error: "The AI replied in an unexpected shape. Try again." };
 

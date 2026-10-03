@@ -578,6 +578,45 @@ describe("a group plan that came back in an odd shape", () => {
     expect(plan?.beats).toHaveLength(1);
   });
 
+  it("reads objectives written as plain sentences", () => {
+    // Asked for "three or four objectives", a model sometimes answers with the
+    // sentences themselves. That is not wrong, and it used to be thrown away
+    // in full — the session refused for having no objectives when it had three.
+    const { plan } = validateGroupPlan({
+      ...goodPlan,
+      objectives: ["Lead with the figure that hurts", "Hold a line under pressure"],
+    }, 45);
+    expect(plan?.objectives).toHaveLength(2);
+    expect(plan?.objectives[0].text).toBe("Lead with the figure that hurts");
+  });
+
+  it("reads an objective under the name the model reached for", () => {
+    for (const key of ["text", "objective", "goal", "title"]) {
+      const { plan } = validateGroupPlan({ ...goodPlan, objectives: [{ [key]: "Say it before it is said for you" }] }, 45);
+      expect(plan?.objectives[0]?.text, `${key} was not read`).toBe("Say it before it is said for you");
+    }
+  });
+
+  it("says what arrived when it refuses, not only that it refused", () => {
+    // An admin who can only report "no objectives" cannot be helped. These two
+    // are different faults: the model sent the wrong shape, or it sent the
+    // right shape with nothing in it.
+    const empties = validateGroupPlan({ ...goodPlan, objectives: [{}, {}, {}] }, 45);
+    expect(empties.problem).toContain("it sent 3");
+
+    const wrongName = validateGroupPlan({ summary: "x", agenda: [], beats: goodPlan.beats }, 45);
+    expect(wrongName.problem).toContain("it did send");
+    expect(wrongName.problem).toContain("summary");
+  });
+
+  it("never quotes a value back, only the names of the fields", () => {
+    // A key is a word from our own schema. A value is whatever the model wrote,
+    // which can be a whole crisis, and this sentence goes on a screen.
+    const said = validateGroupPlan({ wrongPlace: "A pipeline leak at Dawn Energy", beats: goodPlan.beats }, 45).problem;
+    expect(said).toContain("wrongPlace");
+    expect(said).not.toContain("Dawn Energy");
+  });
+
   it("refuses in words rather than throwing, whatever it is handed", () => {
     // The actual fault. Each of these used to be a TypeError.
     const shapes: unknown[] = [
