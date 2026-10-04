@@ -14,6 +14,7 @@ import {
   validateDevelopment,
   validateScenario,
   validateGroupPlan,
+  looksLikeData,
   validateSessionDebrief,
 } from "./simulationPrompts";
 
@@ -711,5 +712,104 @@ describe("no validator in this file throws on a reply it did not expect", () => 
       expect(() => validateGroupPlan(value, 45), `validateGroupPlan threw on ${where}`).not.toThrow();
       expect(() => validateSessionDebrief(value), `validateSessionDebrief threw on ${where}`).not.toThrow();
     }
+  });
+});
+
+/**
+ * The same answer, sent twice over.
+ *
+ * A model asked for an object sometimes sends the object as a *string* of
+ * itself: the whole plan, correctly formed, JSON-encoded into one field. The
+ * leniency added to read a list written as prose turned that into something
+ * far worse than a refusal — one "objective" whose text was the entire plan,
+ * accepted silently, and printed to an admin as a wall of JSON where the
+ * sentence saying what the session would show should have been.
+ *
+ * It reached a live console. The lesson is not "parse harder": it is that a
+ * forgiving reader needs a floor, and the floor is that nothing shaped like
+ * data may be passed off as something a person wrote.
+ */
+
+const REAL_PLAN = {
+  objectives: [
+    { text: "Say something true within the hour", note: "Watch who they address first." },
+    { text: "Hold a line under pressure", note: "Watch for over-claiming." },
+  ],
+  beats: [
+    { atMinute: 0, scope: "all", title: "The photographs run", content: "It is on the front page.", responsePrompt: "First statement?", responseMinutes: 8 },
+    { atMinute: 20, scope: "all", title: "A minister comments", content: "An inquiry is called for.", responsePrompt: "What now?", responseMinutes: 8 },
+  ],
+};
+
+describe("a plan that arrived encoded twice", () => {
+  it("reads the whole plan when the whole plan is a string", () => {
+    const { plan, problem } = validateGroupPlan(JSON.stringify(REAL_PLAN), 45);
+    expect(problem).toBe("");
+    expect(plan?.objectives).toHaveLength(2);
+    expect(plan?.objectives[0].text).toBe("Say something true within the hour");
+    expect(plan?.beats).toHaveLength(2);
+  });
+
+  it("reads it when it is encoded into one of its own fields", () => {
+    // Exactly what reached the console: the plan, stringified, under
+    // `objectives`.
+    const { plan, problem } = validateGroupPlan(
+      { objectives: JSON.stringify(REAL_PLAN), beats: REAL_PLAN.beats }, 45,
+    );
+    expect(problem).toBe("");
+    expect(plan?.objectives[0].text, "a wall of JSON was accepted as an objective")
+      .toBe("Say something true within the hour");
+    expect(plan?.objectives).toHaveLength(2);
+  });
+
+  it("reads a list sent as a string of a list", () => {
+    const { plan } = validateGroupPlan(
+      { objectives: JSON.stringify(REAL_PLAN.objectives), beats: REAL_PLAN.beats }, 45,
+    );
+    expect(plan?.objectives).toHaveLength(2);
+  });
+
+  it("never lets a serialised object through as an objective", () => {
+    // The floor. Whatever shape it arrives in, this must not reach a screen.
+    const { plan, problem } = validateGroupPlan({
+      objectives: [{ text: '{"beats":[{"atMinute":0,"scope":"all"}]}', note: "" }],
+      beats: REAL_PLAN.beats,
+    }, 45);
+    expect(plan, "JSON was accepted as an objective").toBeNull();
+    expect(problem).toContain("no objectives");
+  });
+
+  it("never lets one through as a beat either", () => {
+    // A beat's words are read out to a cohort.
+    const { plan } = validateGroupPlan({
+      objectives: REAL_PLAN.objectives,
+      beats: [{ atMinute: 0, scope: "all", title: "t", content: '{"content":"nested"}', responsePrompt: "p" }],
+    }, 45);
+    expect(plan).toBeNull();
+  });
+
+  it("still lets real sentences through, brackets and colons and all", () => {
+    // The guard must be narrow. An objective may quote a figure or use a
+    // colon; it may only not be a JSON document.
+    for (const text of [
+      "Lead with the figure that hurts: 9 days without water",
+      "Say what you know [and what you do not]",
+      "{Nothing} is confirmed yet",
+      "Handle it",
+    ]) {
+      expect(looksLikeData(text), `"${text}" was mistaken for data`).toBe(false);
+      const { plan } = validateGroupPlan({ objectives: [{ text, note: "" }], beats: REAL_PLAN.beats }, 45);
+      expect(plan?.objectives[0]?.text, `"${text}" was thrown away`).toBe(text);
+    }
+  });
+
+  it("recognises what data actually looks like", () => {
+    expect(looksLikeData('{"beats": [{"atMinute":0}]}')).toBe(true);
+    expect(looksLikeData('[{"text":"x"}]')).toBe(true);
+    expect(looksLikeData('   {"a": 1}   ')).toBe(true);
+  });
+
+  it("does not throw on a string that looks like data and is not", () => {
+    expect(() => validateGroupPlan({ objectives: '{"broken": ', beats: REAL_PLAN.beats }, 45)).not.toThrow();
   });
 });

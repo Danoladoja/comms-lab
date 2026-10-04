@@ -846,6 +846,72 @@ export type ValidatedGroupPlan = {
  * words. Every other validator in this file already guards this way; this one
  * did not, and it is the only one reached by a button an admin presses.
  */
+/**
+ * Does this read as data rather than as something a person wrote?
+ *
+ * Narrow on purpose. It catches a serialised object or array — which is what a
+ * model sends when it encodes its answer twice — and nothing else. An
+ * objective may legitimately quote a figure, a bracket, or a sentence with a
+ * colon in it; what it may never be is a JSON document, because that is not a
+ * thing anybody can read off a screen.
+ */
+export function looksLikeData(text: string): boolean {
+  const trimmed = text.trim();
+  if (!(trimmed.startsWith("{") || trimmed.startsWith("["))) return false;
+  // A brace alone is not enough: the giveaway is quoted keys followed by a
+  // colon, which is what a serialised object has and a sentence does not.
+  return /"[A-Za-z_][A-Za-z0-9_]*"\s*:/.test(trimmed);
+}
+
+/**
+ * The same answer, sent twice over.
+ *
+ * A model asked for an object sometimes sends the object as a *string* of
+ * itself — the whole plan, correctly formed, JSON-encoded into one field. The
+ * content is right there and perfectly usable, and the leniency added to read
+ * a list written as prose turned it into something far worse than a refusal:
+ * one "objective" whose text was the entire plan, accepted silently, and shown
+ * to an admin as a wall of JSON where a sentence should have been.
+ *
+ * So a string that parses is parsed, once, and never guessed at twice.
+ */
+function unwrap(input: unknown): unknown {
+  const parse = (value: unknown): unknown => {
+    if (typeof value !== "string" || !looksLikeData(value)) return null;
+    try {
+      return JSON.parse(value);
+    } catch {
+      return null;
+    }
+  };
+
+  const whole = parse(input);
+  if (whole && typeof whole === "object") return whole;
+
+  if (input && typeof input === "object") {
+    const raw = input as Record<string, unknown>;
+    // The plan, encoded into one of its own fields. Taken whole when what
+    // comes out plainly is the plan.
+    for (const key of ["objectives", "beats", "plan"]) {
+      const inside = parse(raw[key]);
+      if (inside && typeof inside === "object" && !Array.isArray(inside)
+        && ("beats" in inside || "objectives" in inside)) {
+        return inside;
+      }
+    }
+    // A field that is a list, written as a string of a list.
+    const mended: Record<string, unknown> = { ...raw };
+    let changed = false;
+    for (const key of ["objectives", "beats"]) {
+      const inside = parse(raw[key]);
+      if (Array.isArray(inside)) { mended[key] = inside; changed = true; }
+    }
+    if (changed) return mended;
+  }
+
+  return input;
+}
+
 function asList(value: unknown): unknown[] {
   if (Array.isArray(value)) return value;
   // A single item sent bare. Nearly right, and throwing it away would refuse a
@@ -922,7 +988,7 @@ export function validateGroupPlan(
   plan: ValidatedGroupPlan | null;
   problem: string;
 } {
-  const raw = input as {
+  const raw = unwrap(input) as {
     objectives?: unknown;
     beats?: unknown;
   } | null;
@@ -950,7 +1016,15 @@ export function validateGroupPlan(
         enabled: true,
       };
     })
-    .filter((o) => o.text.length > 0);
+    /*
+      Nothing data-shaped reaches a screen.
+
+      A serialised object is not an objective however it arrived, and the admin
+      console has no way to tell one from a sentence — it simply prints it. One
+      wall of JSON where "what this session will show" should be is worse than
+      a refusal, because a refusal can be pressed again.
+    */
+    .filter((o) => o.text.length > 0 && !looksLikeData(o.text));
 
   const beats = asList(raw?.beats)
     .map((value, i) => {
@@ -974,7 +1048,9 @@ export function validateGroupPlan(
         responseMinutes: Number.isFinite(response) ? Math.min(Math.max(2, Math.round(response)), 15) : 5,
       };
     })
-    .filter((b) => b.content.length > 0)
+    // Nothing data-shaped reaches a screen, here either: a beat whose words
+    // are a serialised object would be read out to a cohort.
+    .filter((b) => b.content.length > 0 && !looksLikeData(b.content) && !looksLikeData(b.title))
     .sort((a, b) => a.atMinute - b.atMinute);
 
   if (beats.length === 0) {

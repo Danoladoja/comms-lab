@@ -337,6 +337,9 @@ function SessionSheet({ session, onChanged }: { session: GroupSession; onChanged
         <p className="text-[10px] uppercase tracking-widest text-white/40 mb-2">
           What it will test — the debriefs are written against these
         </p>
+        <p className="text-[11px] text-white/35 mb-2">
+          Click any of them to rewrite it. Switch off whatever this cohort has not covered.
+        </p>
         <ul className="space-y-2">
           {session.objectives.map((o) => (
             <li key={o.id} className="flex gap-3 border border-white/10 p-3">
@@ -348,8 +351,25 @@ function SessionSheet({ session, onChanged }: { session: GroupSession; onChanged
                 aria-label={`Test: ${o.text}`}
                 onChange={(e) => toggle(o.id, e.target.checked)}
               />
-              <span className={o.enabled ? '' : 'opacity-45'}>
-                <span className="block text-sm font-medium text-white">{o.text}</span>
+              <span className={`min-w-0 flex-1 ${o.enabled ? '' : 'opacity-45'}`}>
+                {/*
+                  Editable, because the model writes these and the model is
+                  sometimes wrong — and because an objective that arrived
+                  unreadable used to leave an admin with nothing to do but plan
+                  the whole session again. The API has always accepted a new
+                  wording; only this screen never offered one.
+                */}
+                <textarea
+                  defaultValue={o.text}
+                  disabled={!session.mayEdit}
+                  rows={2}
+                  aria-label="What this session will show"
+                  className="block w-full bg-transparent text-sm font-medium text-white resize-y border border-transparent hover:border-white/15 focus:border-white/30 focus:outline-none px-1 -mx-1"
+                  onBlur={(e) => {
+                    const text = e.target.value.trim();
+                    if (text && text !== o.text) edit.mutate({ id: session.id, data: { objectives: [{ id: o.id, text }] } });
+                  }}
+                />
                 <span className="block text-xs text-white/50 mt-0.5">{o.note}</span>
               </span>
             </li>
