@@ -47,6 +47,16 @@ export type RoomMember = {
   name: string;
   /** When they first opened the room. Null means they never did. */
   enteredAt: string | null;
+  /**
+   * An admin or instructor sitting in, rather than somebody being examined.
+   *
+   * Staff do join live sessions — to see it from the inside, to nudge a team
+   * that has frozen, to find out why a room went quiet. That is useful and it
+   * must cost the team nothing: a facilitator walking in cannot be allowed to
+   * change how many nods the team needs, to be elected to speak for it, or to
+   * answer in its name. They are in the room and outside the arithmetic.
+   */
+  isStaff?: boolean;
 };
 
 export type LeaderVote = { voterId: number; forUserId: number };
@@ -65,7 +75,21 @@ export type LeaderVote = { voterId: number; forUserId: number };
  */
 export function present(members: readonly RoomMember[]): RoomMember[] {
   return members
-    .filter((m) => m.enteredAt !== null)
+    .filter((m) => m.enteredAt !== null && !m.isStaff)
+    .sort((a, b) => (a.enteredAt ?? "").localeCompare(b.enteredAt ?? ""));
+}
+
+/**
+ * Staff in the room.
+ *
+ * Listed separately and never folded into the count. Shown to the team, on
+ * purpose: a facilitator reading over your shoulder changes how people talk,
+ * and the honest answer to that is to say they are there rather than to hide
+ * it.
+ */
+export function observers(members: readonly RoomMember[]): RoomMember[] {
+  return members
+    .filter((m) => m.enteredAt !== null && m.isStaff === true)
     .sort((a, b) => (a.enteredAt ?? "").localeCompare(b.enteredAt ?? ""));
 }
 
@@ -220,7 +244,13 @@ export function postCheck(args: {
     return no("Your team has not chosen who speaks for it yet.");
   }
   if (args.byUserId !== args.leaderId) {
-    return no("Only the person your team chose can send it.");
+    // Staff included, and said differently to them, because an admin pressing
+    // this has not misunderstood the rule — they have forgotten which hat they
+    // are wearing, which is easy to do from inside a room.
+    const staff = args.members.find((m) => m.userId === args.byUserId)?.isStaff === true;
+    return no(staff
+      ? "You are sitting in on this team, not in it. Their reply is theirs to send."
+      : "Only the person your team chose can send it.");
   }
   if (!args.draft || args.draft.body.trim().length === 0) {
     return no("There is nothing drafted yet.");

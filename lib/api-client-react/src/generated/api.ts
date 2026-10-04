@@ -146,6 +146,7 @@ import type {
   SessionInput,
   SessionNotes,
   SessionNotesInput,
+  SessionPlayback,
   SessionProgress,
   SessionUpdate,
   SimulationJoinInput,
@@ -7656,6 +7657,167 @@ export const useEditGroupSession = <TError = ErrorType<ApiMessage>,
       > => {
       return useMutation(getEditGroupSessionMutationOptions(options));
     }
+
+export const getSitInOnTeamRoomUrl = (runId: number,
+    teamId: string,) => {
+
+
+
+
+  return `/api/admin/studio/runs/${runId}/rooms/${teamId}`
+}
+
+/**
+ * Staff are in the room and outside its arithmetic — not counted toward the threshold, not electable, and unable to send the team's reply. The team is told they are there.
+ * @summary Sit in on one team's room
+ */
+export const sitInOnTeamRoom = async (runId: number,
+    teamId: string, options?: Parameters<typeof customFetch>[1]): Promise<TeamRoom> => {
+
+  return customFetch<TeamRoom>(getSitInOnTeamRoomUrl(runId,teamId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getSitInOnTeamRoomQueryKey = (runId: number,
+    teamId: string,) => {
+    return [
+    `/api/admin/studio/runs/${runId}/rooms/${teamId}`
+    ] as const;
+    }
+
+
+export const getSitInOnTeamRoomQueryOptions = <TData = Awaited<ReturnType<typeof sitInOnTeamRoom>>, TError = ErrorType<UnauthorizedResponse | ForbiddenResponse | ConflictResponse>>(runId: number,
+    teamId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof sitInOnTeamRoom>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getSitInOnTeamRoomQueryKey(runId,teamId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof sitInOnTeamRoom>>> = ({ signal }) => sitInOnTeamRoom(runId,teamId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: runId !== null && runId !== undefined && teamId !== null && teamId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof sitInOnTeamRoom>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type SitInOnTeamRoomQueryResult = NonNullable<Awaited<ReturnType<typeof sitInOnTeamRoom>>>
+export type SitInOnTeamRoomQueryError = ErrorType<UnauthorizedResponse | ForbiddenResponse | ConflictResponse>
+
+
+/**
+ * @summary Sit in on one team's room
+ */
+
+export function useSitInOnTeamRoom<TData = Awaited<ReturnType<typeof sitInOnTeamRoom>>, TError = ErrorType<UnauthorizedResponse | ForbiddenResponse | ConflictResponse>>(
+ runId: number,
+    teamId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof sitInOnTeamRoom>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getSitInOnTeamRoomQueryOptions(runId,teamId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetSessionPlaybackUrl = (id: number,) => {
+
+
+
+
+  return `/api/admin/studio/group-sessions/${id}/playback`
+}
+
+/**
+ * Reassembled from what was already recorded — arrivals, developments, answers, and the team rooms. Nothing new is captured. A session whose learners were told only their own team would read the room keeps its rooms closed.
+ * @summary What actually happened, in the order it happened
+ */
+export const getSessionPlayback = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<SessionPlayback> => {
+
+  return customFetch<SessionPlayback>(getGetSessionPlaybackUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetSessionPlaybackQueryKey = (id: number,) => {
+    return [
+    `/api/admin/studio/group-sessions/${id}/playback`
+    ] as const;
+    }
+
+
+export const getGetSessionPlaybackQueryOptions = <TData = Awaited<ReturnType<typeof getSessionPlayback>>, TError = ErrorType<UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSessionPlayback>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetSessionPlaybackQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getSessionPlayback>>> = ({ signal }) => getSessionPlayback(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getSessionPlayback>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetSessionPlaybackQueryResult = NonNullable<Awaited<ReturnType<typeof getSessionPlayback>>>
+export type GetSessionPlaybackQueryError = ErrorType<UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>
+
+
+/**
+ * @summary What actually happened, in the order it happened
+ */
+
+export function useGetSessionPlayback<TData = Awaited<ReturnType<typeof getSessionPlayback>>, TError = ErrorType<UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSessionPlayback>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetSessionPlaybackQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getRewriteSessionDebriefsUrl = (id: number,) => {
 

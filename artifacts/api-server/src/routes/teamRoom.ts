@@ -20,7 +20,7 @@ import {
 import {
   present, speaksForTeam, tally, electionIsOpen, electionMinutesLeft,
   nodsNeeded, standingNods, postCheck, messageProblem, roomStanding,
-  usesTeamRoom, isSessionFormat,
+  usesTeamRoom, isSessionFormat, isStaffRole, observers,
   type RoomMember,
 } from "@workspace/domain";
 import { getCurrentUser } from "../lib/auth";
@@ -68,7 +68,13 @@ type Loaded = {
  * Refuses anybody without an assignment on this run, which is the whole of the
  * access rule: you are in exactly one team's room, the one you were put in.
  */
-async function loadTeam(runId: number, userId: number): Promise<Loaded | "no-run" | "not-mine" | "no-room"> {
+async function loadTeam(
+  runId: number,
+  userId: number,
+  isStaff: boolean,
+  staffName: string,
+  wantedTeam: string | null,
+): Promise<Loaded | "no-run" | "not-mine" | "no-room" | "no-team"> {
   const [run] = await db.select().from(simulationRunsTable).where(eq(simulationRunsTable.id, runId));
   if (!run) return "no-run";
 
@@ -76,20 +82,33 @@ async function loadTeam(runId: number, userId: number): Promise<Loaded | "no-run
     eq(simulationGroupAssignmentsTable.runId, runId),
     eq(simulationGroupAssignmentsTable.userId, userId),
   ));
-  if (!mine) return "not-mine";
+
+  /*
+    Staff do join live sessions, and they are in no team.
+
+    An admin or instructor sitting in picks a room with ?team=; without one
+    they get the first, which is the useful default for somebody dropping in to
+    see what this looks like from the inside. They are in the room and outside
+    its arithmetic — not counted toward the threshold, not electable, and
+    unable to send the team's reply. All of that is enforced in the domain
+    rules rather than here, so it holds for every route below at once.
+  */
+  const groupId = mine?.groupId ?? (isStaff ? wantedTeam ?? null : null);
+  if (!groupId) return isStaff ? "no-team" : "not-mine";
 
   const rows = await db
     .select({
       userId: usersTable.id,
       name: usersTable.name,
       email: usersTable.email,
+      role: usersTable.role,
       enteredAt: simulationGroupAssignmentsTable.enteredAt,
     })
     .from(simulationGroupAssignmentsTable)
     .innerJoin(usersTable, eq(usersTable.id, simulationGroupAssignmentsTable.userId))
     .where(and(
       eq(simulationGroupAssignmentsTable.runId, runId),
-      eq(simulationGroupAssignmentsTable.groupId, mine.groupId),
+      eq(simulationGroupAssignmentsTable.groupId, groupId),
     ));
 
   /*
@@ -108,7 +127,7 @@ async function loadTeam(runId: number, userId: number): Promise<Loaded | "no-run
 
   const [definition] = await db.select().from(simulationDefinitionsTable)
     .where(eq(simulationDefinitionsTable.id, run.definitionId));
-  const team = (definition?.groups ?? []).find((g) => g.id === mine.groupId);
+  const team = (definition?.groups ?? []).find((g) => g.id === groupId);
 
   const members: RoomMember[] = rows.map((r) => ({
     userId: r.userId,
@@ -116,11 +135,23 @@ async function loadTeam(runId: number, userId: number): Promise<Loaded | "no-run
     // are about to vote for each other.
     name: r.name?.trim() || r.email.split("@")[0],
     enteredAt: r.enteredAt?.toISOString() ?? null,
+    isStaff: isStaffRole(r.role),
   }));
+
+  /*
+    A visiting facilitator, added to the room they are reading.
+
+    They have no assignment, so they are in none of the rows above — and a room
+    that does not list the person reading it is a room that quietly hides them
+    from the team. Marked as staff, so every rule treats them as a visitor.
+  */
+  if (!mine && isStaff) {
+    members.push({ userId: userId, name: staffName, enteredAt: new Date().toISOString(), isStaff: true });
+  }
 
   return {
     run,
-    groupId: mine.groupId,
+    groupId,
     teamName: team?.name ?? "Your team",
     members,
     names: new Map(members.map((m) => [m.userId, m.name])),
@@ -196,13 +227,17 @@ async function roomFor(loaded: Loaded, userId: number) {
   return {
     groupId,
     teamName: loaded.teamName,
-    members: members.map((m) => ({
+    // The team, then anybody sitting in. Said out loud rather than hidden: a
+    // facilitator reading over your shoulder changes how people talk, and the
+    // honest answer to that is to name them.
+    members: members.filter((m) => !m.isStaff).map((m) => ({
       userId: m.userId,
       name: m.name,
       present: m.enteredAt !== null,
       votes: votesFor.get(m.userId) ?? 0,
       nodded: behind.has(m.userId),
     })),
+    watching: observers(members).map((m) => m.name),
     messages: messages.map((m) => ({
       id: m.id,
       userId: m.userId,
@@ -237,13 +272,38 @@ type Opened =
   | { kind: "ok"; user: { id: number }; loaded: Loaded };
 
 /** Load, refuse, or hand back the room — the opening of every route below. */
-async function open(req: Parameters<typeof getCurrentUser>[0], runId: number): Promise<Opened> {
+async function open(
+  req: Parameters<typeof getCurrentUser>[0],
+  runId: number,
+  /*
+    Which room a visitor means.
+
+    A learner is in exactly one and this is ignored for them. Staff are in
+    none, so it has to be said — from the path on the sitting-in route, or
+    from the body of the message they are sending. Never guessed: a
+    facilitator posting into the wrong team's room is worse than one who
+    cannot post at all.
+  */
+  wantedTeam: string | null = null,
+): Promise<Opened> {
   const user = await getCurrentUser(req);
   if (!user) return { kind: "refused", code: 401, said: "Unauthorized" };
-  const loaded = await loadTeam(runId, user.id);
+  const loaded = await loadTeam(
+    runId,
+    user.id,
+    isStaffRole(user.role),
+    user.name?.trim() || user.email.split("@")[0],
+    wantedTeam,
+  );
   if (loaded === "no-run") return { kind: "refused", code: 404, said: "That exercise is not there." };
   if (loaded === "not-mine") {
     return { kind: "refused", code: 403, said: "You are not in a team on this exercise." };
+  }
+  if (loaded === "no-team") {
+    return {
+      kind: "refused", code: 409,
+      said: "Say which team's room you want to sit in on.",
+    };
   }
   if (loaded === "no-room") {
     return {
@@ -261,7 +321,8 @@ router.get("/simulation-runs/:runId/room", async (req, res): Promise<void> => {
 });
 
 router.post("/simulation-runs/:runId/room/messages", async (req, res): Promise<void> => {
-  const got = await open(req, Number(req.params.runId));
+  const said = typeof req.body?.team === "string" ? req.body.team : null;
+  const got = await open(req, Number(req.params.runId), said);
   if (got.kind === "refused") { res.status(got.code).json(message(got.said)); return; }
 
   const body = SendTeamRoomMessageBody.safeParse(req.body);
@@ -427,6 +488,26 @@ router.post("/simulation-runs/:runId/room/post", async (req, res): Promise<void>
       ));
   });
 
+  res.json(GetTeamRoomResponse.parse(await roomFor(got.loaded, got.user.id)));
+});
+
+/**
+ * Sit in on one team's room.
+ *
+ * Staff do join live sessions — to see it from the inside, to nudge a team
+ * that has frozen, to find out why a room went quiet. The team is told they
+ * are there, and every rule treats them as a visitor: not counted toward the
+ * threshold, not electable, unable to send the reply.
+ */
+router.get("/admin/studio/runs/:runId/rooms/:teamId", async (req, res): Promise<void> => {
+  const user = await getCurrentUser(req);
+  if (!user) { res.status(401).json(message("Unauthorized")); return; }
+  if (!isStaffRole(user.role)) {
+    res.status(403).json(message("Only staff can sit in on a team's room")); return;
+  }
+
+  const got = await open(req, Number(req.params.runId), req.params.teamId);
+  if (got.kind === "refused") { res.status(got.code).json(message(got.said)); return; }
   res.json(GetTeamRoomResponse.parse(await roomFor(got.loaded, got.user.id)));
 });
 

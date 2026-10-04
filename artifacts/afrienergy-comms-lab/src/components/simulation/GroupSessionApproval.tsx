@@ -17,7 +17,10 @@ import {
   formatName, formatNote, SESSION_FORMATS, debriefAbsence, type SessionFormat,
 } from '@workspace/domain';
 import { useToast } from '@/hooks/use-toast';
-import { Users, Clock, AlertTriangle, CheckCircle2, Loader2, DoorOpen, PhoneCall } from 'lucide-react';
+import SessionPlayback from '@/components/simulation/SessionPlayback';
+import {
+  Users, Clock, AlertTriangle, CheckCircle2, Loader2, DoorOpen, PhoneCall, History,
+} from 'lucide-react';
 
 /**
  * Planning a group session, and reading it before anybody else can.
@@ -278,6 +281,7 @@ function StateChip({ state }: { state: GroupSession['state'] }) {
 }
 
 function SessionSheet({ session, onChanged }: { session: GroupSession; onChanged: () => void }) {
+  const [playback, setPlayback] = useState(false);
   const { toast } = useToast();
   const [when, setWhen] = useState(
     session.scheduledAt ? sessionDateTimeInput(session.scheduledAt as unknown as string) : '',
@@ -443,6 +447,20 @@ function SessionSheet({ session, onChanged }: { session: GroupSession; onChanged
         <Clock className="w-3.5 h-3.5" aria-hidden />
         Runs for {session.durationMinutes} minutes and ends itself. No one has to be there to drive it.
       </p>
+
+      {(session.state === 'finished' || session.state === 'live') && (
+        <div className="mt-5">
+          <button
+            type="button"
+            onClick={() => setPlayback((on) => !on)}
+            className="inline-flex items-center gap-2 border border-white/20 text-white px-4 py-2.5 text-[11px] font-bold uppercase tracking-widest hover:bg-white/5"
+          >
+            <History className="w-3.5 h-3.5" aria-hidden />
+            {playback ? 'Hide the playback' : 'Play the session back'}
+          </button>
+          {playback && <SessionPlayback sessionId={session.id} />}
+        </div>
+      )}
 
       {session.sessionDebrief
         ? <SharedDebrief debrief={session.sessionDebrief} />

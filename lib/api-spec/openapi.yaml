@@ -3174,6 +3174,53 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiMessage"
+  /admin/studio/runs/{runId}/rooms/{teamId}:
+    get:
+      operationId: sitInOnTeamRoom
+      tags: [admin]
+      summary: Sit in on one team's room
+      description: >
+        Staff are in the room and outside its arithmetic — not counted toward
+        the threshold, not electable, and unable to send the team's reply. The
+        team is told they are there.
+      parameters:
+        - name: runId
+          in: path
+          required: true
+          schema: { type: integer }
+        - name: teamId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: That team's room
+          content: { application/json: { schema: { $ref: "#/components/schemas/TeamRoom" } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /admin/studio/group-sessions/{id}/playback:
+    get:
+      operationId: getSessionPlayback
+      tags: [admin]
+      summary: What actually happened, in the order it happened
+      description: >
+        Reassembled from what was already recorded — arrivals, developments,
+        answers, and the team rooms. Nothing new is captured. A session whose
+        learners were told only their own team would read the room keeps its
+        rooms closed.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: The session, in order
+          content: { application/json: { schema: { $ref: "#/components/schemas/SessionPlayback" } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
   /admin/studio/group-sessions/{id}/debrief:
     post:
       operationId: rewriteSessionDebriefs
@@ -6420,13 +6467,15 @@ components:
     TeamRoom:
       type: object
       required:
-        [groupId, teamName, members, messages, standing, electionOpen, electionMinutesLeft,
+        [groupId, teamName, members, watching, messages, standing, electionOpen, electionMinutesLeft,
          leaderId, leaderName, iAmLeader, myVoteFor, draft, draftVersion, nodsHave, nodsNeeded,
          iHaveNodded, mayPost, waitingOn, posted]
       properties:
         groupId: { type: string }
         teamName: { type: string }
         members: { type: array, items: { $ref: "#/components/schemas/TeamRoomMember" } }
+        # Staff sitting in. Named to the team on purpose.
+        watching: { type: array, items: { type: string } }
         messages: { type: array, items: { $ref: "#/components/schemas/TeamRoomMessage" } }
         standing: { type: string, description: One line saying where the team is up to }
         electionOpen: { type: boolean }
@@ -6448,6 +6497,9 @@ components:
       required: [body]
       properties:
         body: { type: string, minLength: 1, maxLength: 2000 }
+        # Which room. Only staff sitting in need say: a learner is in exactly
+        # one and this is ignored for them.
+        team: { type: string }
     TeamLeaderVote:
       type: object
       required: [forUserId]
@@ -6463,6 +6515,37 @@ components:
       required: [version]
       properties:
         version: { type: integer, description: The wording being agreed to }
+    PlaybackEntry:
+      type: object
+      required: [kind, title, teamId, who, body, minute]
+      properties:
+        kind: { type: string, enum: [started, arrived, beat, answer, message, vote, draft, nod, ended] }
+        minute: { type: ["integer", "null"], description: Minutes from the start, or null when not known }
+        teamId: { type: ["string", "null"] }
+        who: { type: ["string", "null"] }
+        title: { type: string }
+        body: { type: ["string", "null"] }
+    PlaybackTeam:
+      type: object
+      required: [id, name, summary]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        summary: { type: string, description: One line on turnout, talk and whether they answered }
+    SessionPlayback:
+      type: object
+      required: [id, title, format, teams, entries, minutes, roomsShown, startedAt, endedAt]
+      properties:
+        id: { type: integer }
+        title: { type: string }
+        format: { type: string, enum: [rapid, room] }
+        startedAt: { type: ["string", "null"], format: date-time }
+        endedAt: { type: ["string", "null"], format: date-time }
+        minutes: { type: integer }
+        roomsShown: { type: boolean }
+        roomsWithheldNote: { type: ["string", "null"] }
+        teams: { type: array, items: { $ref: "#/components/schemas/PlaybackTeam" } }
+        entries: { type: array, items: { $ref: "#/components/schemas/PlaybackEntry" } }
     StudioAiStatus:
       type: object
       required: [configured, model, concern]

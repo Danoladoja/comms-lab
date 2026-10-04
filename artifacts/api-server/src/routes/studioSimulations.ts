@@ -5,7 +5,8 @@ import {
   db, assignmentsTable, enrollmentsTable, programsTable, sessionReadingsTable, sessionsTable,
   simulationDefinitionsTable,
   simulationGroupAssignmentsTable, simulationResponsesTable, simulationRunsTable, studioAccessCodesTable,
-  studioGroupSessionsTable, studioInvitationsTable, usersTable,
+  studioGroupSessionsTable,
+  teamRoomMessagesTable, teamRoomVotesTable, teamRoomDraftsTable, teamRoomNodsTable, studioInvitationsTable, usersTable,
 } from "@workspace/db";
 import {
   AdvanceSimulationRunParams, AdvanceSimulationRunResponse, CompleteSimulationRunParams, CompleteSimulationRunResponse,
@@ -20,7 +21,7 @@ import {
   ResendStudioExerciseBody, ResendStudioExerciseResponse,
   InviteToStudioBody, InviteToStudioResponse,
   PlanGroupSessionBody, EditGroupSessionBody, GetGroupSessionResponse, ListGroupSessionsResponse,
-  GetStudioAiResponse,
+  GetStudioAiResponse, GetSessionPlaybackResponse,
 } from "@workspace/api-zod";
 import {
   JOIN_CODE_ALPHABET, JOIN_CODE_LENGTH, accessCodeCount, mayAdvanceStudioRun, mayCompleteStudioRun,
@@ -28,6 +29,7 @@ import {
   clampResponseSeconds, nextStudioStep, operationLeaseIsActive, plannedTurns, practiceRecord, runClock,
   satisfiesRole, isStaffRole, studioInviteLetter, whatTheClockSays, type StudioProgrammeContext,
   isSessionFormat, usesTeamRoom, firstAnswerWins, beatenToIt, mayReadDebrief,
+  buildPlayback, playbackMinutes, teamSummary, roomIsReviewable, roomWithheldNote,
   type SessionFormat,
   inviteState, beginProblem, situationFor, situationBrief, situationSummary,
   objectiveFor, invitationProblem, invitationNote, exerciseInviteLetter,
@@ -1508,6 +1510,182 @@ router.get("/admin/studio/ai", async (req, res): Promise<void> => {
   const status = aiStatus();
   res.json(GetStudioAiResponse.parse({
     configured: status.configured, model: status.model, concern: status.concern,
+  }));
+});
+
+/**
+ * What actually happened, in the order it happened.
+ *
+ * Reassembled from what was already being recorded for other reasons: who
+ * walked in and when, when each development landed and on whom, what each team
+ * said to each other on the way to an answer, when the answer went and who was
+ * behind it. Nothing new is captured anywhere; the record existed and there was
+ * no way to read it.
+ *
+ * Open to instructors as well as admins, because the person who will run the
+ * debrief is not always the person who planned the session.
+ */
+router.get("/admin/studio/group-sessions/:id/playback", async (req, res): Promise<void> => {
+  const user = await getCurrentUser(req);
+  if (!user) { res.status(401).json(message("Unauthorized")); return; }
+  if (!isStaffRole(user.role)) {
+    res.status(403).json(message("Only staff can read a session back")); return;
+  }
+
+  const session = await groupSession(Number(req.params.id));
+  if (!session) { res.status(404).json(message("Session not found")); return; }
+
+  const [definition] = await db.select().from(simulationDefinitionsTable)
+    .where(eq(simulationDefinitionsTable.id, session.definitionId));
+  const teams = (definition?.groups ?? []).map((g) => ({ id: g.id, name: g.name }));
+
+  const runId = session.runId;
+  const people = runId
+    ? (await db
+      .select({
+        userId: usersTable.id,
+        name: usersTable.name,
+        email: usersTable.email,
+        role: usersTable.role,
+        teamId: simulationGroupAssignmentsTable.groupId,
+        enteredAt: simulationGroupAssignmentsTable.enteredAt,
+      })
+      .from(simulationGroupAssignmentsTable)
+      .innerJoin(usersTable, eq(usersTable.id, simulationGroupAssignmentsTable.userId))
+      .where(eq(simulationGroupAssignmentsTable.runId, runId)))
+      .map((r) => ({
+        userId: r.userId,
+        name: r.name?.trim() || r.email.split("@")[0],
+        teamId: r.teamId,
+        enteredAt: r.enteredAt?.toISOString() ?? null,
+        isStaff: isStaffRole(r.role),
+      }))
+    : [];
+
+  const [run] = runId
+    ? await db.select().from(simulationRunsTable).where(eq(simulationRunsTable.id, runId))
+    : [];
+
+  const answers = runId
+    ? (await db.select().from(simulationResponsesTable)
+      .where(eq(simulationResponsesTable.runId, runId))
+      .orderBy(asc(simulationResponsesTable.createdAt)))
+      .map((a) => ({
+        teamId: a.groupId, injectId: a.injectId, body: a.body,
+        authorId: a.authorId, createdAt: a.createdAt.toISOString(),
+      }))
+    : [];
+
+  /*
+    The rooms, only where the people in them were told they could be read.
+
+    The promise — "only your team sees this" — was made in the room itself, and
+    a sentence changed afterwards does not reach back to the twenty-nine people
+    who read the old one. So sessions that began before the notice changed keep
+    the terms they were run under, and the screen says so rather than showing
+    an empty panel that looks like a team which never spoke.
+  */
+  const startedAt = session.startedAt?.toISOString() ?? null;
+  const roomsShown = usesTeamRoom(asFormat(session.format)) && roomIsReviewable(startedAt);
+
+  const room = roomsShown && runId
+    ? await (async () => {
+      const [messages, votes, drafts] = await Promise.all([
+        db.select().from(teamRoomMessagesTable).where(eq(teamRoomMessagesTable.runId, runId)),
+        db.select().from(teamRoomVotesTable).where(eq(teamRoomVotesTable.runId, runId)),
+        db.select().from(teamRoomDraftsTable).where(eq(teamRoomDraftsTable.runId, runId)),
+      ]);
+      const nods = drafts.length > 0
+        ? await db.select().from(teamRoomNodsTable)
+          .where(inArray(teamRoomNodsTable.draftId, drafts.map((d) => d.id)))
+        : [];
+      const teamOfDraft = new Map(drafts.map((d) => [d.id, d.groupId]));
+      return {
+        messages: messages.map((m) => ({
+          teamId: m.groupId, userId: m.userId, body: m.body, createdAt: m.createdAt.toISOString(),
+        })),
+        votes: votes.map((v) => ({
+          teamId: v.groupId, voterId: v.voterId, forUserId: v.forUserId,
+          createdAt: v.createdAt.toISOString(),
+        })),
+        drafts: drafts.map((d) => ({
+          teamId: d.groupId, version: d.version, body: d.body,
+          authorId: d.authorId, createdAt: d.updatedAt.toISOString(),
+        })),
+        nods: nods.map((n) => ({
+          teamId: teamOfDraft.get(n.draftId) ?? "",
+          userId: n.userId, version: n.version, createdAt: n.createdAt.toISOString(),
+        })),
+      };
+    })()
+    : {} as {
+      messages?: { teamId: string; userId: number; body: string; createdAt: string }[];
+      votes?: { teamId: string; voterId: number; forUserId: number; createdAt: string }[];
+      drafts?: { teamId: string; version: number; body: string; authorId: number; createdAt: string }[];
+      nods?: { teamId: string; userId: number; version: number; createdAt: string }[];
+    };
+
+  /*
+    Anybody who spoke in a room but was never put in a team.
+
+    A visiting facilitator has no assignment — teams are built from enrolments —
+    so they are in none of the rows above, and their messages came back as
+    "Somebody". A nudge read back as an anonymous voice is worse than useless:
+    it reads as a learner nobody can account for.
+
+    Added with no arrival time, because none was recorded. Their first message
+    would be a reasonable guess and a guess is exactly what a timeline must not
+    contain.
+  */
+  const spoke = new Set<number>([
+    ...(room.messages ?? []).map((m) => m.userId),
+    ...(room.drafts ?? []).map((d) => d.authorId),
+    ...(room.votes ?? []).flatMap((v) => [v.voterId, v.forUserId]),
+    ...(room.nods ?? []).map((n) => n.userId),
+    ...answers.map((a) => a.authorId),
+  ]);
+  const known = new Set(people.map((p) => p.userId));
+  const strangers = [...spoke].filter((id) => !known.has(id));
+  const visitors = strangers.length > 0
+    ? (await db
+      .select({ id: usersTable.id, name: usersTable.name, email: usersTable.email, role: usersTable.role })
+      .from(usersTable)
+      .where(inArray(usersTable.id, strangers)))
+      .map((u) => ({
+        userId: u.id,
+        name: u.name?.trim() || u.email.split("@")[0],
+        teamId: "",
+        enteredAt: null,
+        isStaff: isStaffRole(u.role),
+      }))
+    : [];
+
+  const entries = buildPlayback({
+    startedAt,
+    endedAt: session.endedAt?.toISOString() ?? null,
+    teams,
+    people: [...people, ...visitors],
+    developments: (run?.developments ?? []).map((d) => ({
+      id: d.id, title: d.title, content: d.content,
+      teamId: d.teamId ?? null, dueAt: d.dueAt ?? null, responseSeconds: d.responseSeconds ?? null,
+    })),
+    answers,
+    ...room,
+  });
+
+  res.json(GetSessionPlaybackResponse.parse({
+    id: session.id,
+    title: session.title,
+    format: asFormat(session.format),
+    startedAt,
+    endedAt: session.endedAt?.toISOString() ?? null,
+    minutes: playbackMinutes(entries),
+    roomsShown,
+    roomsWithheldNote: usesTeamRoom(asFormat(session.format)) && !roomsShown
+      ? roomWithheldNote()
+      : null,
+    teams: teams.map((t) => ({ id: t.id, name: t.name, summary: teamSummary(entries, t.id) })),
+    entries,
   }));
 });
 

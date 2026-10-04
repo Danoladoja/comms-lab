@@ -12,6 +12,7 @@ export interface TeamRoom {
   groupId: string;
   teamName: string;
   members: TeamRoomMember[];
+  watching: string[];
   messages: TeamRoomMessage[];
   /** One line saying where the team is up to */
   standing: string;

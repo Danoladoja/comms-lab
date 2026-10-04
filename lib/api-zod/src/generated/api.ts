@@ -2909,6 +2909,85 @@ export const EditGroupSessionResponse = zod.object({
 
 
 /**
+ * Staff are in the room and outside its arithmetic — not counted toward the threshold, not electable, and unable to send the team's reply. The team is told they are there.
+ * @summary Sit in on one team's room
+ */
+export const SitInOnTeamRoomParams = zod.object({
+  "runId": zod.coerce.number().int(),
+  "teamId": zod.coerce.string()
+})
+
+export const SitInOnTeamRoomResponse = zod.object({
+  "groupId": zod.string(),
+  "teamName": zod.string(),
+  "members": zod.array(zod.object({
+  "userId": zod.int(),
+  "name": zod.string(),
+  "present": zod.boolean().describe('Whether they have ever opened the room'),
+  "votes": zod.int().describe('How many of the team want them speaking'),
+  "nodded": zod.boolean().describe('Whether they are behind the draft as it stands')
+})),
+  "watching": zod.array(zod.string()),
+  "messages": zod.array(zod.object({
+  "id": zod.int(),
+  "userId": zod.int(),
+  "name": zod.string(),
+  "body": zod.string(),
+  "createdAt": zod.coerce.date(),
+  "mine": zod.boolean().describe('Whether the reader wrote it')
+})),
+  "standing": zod.string().describe('One line saying where the team is up to'),
+  "electionOpen": zod.boolean(),
+  "electionMinutesLeft": zod.int(),
+  "leaderId": zod.int().nullable(),
+  "leaderName": zod.string().nullable(),
+  "iAmLeader": zod.boolean(),
+  "myVoteFor": zod.int().nullable(),
+  "draft": zod.string(),
+  "draftVersion": zod.int(),
+  "nodsHave": zod.int(),
+  "nodsNeeded": zod.int(),
+  "iHaveNodded": zod.boolean(),
+  "mayPost": zod.boolean(),
+  "waitingOn": zod.string().nullable(),
+  "posted": zod.boolean().describe('Whether this team\'s reply is already in')
+})
+
+
+/**
+ * Reassembled from what was already recorded — arrivals, developments, answers, and the team rooms. Nothing new is captured. A session whose learners were told only their own team would read the room keeps its rooms closed.
+ * @summary What actually happened, in the order it happened
+ */
+export const GetSessionPlaybackParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const GetSessionPlaybackResponse = zod.object({
+  "id": zod.int(),
+  "title": zod.string(),
+  "format": zod.enum(['rapid', 'room']),
+  "startedAt": zod.coerce.date().nullable(),
+  "endedAt": zod.coerce.date().nullable(),
+  "minutes": zod.int(),
+  "roomsShown": zod.boolean(),
+  "roomsWithheldNote": zod.string().nullish(),
+  "teams": zod.array(zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "summary": zod.string().describe('One line on turnout')
+})),
+  "entries": zod.array(zod.object({
+  "kind": zod.enum(['started', 'arrived', 'beat', 'answer', 'message', 'vote', 'draft', 'nod', 'ended']),
+  "minute": zod.int().nullable().describe('Minutes from the start'),
+  "teamId": zod.string().nullable(),
+  "who": zod.string().nullable(),
+  "title": zod.string(),
+  "body": zod.string().nullable()
+}))
+})
+
+
+/**
  * Three model calls at the end of a session with nobody watching, and if one came back unusable nothing ever tried again. This is that retry. Safe to run more than once; it replaces what is there.
  * @summary Write this session's debriefs, or write them again
  */
@@ -4539,6 +4618,7 @@ export const GetTeamRoomResponse = zod.object({
   "votes": zod.int().describe('How many of the team want them speaking'),
   "nodded": zod.boolean().describe('Whether they are behind the draft as it stands')
 })),
+  "watching": zod.array(zod.string()),
   "messages": zod.array(zod.object({
   "id": zod.int(),
   "userId": zod.int(),
@@ -4577,7 +4657,8 @@ export const sendTeamRoomMessageBodyBodyMax = 2000;
 
 
 export const SendTeamRoomMessageBody = zod.object({
-  "body": zod.string().min(1).max(sendTeamRoomMessageBodyBodyMax)
+  "body": zod.string().min(1).max(sendTeamRoomMessageBodyBodyMax),
+  "team": zod.string().optional()
 })
 
 export const SendTeamRoomMessageResponse = zod.object({
@@ -4590,6 +4671,7 @@ export const SendTeamRoomMessageResponse = zod.object({
   "votes": zod.int().describe('How many of the team want them speaking'),
   "nodded": zod.boolean().describe('Whether they are behind the draft as it stands')
 })),
+  "watching": zod.array(zod.string()),
   "messages": zod.array(zod.object({
   "id": zod.int(),
   "userId": zod.int(),
@@ -4638,6 +4720,7 @@ export const VoteForTeamLeaderResponse = zod.object({
   "votes": zod.int().describe('How many of the team want them speaking'),
   "nodded": zod.boolean().describe('Whether they are behind the draft as it stands')
 })),
+  "watching": zod.array(zod.string()),
   "messages": zod.array(zod.object({
   "id": zod.int(),
   "userId": zod.int(),
@@ -4690,6 +4773,7 @@ export const SaveTeamRoomDraftResponse = zod.object({
   "votes": zod.int().describe('How many of the team want them speaking'),
   "nodded": zod.boolean().describe('Whether they are behind the draft as it stands')
 })),
+  "watching": zod.array(zod.string()),
   "messages": zod.array(zod.object({
   "id": zod.int(),
   "userId": zod.int(),
@@ -4737,6 +4821,7 @@ export const NodTeamRoomDraftResponse = zod.object({
   "votes": zod.int().describe('How many of the team want them speaking'),
   "nodded": zod.boolean().describe('Whether they are behind the draft as it stands')
 })),
+  "watching": zod.array(zod.string()),
   "messages": zod.array(zod.object({
   "id": zod.int(),
   "userId": zod.int(),
@@ -4781,6 +4866,7 @@ export const PostTeamRoomDraftResponse = zod.object({
   "votes": zod.int().describe('How many of the team want them speaking'),
   "nodded": zod.boolean().describe('Whether they are behind the draft as it stands')
 })),
+  "watching": zod.array(zod.string()),
   "messages": zod.array(zod.object({
   "id": zod.int(),
   "userId": zod.int(),

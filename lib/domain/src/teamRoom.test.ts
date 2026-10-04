@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   ELECTION_MINUTES, NOD_SHARE,
-  present, electionMinutesLeft, electionIsOpen, tally, leaderFrom, speaksForTeam,
+  present, observers, electionMinutesLeft, electionIsOpen, tally, leaderFrom, speaksForTeam,
   nodsNeeded, standingNods, postCheck, messageProblem, roomStanding, MAX_MESSAGE,
   type RoomMember,
 } from "./teamRoom";
@@ -304,5 +304,63 @@ describe("what can be typed in here", () => {
   it("refuses one longer than the room allows", () => {
     expect(messageProblem("a".repeat(MAX_MESSAGE + 1))).toContain("longer");
     expect(messageProblem("a".repeat(MAX_MESSAGE))).toBeNull();
+  });
+});
+
+/**
+ * A facilitator in the room costs the team nothing.
+ *
+ * Admins and instructors do join live sessions — to see it from the inside, to
+ * nudge a team that has frozen, to find out why a room went quiet. Every one of
+ * those is useful and none of them may change what the team is held to. An
+ * admin who walks into a team of four and is counted has just moved the bar
+ * from three nods to four, for a team that did nothing but be visited.
+ */
+describe("staff sitting in on a team", () => {
+  const WITH_STAFF: RoomMember[] = [
+    member(1, "Amara", at(0)),
+    member(2, "Boubacar", at(1)),
+    member(3, "Chioma", at(1)),
+    { userId: 99, name: "Daniel (facilitator)", enteredAt: at(2), isStaff: true },
+  ];
+
+  it("is not counted toward the threshold", () => {
+    // Three learners present, so three nods — the same as if nobody visited.
+    expect(present(WITH_STAFF)).toHaveLength(3);
+    expect(nodsNeeded(present(WITH_STAFF).length)).toBe(3);
+  });
+
+  it("is listed, rather than hidden", () => {
+    // Somebody reading over your shoulder changes how people talk. The honest
+    // answer is to say they are there.
+    expect(observers(WITH_STAFF).map((m) => m.name)).toEqual(["Daniel (facilitator)"]);
+    expect(observers(TEAM)).toEqual([]);
+  });
+
+  it("cannot be voted for, and cannot be elected", () => {
+    expect(tally(WITH_STAFF, []).some((t) => t.userId === 99)).toBe(false);
+    // Even with every vote cast for them.
+    const forStaff = [1, 2, 3].map((voterId) => ({ voterId, forUserId: 99 }));
+    expect(leaderFrom(WITH_STAFF, forStaff)).toBe(1);
+  });
+
+  it("cannot send the team's reply, and is told why", () => {
+    const check = postCheck({
+      members: WITH_STAFF,
+      draft: { body: "I'll answer for them.", version: 1, authorId: 99 },
+      nods: [1, 2, 3].map((userId) => ({ userId, version: 1 })),
+      leaderId: 1, byUserId: 99, stillOpen: true,
+    });
+    expect(check.may).toBe(false);
+    expect(check.waitingOn).toContain("sitting in");
+  });
+
+  it("does not make an empty team look populated", () => {
+    // A facilitator alone in a room is an empty room, and the count has to say
+    // so rather than reading as one person present.
+    const alone: RoomMember[] = [{ userId: 99, name: "Daniel", enteredAt: at(0), isStaff: true }];
+    expect(present(alone)).toEqual([]);
+    expect(leaderFrom(alone, [])).toBeNull();
+    expect(nodsNeeded(present(alone).length)).toBe(0);
   });
 });

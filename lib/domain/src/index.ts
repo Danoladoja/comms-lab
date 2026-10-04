@@ -55,6 +55,7 @@ export * from "./startupMigrations";
 export * from "./studioInvites";
 export * from "./groupSession";
 export * from "./teamRoom";
+export * from "./sessionPlayback";
 export * from "./reminderWords";
 export * from "./progressAudit";
 export * from "./programForm";

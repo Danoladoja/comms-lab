@@ -120,6 +120,20 @@ export default function TeamRoomPanel({ runId, tone }: {
           {room.teamName} · {here.length} here
         </p>
         <p className="text-sm text-white/85 leading-snug">{room.standing}</p>
+        {/*
+          Said plainly and said once. No other team can read this room, during
+          or after — but a facilitator can, afterwards, and people are entitled
+          to know that before they type rather than to find out when it is
+          quoted back at them.
+        */}
+        <p className="mt-1.5 text-[11px] text-white/35">
+          No other team sees this. Your facilitator can read it back after the session.
+        </p>
+        {room.watching && room.watching.length > 0 && (
+          <p className="mt-1.5 text-[11px] text-amber-300/80">
+            {room.watching.join(', ')} {room.watching.length === 1 ? 'is' : 'are'} sitting in right now.
+          </p>
+        )}
       </div>
 
       {room.electionOpen && !room.leaderId && (
@@ -131,7 +145,7 @@ export default function TeamRoomPanel({ runId, tone }: {
       <div ref={feedRef} className="flex-1 overflow-y-auto px-5 py-4 space-y-3 min-h-0">
         {room.messages.length === 0 && (
           <p className="text-xs text-white/30 text-center py-6">
-            Nothing said yet. Only your team sees this.
+            Nothing said yet. No other team sees this.
           </p>
         )}
         {room.messages.map((m) => (

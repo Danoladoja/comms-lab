@@ -1952,6 +1952,7 @@ export interface TeamRoom {
   groupId: string;
   teamName: string;
   members: TeamRoomMember[];
+  watching: string[];
   messages: TeamRoomMessage[];
   /** One line saying where the team is up to */
   standing: string;
@@ -1982,6 +1983,7 @@ export interface TeamRoomMessageDraft {
      * @maxLength 2000
      */
   body: string;
+  team?: string;
 }
 
 export interface TeamLeaderVote {
@@ -1996,6 +1998,68 @@ export interface TeamRoomDraftBody {
 export interface TeamRoomNod {
   /** The wording being agreed to */
   version: number;
+}
+
+export type PlaybackEntryKind = typeof PlaybackEntryKind[keyof typeof PlaybackEntryKind];
+
+
+export const PlaybackEntryKind = {
+  started: 'started',
+  arrived: 'arrived',
+  beat: 'beat',
+  answer: 'answer',
+  message: 'message',
+  vote: 'vote',
+  draft: 'draft',
+  nod: 'nod',
+  ended: 'ended',
+} as const;
+
+export interface PlaybackEntry {
+  kind: PlaybackEntryKind;
+  /**
+     * Minutes from the start
+     * @nullable
+     */
+  minute: number | null;
+  /** @nullable */
+  teamId: string | null;
+  /** @nullable */
+  who: string | null;
+  title: string;
+  /** @nullable */
+  body: string | null;
+}
+
+export interface PlaybackTeam {
+  id: string;
+  name: string;
+  /** One line on turnout */
+  summary: string;
+}
+
+export type SessionPlaybackFormat = typeof SessionPlaybackFormat[keyof typeof SessionPlaybackFormat];
+
+
+export const SessionPlaybackFormat = {
+  rapid: 'rapid',
+  room: 'room',
+} as const;
+
+export interface SessionPlayback {
+  id: number;
+  title: string;
+  format: SessionPlaybackFormat;
+  /** @nullable */
+  startedAt: string | null;
+  /** @nullable */
+  endedAt: string | null;
+  minutes: number;
+  roomsShown: boolean;
+  /** @nullable */
+  roomsWithheldNote?: string | null;
+  teams: PlaybackTeam[];
+  entries: PlaybackEntry[];
 }
 
 export interface StudioAiStatus {

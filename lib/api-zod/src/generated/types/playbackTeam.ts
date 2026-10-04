@@ -6,11 +6,9 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface TeamRoomMessageDraft {
-  /**
-     * @minLength 1
-     * @maxLength 2000
-     */
-  body: string;
-  team?: string;
+export interface PlaybackTeam {
+  id: string;
+  name: string;
+  /** One line on turnout */
+  summary: string;
 }
