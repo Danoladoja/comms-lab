@@ -9,6 +9,8 @@ import type { MyGroupSessionFormat } from './myGroupSessionFormat';
 import type { MyGroupSessionState } from './myGroupSessionState';
 
 export interface MyGroupSession {
+  /** Whether they ever opened the room */
+  attended?: boolean;
   format?: MyGroupSessionFormat;
   hasSession: boolean;
   id?: number;

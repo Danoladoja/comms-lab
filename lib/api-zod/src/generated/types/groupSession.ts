@@ -14,6 +14,8 @@ import type { GroupSessionState } from './groupSessionState';
 import type { GroupSessionTeamsItem } from './groupSessionTeamsItem';
 
 export interface GroupSession {
+  /** @nullable */
+  debriefNote?: string | null;
   format: GroupSessionFormat;
   id: number;
   programId: number;

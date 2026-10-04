@@ -22,6 +22,7 @@ import {
   whatToDoAboutPlanning,
   formatName, formatNote, formatBrief, firstAnswerWins, usesTeamRoom,
   isSessionFormat, beatenToIt, SESSION_FORMATS,
+  mayReadDebrief, missedItNote, debriefAbsence,
   type GroupSessionFacts,
   MIN_NOTICE_MINUTES,
   type GroupBeat,
@@ -479,5 +480,57 @@ describe("the two shapes a session can take", () => {
     expect(beatenToIt("Chioma")).toContain("Chioma");
     expect(beatenToIt("Chioma")).toContain("your team's answer");
     expect(beatenToIt(null)).toContain("Somebody on your team");
+  });
+});
+
+describe("who the debrief belongs to", () => {
+  it("gives it to somebody who was in the room", () => {
+    expect(mayReadDebrief({ enteredAt: "2026-10-03T15:00:00.000Z", isStaff: false })).toBe(true);
+  });
+
+  it("withholds it from somebody who never turned up", () => {
+    // A team session puts every enrolled learner in a team whether they come or
+    // not. Without this the debrief goes to twenty-nine people about five.
+    expect(mayReadDebrief({ enteredAt: null, isStaff: false })).toBe(false);
+  });
+
+  it("always gives it to staff", () => {
+    // An admin reading a session they are responsible for is not an audience,
+    // and the cross-team read is what the exercise exists to produce for them.
+    expect(mayReadDebrief({ enteredAt: null, isStaff: true })).toBe(true);
+  });
+
+  it("tells somebody who missed it why there is nothing here", () => {
+    expect(missedItNote()).toContain("ran without you");
+    expect(missedItNote()).not.toContain("error");
+  });
+});
+
+describe("a finished session with no debrief", () => {
+  it("never claims to have one", () => {
+    // It used to say "Your debrief is ready" and offer a button that reloaded
+    // the same emptiness. The Lab was not missing a debrief quietly; it was
+    // insisting it had one.
+    for (const isStaff of [true, false]) {
+      const said = debriefAbsence({ isStaff, note: null });
+      expect(said, `isStaff=${isStaff}`).not.toContain("ready");
+      expect(said, `isStaff=${isStaff}`).toContain("not been written");
+    }
+  });
+
+  it("tells a learner their work is safe", () => {
+    // The first thing anybody thinks when a debrief is missing is that their
+    // answers went with it.
+    expect(debriefAbsence({ isStaff: false, note: null })).toContain("safely recorded");
+  });
+
+  it("tells staff what went wrong, when the server recorded it", () => {
+    const said = debriefAbsence({ isStaff: true, note: "The AI service was overloaded." });
+    expect(said).toContain("The AI service was overloaded.");
+    expect(said).toContain("written again");
+  });
+
+  it("still offers staff the remedy when nothing was recorded", () => {
+    expect(debriefAbsence({ isStaff: true, note: null })).toContain("written again");
   });
 });

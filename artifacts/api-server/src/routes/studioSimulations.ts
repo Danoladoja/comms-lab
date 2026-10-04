@@ -27,7 +27,8 @@ import {
   mayControlStudioRun, mayEnterStudio, mayJoinFacilitatedRun, maySeeStudioSimulation, normaliseJoinCode,
   clampResponseSeconds, nextStudioStep, operationLeaseIsActive, plannedTurns, practiceRecord, runClock,
   satisfiesRole, isStaffRole, studioInviteLetter, whatTheClockSays, type StudioProgrammeContext,
-  isSessionFormat, usesTeamRoom, firstAnswerWins, beatenToIt, type SessionFormat,
+  isSessionFormat, usesTeamRoom, firstAnswerWins, beatenToIt, mayReadDebrief,
+  type SessionFormat,
   inviteState, beginProblem, situationFor, situationBrief, situationSummary,
   objectiveFor, invitationProblem, invitationNote, exerciseInviteLetter,
   steerProblem, standaloneProblem, validityProblem, exerciseSubject, durationProblem,
@@ -40,6 +41,7 @@ import {
 import { getCurrentUser } from "../lib/auth";
 import { aiStatus } from "../lib/anthropic";
 import { whatBroke } from "../lib/whatBroke";
+import { writeDebriefs } from "../lib/groupSessions";
 import { logger } from "../lib/logger";
 import { createBudget } from "../lib/rateBudget";
 import { emailConfigured, sendEmail } from "../lib/email";
@@ -308,6 +310,23 @@ async function runView(
   // them is the job.
   const whole = isOwner || asAdmin;
   const participantGroupId = assignment?.groupId ?? definition.groups[0]?.id ?? null;
+
+  const [sessionRow] = await db
+    .select({ format: studioGroupSessionsTable.format, debriefNote: studioGroupSessionsTable.debriefNote })
+    .from(studioGroupSessionsTable)
+    .where(eq(studioGroupSessionsTable.runId, run.id));
+  const runFormat = sessionRow ? asFormat(sessionRow.format) : null;
+  const debriefNoteFor = sessionRow?.debriefNote ?? null;
+  /*
+    A solo exercise is its own: nobody "joins" one, so the rule about turning
+    up has nothing to bite on and the owner reads their own debrief as always.
+  */
+  const canReadDebrief = runFormat === null
+    ? true
+    : mayReadDebrief({
+      enteredAt: assignment?.enteredAt?.toISOString() ?? null,
+      isStaff: asAdmin,
+    });
   const allResponses = await db.select().from(simulationResponsesTable).where(eq(simulationResponsesTable.runId, run.id)).orderBy(asc(simulationResponsesTable.createdAt));
   const safeGroups = whole ? definition.groups : definition.groups.filter((group) => group.id === participantGroupId);
   return {
@@ -340,9 +359,24 @@ async function runView(
       admin with no team falls back to the run's, which for a cohort session is
       the cross-team one on the session.
     */
-    debrief: assignment
-      ? debriefForTeam(run.teamDebriefs, assignment.groupId)?.debrief ?? run.debrief
-      : run.debrief,
+    /*
+      The debrief goes to the people who were in it.
+
+      A team session puts every enrolled learner into a team whether they turn
+      up or not, so without this it is handed to the whole cohort — most of
+      whom were not there — and it names what five of them did under pressure.
+      Turning up is the ticket; staff are a separate question and always
+      allowed.
+    */
+    debrief: canReadDebrief
+      ? (assignment
+        ? debriefForTeam(run.teamDebriefs, assignment.groupId)?.debrief ?? run.debrief
+        : run.debrief)
+      : null,
+    mayReadDebrief: canReadDebrief,
+    // Why there is none, when there is none. Staff see the reason; a learner
+    // sees that nothing of theirs was lost.
+    debriefNote: asAdmin ? debriefNoteFor : null,
     readOnly: asAdmin && !isOwner,
     /*
       Nobody is driving this one. The room screen used to tell participants to
@@ -359,7 +393,7 @@ async function runView(
       different exercises rather than two settings of the same one. Null is a
       solo exercise, which belongs to no session at all.
     */
-    sessionFormat: await formatOfRun(run.id),
+    sessionFormat: runFormat,
     teamName: definition.groups.find((group) => group.id === participantGroupId)?.name ?? null,
     openingBrief: definition.openingBrief, stakeholderGroups: safeGroups, participantGroupId,
     clock: clockFor(run, definition),
@@ -1185,6 +1219,7 @@ async function groupSessionView(session: typeof studioGroupSessionsTable.$inferS
       : null,
     runId: session.runId,
     format: asFormat(session.format),
+    debriefNote: session.debriefNote,
     // Only ever reaches an admin: this route is admin-only, and it is the one
     // view in the Studio that reads across teams.
     sessionDebrief: session.sessionDebrief,
@@ -1474,6 +1509,45 @@ router.get("/admin/studio/ai", async (req, res): Promise<void> => {
   res.json(GetStudioAiResponse.parse({
     configured: status.configured, model: status.model, concern: status.concern,
   }));
+});
+
+/**
+ * Write this session's debriefs, or write them again.
+ *
+ * Closing a session can only happen once — it is claimed, so two containers
+ * cannot double it — which quietly made a failure here permanent. Three model
+ * calls at the end of a session with nobody watching, and if one came back
+ * unusable the session was already marked ended, nothing tried again, and the
+ * learners were told their debrief was ready for ever.
+ *
+ * So: a button. Safe to press more than once, and it replaces what is there.
+ */
+router.post("/admin/studio/group-sessions/:id/debrief", async (req, res): Promise<void> => {
+  const user = await getCurrentUser(req);
+  if (!user) { res.status(401).json(message("Unauthorized")); return; }
+  if (!satisfiesRole(user.role, ["admin"])) {
+    res.status(403).json(message("Only admins can write a session's debriefs")); return;
+  }
+
+  const session = await groupSession(Number(req.params.id));
+  if (!session) { res.status(404).json(message("Session not found")); return; }
+  if (!session.endedAt) {
+    res.status(409).json(message("This session has not finished yet, so there is nothing to debrief."));
+    return;
+  }
+
+  const outcome = await writeDebriefs(session.id);
+  req.log.info({ sessionId: session.id, ok: outcome.ok, by: user.id }, "Session debriefs rewritten");
+
+  const fresh = await groupSession(session.id);
+  if (!outcome.ok) {
+    // The note is already on the session, so the console will show it beside
+    // the button whatever happens here. Answered as a failure as well, so the
+    // press does not look like it worked.
+    res.status(502).json(message(outcome.note ?? "The debriefs could not be written."));
+    return;
+  }
+  res.json(GetGroupSessionResponse.parse(await groupSessionView(fresh ?? session)));
 });
 
 /** Every session on a programme, newest first. */
@@ -1782,14 +1856,21 @@ router.get("/studio/my-group-session", requireStudioAccess, async (req, res): Pr
   // is no answer, because the teams are made from who is actually enrolled at
   // the moment it begins rather than from who was enrolled when it was planned.
   let teamName: string | null = null;
+  // Whether they were actually in it, which decides what this card offers once
+  // it is over: their debrief, or an honest line about whose it is.
+  let attended = false;
   if (session.runId) {
     const [assignment] = await db
-      .select({ groupId: simulationGroupAssignmentsTable.groupId })
+      .select({
+        groupId: simulationGroupAssignmentsTable.groupId,
+        enteredAt: simulationGroupAssignmentsTable.enteredAt,
+      })
       .from(simulationGroupAssignmentsTable)
       .where(and(
         eq(simulationGroupAssignmentsTable.runId, session.runId),
         eq(simulationGroupAssignmentsTable.userId, user.id),
       ));
+    attended = assignment?.enteredAt != null;
     if (assignment) {
       const [definition] = await db.select({ groups: simulationDefinitionsTable.groups })
         .from(simulationDefinitionsTable)
@@ -1812,6 +1893,7 @@ router.get("/studio/my-group-session", requireStudioAccess, async (req, res): Pr
     title: session.title,
     state,
     format: asFormat(session.format),
+    attended,
     scheduledAt: session.scheduledAt?.toISOString() ?? null,
     durationMinutes: session.durationMinutes,
     teamName,
@@ -2468,14 +2550,25 @@ router.get("/simulation-runs/:runId", requireStudioAccess, async (req, res): Pro
     they arrived, not when they last refreshed. An admin reading somebody
     else's run leaves no mark, because they have no assignment.
   */
-  await db
-    .update(simulationGroupAssignmentsTable)
-    .set({ enteredAt: new Date() })
-    .where(and(
-      eq(simulationGroupAssignmentsTable.runId, run.id),
-      eq(simulationGroupAssignmentsTable.userId, user.id),
-      isNull(simulationGroupAssignmentsTable.enteredAt),
-    ));
+  /*
+    Only while it is running. Afterwards, opening it is reading, not attending.
+
+    This stamp decides who the debrief belongs to, and it used to be set by any
+    read at all — so somebody who missed the session entirely, clicked the link
+    the next morning and was marked present by the act of looking. The gate
+    would have admitted exactly the people it exists to keep out, and nobody
+    would have noticed, because from the outside it looks like it works.
+  */
+  if (run.status === "active") {
+    await db
+      .update(simulationGroupAssignmentsTable)
+      .set({ enteredAt: new Date() })
+      .where(and(
+        eq(simulationGroupAssignmentsTable.runId, run.id),
+        eq(simulationGroupAssignmentsTable.userId, user.id),
+        isNull(simulationGroupAssignmentsTable.enteredAt),
+      ));
+  }
 
   const view = await runView(run, user.id, reading);
   if (!view) { res.status(403).json(message("Not a participant in this simulation run")); return; }

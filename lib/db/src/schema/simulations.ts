@@ -396,6 +396,21 @@ export const studioGroupSessionsTable = pgTable("studio_group_sessions", {
   format: text("format").notNull().default("rapid"),
 
   /**
+   * Why the debriefs are not here, when they are not.
+   *
+   * Writing them is three model calls at the end of a session with nobody
+   * watching. When one failed, the session was already marked ended — so
+   * nothing tried again, nothing recorded what went wrong, and the only trace
+   * was a line in a log that the person waiting for the debrief was never
+   * going to read. A learner pressed "See the debrief", got the same emptiness
+   * back, and pressed it again.
+   *
+   * Empty once they are written. A sentence otherwise, shown to staff beside
+   * the button that tries again.
+   */
+  debriefNote: text("debrief_note"),
+
+  /**
    * What the debriefs will be written against, after the admin has edited and
    * switched off whatever this cohort has not covered.
    */

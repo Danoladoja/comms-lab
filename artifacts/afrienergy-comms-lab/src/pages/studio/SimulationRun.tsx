@@ -1,5 +1,7 @@
 import { useEffect, useState, useMemo } from 'react';
-import { formatClock, apiReason, formatBrief } from '@workspace/domain';
+import {
+  formatClock, apiReason, formatBrief, missedItNote, debriefAbsence,
+} from '@workspace/domain';
 import { useLocation } from 'wouter';
 import {
   useGetSimulationRun,
@@ -482,6 +484,20 @@ export default function SimulationRun({ id }: { id?: string }) {
                   <p className="text-white/50 text-xs leading-relaxed">
                     Each team's debrief has been written and is on their own screens. The read across
                     the whole room is on this session in the console.
+                  </p>
+                ) : run.mayReadDebrief === false ? (
+                  /* They were on the cohort but never opened the room. The
+                     debrief names what five people did under pressure, and it
+                     belongs to them. */
+                  <p className="text-white/50 text-xs leading-relaxed max-w-xs">{missedItNote()}</p>
+                ) : !run.debrief ? (
+                  /* Finished, they were in it, and nothing was written. This
+                     used to say "Your debrief is ready" and offer a button that
+                     reloaded the same emptiness — so people pressed it, and
+                     pressed it again, and concluded the Lab had lost their
+                     work. */
+                  <p className="text-white/50 text-xs leading-relaxed max-w-xs">
+                    {debriefAbsence({ isStaff: false, note: null })}
                   </p>
                 ) : (
                   <>

@@ -2633,6 +2633,7 @@ export const GetStudioAiResponse = zod.object({
  * @summary Group sessions, newest first
  */
 export const ListGroupSessionsResponseItem = zod.object({
+  "debriefNote": zod.string().nullish(),
   "format": zod.enum(['rapid', 'room']),
   "id": zod.int(),
   "programId": zod.int(),
@@ -2709,6 +2710,7 @@ export const PlanGroupSessionBody = zod.object({
 })
 
 export const PlanGroupSessionResponse = zod.object({
+  "debriefNote": zod.string().nullish(),
   "format": zod.enum(['rapid', 'room']),
   "id": zod.int(),
   "programId": zod.int(),
@@ -2773,6 +2775,7 @@ export const GetGroupSessionParams = zod.object({
 })
 
 export const GetGroupSessionResponse = zod.object({
+  "debriefNote": zod.string().nullish(),
   "format": zod.enum(['rapid', 'room']),
   "id": zod.int(),
   "programId": zod.int(),
@@ -2848,6 +2851,73 @@ export const EditGroupSessionBody = zod.object({
 })
 
 export const EditGroupSessionResponse = zod.object({
+  "debriefNote": zod.string().nullish(),
+  "format": zod.enum(['rapid', 'room']),
+  "id": zod.int(),
+  "programId": zod.int(),
+  "title": zod.string(),
+  "state": zod.enum(['draft', 'scheduled', 'live', 'finished']),
+  "openingBrief": zod.string(),
+  "objective": zod.string(),
+  "teams": zod.array(zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "roleName": zod.string()
+})),
+  "objectives": zod.array(zod.object({
+  "id": zod.string(),
+  "text": zod.string(),
+  "note": zod.string(),
+  "enabled": zod.boolean()
+})),
+  "beats": zod.array(zod.object({
+  "id": zod.string(),
+  "atMinute": zod.int(),
+  "scope": zod.enum(['all', 'team']),
+  "title": zod.string(),
+  "content": zod.string(),
+  "responsePrompt": zod.string(),
+  "responseMinutes": zod.int(),
+  "approvalNote": zod.string()
+})),
+  "scheduledAt": zod.coerce.date().nullish(),
+  "durationMinutes": zod.int(),
+  "learners": zod.int(),
+  "mayEdit": zod.boolean(),
+  "sessionId": zod.int().nullish(),
+  "moduleTitle": zod.string().nullish(),
+  "entered": zod.int().optional(),
+  "expected": zod.int().optional(),
+  "missing": zod.array(zod.object({
+  "userId": zod.int(),
+  "name": zod.string(),
+  "email": zod.string()
+})).optional(),
+  "problem": zod.string().nullish(),
+  "runId": zod.int().nullish(),
+  "sessionDebrief": zod.object({
+  "headline": zod.string(),
+  "whatHappened": zod.string(),
+  "contradictions": zod.array(zod.string()),
+  "byObjective": zod.array(zod.object({
+  "objective": zod.string(),
+  "verdict": zod.string()
+})),
+  "recommendations": zod.array(zod.string())
+}).nullish()
+})
+
+
+/**
+ * Three model calls at the end of a session with nobody watching, and if one came back unusable nothing ever tried again. This is that retry. Safe to run more than once; it replaces what is there.
+ * @summary Write this session's debriefs, or write them again
+ */
+export const RewriteSessionDebriefsParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const RewriteSessionDebriefsResponse = zod.object({
+  "debriefNote": zod.string().nullish(),
   "format": zod.enum(['rapid', 'room']),
   "id": zod.int(),
   "programId": zod.int(),
@@ -2912,6 +2982,7 @@ export const ApproveGroupSessionParams = zod.object({
 })
 
 export const ApproveGroupSessionResponse = zod.object({
+  "debriefNote": zod.string().nullish(),
   "format": zod.enum(['rapid', 'room']),
   "id": zod.int(),
   "programId": zod.int(),
@@ -3159,6 +3230,7 @@ export const ResendStudioExerciseResponse = zod.object({
  * @summary The group session this learner's cohort is turning up to
  */
 export const GetMyGroupSessionResponse = zod.object({
+  "attended": zod.boolean().optional().describe('Whether they ever opened the room'),
   "format": zod.enum(['rapid', 'room']).optional(),
   "hasSession": zod.boolean(),
   "id": zod.int().optional(),
@@ -3729,6 +3801,8 @@ export const createSimulationRunResponseDebriefOneRatingsItemScoreMax = 100;
 
 
 export const CreateSimulationRunResponse = zod.object({
+  "debriefNote": zod.string().nullish(),
+  "mayReadDebrief": zod.boolean().optional(),
   "sessionFormat": zod.union([zod.literal('rapid'),zod.literal('room'),zod.literal(null)]).nullish(),
   "id": zod.int(),
   "simulationId": zod.int(),
@@ -3853,6 +3927,8 @@ export const joinSimulationRunResponseDebriefOneRatingsItemScoreMax = 100;
 
 
 export const JoinSimulationRunResponse = zod.object({
+  "debriefNote": zod.string().nullish(),
+  "mayReadDebrief": zod.boolean().optional(),
   "sessionFormat": zod.union([zod.literal('rapid'),zod.literal('room'),zod.literal(null)]).nullish(),
   "id": zod.int(),
   "simulationId": zod.int(),
@@ -3973,6 +4049,8 @@ export const getSimulationRunResponseDebriefOneRatingsItemScoreMax = 100;
 
 
 export const GetSimulationRunResponse = zod.object({
+  "debriefNote": zod.string().nullish(),
+  "mayReadDebrief": zod.boolean().optional(),
   "sessionFormat": zod.union([zod.literal('rapid'),zod.literal('room'),zod.literal(null)]).nullish(),
   "id": zod.int(),
   "simulationId": zod.int(),
@@ -4100,6 +4178,8 @@ export const submitSimulationResponseResponseDebriefOneRatingsItemScoreMax = 100
 
 
 export const SubmitSimulationResponseResponse = zod.object({
+  "debriefNote": zod.string().nullish(),
+  "mayReadDebrief": zod.boolean().optional(),
   "sessionFormat": zod.union([zod.literal('rapid'),zod.literal('room'),zod.literal(null)]).nullish(),
   "id": zod.int(),
   "simulationId": zod.int(),
@@ -4220,6 +4300,8 @@ export const advanceSimulationRunResponseDebriefOneRatingsItemScoreMax = 100;
 
 
 export const AdvanceSimulationRunResponse = zod.object({
+  "debriefNote": zod.string().nullish(),
+  "mayReadDebrief": zod.boolean().optional(),
   "sessionFormat": zod.union([zod.literal('rapid'),zod.literal('room'),zod.literal(null)]).nullish(),
   "id": zod.int(),
   "simulationId": zod.int(),
@@ -4340,6 +4422,8 @@ export const completeSimulationRunResponseDebriefOneRatingsItemScoreMax = 100;
 
 
 export const CompleteSimulationRunResponse = zod.object({
+  "debriefNote": zod.string().nullish(),
+  "mayReadDebrief": zod.boolean().optional(),
   "sessionFormat": zod.union([zod.literal('rapid'),zod.literal('room'),zod.literal(null)]).nullish(),
   "id": zod.int(),
   "simulationId": zod.int(),

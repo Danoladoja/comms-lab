@@ -2,7 +2,7 @@ import { useLocation } from 'wouter';
 import { motion } from 'framer-motion';
 import { useGetMyGroupSession, getGetMyGroupSessionQueryKey } from '@workspace/api-client-react';
 import { Users, Clock, DoorOpen, FileText } from 'lucide-react';
-import { formatName, formatBrief } from '@workspace/domain';
+import { formatName, formatBrief, missedItNote } from '@workspace/domain';
 
 /**
  * The only thing that tells a learner their cohort has a group session.
@@ -89,6 +89,11 @@ export default function MyGroupSessionCard() {
             {session.format && <> {formatBrief(session.format)}</>}
           </p>
         </div>
+      ) : finished && session.attended === false ? (
+        /* On the cohort, never in the room. A button here would open a screen
+           with nothing on it; the debrief belongs to the people who were
+           there. */
+        <p className="text-xs text-white/40 leading-relaxed">{missedItNote()}</p>
       ) : finished && session.runId ? (
         <button
           type="button"

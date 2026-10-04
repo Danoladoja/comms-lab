@@ -571,3 +571,69 @@ export function beatenToIt(by: string | null): string {
     ? `${by} got there first. Theirs is your team's answer for this one.`
     : "Somebody on your team got there first. Theirs is your team's answer for this one.";
 }
+
+/* ------------------------------------------------------------------ *
+ * Who may read the debrief
+ * ------------------------------------------------------------------ */
+
+/**
+ * The debrief goes to the people who were in it.
+ *
+ * Not to the whole cohort. A debrief names what a team did under pressure —
+ * what they claimed, how long they took, where they contradicted each other —
+ * and a team session puts every enrolled learner into a team whether they turn
+ * up or not, so without this rule it is handed to twenty-nine people, most of
+ * whom were not there, about five who were.
+ *
+ * Turning up is the ticket. Somebody who opened the room and said nothing was
+ * there and is in it; somebody who never opened it is reading about colleagues.
+ *
+ * Staff are a separate question and always allowed: an admin reading a session
+ * they are responsible for is not an audience, and the cross-team read is the
+ * thing the exercise exists to produce for them.
+ */
+export function mayReadDebrief(facts: {
+  /** When they first opened the room. Null means they never did. */
+  enteredAt: string | null;
+  /** Whether this person is staff rather than a participant. */
+  isStaff: boolean;
+}): boolean {
+  return facts.isStaff || facts.enteredAt !== null;
+}
+
+/** What somebody who was not there is told, instead of nothing. */
+export function missedItNote(): string {
+  return "This one ran without you, so there is no debrief here to read — it belongs to the people "
+    + "who were in the room. Your next session is the one to be at.";
+}
+
+/* ------------------------------------------------------------------ *
+ * When the debrief was never written
+ * ------------------------------------------------------------------ */
+
+/**
+ * What a finished session with no debrief should say.
+ *
+ * It used to say "Your debrief is ready" and offer a button, to everybody,
+ * including when nothing had been written — so a learner pressed it, the page
+ * reloaded the same emptiness, and they pressed it again. The Lab was not
+ * missing a debrief quietly; it was insisting it had one.
+ *
+ * Writing a debrief is two model calls per team and one across the room, at the
+ * end of a session, with nobody watching. When those fail the session is
+ * already marked ended, so nothing ever tried again and nothing ever said why.
+ */
+export function debriefAbsence(facts: {
+  /** Whether the reader is staff, who can do something about it. */
+  isStaff: boolean;
+  /** What went wrong, if the server recorded anything. */
+  note: string | null;
+}): string {
+  if (facts.isStaff) {
+    const why = facts.note ? ` ${facts.note}` : "";
+    return `The debriefs have not been written for this session.${why} Nothing is lost — every `
+      + "answer is still here, and you can have them written again.";
+  }
+  return "The debrief for this session has not been written yet. Everything your team sent is "
+    + "safely recorded; whoever ran the session can have it written.";
+}

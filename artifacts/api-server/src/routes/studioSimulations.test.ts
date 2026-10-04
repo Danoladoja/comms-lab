@@ -682,3 +682,58 @@ describe("a Group Session cannot be answered around its room", () => {
     expect(said).toContain("got there first");
   });
 });
+
+/**
+ * Turning up is the ticket, and it can only be bought while the door is open.
+ *
+ * The debrief names what a handful of people did under pressure, and a team
+ * session puts every enrolled learner into a team whether they come or not. So
+ * the rule is that it goes to the people who were in the room — and the record
+ * of who was in the room is a timestamp written the first time somebody opens
+ * the run.
+ *
+ * Which was written by *any* read, including one the morning after. Somebody
+ * who missed the session entirely, opened the link late and was marked present
+ * by the act of looking: the gate would have admitted precisely the people it
+ * exists to keep out, and from the outside it would have looked like it worked.
+ */
+describe("attendance is stamped while it runs, and not after", () => {
+  const assignment = { id: 1, runId: 1, userId: 7, groupId: "operator", enteredAt: null };
+  const base = {
+    id: 1, ownerId: 5, definitionId: 2, mode: "facilitated", joinCode: null, debrief: null,
+    responseVersion: 0, operationToken: null, operationStartedAt: null,
+    startedAt: new Date(), endedAt: null, teamDebriefs: [],
+    currentDevelopment: null, developments: [],
+  };
+
+  const open = () => fetch(`${baseUrl}/api/simulation-runs/1`);
+
+  it("marks somebody present when they open a running session", async () => {
+    mocks.setUser({ id: 7, role: "learner" });
+    mocks.setRows({
+      simulationRuns: [{ ...base, status: "active" }],
+      simulationDefinitions: [{ id: 2, ownerId: 5, groups: [{ id: "operator", name: "The operator", roleName: "Lead" }], evaluationDimensions: [], debriefQuestions: [], openingBrief: "b", injects: [] }],
+      simulationGroupAssignments: [assignment],
+      studioInvitations: [{ id: 1, userId: 7, programId: 1, expiresAt: null }],
+    });
+
+    await open();
+    expect(mocks.db.update, "nobody was marked present on a live session").toHaveBeenCalled();
+  });
+
+  it("does not mark somebody present when they open a finished one", async () => {
+    mocks.setUser({ id: 7, role: "learner" });
+    mocks.setRows({
+      simulationRuns: [{ ...base, status: "completed", endedAt: new Date() }],
+      simulationDefinitions: [{ id: 2, ownerId: 5, groups: [{ id: "operator", name: "The operator", roleName: "Lead" }], evaluationDimensions: [], debriefQuestions: [], openingBrief: "b", injects: [] }],
+      simulationGroupAssignments: [assignment],
+      studioInvitations: [{ id: 1, userId: 7, programId: 1, expiresAt: null }],
+    });
+
+    await open();
+    expect(
+      mocks.db.update,
+      "reading yesterday's debrief marked somebody as having been there",
+    ).not.toHaveBeenCalled();
+  });
+});

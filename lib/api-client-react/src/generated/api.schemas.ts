@@ -2125,6 +2125,8 @@ export type GroupSessionSessionDebrief = {
 } | null;
 
 export interface GroupSession {
+  /** @nullable */
+  debriefNote?: string | null;
   format: GroupSessionFormat;
   id: number;
   programId: number;
@@ -2391,6 +2393,8 @@ export const MyGroupSessionState = {
 } as const;
 
 export interface MyGroupSession {
+  /** Whether they ever opened the room */
+  attended?: boolean;
   format?: MyGroupSessionFormat;
   hasSession: boolean;
   id?: number;
@@ -2728,6 +2732,9 @@ export const StudioSimulationRunStatus = {
 } as const;
 
 export interface StudioSimulationRun {
+  /** @nullable */
+  debriefNote?: string | null;
+  mayReadDebrief?: boolean;
   /** @nullable */
   sessionFormat?: StudioSimulationRunSessionFormat;
   id: number;

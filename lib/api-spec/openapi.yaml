@@ -3174,6 +3174,29 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiMessage"
+  /admin/studio/group-sessions/{id}/debrief:
+    post:
+      operationId: rewriteSessionDebriefs
+      tags: [admin]
+      summary: Write this session's debriefs, or write them again
+      description: >
+        Three model calls at the end of a session with nobody watching, and if
+        one came back unusable nothing ever tried again. This is that retry.
+        Safe to run more than once; it replaces what is there.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: The session, with whatever was written
+          content: { application/json: { schema: { $ref: "#/components/schemas/GroupSession" } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "502": { $ref: "#/components/responses/ApiError" }
   /admin/studio/group-sessions/{id}/approve:
     post:
       operationId: approveGroupSession
@@ -6509,6 +6532,7 @@ components:
         [id, programId, title, state, format, openingBrief, objective, teams, objectives,
          beats, durationMinutes, learners, mayEdit]
       properties:
+        debriefNote: { type: ["string", "null"] }
         format: { type: string, enum: [rapid, room] }
         id: { type: integer }
         programId: { type: integer }
@@ -6843,6 +6867,7 @@ components:
       type: object
       required: [hasSession]
       properties:
+        attended: { type: boolean, description: Whether they ever opened the room }
         format: { type: string, enum: [rapid, room] }
         hasSession: { type: boolean }
         id: { type: integer }
@@ -7102,6 +7127,8 @@ components:
       type: object
       required: [id, simulationId, mode, status, joinCode, isOwner, clock, working, currentDevelopment, developments, responses, debrief, openingBrief, stakeholderGroups, participantGroupId, unattended, teamName]
       properties:
+        debriefNote: { type: ["string", "null"] }
+        mayReadDebrief: { type: boolean }
         sessionFormat: { type: ["string", "null"], enum: [rapid, room, null] }
         id: { type: integer }
         simulationId: { type: integer }

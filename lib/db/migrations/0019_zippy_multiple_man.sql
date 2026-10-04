@@ -1,0 +1,1 @@
+ALTER TABLE "studio_group_sessions" ADD COLUMN "debrief_note" text;

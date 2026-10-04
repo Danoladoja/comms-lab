@@ -16,6 +16,9 @@ import type { StudioStakeholderGroup } from './studioStakeholderGroup';
 
 export interface StudioSimulationRun {
   /** @nullable */
+  debriefNote?: string | null;
+  mayReadDebrief?: boolean;
+  /** @nullable */
   sessionFormat?: StudioSimulationRunSessionFormat;
   id: number;
   simulationId: number;

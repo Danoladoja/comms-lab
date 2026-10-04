@@ -340,9 +340,45 @@ async function close(session: Session): Promise<void> {
     .set({ status: "completed", endedAt })
     .where(eq(simulationRunsTable.id, run.id));
 
+  await writeDebriefs(session.id);
+}
+
+/**
+ * Write the debriefs for a session that has finished, or write them again.
+ *
+ * Split out of `close` for one reason: closing can only ever happen once —
+ * it is claimed, so a second container cannot double it — and that meant a
+ * failure here was permanent. Three model calls at the end of a session with
+ * nobody watching, and if one of them came back unusable the session was
+ * already marked ended and nothing would try again. The session showed as
+ * finished, the learners were told their debrief was ready, and there was
+ * nothing behind the button for ever.
+ *
+ * So this is idempotent and re-runnable, and an admin has a button for it.
+ * Whatever goes wrong is written onto the session in a sentence, because the
+ * person who can act on it is not reading the server log.
+ */
+export async function writeDebriefs(sessionId: number): Promise<{ ok: boolean; note: string | null }> {
+  const [session] = await db.select().from(studioGroupSessionsTable)
+    .where(eq(studioGroupSessionsTable.id, sessionId));
+  if (!session) return { ok: false, note: "That session is not there." };
+
+  const note = async (said: string | null) => {
+    await db.update(studioGroupSessionsTable)
+      .set({ debriefNote: said })
+      .where(eq(studioGroupSessionsTable.id, sessionId));
+    return { ok: said === null, note: said };
+  };
+
+  if (!session.runId) return note("This session never went live, so there is nothing to debrief.");
+  const [run] = await db.select().from(simulationRunsTable).where(eq(simulationRunsTable.id, session.runId));
+  const [definition] = await db.select().from(simulationDefinitionsTable)
+    .where(eq(simulationDefinitionsTable.id, session.definitionId));
+  if (!run || !definition) return note("The exercise behind this session could not be read.");
+
   if (!simulationAiConfigured()) {
     logger.warn({ sessionId: session.id }, "Group session ended with no AI key, so no debriefs");
-    return;
+    return note("The server has no AI key set, so nothing can be written.");
   }
 
   const answers = await db
@@ -398,6 +434,11 @@ async function close(session: Session): Promise<void> {
     await db.update(simulationRunsTable)
       .set({ teamDebriefs, debriefAt: new Date() })
       .where(eq(simulationRunsTable.id, run.id));
+  } else if (definition.groups.length > 0) {
+    // Every team failed. Worth stopping on: the cross-team read costs another
+    // call and is the less urgent of the two, and whatever is wrong will
+    // almost certainly take that one down as well.
+    return note("The AI could not write a debrief for any team. Try again in a moment.");
   }
 
   const written = await generateSessionDebrief({
@@ -413,14 +454,21 @@ async function close(session: Session): Promise<void> {
 
   if (!written.ok) {
     logger.error({ sessionId: session.id, reason: written.error }, "Session debrief failed");
-    return;
+    // The teams' own debriefs may well have landed, and saying so matters: the
+    // people waiting are the teams, and the cross-team read is the admin's.
+    return note(
+      teamDebriefs.length > 0
+        ? `The teams' debriefs were written, but the read across the whole room was not: ${written.error}`
+        : `Nothing could be written: ${written.error}`,
+    );
   }
 
   await db.update(studioGroupSessionsTable)
     .set({ sessionDebrief: written.value })
     .where(eq(studioGroupSessionsTable.id, session.id));
 
-  logger.info({ sessionId: session.id }, "Group session closed and debriefed");
+  logger.info({ sessionId: session.id, teams: teamDebriefs.length }, "Group session debriefed");
+  return note(null);
 }
 
 /** Exported for the live tests, which drive the clock rather than waiting for it. */

@@ -4,6 +4,7 @@ import {
   usePlanGroupSession,
   useEditGroupSession,
   useApproveGroupSession,
+  useRewriteSessionDebriefs,
   useGetStudioAi,
   getListGroupSessionsQueryKey,
   useListProgramSessions,
@@ -13,7 +14,7 @@ import {
 import { useQueryClient } from '@tanstack/react-query';
 import {
   apiReason, sessionDateTimeFromInput, sessionDateTimeInput, whatToDoAboutPlanning,
-  formatName, formatNote, SESSION_FORMATS, type SessionFormat,
+  formatName, formatNote, SESSION_FORMATS, debriefAbsence, type SessionFormat,
 } from '@workspace/domain';
 import { useToast } from '@/hooks/use-toast';
 import { Users, Clock, AlertTriangle, CheckCircle2, Loader2, DoorOpen, PhoneCall } from 'lucide-react';
@@ -443,7 +444,11 @@ function SessionSheet({ session, onChanged }: { session: GroupSession; onChanged
         Runs for {session.durationMinutes} minutes and ends itself. No one has to be there to drive it.
       </p>
 
-      {session.sessionDebrief && <SharedDebrief debrief={session.sessionDebrief} />}
+      {session.sessionDebrief
+        ? <SharedDebrief debrief={session.sessionDebrief} />
+        : session.state === 'finished'
+          ? <MissingDebrief session={session} onChanged={onChanged} />
+          : null}
     </div>
   );
 }
@@ -457,6 +462,51 @@ function SessionSheet({ session, onChanged }: { session: GroupSession; onChanged
  * in more than one team. That gap is where the teaching is, so it is given the
  * most room on the page rather than being tucked under a heading.
  */
+/**
+ * A session that finished and produced nothing.
+ *
+ * It used to render as an absence of anything at all — the sheet simply ended,
+ * and an admin looking for the read across the room found a blank space where
+ * it would have been and no way to tell whether the exercise had failed, the
+ * AI had, or they were looking in the wrong place.
+ */
+function MissingDebrief({ session, onChanged }: { session: GroupSession; onChanged: () => void }) {
+  const { toast } = useToast();
+  const rewrite = useRewriteSessionDebriefs({
+    mutation: {
+      onSuccess: () => { onChanged(); toast({ title: 'Written', description: 'The debriefs are in.' }); },
+      onError: (err) => toast({
+        title: 'Still not written',
+        description: apiReason(err, 'The AI could not write them. Try once more.'),
+        variant: 'destructive',
+      }),
+    },
+  });
+
+  return (
+    <div className="mt-5 border border-[#f97316]/40 bg-[#f97316]/[0.07] p-4">
+      <p className="flex items-center gap-2 text-sm font-bold text-white mb-1.5">
+        <AlertTriangle className="w-4 h-4 text-[#f97316]" aria-hidden /> No debriefs for this session
+      </p>
+      <p className="text-xs text-white/70 leading-relaxed mb-3">
+        {debriefAbsence({ isStaff: true, note: session.debriefNote ?? null })}
+      </p>
+      <button
+        type="button"
+        onClick={() => rewrite.mutate({ id: session.id })}
+        disabled={rewrite.isPending}
+        className="bg-[#f97316] text-[#030811] px-4 py-2.5 text-[11px] font-bold uppercase tracking-widest inline-flex items-center gap-2 disabled:opacity-50"
+      >
+        {rewrite.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden />}
+        {rewrite.isPending ? 'Writing…' : 'Write the debriefs'}
+      </button>
+      <p className="mt-2 text-[11px] text-white/40">
+        Three passes: one per team, then the read across the room. It takes about a minute.
+      </p>
+    </div>
+  );
+}
+
 function SharedDebrief({ debrief }: { debrief: NonNullable<GroupSession['sessionDebrief']> }) {
   return (
     <div className="border-t border-white/10 pt-6">

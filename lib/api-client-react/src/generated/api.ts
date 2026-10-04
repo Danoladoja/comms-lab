@@ -7657,6 +7657,78 @@ export const useEditGroupSession = <TError = ErrorType<ApiMessage>,
       return useMutation(getEditGroupSessionMutationOptions(options));
     }
 
+export const getRewriteSessionDebriefsUrl = (id: number,) => {
+
+
+
+
+  return `/api/admin/studio/group-sessions/${id}/debrief`
+}
+
+/**
+ * Three model calls at the end of a session with nobody watching, and if one came back unusable nothing ever tried again. This is that retry. Safe to run more than once; it replaces what is there.
+ * @summary Write this session's debriefs, or write them again
+ */
+export const rewriteSessionDebriefs = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<GroupSession> => {
+
+  return customFetch<GroupSession>(getRewriteSessionDebriefsUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getRewriteSessionDebriefsMutationOptions = <TError = ErrorType<UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | ConflictResponse | ApiErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rewriteSessionDebriefs>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof rewriteSessionDebriefs>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['rewriteSessionDebriefs'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof rewriteSessionDebriefs>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  rewriteSessionDebriefs(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RewriteSessionDebriefsMutationResult = NonNullable<Awaited<ReturnType<typeof rewriteSessionDebriefs>>>
+
+    export type RewriteSessionDebriefsMutationError = ErrorType<UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | ConflictResponse | ApiErrorResponse>
+
+    /**
+ * @summary Write this session's debriefs, or write them again
+ */
+export const useRewriteSessionDebriefs = <TError = ErrorType<UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | ConflictResponse | ApiErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rewriteSessionDebriefs>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof rewriteSessionDebriefs>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getRewriteSessionDebriefsMutationOptions(options));
+    }
+
 export const getApproveGroupSessionUrl = (id: number,) => {
 
 
