@@ -404,6 +404,10 @@ export async function writeDebriefs(sessionId: number): Promise<{ ok: boolean; n
    * exercise.
    */
   const teamDebriefs: { teamId: string; debrief: SimulationDebrief }[] = [];
+  // Why each one failed, kept rather than only logged: the sentence the admin
+  // reads has to name the fault, and "could not write a debrief for any team"
+  // names nothing at all.
+  const refusals: string[] = [];
   for (const group of definition.groups) {
     const theirs = developmentsForTeam(run.developments, group.id);
     const debrief = await generateDebrief({
@@ -425,6 +429,7 @@ export async function writeDebriefs(sessionId: number): Promise<{ ok: boolean; n
         { sessionId: session.id, teamId: group.id, reason: debrief.error },
         "Team debrief failed",
       );
+      refusals.push(debrief.error);
       continue;
     }
     teamDebriefs.push({ teamId: group.id, debrief: debrief.value });
@@ -438,7 +443,20 @@ export async function writeDebriefs(sessionId: number): Promise<{ ok: boolean; n
     // Every team failed. Worth stopping on: the cross-team read costs another
     // call and is the less urgent of the two, and whatever is wrong will
     // almost certainly take that one down as well.
-    return note("The AI could not write a debrief for any team. Try again in a moment.");
+    /*
+      Every team failed, and the reason goes on the screen.
+
+      This used to say "the AI could not write a debrief for any team", which
+      is true of a rate limit, a retired model, a key that has been revoked and
+      a reply that ran out of room — four different problems with four
+      different fixes, and an admin pressing the button again for all of them.
+    */
+    const reasons = [...new Set(refusals)];
+    return note(
+      reasons.length > 0
+        ? `No team's debrief could be written. ${reasons.join(" ")}`
+        : "No team's debrief could be written.",
+    );
   }
 
   const written = await generateSessionDebrief({

@@ -117,3 +117,45 @@ describe("when the AI runs out of room", () => {
     expect((answer as { error: string }).error).toContain("ran out of room");
   });
 });
+
+/**
+ * Every ceiling in the Studio, in one place.
+ *
+ * Three of these have now been found the same way: a reply ran out of room,
+ * came back half-written, and was reported as a bad answer rather than as a
+ * budget. Each time the fix was a number and each time it was found by
+ * somebody standing in front of a cohort.
+ *
+ * So the numbers are asserted rather than left to be discovered. A ceiling is
+ * a cap and not a spend — raising one costs nothing on the replies that
+ * already fitted — so the only reason any of these is small is that nobody
+ * looked at it.
+ */
+describe("what the Studio's calls are allowed to write", () => {
+  it("gives the long answers room, and keeps the quick ones quick", async () => {
+    const source = await import("node:fs").then((fs) =>
+      fs.readFileSync(new URL("./simulationAi.ts", import.meta.url), "utf8"));
+
+    const ceilings = [...source.matchAll(/toolName: "(\w+)"[\s\S]{0,900}?maxTokens: (\d+)/g)]
+      .map(([, name, cap]) => [name, Number(cap)] as const);
+
+    const expected: Record<string, number> = {
+      // Written once, read closely, and the thing people wait for.
+      submit_scenario: 8000,
+      submit_plan: 8000,
+      submit_debrief: 8000,
+      submit_session_debrief: 8000,
+      // Mid-session, with somebody watching for it. Short on purpose.
+      submit_development: 1200,
+    };
+
+    for (const [name, cap] of ceilings) {
+      expect(expected[name], `${name} has no agreed ceiling — add one here`).toBeDefined();
+      expect(cap, `${name} is writing to a ceiling of ${cap}`).toBe(expected[name]);
+    }
+    // And every call named above is actually in the file.
+    for (const name of Object.keys(expected)) {
+      expect(ceilings.some(([n]) => n === name), `${name} was not found`).toBe(true);
+    }
+  });
+});

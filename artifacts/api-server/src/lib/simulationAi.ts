@@ -109,7 +109,19 @@ export async function generateDebrief(input: {
     toolName: "submit_debrief",
     toolDescription: "Return the debrief for this run.",
     schema: debriefSchema(),
-    maxTokens: 3000,
+    /*
+      A mark per dimension with a note on each, the strengths, the risks, what
+      it did to the people on the other end, and the recommendations — for a
+      team that answered four or five developments over forty-five minutes.
+      Three thousand was the lowest ceiling left in this file after the
+      scenario and the plan were raised, and it is the one at the end of a
+      session when everybody is waiting.
+
+      Worth saying plainly: before a truncated reply was detected, a debrief
+      that ran out of room came back half-written and was sometimes accepted.
+      So this was not a new failure — it was an old one becoming visible.
+    */
+    maxTokens: 8000,
     label: "studio-debrief",
   });
   if ("error" in answer) return { ok: false, error: answer.error };
@@ -233,7 +245,10 @@ export async function generateSessionDebrief(
     toolName: "submit_session_debrief",
     toolDescription: "Return the debrief for the whole session.",
     schema: sessionDebriefSchema(),
-    maxTokens: 3000,
+    // The only view that reads across every team: a verdict per objective,
+    // plus wherever two teams' accounts of the same hour fail to line up.
+    // Four teams' worth, and it had the same three thousand as one team's.
+    maxTokens: 8000,
     label: "studio-session-debrief",
   });
   if ("error" in answer) return { ok: false, error: answer.error };
