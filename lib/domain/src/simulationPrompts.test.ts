@@ -16,6 +16,7 @@ import {
   validateGroupPlan,
   looksLikeData,
   validateSessionDebrief,
+  sessionDebriefUserPrompt,
 } from "./simulationPrompts";
 
 const goodDevelopment = {
@@ -811,5 +812,94 @@ describe("a plan that arrived encoded twice", () => {
 
   it("does not throw on a string that looks like data and is not", () => {
     expect(() => validateGroupPlan({ objectives: '{"broken": ', beats: REAL_PLAN.beats }, 45)).not.toThrow();
+  });
+});
+
+/**
+ * The cross-team read, and the one line that used to destroy it.
+ *
+ * It is the only view in the Studio that reads across every team — the
+ * headline, the shape of the session, where two teams' accounts of the same
+ * hour fail to line up, and what to do next time. All of it was thrown away
+ * unless a verdict per objective came back as well.
+ *
+ * And verdicts do not come back when a session's objectives are missing or
+ * unreadable, which makes the failure permanent: no amount of pressing the
+ * button mends a session whose objectives were never usable. A real session
+ * sat for two days with four written team debriefs and no read across them,
+ * for that reason.
+ *
+ * Same mistake as refusing a whole running order over a missing objective,
+ * made a second time in a second place.
+ */
+
+const FULL = {
+  headline: "Two teams, two versions of day three",
+  whatHappened: "The operator went early. The regulator waited.",
+  contradictions: ["The operator said the pump ran; the community said it had not."],
+  byObjective: [{ objective: "Say something true within the hour", verdict: "Three of four did." }],
+  recommendations: ["Agree who speaks before the first beat."],
+};
+
+describe("a session debrief with no per-objective verdicts", () => {
+  it("is kept, so long as there is a headline and anything under it", () => {
+    for (const [what, extra] of [
+      ["what happened", { whatHappened: FULL.whatHappened }],
+      ["contradictions", { contradictions: FULL.contradictions }],
+      ["recommendations", { recommendations: FULL.recommendations }],
+    ] as const) {
+      const got = validateSessionDebrief({ headline: FULL.headline, byObjective: [], ...extra });
+      expect(got, `a debrief with ${what} was thrown away`).not.toBeNull();
+      expect(got?.headline).toBe(FULL.headline);
+      expect(got?.byObjective).toEqual([]);
+    }
+  });
+
+  it("keeps the verdicts when they do come back", () => {
+    expect(validateSessionDebrief(FULL)?.byObjective).toHaveLength(1);
+  });
+
+  it("still refuses a headline with nothing at all beneath it", () => {
+    // A headline alone is a sentence, not a debrief.
+    expect(validateSessionDebrief({ headline: FULL.headline, byObjective: [] })).toBeNull();
+    expect(validateSessionDebrief({ ...FULL, headline: "" })).toBeNull();
+    expect(validateSessionDebrief({ ...FULL, headline: "   " })).toBeNull();
+  });
+
+  it("drops a verdict on an objective nobody wrote", () => {
+    expect(validateSessionDebrief({
+      ...FULL,
+      byObjective: [{ objective: "", verdict: "Good" }, { objective: "Real one", verdict: "" }],
+    })?.byObjective).toEqual([]);
+  });
+});
+
+describe("what the cross-team prompt asks for", () => {
+  const base = {
+    openingBrief: "A leak, and three days of silence.",
+    teams: [{ name: "The operator", roleName: "Lead", answers: ["We confirm it."] }],
+    durationMinutes: 45,
+  };
+
+  it("lists the objectives when there are usable ones", () => {
+    const said = sessionDebriefUserPrompt({ ...base, objectives: ["Hold a line under pressure"] });
+    expect(said).toContain("Hold a line under pressure");
+    expect(said).not.toContain("Nobody wrote down");
+  });
+
+  it("says so plainly when there are none", () => {
+    // Printed as an empty heading, this asked for verdicts on nothing and got
+    // nothing back — which then took the whole debrief with it.
+    expect(sessionDebriefUserPrompt({ ...base, objectives: [] })).toContain("Nobody wrote down");
+  });
+
+  it("treats an unreadable objective as none", () => {
+    const said = sessionDebriefUserPrompt({
+      ...base,
+      objectives: ['{"beats":[{"atMinute":0}]}', "   "],
+    });
+    expect(said).toContain("Nobody wrote down");
+    expect(said, "a JSON document was put in front of the model as an objective")
+      .not.toContain("atMinute");
   });
 });

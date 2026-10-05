@@ -1194,7 +1194,18 @@ export function sessionDebriefUserPrompt(args: {
   teams: readonly { name: string; roleName: string; answers: readonly string[] }[];
   durationMinutes: number;
 }): string {
-  const objectives = args.objectives.map((o) => `  ${o}`).join("\n");
+  /*
+    A session whose objectives were never written, or never readable.
+
+    Printed as an empty heading, this asked the model for verdicts on nothing
+    and got nothing back — which then took the whole debrief with it. Said
+    plainly instead, so it judges the room on what the crisis demanded.
+  */
+  const usable = args.objectives.map((o) => o.trim()).filter((o) => o && !looksLikeData(o));
+  const objectives = usable.length > 0
+    ? usable.map((o) => `  ${o}`).join("\n")
+    : "  Nobody wrote down what this session was meant to show. Judge the room on what the\n"
+      + "  crisis in front of them actually demanded, and say so.";
   const teams = args.teams.map((t) => {
     const said = t.answers.length > 0
       ? t.answers.map((a, i) => `    ${i + 1}. ${a}`).join("\n")
@@ -1266,13 +1277,27 @@ export function validateSessionDebrief(input: unknown): SessionDebrief | null {
       .filter((o) => o.objective && o.verdict)
     : [];
 
-  if (!text(raw?.headline) || byObjective.length === 0) return null;
+  /*
+    A verdict per objective is the best part of this and not the whole of it.
 
-  return {
-    headline: text(raw?.headline),
-    whatHappened: text(raw?.whatHappened),
-    contradictions: list(raw?.contradictions),
-    byObjective,
-    recommendations: list(raw?.recommendations),
-  };
+    Requiring it meant the entire cross-team read — the headline, the shape of
+    the session, where two teams' accounts of the same hour failed to line up,
+    what to do next time — was thrown away whenever the per-objective verdicts
+    did not come back. And they do not come back when a session's objectives
+    are missing or unreadable, which makes it permanent: no amount of pressing
+    the button again mends a session whose objectives were never usable.
+
+    So the headline is the floor, plus anything at all beneath it. The same
+    mistake as refusing a whole running order over a missing objective, made in
+    a second place.
+  */
+  const headline = text(raw?.headline);
+  const whatHappened = text(raw?.whatHappened);
+  const contradictions = list(raw?.contradictions);
+  const recommendations = list(raw?.recommendations);
+  const anythingAtAll = byObjective.length > 0 || whatHappened
+    || contradictions.length > 0 || recommendations.length > 0;
+  if (!headline || !anythingAtAll) return null;
+
+  return { headline, whatHappened, contradictions, byObjective, recommendations };
 }

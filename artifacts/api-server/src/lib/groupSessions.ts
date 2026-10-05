@@ -7,6 +7,7 @@ import { and, asc, eq, isNull, sql } from "drizzle-orm";
 import {
   groupSessionState, whatTheTickerShouldDo, needsClosing, assignTeams, emptyTeams,
   publicRecord, minutesLeft, wentLiveNote, clampResponseSeconds, developmentsForTeam,
+  looksLikeData,
 } from "@workspace/domain";
 import {
   generateDebrief, generateSessionDebrief, generateTeamBeat, simulationAiConfigured,
@@ -461,7 +462,13 @@ export async function writeDebriefs(sessionId: number): Promise<{ ok: boolean; n
 
   const written = await generateSessionDebrief({
     openingBrief: definition.openingBrief,
-    objectives: session.objectives.filter((o) => o.enabled).map((o) => o.text),
+    // Switched-on objectives that are actually readable. A session planned
+    // before data-shaped text was refused can still be carrying one, and
+    // asking for a verdict on a JSON document gets a verdict on nothing.
+    objectives: session.objectives
+      .filter((o) => o.enabled)
+      .map((o) => o.text)
+      .filter((text) => text.trim() && !looksLikeData(text)),
     teams: definition.groups.map((group) => ({
       name: group.name,
       roleName: group.roleName,
