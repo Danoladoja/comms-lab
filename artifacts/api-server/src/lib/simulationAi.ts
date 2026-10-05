@@ -8,7 +8,7 @@ import {
   scenarioSchema,
   scenarioSystemPrompt,
   scenarioUserPrompt,
-  validateDebrief,
+  readDebrief,
   validateDevelopment,
   validateScenario,
   type StudioBrief,
@@ -25,7 +25,7 @@ import {
   sessionDebriefSystemPrompt,
   sessionDebriefUserPrompt,
   sessionDebriefSchema,
-  validateSessionDebrief,
+  readSessionDebrief,
   type SessionDebrief,
 } from "@workspace/domain";
 import { anthropicConfigured, askClaude } from "./anthropic";
@@ -126,8 +126,10 @@ export async function generateDebrief(input: {
   });
   if ("error" in answer) return { ok: false, error: answer.error };
 
-  const debrief = validateDebrief(answer.input);
-  if (!debrief) return { ok: false, error: "The debrief came back unusable. Try again." };
+  const { debrief, problem } = readDebrief(answer.input);
+  // The reason, as the reader worked it out — not a sentence written here that
+  // throws away what it knew.
+  if (!debrief) return { ok: false, error: problem };
   return { ok: true, value: debrief };
 }
 
@@ -253,7 +255,7 @@ export async function generateSessionDebrief(
   });
   if ("error" in answer) return { ok: false, error: answer.error };
 
-  const debrief = validateSessionDebrief(answer.input);
-  if (!debrief) return { ok: false, error: "The session debrief came back unusable." };
+  const { debrief, problem } = readSessionDebrief(answer.input);
+  if (!debrief) return { ok: false, error: problem };
   return { ok: true, value: debrief };
 }

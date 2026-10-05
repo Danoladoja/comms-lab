@@ -16,6 +16,8 @@ import {
   validateGroupPlan,
   looksLikeData,
   validateSessionDebrief,
+  readSessionDebrief,
+  readDebrief,
   sessionDebriefUserPrompt,
 } from "./simulationPrompts";
 
@@ -242,9 +244,17 @@ describe("validateDebrief", () => {
     expect(validateDebrief({ ...good, score: 71.6 })?.score).toBe(72);
   });
 
-  it("refuses one with no score or no substance", () => {
-    expect(validateDebrief({ ...good, score: "high" })).toBeNull();
-    expect(validateDebrief({ ...good, stakeholderImpact: "" })).toBeNull();
+  it("refuses one with nothing in it, and keeps one that is merely missing a number", () => {
+    // Changed deliberately. A score is not what a debrief is for: one carrying
+    // every word of its judgement and no integer used to be thrown away whole,
+    // which is the same bargain this file lost over a missing objective and
+    // again over a missing headline.
+    expect(validateDebrief({ ...good, score: "high" })?.score, "a readable debrief was refused over its score")
+      .toBe(0);
+    expect(validateDebrief({ ...good, score: "high" })?.stakeholderImpact).toBeTruthy();
+
+    // Nothing a person can read is still nothing.
+    expect(validateDebrief({ score: 60 })).toBeNull();
     expect(validateDebrief(null)).toBeNull();
   });
 });
@@ -860,10 +870,22 @@ describe("a session debrief with no per-objective verdicts", () => {
   });
 
   it("still refuses a headline with nothing at all beneath it", () => {
-    // A headline alone is a sentence, not a debrief.
+    // A headline alone is a sentence, not a debrief. Substance is the floor.
     expect(validateSessionDebrief({ headline: FULL.headline, byObjective: [] })).toBeNull();
-    expect(validateSessionDebrief({ ...FULL, headline: "" })).toBeNull();
-    expect(validateSessionDebrief({ ...FULL, headline: "   " })).toBeNull();
+    expect(validateSessionDebrief({ headline: FULL.headline })).toBeNull();
+  });
+
+  it("writes the label itself when everything but the headline came", () => {
+    // Changed deliberately, and this is the third time the same bargain has
+    // been refused in this file: a debrief carrying the account, the
+    // contradictions and the recommendations is not thrown away for want of a
+    // sentence at the top of it.
+    for (const headline of ["", "   "]) {
+      const got = validateSessionDebrief({ ...FULL, headline });
+      expect(got, "a full debrief was discarded over its label").not.toBeNull();
+      expect(got?.headline).toBe("The operator went early.");
+      expect(got?.recommendations).toEqual(FULL.recommendations);
+    }
   });
 
   it("drops a verdict on an objective nobody wrote", () => {
@@ -901,5 +923,103 @@ describe("what the cross-team prompt asks for", () => {
     expect(said).toContain("Nobody wrote down");
     expect(said, "a JSON document was put in front of the model as an objective")
       .not.toContain("atMinute");
+  });
+});
+
+/**
+ * The model calls a field something else, and nothing says so.
+ *
+ * Three fixes were shipped at one broken debrief before anybody could see the
+ * cause. Raising the token ceiling was right and did not mend it. Accepting a
+ * debrief with no per-objective verdicts was right and did not mend it either.
+ * The actual fault was that the reply used different names inside the shape —
+ * which this file had already been taught once, for the plan's objectives, and
+ * nobody carried across to the debriefs.
+ *
+ * The refusal said "came back unusable" every time: a verdict with no evidence
+ * attached. That is the part that cost the three days, not the parsing.
+ */
+describe("a debrief that used its own words for the fields", () => {
+  it("reads the cross-team read under the names a model reaches for", () => {
+    const { debrief, problem } = readSessionDebrief({
+      summary: "Two teams, two versions of day three",
+      narrative: "The operator went early. The regulator waited.",
+      conflicts: ["The operator said the pump ran; the community said it had not."],
+      perObjective: [{ name: "Say something true", judgement: "Three of four did." }],
+      nextSteps: ["Agree who speaks before the first beat."],
+    });
+    expect(problem).toBe("");
+    expect(debrief?.headline).toBe("Two teams, two versions of day three");
+    expect(debrief?.whatHappened).toContain("went early");
+    expect(debrief?.contradictions).toHaveLength(1);
+    expect(debrief?.byObjective[0]).toEqual({ objective: "Say something true", verdict: "Three of four did." });
+    expect(debrief?.recommendations).toHaveLength(1);
+  });
+
+  it("reads a team's debrief under its synonyms too", () => {
+    const { debrief } = readDebrief({
+      overallScore: 62,
+      verdict: "Quick, and nearly accurate",
+      impact: "The community heard from you first.",
+      whatWorked: ["Went early"],
+      concerns: ["Claimed the pump was running"],
+      advice: ["Say what you do not know"],
+    });
+    expect(debrief?.score).toBe(62);
+    expect(debrief?.headline).toBe("Quick, and nearly accurate");
+    expect(debrief?.stakeholderImpact).toContain("heard from you first");
+    expect(debrief?.strengths).toEqual(["Went early"]);
+  });
+
+  it("keeps a team's debrief that has no score on it", () => {
+    // Every word of the judgement and no number. Refusing that is the same
+    // bargain this file has already lost twice.
+    const { debrief } = readDebrief({
+      headline: "Quick, and nearly accurate",
+      stakeholderImpact: "The community heard from you first.",
+    });
+    expect(debrief).not.toBeNull();
+    expect(debrief?.score).toBe(0);
+  });
+
+  it("writes a headline from the account when none came", () => {
+    const { debrief } = readSessionDebrief({
+      whatHappened: "The operator went early. The regulator waited three beats.",
+      recommendations: ["Agree who speaks first."],
+    });
+    expect(debrief).not.toBeNull();
+    expect(debrief?.headline).toBe("The operator went early.");
+  });
+
+  it("unwraps a debrief sent as a string of itself", () => {
+    const real = { headline: "Two versions of day three", whatHappened: "x" };
+    expect(readSessionDebrief(JSON.stringify(real)).debrief?.headline).toBe("Two versions of day three");
+  });
+
+  it("names the keys that did arrive when it truly cannot read it", () => {
+    // The sentence that would have ended this in one round instead of three.
+    const { debrief, problem } = readSessionDebrief({ wibble: 1, wobble: [] });
+    expect(debrief).toBeNull();
+    expect(problem).toContain("it did send");
+    expect(problem).toContain("wibble");
+  });
+
+  it("says what arrived for a team's debrief as well", () => {
+    const { debrief, problem } = readDebrief({ nothing: "useful" });
+    expect(debrief).toBeNull();
+    expect(problem).toContain("nothing");
+  });
+
+  it("never quotes a value back, only the field names", () => {
+    const said = readSessionDebrief({ wrongPlace: "Umoya Power walked away from Afungi" }).problem;
+    expect(said).toContain("wrongPlace");
+    expect(said).not.toContain("Umoya");
+  });
+
+  it("still refuses something that is not an answer at all", () => {
+    for (const nonsense of [null, undefined, 42, "prose", []]) {
+      expect(readSessionDebrief(nonsense).debrief, `${String(nonsense)} was accepted`).toBeNull();
+      expect(readSessionDebrief(nonsense).problem).toBeTruthy();
+    }
   });
 });

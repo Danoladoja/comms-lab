@@ -691,22 +691,99 @@ function ratings(raw: unknown): ValidatedRating[] {
   return out;
 }
 
+/**
+ * What a reply actually contained, for the sentence that refuses it.
+ *
+ * Built for the group plan, and not reused for the debriefs — which is why two
+ * fixes were shipped on guesses before anybody could see that the model was
+ * simply calling the fields something else. "Came back unusable" is a verdict
+ * with no evidence attached; "it did send: summary, narrative" is the answer.
+ *
+ * Key names only, never values. A key is a word the model chose; a value is
+ * whatever it wrote about a cohort.
+ */
+export function keysArrived(raw: unknown): string {
+  if (!raw || typeof raw !== "object") {
+    return ` (it sent ${raw === null ? "nothing" : typeof raw} rather than an answer)`;
+  }
+  const keys = Object.keys(raw as Record<string, unknown>)
+    .filter((k) => /^[A-Za-z0-9_]{1,30}$/.test(k))
+    .slice(0, 8);
+  return keys.length > 0 ? ` (it did send: ${keys.join(", ")})` : " (it sent nothing readable)";
+}
+
+/**
+ * The first of these the model actually used.
+ *
+ * A forced tool call makes the *shape* the model's only option; it does not
+ * stop it paraphrasing the field names inside that shape. This cost a real
+ * session its cross-team read for three days, and the same thing had already
+ * been fixed once for the plan's objectives without anybody carrying it across
+ * to the debriefs.
+ */
+function firstOf(raw: Record<string, unknown>, names: readonly string[]): unknown {
+  for (const name of names) {
+    const value = raw[name];
+    if (typeof value === "string" ? value.trim() : value != null) return value;
+  }
+  return undefined;
+}
+
 export function validateDebrief(raw: unknown): ValidatedDebrief | null {
-  if (!raw || typeof raw !== "object") return null;
+  return readDebrief(raw).debrief;
+}
+
+/**
+ * A team's debrief, and why it was refused when it was.
+ *
+ * Two things this now survives that it did not. A reply encoded twice — the
+ * debrief as a *string* of itself — is unwrapped. And the model calling a
+ * field something else is read anyway: the forced tool call makes the shape
+ * its only option but does not stop it paraphrasing the names inside.
+ *
+ * The score is no longer a reason to throw the whole thing away. A debrief
+ * with every word of its judgement and no number on it is a debrief; refusing
+ * it over a missing integer is the same mistake as refusing a session over a
+ * missing objective, which this codebase has now made twice.
+ */
+export function readDebrief(input: unknown): { debrief: ValidatedDebrief | null; problem: string } {
+  const raw = unwrap(input);
+  if (!raw || typeof raw !== "object") {
+    return { debrief: null, problem: `The debrief came back unusable${keysArrived(raw)}.` };
+  }
   const r = raw as Record<string, unknown>;
-  const score = typeof r.score === "number" && Number.isFinite(r.score)
-    ? Math.max(0, Math.min(100, Math.round(r.score)))
-    : null;
-  const stakeholderImpact = text(r.stakeholderImpact, 2000);
-  if (score === null || !stakeholderImpact) return null;
+
+  const scoreRaw = firstOf(r, ["score", "overallScore", "mark", "rating"]);
+  const scored = typeof scoreRaw === "number" ? scoreRaw : Number.parseFloat(String(scoreRaw ?? ""));
+  const score = Number.isFinite(scored) ? Math.max(0, Math.min(100, Math.round(scored))) : null;
+
+  const headline = text(firstOf(r, ["headline", "summary", "verdict", "overall", "title"]), 300);
+  const stakeholderImpact = text(
+    firstOf(r, ["stakeholderImpact", "impact", "effect", "consequences", "whoItHit"]), 2000,
+  );
+  const strengths = list(firstOf(r, ["strengths", "whatWorked", "good"]), 4);
+  const risks = list(firstOf(r, ["risks", "weaknesses", "concerns", "whatDidNot"]), 4);
+  const recommendations = list(firstOf(r, ["recommendations", "nextSteps", "advice", "actions"]), 4);
+  const marks = ratings(firstOf(r, ["ratings", "dimensions", "scores"]));
+
+  // Something a person can read is the floor. A number is not.
+  const anythingAtAll = headline || stakeholderImpact
+    || strengths.length > 0 || risks.length > 0 || recommendations.length > 0 || marks.length > 0;
+  if (!anythingAtAll) {
+    return { debrief: null, problem: `The debrief came back empty${keysArrived(raw)}.` };
+  }
+
   return {
-    score,
-    headline: text(r.headline, 300),
-    ratings: ratings(r.ratings),
-    strengths: list(r.strengths, 4),
-    risks: list(r.risks, 4),
-    stakeholderImpact,
-    recommendations: list(r.recommendations, 4),
+    debrief: {
+      score: score ?? 0,
+      headline,
+      ratings: marks,
+      strengths,
+      risks,
+      stakeholderImpact,
+      recommendations,
+    },
+    problem: "",
   };
 }
 
@@ -1267,13 +1344,46 @@ export type SessionDebrief = {
 };
 
 export function validateSessionDebrief(input: unknown): SessionDebrief | null {
-  const raw = input as Partial<SessionDebrief> | null;
+  return readSessionDebrief(input).debrief;
+}
+
+/**
+ * The read across every team, and why it was refused when it was.
+ *
+ * This one took three attempts to fix, and only the third was aimed at the
+ * actual cause, because the refusal said "came back unusable" and nothing
+ * else. Raising the token ceiling was right and did not mend it. Letting it
+ * through without per-objective verdicts was right and did not mend it either.
+ * What was wrong was that the model was calling the fields something else, and
+ * no message anywhere said so — the same fault already fixed once for the
+ * plan's objectives and never carried across to here.
+ *
+ * So: the names are read loosely, a reply encoded twice is unwrapped, and when
+ * it still cannot be read the sentence names the keys that did arrive.
+ */
+export function readSessionDebrief(input: unknown): {
+  debrief: SessionDebrief | null;
+  problem: string;
+} {
+  const unwrapped = unwrap(input);
+  const raw = (unwrapped ?? null) as Record<string, unknown> | null;
   const text = (v: unknown) => (typeof v === "string" ? v.trim() : "");
   const list = (v: unknown) => (Array.isArray(v) ? v.map(text).filter(Boolean) : []);
 
-  const byObjective = Array.isArray(raw?.byObjective)
-    ? raw.byObjective
-      .map((o) => ({ objective: text(o?.objective), verdict: text(o?.verdict) }))
+  if (!raw || typeof raw !== "object") {
+    return { debrief: null, problem: `The session debrief came back unusable${keysArrived(raw)}.` };
+  }
+
+  const verdicts = firstOf(raw, ["byObjective", "objectives", "againstObjectives", "perObjective"]);
+  const byObjective = Array.isArray(verdicts)
+    ? verdicts
+      .map((o) => {
+        const one = (o ?? {}) as Record<string, unknown>;
+        return {
+          objective: text(firstOf(one, ["objective", "name", "text", "title"])),
+          verdict: text(firstOf(one, ["verdict", "judgement", "judgment", "finding", "assessment"])),
+        };
+      })
       .filter((o) => o.objective && o.verdict)
     : [];
 
@@ -1291,13 +1401,33 @@ export function validateSessionDebrief(input: unknown): SessionDebrief | null {
     mistake as refusing a whole running order over a missing objective, made in
     a second place.
   */
-  const headline = text(raw?.headline);
-  const whatHappened = text(raw?.whatHappened);
-  const contradictions = list(raw?.contradictions);
-  const recommendations = list(raw?.recommendations);
+  const headline = text(firstOf(raw, ["headline", "summary", "overall", "verdict", "title"]));
+  const whatHappened = text(firstOf(raw, ["whatHappened", "narrative", "account", "shape", "story"]));
+  const contradictions = list(firstOf(raw, ["contradictions", "conflicts", "disagreements", "clashes"]));
+  const recommendations = list(firstOf(raw, ["recommendations", "nextSteps", "advice", "actions"]));
+
   const anythingAtAll = byObjective.length > 0 || whatHappened
     || contradictions.length > 0 || recommendations.length > 0;
-  if (!headline || !anythingAtAll) return null;
 
-  return { headline, whatHappened, contradictions, byObjective, recommendations };
+  /*
+    Substance is the floor; the headline is a label.
+
+    A headline with nothing beneath it is a sentence rather than a debrief and
+    is still refused. A debrief with no sentence at the top of it is written
+    one, from its own account — throwing away the narrative, the contradictions
+    and the recommendations for want of a label is the bargain this file has
+    already lost twice.
+  */
+  if (!anythingAtAll) {
+    return { debrief: null, problem: `The session debrief came back empty${keysArrived(raw)}.` };
+  }
+
+  const title = headline
+    || whatHappened.split(/(?<=\.)\s/)[0]?.slice(0, 300)
+    || "The room, read across every team";
+
+  return {
+    debrief: { headline: title, whatHappened, contradictions, byObjective, recommendations },
+    problem: "",
+  };
 }
