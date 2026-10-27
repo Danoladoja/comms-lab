@@ -123,6 +123,7 @@ export * from './groupSessionObjective';
 export * from './groupSessionSessionDebrief';
 export * from './groupSessionSessionDebriefByObjectiveItem';
 export * from './groupSessionState';
+export * from './groupSessionTeamDebriefsItem';
 export * from './groupSessionTeamsItem';
 export * from './healthStatus';
 export * from './heartbeatResult';

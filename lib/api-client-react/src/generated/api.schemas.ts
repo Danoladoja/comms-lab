@@ -2188,6 +2188,16 @@ export type GroupSessionSessionDebrief = {
   recommendations: string[];
 } | null;
 
+export type GroupSessionTeamDebriefsItem = {
+  teamId: string;
+  name: string;
+  roleName: string;
+  score: number;
+  headline?: string;
+  strengths: string[];
+  risks: string[];
+};
+
 export interface GroupSession {
   /** @nullable */
   debriefNote?: string | null;
@@ -2219,6 +2229,7 @@ export interface GroupSession {
   runId?: number | null;
   /** @nullable */
   sessionDebrief?: GroupSessionSessionDebrief;
+  teamDebriefs?: GroupSessionTeamDebriefsItem[];
 }
 
 export interface Capstone {

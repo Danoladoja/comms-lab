@@ -15,10 +15,14 @@ import { DevelopmentCard } from '@/components/simulation/DevelopmentCard';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import TeamRoomPanel from '@/components/simulation/TeamRoomPanel';
+import {
+  ReportSheet, ReportBanner, ReportBody, ReportBars, ReportColumns, ReportColumn,
+  ReportPanel, ReportProse, ReportActions, SaveAsPdf,
+} from '@/components/simulation/ReportSheet';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Loader2, Send, ShieldAlert, CheckCircle2, ChevronRight, RefreshCw, Target, Users,
-  Newspaper, MessageCircle, Radio, Mail, Phone, Scale, Megaphone, Zap, Clock, TimerOff, Download, Eye,
+  Loader2, Send, ShieldAlert, CheckCircle2, RefreshCw, Target, Users,
+  Newspaper, MessageCircle, Radio, Mail, Phone, Scale, Megaphone, Zap, Clock, TimerOff, Eye,
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
@@ -656,139 +660,48 @@ export default function SimulationRun({ id }: { id?: string }) {
   );
 }
 
+/**
+ * One learner's debrief, on the sheet both debriefs now share.
+ *
+ * The design used to live in this function, which is why the cross-team debrief
+ * in the console looked like something else entirely — there was nothing for it
+ * to be built from. It is in ReportSheet now, and both are built from it, so a
+ * change to how a debrief looks cannot land on one and miss the other.
+ */
 function DebriefView({ run, onExit }: { run: any, onExit: () => void }) {
   const debrief = run.debrief;
   if (!debrief) return null;
 
-  /*
-   * Saving it.
-   *
-   * Every browser prints to PDF, so the work is in making the printed page a
-   * proper report rather than in shipping a library that would do the same job
-   * worse. The print rules live in index.css and key off data-print-root.
-   */
-  const save = () => window.print();
-
   return (
     <StudioLayout>
       <div className="container max-w-4xl mx-auto py-12 px-6 z-10">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-[#050b14] border border-[#f97316]/30 shadow-[0_0_40px_rgba(249,115,22,0.1)] relative overflow-hidden"
-          data-print-root
-        >
-          <div className="bg-[#f97316] p-8 md:p-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-            <div>
-              <div className="flex items-center gap-2 text-black/50 text-[10px] font-mono uppercase tracking-[0.2em] mb-2 font-bold">
-                <Target className="w-3 h-3" /> Debrief
-              </div>
-              <h2 className="font-display text-3xl md:text-4xl font-black text-[#030811] uppercase tracking-tight">
-                {debrief.headline || 'After-Action Report'}
-              </h2>
-            </div>
+        <ReportSheet>
+          <ReportBanner
+            label="Debrief"
+            title={debrief.headline || 'After-Action Report'}
+            score={debrief.score}
+          />
+          <ReportBody>
+            <ReportBars title="How each part went" rows={debrief.ratings ?? []} />
 
-            <div className="shrink-0 flex items-center justify-center w-24 h-24 bg-[#030811] border border-[#f97316]/20 relative">
-              <div className="absolute inset-1 border border-[#f97316]/20" />
-              <div className="text-center">
-                <span className="block text-3xl font-mono text-[#f97316] leading-none">{debrief.score}</span>
-                <span className="block text-[8px] uppercase tracking-widest text-white/50 mt-1">Rating</span>
-              </div>
-            </div>
-          </div>
+            <ReportColumns>
+              <ReportColumn tone="good" title="Execution Strengths" items={debrief.strengths ?? []} />
+              <ReportColumn tone="bad" title="Vulnerabilities" items={debrief.risks ?? []} />
+            </ReportColumns>
 
-          <div className="p-8 md:p-10 space-y-10">
-            {debrief.ratings?.length > 0 && (
-              <div className="space-y-4">
-                <h3 className="text-white font-bold uppercase tracking-widest text-sm flex items-center gap-2 border-b border-white/10 pb-2">
-                  <Target className="w-4 h-4 text-[#f97316]" aria-hidden /> How each part went
-                </h3>
-                <div className="space-y-4">
-                  {debrief.ratings.map((rating: any) => (
-                    <div key={rating.name}>
-                      <div className="flex items-baseline justify-between gap-4 mb-1.5">
-                        <span className="text-white/90 text-sm font-semibold">{rating.name}</span>
-                        <span className="text-white/60 text-xs font-mono tabular-nums">{rating.score}</span>
-                      </div>
-                      {/* A bar, not a grade. It exists so that the same name
-                          next time can visibly be somewhere else. */}
-                      <div className="h-1.5 bg-white/10 overflow-hidden" role="img" aria-label={`${rating.name}: ${rating.score} out of 100`}>
-                        <div className="h-full bg-[#f97316]" data-print-keep style={{ width: `${Math.max(2, Math.min(100, rating.score))}%` }} />
-                      </div>
-                      {rating.note && <p className="text-white/50 text-xs mt-2 leading-relaxed">{rating.note}</p>}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
+            <ReportPanel title="Stakeholder Fallout" icon={<Users className="w-3.5 h-3.5 text-[#f97316]" />}>
+              <ReportProse>{debrief.stakeholderImpact}</ReportProse>
+            </ReportPanel>
 
-            <div className="grid md:grid-cols-2 gap-10">
-              <div className="space-y-5">
-                <h3 className="text-white font-mono uppercase tracking-[0.2em] text-[10px] flex items-center gap-2 border-b border-white/10 pb-3">
-                  <span className="w-1.5 h-1.5 bg-green-500 rounded-full" /> Execution Strengths
-                </h3>
-                <ul className="space-y-4">
-                  {debrief.strengths?.map((str: string, i: number) => (
-                    <li key={i} className="text-white/80 text-sm font-sans flex items-start gap-3">
-                      <ChevronRight className="w-4 h-4 text-green-500 shrink-0 mt-0.5" /> <span>{str}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
+            <ReportActions title="Prescribed Countermeasures" items={debrief.recommendations ?? []} />
 
-              <div className="space-y-5">
-                <h3 className="text-white font-mono uppercase tracking-[0.2em] text-[10px] flex items-center gap-2 border-b border-white/10 pb-3">
-                  <span className="w-1.5 h-1.5 bg-red-500 rounded-full" /> Vulnerabilities
-                </h3>
-                <ul className="space-y-4">
-                  {debrief.risks?.map((risk: string, i: number) => (
-                    <li key={i} className="text-white/80 text-sm font-sans flex items-start gap-3">
-                      <ChevronRight className="w-4 h-4 text-red-500 shrink-0 mt-0.5" /> <span>{risk}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            </div>
-
-            <div className="space-y-4 bg-white/[0.02] border border-white/5 p-6">
-              <h3 className="text-white font-mono uppercase tracking-[0.2em] text-[10px] flex items-center gap-2 border-b border-white/10 pb-3">
-                <Users className="w-3.5 h-3.5 text-[#f97316]" /> Stakeholder Fallout
-              </h3>
-              <p className="text-white/90 text-sm leading-relaxed font-sans">
-                {debrief.stakeholderImpact}
-              </p>
-            </div>
-
-            <div className="space-y-5">
-              <h3 className="text-[#f97316] font-mono uppercase tracking-[0.2em] text-[10px] flex items-center gap-2">
-                <Target className="w-3.5 h-3.5" /> Prescribed Countermeasures
-              </h3>
-              <ul className="space-y-3">
-                {debrief.recommendations?.map((rec: string, i: number) => (
-                  <li key={i} className="text-white/90 text-sm font-mono flex items-start gap-4 bg-[#030811] p-4 border border-[#f97316]/20">
-                    <span className="text-[#f97316] opacity-50">[{i+1}]</span> <span>{rec}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-
-            <div className="pt-8 border-t border-white/10 flex flex-col sm:flex-row gap-3" data-print-hide>
-              <Button
-                onClick={save}
-                variant="outline"
-                className="sm:w-auto h-14 px-8 border-white/20 bg-transparent text-white hover:bg-white/5 font-bold uppercase tracking-[0.2em] text-[10px] rounded-none"
-              >
-                <Download className="w-4 h-4 mr-2" aria-hidden /> Save as PDF
-              </Button>
+            <SaveAsPdf>
               <Button onClick={onExit} className="flex-1 h-14 bg-white text-[#030811] hover:bg-white/90 font-bold uppercase tracking-[0.2em] text-[10px] rounded-none transition-all active:scale-[0.99]">
                 Back to the Studio
               </Button>
-            </div>
-            <p className="text-white/30 text-[10px] mt-3 leading-relaxed" data-print-hide>
-              Opens your browser's print window. Choose "Save as PDF" as the destination.
-            </p>
-          </div>
-        </motion.div>
+            </SaveAsPdf>
+          </ReportBody>
+        </ReportSheet>
       </div>
     </StudioLayout>
   );

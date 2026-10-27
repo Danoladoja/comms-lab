@@ -1139,6 +1139,44 @@ async function formatOfRun(runId: number): Promise<SessionFormat | null> {
   return session ? asFormat(session.format) : null;
 }
 
+/**
+ * Each team's mark, named.
+ *
+ * The marks were written when the session closed and then had nowhere to be
+ * read. A learner saw their own team's; nobody saw the room's. An admin asked
+ * afterwards how the teams compared had to open one learner's run per team and
+ * hold three numbers in their head.
+ *
+ * The team's name comes from the definition rather than the debrief, because a
+ * debrief is keyed by team id and an id is not a thing to put on a report. A
+ * team with no debrief is left out rather than shown as zero — a nil mark and
+ * an unwritten one look the same on a bar and mean opposite things.
+ */
+async function teamMarks(
+  runId: number,
+  teams: readonly { id: string; name: string; roleName: string }[],
+) {
+  const [run] = await db.select({ teamDebriefs: simulationRunsTable.teamDebriefs })
+    .from(simulationRunsTable)
+    .where(eq(simulationRunsTable.id, runId));
+  const written = run?.teamDebriefs ?? [];
+  // Team order, not debrief order: the console lists the teams in one order
+  // and a report that lists them in another reads as a different room.
+  return teams.flatMap((team) => {
+    const found = debriefForTeam(written, team.id);
+    if (!found) return [];
+    return [{
+      teamId: team.id,
+      name: team.name,
+      roleName: team.roleName,
+      score: found.debrief.score,
+      headline: found.debrief.headline ?? "",
+      strengths: found.debrief.strengths,
+      risks: found.debrief.risks,
+    }];
+  });
+}
+
 async function groupSessionView(session: typeof studioGroupSessionsTable.$inferSelect) {
   const [definition] = await db.select().from(simulationDefinitionsTable)
     .where(eq(simulationDefinitionsTable.id, session.definitionId));
@@ -1152,6 +1190,7 @@ async function groupSessionView(session: typeof studioGroupSessionsTable.$inferS
 
   const state = groupSessionState(sessionFacts(session), Date.now());
   const teams = definition?.groups ?? [];
+  const teamDebriefs = session.runId ? await teamMarks(session.runId, teams) : [];
 
   /*
     Who walked in, and who did not.
@@ -1225,6 +1264,7 @@ async function groupSessionView(session: typeof studioGroupSessionsTable.$inferS
     // Only ever reaches an admin: this route is admin-only, and it is the one
     // view in the Studio that reads across teams.
     sessionDebrief: session.sessionDebrief,
+    teamDebriefs,
   };
 }
 

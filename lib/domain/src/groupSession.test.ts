@@ -22,7 +22,7 @@ import {
   whatToDoAboutPlanning,
   formatName, formatNote, formatBrief, firstAnswerWins, usesTeamRoom,
   isSessionFormat, beatenToIt, SESSION_FORMATS,
-  mayReadDebrief, missedItNote, debriefAbsence,
+  mayReadDebrief, missedItNote, debriefAbsence, roomAverage,
   type GroupSessionFacts,
   MIN_NOTICE_MINUTES,
   type GroupBeat,
@@ -532,5 +532,44 @@ describe("a finished session with no debrief", () => {
 
   it("still offers staff the remedy when nothing was recorded", () => {
     expect(debriefAbsence({ isStaff: true, note: null })).toContain("written again");
+  });
+});
+
+/**
+ * The number on the cross-team report.
+ *
+ * The report had no mark on it at all, which is why an admin said it did not
+ * look like a debrief. The marks existed — one per team, written when the
+ * session closed — and had nowhere to be read.
+ *
+ * The case worth pinning is the empty one. Four separate faults in this Studio
+ * have been the same shape: something rendered a nought or a blank where it
+ * should have said that nothing had been written. A room whose debriefs never
+ * ran would have shown a nought on an orange banner, and the person reading it
+ * would have gone looking for the team that scored nothing.
+ */
+describe("the room's mark", () => {
+  it("averages the teams that were marked", () => {
+    expect(roomAverage([{ score: 60 }, { score: 70 }, { score: 80 }])).toBe(70);
+  });
+
+  it("rounds rather than printing a decimal on a banner", () => {
+    expect(roomAverage([{ score: 60 }, { score: 61 }])).toBe(61);
+  });
+
+  it("gives no number at all when nothing was marked", () => {
+    expect(roomAverage([])).toBeNull();
+    expect(roomAverage([{ score: null }, { score: undefined }])).toBeNull();
+  });
+
+  it("ignores a team with no mark rather than counting it as nought", () => {
+    // Two teams were judged and one was not. Counting the third as zero would
+    // drag the room's average down by a third for a debrief that was never
+    // written.
+    expect(roomAverage([{ score: 90 }, { score: 70 }, { score: null }])).toBe(80);
+  });
+
+  it("is not fooled by a mark that is not a number", () => {
+    expect(roomAverage([{ score: Number.NaN }, { score: 50 }])).toBe(50);
   });
 });

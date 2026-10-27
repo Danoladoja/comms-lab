@@ -6940,6 +6940,31 @@ components:
             recommendations:
               type: array
               items: { type: string }
+        # Each team's own debrief, in the running order of the teams.
+        #
+        # The cross-team read above carries no mark, because a room is not
+        # scored — each team is, on the side of the crisis it actually saw. So
+        # the marks live here, and the console shows them together: the one
+        # number per team an admin is always asked for afterwards, and the
+        # headline that says what the number was for. Empty until the debriefs
+        # are written, and on every session that ran before teams were marked.
+        teamDebriefs:
+          type: array
+          items:
+            type: object
+            required: [teamId, name, roleName, score, strengths, risks]
+            properties:
+              teamId: { type: string }
+              name: { type: string }
+              roleName: { type: string }
+              score: { type: integer }
+              headline: { type: string }
+              strengths:
+                type: array
+                items: { type: string }
+              risks:
+                type: array
+                items: { type: string }
     Capstone:
       type: object
       required: [id, programId, title, brief, wordsAtLeast, wordsAtMost, maxScore, draft]

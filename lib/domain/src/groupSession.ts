@@ -637,3 +637,32 @@ export function debriefAbsence(facts: {
   return "The debrief for this session has not been written yet. Everything your team sent is "
     + "safely recorded; whoever ran the session can have it written.";
 }
+
+/* ------------------------------------------------------------------ *
+ * The room's mark
+ * ------------------------------------------------------------------ */
+
+/**
+ * One number for a room that is not marked.
+ *
+ * Each team is marked on the side of the crisis it actually saw; the room
+ * itself never is, because there is nothing it did as a room. But an admin
+ * reading the cross-team report is asked, every time, how it went overall — so
+ * the report carries the average of the teams' marks, labelled as an average
+ * rather than dressed up as a mark of its own.
+ *
+ * Null when nothing has been marked, and that is the whole reason this is a
+ * function rather than two lines in a component. A nought and an unwritten mark
+ * look identical on a banner and mean opposite things: one is a room that fell
+ * apart, the other is a room nobody has judged yet. Showing the first when the
+ * second is true is the same mistake this Studio has already made in four other
+ * places — something rendering a blank or a zero where it should have said that
+ * there was nothing there.
+ */
+export function roomAverage(teams: readonly { score?: number | null }[]): number | null {
+  const marks = teams
+    .map((team) => team.score)
+    .filter((score): score is number => typeof score === "number" && Number.isFinite(score));
+  if (marks.length === 0) return null;
+  return Math.round(marks.reduce((sum, mark) => sum + mark, 0) / marks.length);
+}

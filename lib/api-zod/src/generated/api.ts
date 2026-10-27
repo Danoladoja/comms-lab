@@ -2686,7 +2686,16 @@ export const ListGroupSessionsResponseItem = zod.object({
   "verdict": zod.string()
 })),
   "recommendations": zod.array(zod.string())
-}).nullish()
+}).nullish(),
+  "teamDebriefs": zod.array(zod.object({
+  "teamId": zod.string(),
+  "name": zod.string(),
+  "roleName": zod.string(),
+  "score": zod.int(),
+  "headline": zod.string().optional(),
+  "strengths": zod.array(zod.string()),
+  "risks": zod.array(zod.string())
+})).optional()
 })
 export const ListGroupSessionsResponse = zod.array(ListGroupSessionsResponseItem)
 
@@ -2763,7 +2772,16 @@ export const PlanGroupSessionResponse = zod.object({
   "verdict": zod.string()
 })),
   "recommendations": zod.array(zod.string())
-}).nullish()
+}).nullish(),
+  "teamDebriefs": zod.array(zod.object({
+  "teamId": zod.string(),
+  "name": zod.string(),
+  "roleName": zod.string(),
+  "score": zod.int(),
+  "headline": zod.string().optional(),
+  "strengths": zod.array(zod.string()),
+  "risks": zod.array(zod.string())
+})).optional()
 })
 
 
@@ -2828,7 +2846,16 @@ export const GetGroupSessionResponse = zod.object({
   "verdict": zod.string()
 })),
   "recommendations": zod.array(zod.string())
-}).nullish()
+}).nullish(),
+  "teamDebriefs": zod.array(zod.object({
+  "teamId": zod.string(),
+  "name": zod.string(),
+  "roleName": zod.string(),
+  "score": zod.int(),
+  "headline": zod.string().optional(),
+  "strengths": zod.array(zod.string()),
+  "risks": zod.array(zod.string())
+})).optional()
 })
 
 
@@ -2904,7 +2931,16 @@ export const EditGroupSessionResponse = zod.object({
   "verdict": zod.string()
 })),
   "recommendations": zod.array(zod.string())
-}).nullish()
+}).nullish(),
+  "teamDebriefs": zod.array(zod.object({
+  "teamId": zod.string(),
+  "name": zod.string(),
+  "roleName": zod.string(),
+  "score": zod.int(),
+  "headline": zod.string().optional(),
+  "strengths": zod.array(zod.string()),
+  "risks": zod.array(zod.string())
+})).optional()
 })
 
 
@@ -3049,7 +3085,16 @@ export const RewriteSessionDebriefsResponse = zod.object({
   "verdict": zod.string()
 })),
   "recommendations": zod.array(zod.string())
-}).nullish()
+}).nullish(),
+  "teamDebriefs": zod.array(zod.object({
+  "teamId": zod.string(),
+  "name": zod.string(),
+  "roleName": zod.string(),
+  "score": zod.int(),
+  "headline": zod.string().optional(),
+  "strengths": zod.array(zod.string()),
+  "risks": zod.array(zod.string())
+})).optional()
 })
 
 
@@ -3114,7 +3159,16 @@ export const ApproveGroupSessionResponse = zod.object({
   "verdict": zod.string()
 })),
   "recommendations": zod.array(zod.string())
-}).nullish()
+}).nullish(),
+  "teamDebriefs": zod.array(zod.object({
+  "teamId": zod.string(),
+  "name": zod.string(),
+  "roleName": zod.string(),
+  "score": zod.int(),
+  "headline": zod.string().optional(),
+  "strengths": zod.array(zod.string()),
+  "risks": zod.array(zod.string())
+})).optional()
 })
 
 

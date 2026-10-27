@@ -11,6 +11,7 @@ import type { GroupSessionMissingItem } from './groupSessionMissingItem';
 import type { GroupSessionObjective } from './groupSessionObjective';
 import type { GroupSessionSessionDebrief } from './groupSessionSessionDebrief';
 import type { GroupSessionState } from './groupSessionState';
+import type { GroupSessionTeamDebriefsItem } from './groupSessionTeamDebriefsItem';
 import type { GroupSessionTeamsItem } from './groupSessionTeamsItem';
 
 export interface GroupSession {
@@ -44,4 +45,5 @@ export interface GroupSession {
   runId?: number | null;
   /** @nullable */
   sessionDebrief?: GroupSessionSessionDebrief;
+  teamDebriefs?: GroupSessionTeamDebriefsItem[];
 }

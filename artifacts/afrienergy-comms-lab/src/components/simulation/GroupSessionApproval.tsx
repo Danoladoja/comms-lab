@@ -14,12 +14,16 @@ import {
 import { useQueryClient } from '@tanstack/react-query';
 import {
   apiReason, sessionDateTimeFromInput, sessionDateTimeInput, whatToDoAboutPlanning,
-  formatName, formatNote, SESSION_FORMATS, debriefAbsence, type SessionFormat,
+  formatName, formatNote, SESSION_FORMATS, debriefAbsence, roomAverage, type SessionFormat,
 } from '@workspace/domain';
 import { useToast } from '@/hooks/use-toast';
 import SessionPlayback from '@/components/simulation/SessionPlayback';
 import {
-  Users, Clock, AlertTriangle, CheckCircle2, Loader2, DoorOpen, PhoneCall, History,
+  ReportSheet, ReportBanner, ReportBody, ReportBars, ReportColumns, ReportColumn,
+  ReportPanel, ReportProse, ReportActions, SaveAsPdf,
+} from '@/components/simulation/ReportSheet';
+import {
+  Users, Clock, AlertTriangle, CheckCircle2, Loader2, DoorOpen, PhoneCall, History, Target,
 } from 'lucide-react';
 
 /**
@@ -483,7 +487,7 @@ function SessionSheet({ session, onChanged }: { session: GroupSession; onChanged
       )}
 
       {session.sessionDebrief
-        ? <SharedDebrief debrief={session.sessionDebrief} />
+        ? <SharedDebrief debrief={session.sessionDebrief} teamDebriefs={session.teamDebriefs ?? []} />
         : session.state === 'finished'
           ? <MissingDebrief session={session} onChanged={onChanged} />
           : null}
@@ -545,52 +549,115 @@ function MissingDebrief({ session, onChanged }: { session: GroupSession; onChang
   );
 }
 
-function SharedDebrief({ debrief }: { debrief: NonNullable<GroupSession['sessionDebrief']> }) {
+/**
+ * The read across every team — on the same sheet a learner's debrief is on.
+ *
+ * It used to be headings and paragraphs: the right material, no mark anywhere
+ * on it, and nothing to save. Set beside a learner's debrief it did not look
+ * like it had come from the same place, and an admin who wanted to send it to a
+ * co-facilitator had no way to.
+ *
+ * Three things were missing rather than one.
+ *
+ * The design: it is built from ReportSheet now, which is also what a learner's
+ * debrief is built from, so the two cannot drift apart again.
+ *
+ * The marks: a room is not scored, so there was no number to show — but each
+ * team was, and nobody could see the teams' marks together anywhere. They are
+ * the bars, one row per team, which is the comparison an admin is actually
+ * asked for. The number on the banner is their average, and says so.
+ *
+ * The PDF: the sheet carries the print root, so the browser's own print window
+ * saves it exactly as the individual one saves.
+ */
+function SharedDebrief({ debrief, teamDebriefs }: {
+  debrief: NonNullable<GroupSession['sessionDebrief']>;
+  teamDebriefs: NonNullable<GroupSession['teamDebriefs']>;
+}) {
+  /*
+    The room's average, or nothing — the rule and its reasons are in
+    roomAverage, with the empty case pinned by a test.
+  */
+  const average = roomAverage(teamDebriefs);
+
+  /*
+    Whose strength, and whose risk.
+
+    Each line belongs to one team and is useless without the name — "briefed the
+    regulator before the press" means something different depending on who did
+    it. So the team is named in front of its own line rather than the lines
+    being pooled into a verdict on the room that nobody wrote.
+  */
+  const label = (team: { name: string }, line: string) => `${team.name}: ${line}`;
+  const strengths = teamDebriefs.flatMap((team) => team.strengths.map((line) => label(team, line)));
+  const risks = teamDebriefs.flatMap((team) => team.risks.map((line) => label(team, line)));
+
   return (
-    <div className="border-t border-white/10 pt-6">
-      <p className="text-[10px] uppercase tracking-widest text-[#f97316] mb-2">
-        Across the whole room · yours alone
-      </p>
-      <h4 className="text-base font-bold text-white leading-snug mb-3">{debrief.headline}</h4>
-      {debrief.whatHappened && (
-        <p className="text-sm text-white/75 leading-relaxed mb-6">{debrief.whatHappened}</p>
-      )}
+    <div className="mt-8">
+      <ReportSheet>
+        <ReportBanner
+          label="Across the whole room · yours alone"
+          title={debrief.headline}
+          score={average}
+          scoreLabel="Room average"
+        />
+        <ReportBody>
+          <ReportBars
+            title="How each team went"
+            rows={teamDebriefs.map((team) => ({
+              name: team.name,
+              aside: team.roleName,
+              score: team.score,
+              note: team.headline,
+            }))}
+          />
 
-      {debrief.contradictions.length > 0 && (
-        <div className="mb-6 border border-amber-400/30 bg-amber-400/[0.06] p-4">
-          <p className="text-[10px] uppercase tracking-widest text-amber-300 mb-2">
-            Where two teams did not tell the same story
-          </p>
-          <ul className="space-y-2">
-            {debrief.contradictions.map((line, i) => (
-              <li key={i} className="text-sm text-amber-100/85 leading-relaxed">{line}</li>
-            ))}
-          </ul>
-        </div>
-      )}
+          {debrief.whatHappened && (
+            <ReportPanel title="What happened in the room" icon={<Users className="w-3.5 h-3.5 text-[#f97316]" />}>
+              <ReportProse>{debrief.whatHappened}</ReportProse>
+            </ReportPanel>
+          )}
 
-      <div className="mb-6">
-        <p className="text-[10px] uppercase tracking-widest text-white/40 mb-2">Against what it tested</p>
-        <ul className="space-y-3">
-          {debrief.byObjective.map((item, i) => (
-            <li key={i} className="border-l-2 border-white/15 pl-3">
-              <p className="text-sm font-medium text-white">{item.objective}</p>
-              <p className="text-sm text-white/65 leading-relaxed mt-0.5">{item.verdict}</p>
-            </li>
-          ))}
-        </ul>
-      </div>
+          {debrief.contradictions.length > 0 && (
+            <ReportPanel
+              tone="warn"
+              title="Where two teams did not tell the same story"
+              icon={<AlertTriangle className="w-3.5 h-3.5" />}
+            >
+              <ul className="space-y-2">
+                {debrief.contradictions.map((line, i) => (
+                  <li key={i} className="text-sm text-amber-100/85 leading-relaxed">{line}</li>
+                ))}
+              </ul>
+            </ReportPanel>
+          )}
 
-      {debrief.recommendations.length > 0 && (
-        <div>
-          <p className="text-[10px] uppercase tracking-widest text-white/40 mb-2">What to teach next</p>
-          <ul className="space-y-1.5">
-            {debrief.recommendations.map((line, i) => (
-              <li key={i} className="text-sm text-white/75 leading-relaxed">— {line}</li>
-            ))}
-          </ul>
-        </div>
-      )}
+          {(strengths.length > 0 || risks.length > 0) && (
+            <ReportColumns>
+              <ReportColumn tone="good" title="What held up" items={strengths} />
+              <ReportColumn tone="bad" title="Where it slipped" items={risks} />
+            </ReportColumns>
+          )}
+
+          <div className="space-y-4">
+            <h3 className="text-white font-mono uppercase tracking-[0.2em] text-[10px] flex items-center gap-2 border-b border-white/10 pb-3">
+              <Target className="w-3.5 h-3.5 text-[#f97316]" aria-hidden /> Against what it tested
+            </h3>
+            <ul className="space-y-3">
+              {debrief.byObjective.map((item, i) => (
+                <li key={i} className="border-l-2 border-[#f97316]/40 pl-4">
+                  <p className="text-sm font-semibold text-white">{item.objective}</p>
+                  <p className="text-sm text-white/70 leading-relaxed mt-1">{item.verdict}</p>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <ReportActions title="What to teach next" items={debrief.recommendations} />
+
+          <SaveAsPdf />
+        </ReportBody>
+      </ReportSheet>
     </div>
   );
 }
