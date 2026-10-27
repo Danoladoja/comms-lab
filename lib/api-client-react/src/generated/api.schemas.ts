@@ -2221,6 +2221,153 @@ export interface GroupSession {
   sessionDebrief?: GroupSessionSessionDebrief;
 }
 
+export interface Capstone {
+  id: number;
+  programId: number;
+  title: string;
+  brief: string;
+  wordsAtLeast: number;
+  wordsAtMost: number;
+  maxScore: number;
+  /** @nullable */
+  dueAt?: string | null;
+  draft: boolean;
+  /** @nullable */
+  postedAt?: string | null;
+}
+
+export type CapstoneAttemptStatus = typeof CapstoneAttemptStatus[keyof typeof CapstoneAttemptStatus];
+
+
+export const CapstoneAttemptStatus = {
+  draft: 'draft',
+  submitted: 'submitted',
+  approved: 'approved',
+  returned: 'returned',
+} as const;
+
+export interface CapstoneAttempt {
+  id: number;
+  attempt: number;
+  status: CapstoneAttemptStatus;
+  body: string;
+  words: number;
+  /** @nullable */
+  filename?: string | null;
+  /** @nullable */
+  sizeBytes?: number | null;
+  /** @nullable */
+  downloadPath?: string | null;
+  /** @nullable */
+  submittedAt?: string | null;
+  late: boolean;
+  /** @nullable */
+  score?: number | null;
+  reviewNote: string;
+  /** @nullable */
+  reviewedAt?: string | null;
+}
+
+export interface MyCapstone {
+  capstone: Capstone;
+  current?: CapstoneAttempt | null;
+  history: CapstoneAttempt[];
+  headline: string;
+  mayEdit: boolean;
+  maySubmit: boolean;
+}
+
+export type CapstoneBoardLearnersItem = {
+  userId: number;
+  name: string;
+  email: string;
+  /** @nullable */
+  submissionId?: number | null;
+  /** @nullable */
+  attempt?: number | null;
+  /** @nullable */
+  status?: string | null;
+  /** @nullable */
+  score?: number | null;
+  hasFile: boolean;
+  /** @nullable */
+  submittedAt?: string | null;
+};
+
+export interface CapstoneBoard {
+  programmeTitle: string;
+  capstone?: Capstone | null;
+  waiting: number;
+  approved: number;
+  learners: CapstoneBoardLearnersItem[];
+}
+
+export type CapstoneSubmissionDetail = CapstoneAttempt & {
+  learnerName: string;
+  learnerEmail: string;
+  maxScore: number;
+  capstoneTitle: string;
+  earlier: CapstoneAttempt[];
+};
+
+export interface CapstoneDraftInput {
+  /** @maxLength 120000 */
+  body: string;
+}
+
+export interface CapstoneBriefInput {
+  /** @maxLength 200 */
+  title: string;
+  /** @maxLength 20000 */
+  brief: string;
+  /**
+     * @minimum 0
+     * @maximum 100000
+     */
+  wordsAtLeast: number;
+  /**
+     * @minimum 0
+     * @maximum 100000
+     */
+  wordsAtMost: number;
+  /**
+     * @minimum 1
+     * @maximum 1000
+     */
+  maxScore: number;
+  /** @nullable */
+  dueAt?: string | null;
+}
+
+export type CapstoneReviewInputDecision = typeof CapstoneReviewInputDecision[keyof typeof CapstoneReviewInputDecision];
+
+
+export const CapstoneReviewInputDecision = {
+  approve: 'approve',
+  return: 'return',
+} as const;
+
+export interface CapstoneReviewInput {
+  decision: CapstoneReviewInputDecision;
+  /**
+     * @minimum 0
+     * @maximum 1000
+     */
+  score?: number;
+  /** @maxLength 20000 */
+  note?: string;
+}
+
+export interface PendingCertificate {
+  programId: number;
+  programTitle: string;
+  waitingOn: string;
+  capstoneOutstanding: boolean;
+  surveyOutstanding: boolean;
+  /** @nullable */
+  capstoneStatus?: string | null;
+}
+
 export type MyStudioExerciseState = typeof MyStudioExerciseState[keyof typeof MyStudioExerciseState];
 
 

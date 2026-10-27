@@ -74,6 +74,7 @@ import LiveSessionsAdmin from '@/components/LiveSessionsAdmin';
 import RecordingsAdmin from '@/components/RecordingsAdmin';
 import ProgressTracker, { ExtensionsTab } from '@/components/ProgressTracker';
 import FormsAdmin from '@/components/FormsAdmin';
+import CapstoneAdmin from '@/components/CapstoneAdmin';
 import ProgramThumbnail from '@/components/ProgramThumbnail';
 
 import { useCurrentUser } from '@/lib/useCurrentUser';
@@ -94,7 +95,7 @@ import { CouldNotLoad } from '@/components/CouldNotLoad';
   whether those two can both be true. The day you need the second one, you will
   have been looking at the first.
 */
-const TABS = ['Programmes', 'Progress', 'Audit', 'Extensions', 'Forms', 'Live Sessions', 'Enrolments', 'People', 'Recordings'] as const;
+const TABS = ['Programmes', 'Progress', 'Audit', 'Extensions', 'Forms', 'Capstone', 'Live Sessions', 'Enrolments', 'People', 'Recordings'] as const;
 type Tab = (typeof TABS)[number];
 
 function formatSessionDate(iso: string | null | undefined) {
@@ -2071,6 +2072,7 @@ export default function AdminConsole() {
       )}
       {tab === 'Extensions' && <ExtensionsTab focus={focus} />}
       {tab === 'Forms' && <FormsAdmin />}
+      {tab === 'Capstone' && <CapstoneAdmin />}
       {tab === 'Audit' && <AuditTab />}
       {tab === 'Live Sessions' && <LiveSessionsAdmin />}
       {tab === 'Enrolments' && <EnrollmentsTab writeToProgramId={writeToProgramId} />}

@@ -4387,8 +4387,254 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiMessage"
+  /my/certificates/pending:
+    get:
+      operationId: listPendingCertificates
+      tags: [enrollments]
+      summary: Programmes where the work is done but something still holds the certificate
+      responses:
+        "200":
+          description: One entry per programme that is waiting on something
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PendingCertificate"
+        "401":
+          description: Not signed in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+  /programs/{programId}/capstone:
+    get:
+      operationId: getMyCapstone
+      tags: [capstone]
+      summary: The capstone brief, and where this learner stands on it
+      parameters:
+        - $ref: "#/components/parameters/CapstoneProgramId"
+      responses:
+        "200":
+          description: The brief and the learner's own attempts
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MyCapstone"
+        "403":
+          description: Not on this programme
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "404":
+          description: This programme has no published capstone
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+  /programs/{programId}/capstone/draft:
+    put:
+      operationId: saveCapstoneDraft
+      tags: [capstone]
+      summary: Save the piece as it stands, without sending it
+      parameters:
+        - $ref: "#/components/parameters/CapstoneProgramId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CapstoneDraftInput"
+      responses:
+        "200":
+          description: Saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CapstoneAttempt"
+        "201":
+          description: A new attempt was opened and saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CapstoneAttempt"
+        "409":
+          description: Already sent, or already approved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+  /programs/{programId}/capstone/draft/file:
+    delete:
+      operationId: removeCapstoneFile
+      tags: [capstone]
+      summary: Take the attached document off the draft
+      parameters:
+        - $ref: "#/components/parameters/CapstoneProgramId"
+      responses:
+        "200":
+          description: Removed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CapstoneAttempt"
+        "409":
+          description: There is no draft to change
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+  /programs/{programId}/capstone/submit:
+    post:
+      operationId: submitCapstone
+      tags: [capstone]
+      summary: Send the piece to be read
+      parameters:
+        - $ref: "#/components/parameters/CapstoneProgramId"
+      responses:
+        "200":
+          description: Sent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CapstoneAttempt"
+        "400":
+          description: Why it cannot be sent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "409":
+          description: There is nothing to send
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+  /admin/programs/{programId}/capstone:
+    get:
+      operationId: getCapstoneBoard
+      tags: [admin]
+      summary: The capstone and every learner's standing on it
+      parameters:
+        - $ref: "#/components/parameters/CapstoneProgramId"
+      responses:
+        "200":
+          description: The brief, and the cohort
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CapstoneBoard"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+    put:
+      operationId: setCapstone
+      tags: [admin]
+      summary: Write or rewrite the capstone brief
+      parameters:
+        - $ref: "#/components/parameters/CapstoneProgramId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CapstoneBriefInput"
+      responses:
+        "200":
+          description: Saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Capstone"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+  /admin/programs/{programId}/capstone/publish:
+    post:
+      operationId: publishCapstone
+      tags: [admin]
+      summary: Put the capstone in front of the cohort
+      parameters:
+        - $ref: "#/components/parameters/CapstoneProgramId"
+      responses:
+        "200":
+          description: Live
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Capstone"
+        "400":
+          description: Why it cannot go live yet
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+  /admin/capstone/submissions/{id}:
+    get:
+      operationId: readCapstoneSubmission
+      tags: [admin]
+      summary: One learner's piece, in full
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: The piece, with everything they were told before
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CapstoneSubmissionDetail"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+  /admin/capstone/submissions/{id}/review:
+    post:
+      operationId: reviewCapstone
+      tags: [admin]
+      summary: Approve the piece, or send it back with a reason
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CapstoneReviewInput"
+      responses:
+        "200":
+          description: Decided
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CapstoneAttempt"
+        "400":
+          description: Why the verdict cannot be recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
 components:
   parameters:
+    CapstoneProgramId:
+      name: programId
+      in: path
+      required: true
+      schema: { type: integer }
     SimulationId:
       name: simulationId
       in: path
@@ -6694,6 +6940,140 @@ components:
             recommendations:
               type: array
               items: { type: string }
+    Capstone:
+      type: object
+      required: [id, programId, title, brief, wordsAtLeast, wordsAtMost, maxScore, draft]
+      properties:
+        id: { type: integer }
+        programId: { type: integer }
+        title: { type: string }
+        brief: { type: string }
+        # Zero on either means no floor and no ceiling.
+        wordsAtLeast: { type: integer }
+        wordsAtMost: { type: integer }
+        maxScore: { type: integer }
+        dueAt: { type: ["string", "null"], format: date-time }
+        draft: { type: boolean }
+        postedAt: { type: ["string", "null"], format: date-time }
+    CapstoneAttempt:
+      type: object
+      required: [id, attempt, status, body, words, late, reviewNote]
+      properties:
+        id: { type: integer }
+        # 1 for the first go, 2 for the one after it came back.
+        attempt: { type: integer }
+        status:
+          type: string
+          enum: [draft, submitted, approved, returned]
+        body: { type: string }
+        words: { type: integer }
+        filename: { type: ["string", "null"] }
+        sizeBytes: { type: ["integer", "null"] }
+        # Where the attached document can be fetched. Null when there is none.
+        downloadPath: { type: ["string", "null"] }
+        submittedAt: { type: ["string", "null"], format: date-time }
+        late: { type: boolean }
+        score: { type: ["integer", "null"] }
+        reviewNote: { type: string }
+        reviewedAt: { type: ["string", "null"], format: date-time }
+    MyCapstone:
+      type: object
+      required: [capstone, history, headline, mayEdit, maySubmit]
+      properties:
+        capstone:
+          $ref: "#/components/schemas/Capstone"
+        # The open draft, or the last thing decided. Null before they start.
+        current:
+          oneOf:
+            - $ref: "#/components/schemas/CapstoneAttempt"
+            - type: "null"
+        # Every attempt that has been decided, newest first, so a learner can
+        # read what they were told last time while writing the next one.
+        history:
+          type: array
+          items:
+            $ref: "#/components/schemas/CapstoneAttempt"
+        headline: { type: string }
+        mayEdit: { type: boolean }
+        maySubmit: { type: boolean }
+    CapstoneBoard:
+      type: object
+      required: [programmeTitle, waiting, approved, learners]
+      properties:
+        programmeTitle: { type: string }
+        capstone:
+          oneOf:
+            - $ref: "#/components/schemas/Capstone"
+            - type: "null"
+        waiting: { type: integer }
+        approved: { type: integer }
+        # Everybody on the cohort, including those who have not started, because
+        # a list of submissions alone hides exactly the people worth chasing.
+        learners:
+          type: array
+          items:
+            type: object
+            required: [userId, name, email, hasFile]
+            properties:
+              userId: { type: integer }
+              name: { type: string }
+              email: { type: string }
+              submissionId: { type: ["integer", "null"] }
+              attempt: { type: ["integer", "null"] }
+              status: { type: ["string", "null"] }
+              score: { type: ["integer", "null"] }
+              hasFile: { type: boolean }
+              submittedAt: { type: ["string", "null"], format: date-time }
+    CapstoneSubmissionDetail:
+      allOf:
+        - $ref: "#/components/schemas/CapstoneAttempt"
+        - type: object
+          required: [learnerName, learnerEmail, maxScore, capstoneTitle, earlier]
+          properties:
+            learnerName: { type: string }
+            learnerEmail: { type: string }
+            maxScore: { type: integer }
+            capstoneTitle: { type: string }
+            earlier:
+              type: array
+              items:
+                $ref: "#/components/schemas/CapstoneAttempt"
+    CapstoneDraftInput:
+      type: object
+      required: [body]
+      properties:
+        body: { type: string, maxLength: 120000 }
+    CapstoneBriefInput:
+      type: object
+      required: [title, brief, wordsAtLeast, wordsAtMost, maxScore]
+      properties:
+        title: { type: string, maxLength: 200 }
+        brief: { type: string, maxLength: 20000 }
+        wordsAtLeast: { type: integer, minimum: 0, maximum: 100000 }
+        wordsAtMost: { type: integer, minimum: 0, maximum: 100000 }
+        maxScore: { type: integer, minimum: 1, maximum: 1000 }
+        dueAt: { type: ["string", "null"], format: date-time }
+    CapstoneReviewInput:
+      type: object
+      required: [decision]
+      properties:
+        decision:
+          type: string
+          enum: [approve, return]
+        score: { type: integer, minimum: 0, maximum: 1000 }
+        note: { type: string, maxLength: 20000 }
+    PendingCertificate:
+      type: object
+      required: [programId, programTitle, waitingOn, capstoneOutstanding, surveyOutstanding]
+      properties:
+        programId: { type: integer }
+        programTitle: { type: string }
+        # One sentence naming what is still outstanding. Never empty: a
+        # programme with nothing outstanding is not in this list at all.
+        waitingOn: { type: string }
+        capstoneOutstanding: { type: boolean }
+        surveyOutstanding: { type: boolean }
+        capstoneStatus: { type: ["string", "null"] }
     MyStudioExercise:
       type: object
       required: [hasInvitation]

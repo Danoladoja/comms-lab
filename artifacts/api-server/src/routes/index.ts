@@ -21,6 +21,7 @@ import studioSimulationsRouter from "./studioSimulations";
 import progressAuditRouter from "./progressAudit";
 import programFormsRouter from "./programForms";
 import teamRoomRouter from "./teamRoom";
+import capstoneRouter from "./capstone";
 
 const router: IRouter = Router();
 
@@ -38,6 +39,7 @@ router.use(studioSimulationsRouter);
 router.use(progressAuditRouter);
 router.use(programFormsRouter);
 router.use(teamRoomRouter);
+router.use(capstoneRouter);
 router.use(reviewsRouter);
 router.use(presenceRouter);
 router.use(slidesRouter);

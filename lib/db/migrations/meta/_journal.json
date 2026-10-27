@@ -141,6 +141,13 @@
       "when": 1791122114087,
       "tag": "0019_zippy_multiple_man",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1793104991675,
+      "tag": "0020_lucky_agent_brand",
+      "breakpoints": true
     }
   ]
 }

@@ -3,6 +3,7 @@ import {
   db, attendanceTable, enrollmentsTable, programsTable, sessionsTable, usersTable,
   assignmentsTable, assignmentSubmissionsTable,
   programFormsTable, formResponsesTable,
+  capstonesTable, capstoneSubmissionsTable,
 } from "@workspace/db";
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import {
@@ -16,6 +17,7 @@ import {
   isModuleStaff, satisfiesRole,
   maySeeTaughtCohort,
   normaliseMeetUrl,
+  certificateHeldBy,
 } from "@workspace/domain";
 import { SetPortfolioVisibilityBody } from "@workspace/api-zod";
 import { getCurrentUser } from "../lib/auth";
@@ -229,6 +231,108 @@ async function lastEndByProgram(programIds: number[]): Promise<Map<number, strin
   return new Map(rows.map((r) => [r.programId, r.lastEnd]));
 }
 
+type Outstanding = {
+  surveyOutstanding: boolean;
+  capstoneOutstanding: boolean;
+  capstoneStatus: string | null;
+};
+
+/**
+ * What stands between a learner who has finished the work and their
+ * certificate.
+ *
+ * Two requirements live out here rather than inside `computeProgress`, and for
+ * the same reason. Neither is learning: a survey is an administrative ask, and
+ * a capstone is marked after the modules are done. Making either a condition of
+ * module completion would mark somebody's record as though they had not done
+ * the work, and would re-lock every module behind it the moment the thing was
+ * published. Withholding the certificate withholds exactly the one thing these
+ * requirements are attached to and touches nothing else.
+ *
+ * Only published ones count, so a programme with neither behaves exactly as it
+ * did before any of this existed.
+ *
+ * It returns the reasons rather than a yes or no because the page on the other
+ * end used to tell people who had finished everything to go and finish the
+ * modules — the route filtered them out, and the browser had nothing left to
+ * tell them apart from somebody who had just enrolled.
+ */
+async function whatIsOutstanding(userId: number, programIds: number[]): Promise<Map<number, Outstanding>> {
+  const out = new Map<number, Outstanding>();
+  for (const id of programIds) {
+    out.set(id, { surveyOutstanding: false, capstoneOutstanding: false, capstoneStatus: null });
+  }
+  if (programIds.length === 0) return out;
+
+  const [closingForms, capstones] = await Promise.all([
+    db
+      .select({ id: programFormsTable.id, programId: programFormsTable.programId })
+      .from(programFormsTable)
+      .where(and(
+        inArray(programFormsTable.programId, programIds),
+        eq(programFormsTable.stage, "after"),
+        eq(programFormsTable.draft, false),
+      )),
+    db
+      .select({ id: capstonesTable.id, programId: capstonesTable.programId })
+      .from(capstonesTable)
+      .where(and(
+        inArray(capstonesTable.programId, programIds),
+        eq(capstonesTable.draft, false),
+      )),
+  ]);
+
+  if (closingForms.length > 0) {
+    const filedRows = await db
+      .select({ formId: formResponsesTable.formId })
+      .from(formResponsesTable)
+      .where(and(
+        eq(formResponsesTable.userId, userId),
+        inArray(formResponsesTable.formId, closingForms.map((f) => f.id)),
+      ));
+    const filed = new Set(filedRows.map((r) => r.formId));
+    for (const form of closingForms) {
+      if (!filed.has(form.id)) {
+        const o = out.get(form.programId);
+        if (o) o.surveyOutstanding = true;
+      }
+    }
+  }
+
+  if (capstones.length > 0) {
+    const attempts = await db
+      .select({
+        capstoneId: capstoneSubmissionsTable.capstoneId,
+        status: capstoneSubmissionsTable.status,
+        attempt: capstoneSubmissionsTable.attempt,
+      })
+      .from(capstoneSubmissionsTable)
+      .where(and(
+        eq(capstoneSubmissionsTable.userId, userId),
+        inArray(capstoneSubmissionsTable.capstoneId, capstones.map((c) => c.id)),
+      ));
+
+    // Approval on any attempt clears it; otherwise the newest attempt is what
+    // the learner should be told about.
+    const approved = new Set(attempts.filter((a) => a.status === "approved").map((a) => a.capstoneId));
+    const newest = new Map<number, { attempt: number; status: string }>();
+    for (const a of attempts) {
+      const seen = newest.get(a.capstoneId);
+      if (!seen || a.attempt > seen.attempt) newest.set(a.capstoneId, { attempt: a.attempt, status: a.status });
+    }
+
+    for (const c of capstones) {
+      if (approved.has(c.id)) continue;
+      const o = out.get(c.programId);
+      if (!o) continue;
+      o.capstoneOutstanding = true;
+      o.capstoneStatus = newest.get(c.id)?.status ?? null;
+    }
+  }
+
+  return out;
+}
+
 router.get("/my/certificates", async (req, res) => {
   const user = await getCurrentUser(req);
   if (!user) {
@@ -247,41 +351,11 @@ router.get("/my/certificates", async (req, res) => {
     return;
   }
 
-  /*
-    The closing survey, which is compulsory and withholds this.
-
-    The lever is deliberately here rather than in `computeProgress`. A survey is
-    an administrative requirement, not learning, and making it a condition of
-    module completion would mark somebody's record as though they had not done
-    the work — and would re-lock every module behind it the moment the form was
-    published. Withholding the certificate withholds exactly the one thing the
-    requirement is attached to, and touches nothing else.
-
-    Only a published form counts, so a programme without one behaves exactly as
-    it did before any of this existed.
-  */
-  const closingForms = await db
-    .select({ id: programFormsTable.id, programId: programFormsTable.programId })
-    .from(programFormsTable)
-    .where(and(
-      inArray(programFormsTable.programId, byWork),
-      eq(programFormsTable.stage, "after"),
-      eq(programFormsTable.draft, false),
-    ));
-
-  const filedRows = closingForms.length === 0 ? [] : await db
-    .select({ formId: formResponsesTable.formId })
-    .from(formResponsesTable)
-    .where(and(
-      eq(formResponsesTable.userId, user.id),
-      inArray(formResponsesTable.formId, closingForms.map((f) => f.id)),
-    ));
-  const filed = new Set(filedRows.map((r) => r.formId));
-
-  const waitingOnForm = new Set(
-    closingForms.filter((f) => !filed.has(f.id)).map((f) => f.programId),
-  );
-  const completedProgramIds = byWork.filter((id) => !waitingOnForm.has(id));
+  const outstanding = await whatIsOutstanding(user.id, byWork);
+  const completedProgramIds = byWork.filter((id) => {
+    const o = outstanding.get(id);
+    return !o || (!o.surveyOutstanding && !o.capstoneOutstanding);
+  });
   if (completedProgramIds.length === 0) {
     res.json([]);
     return;
@@ -321,6 +395,57 @@ router.get("/my/certificates", async (req, res) => {
       }];
     }),
   );
+});
+
+/**
+ * Programmes where the work is done and something else is holding it up.
+ *
+ * Its own route rather than a field on the one above, because that one is a
+ * list of certificates and an entry with no certificate in it would be a
+ * different thing wearing the same shape.
+ */
+router.get("/my/certificates/pending", async (req, res) => {
+  const user = await getCurrentUser(req);
+  if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const programIds = await enrolledProgramIds(user.id);
+  if (programIds.length === 0) { res.json([]); return; }
+
+  const progress = await progressForUser(user.id, programIds);
+  const byWork = completedProgramIdsFrom(progress);
+  if (byWork.length === 0) { res.json([]); return; }
+
+  const outstanding = await whatIsOutstanding(user.id, byWork);
+  const held = byWork.filter((id) => {
+    const o = outstanding.get(id);
+    return Boolean(o && (o.surveyOutstanding || o.capstoneOutstanding));
+  });
+  if (held.length === 0) { res.json([]); return; }
+
+  const programs = await db
+    .select({ id: programsTable.id, title: programsTable.title })
+    .from(programsTable)
+    .where(inArray(programsTable.id, held));
+
+  res.json(programs.flatMap((p) => {
+    const o = outstanding.get(p.id);
+    if (!o) return [];
+    const waitingOn = certificateHeldBy({
+      workDone: true,
+      surveyOutstanding: o.surveyOutstanding,
+      capstoneOutstanding: o.capstoneOutstanding,
+      capstoneStatus: o.capstoneStatus,
+    });
+    if (!waitingOn) return [];
+    return [{
+      programId: p.id,
+      programTitle: p.title,
+      waitingOn,
+      capstoneOutstanding: o.capstoneOutstanding,
+      surveyOutstanding: o.surveyOutstanding,
+      capstoneStatus: o.capstoneStatus,
+    }];
+  }));
 });
 
 router.patch("/my/certificates/:programId/portfolio", async (req, res) => {

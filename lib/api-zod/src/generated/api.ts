@@ -5335,3 +5335,336 @@ export const DeleteFormQuestionResponse = zod.object({
 })
 
 
+/**
+ * @summary Programmes where the work is done but something still holds the certificate
+ */
+export const ListPendingCertificatesResponseItem = zod.object({
+  "programId": zod.int(),
+  "programTitle": zod.string(),
+  "waitingOn": zod.string(),
+  "capstoneOutstanding": zod.boolean(),
+  "surveyOutstanding": zod.boolean(),
+  "capstoneStatus": zod.string().nullish()
+})
+export const ListPendingCertificatesResponse = zod.array(ListPendingCertificatesResponseItem)
+
+
+/**
+ * @summary The capstone brief, and where this learner stands on it
+ */
+export const GetMyCapstoneParams = zod.object({
+  "programId": zod.coerce.number().int()
+})
+
+export const GetMyCapstoneResponse = zod.object({
+  "capstone": zod.object({
+  "id": zod.int(),
+  "programId": zod.int(),
+  "title": zod.string(),
+  "brief": zod.string(),
+  "wordsAtLeast": zod.int(),
+  "wordsAtMost": zod.int(),
+  "maxScore": zod.int(),
+  "dueAt": zod.coerce.date().nullish(),
+  "draft": zod.boolean(),
+  "postedAt": zod.coerce.date().nullish()
+}),
+  "current": zod.union([zod.object({
+  "id": zod.int(),
+  "attempt": zod.int(),
+  "status": zod.enum(['draft', 'submitted', 'approved', 'returned']),
+  "body": zod.string(),
+  "words": zod.int(),
+  "filename": zod.string().nullish(),
+  "sizeBytes": zod.int().nullish(),
+  "downloadPath": zod.string().nullish(),
+  "submittedAt": zod.coerce.date().nullish(),
+  "late": zod.boolean(),
+  "score": zod.int().nullish(),
+  "reviewNote": zod.string(),
+  "reviewedAt": zod.coerce.date().nullish()
+}),zod.null()]).optional(),
+  "history": zod.array(zod.object({
+  "id": zod.int(),
+  "attempt": zod.int(),
+  "status": zod.enum(['draft', 'submitted', 'approved', 'returned']),
+  "body": zod.string(),
+  "words": zod.int(),
+  "filename": zod.string().nullish(),
+  "sizeBytes": zod.int().nullish(),
+  "downloadPath": zod.string().nullish(),
+  "submittedAt": zod.coerce.date().nullish(),
+  "late": zod.boolean(),
+  "score": zod.int().nullish(),
+  "reviewNote": zod.string(),
+  "reviewedAt": zod.coerce.date().nullish()
+})),
+  "headline": zod.string(),
+  "mayEdit": zod.boolean(),
+  "maySubmit": zod.boolean()
+})
+
+
+/**
+ * @summary Save the piece as it stands, without sending it
+ */
+export const SaveCapstoneDraftParams = zod.object({
+  "programId": zod.coerce.number().int()
+})
+
+export const saveCapstoneDraftBodyBodyMax = 120000;
+
+
+
+export const SaveCapstoneDraftBody = zod.object({
+  "body": zod.string().max(saveCapstoneDraftBodyBodyMax)
+})
+
+export const SaveCapstoneDraftResponse = zod.object({
+  "id": zod.int(),
+  "attempt": zod.int(),
+  "status": zod.enum(['draft', 'submitted', 'approved', 'returned']),
+  "body": zod.string(),
+  "words": zod.int(),
+  "filename": zod.string().nullish(),
+  "sizeBytes": zod.int().nullish(),
+  "downloadPath": zod.string().nullish(),
+  "submittedAt": zod.coerce.date().nullish(),
+  "late": zod.boolean(),
+  "score": zod.int().nullish(),
+  "reviewNote": zod.string(),
+  "reviewedAt": zod.coerce.date().nullish()
+})
+
+
+/**
+ * @summary Take the attached document off the draft
+ */
+export const RemoveCapstoneFileParams = zod.object({
+  "programId": zod.coerce.number().int()
+})
+
+export const RemoveCapstoneFileResponse = zod.object({
+  "id": zod.int(),
+  "attempt": zod.int(),
+  "status": zod.enum(['draft', 'submitted', 'approved', 'returned']),
+  "body": zod.string(),
+  "words": zod.int(),
+  "filename": zod.string().nullish(),
+  "sizeBytes": zod.int().nullish(),
+  "downloadPath": zod.string().nullish(),
+  "submittedAt": zod.coerce.date().nullish(),
+  "late": zod.boolean(),
+  "score": zod.int().nullish(),
+  "reviewNote": zod.string(),
+  "reviewedAt": zod.coerce.date().nullish()
+})
+
+
+/**
+ * @summary Send the piece to be read
+ */
+export const SubmitCapstoneParams = zod.object({
+  "programId": zod.coerce.number().int()
+})
+
+export const SubmitCapstoneResponse = zod.object({
+  "id": zod.int(),
+  "attempt": zod.int(),
+  "status": zod.enum(['draft', 'submitted', 'approved', 'returned']),
+  "body": zod.string(),
+  "words": zod.int(),
+  "filename": zod.string().nullish(),
+  "sizeBytes": zod.int().nullish(),
+  "downloadPath": zod.string().nullish(),
+  "submittedAt": zod.coerce.date().nullish(),
+  "late": zod.boolean(),
+  "score": zod.int().nullish(),
+  "reviewNote": zod.string(),
+  "reviewedAt": zod.coerce.date().nullish()
+})
+
+
+/**
+ * @summary The capstone and every learner's standing on it
+ */
+export const GetCapstoneBoardParams = zod.object({
+  "programId": zod.coerce.number().int()
+})
+
+export const GetCapstoneBoardResponse = zod.object({
+  "programmeTitle": zod.string(),
+  "capstone": zod.union([zod.object({
+  "id": zod.int(),
+  "programId": zod.int(),
+  "title": zod.string(),
+  "brief": zod.string(),
+  "wordsAtLeast": zod.int(),
+  "wordsAtMost": zod.int(),
+  "maxScore": zod.int(),
+  "dueAt": zod.coerce.date().nullish(),
+  "draft": zod.boolean(),
+  "postedAt": zod.coerce.date().nullish()
+}),zod.null()]).optional(),
+  "waiting": zod.int(),
+  "approved": zod.int(),
+  "learners": zod.array(zod.object({
+  "userId": zod.int(),
+  "name": zod.string(),
+  "email": zod.string(),
+  "submissionId": zod.int().nullish(),
+  "attempt": zod.int().nullish(),
+  "status": zod.string().nullish(),
+  "score": zod.int().nullish(),
+  "hasFile": zod.boolean(),
+  "submittedAt": zod.coerce.date().nullish()
+}))
+})
+
+
+/**
+ * @summary Write or rewrite the capstone brief
+ */
+export const SetCapstoneParams = zod.object({
+  "programId": zod.coerce.number().int()
+})
+
+export const setCapstoneBodyTitleMax = 200;
+
+export const setCapstoneBodyBriefMax = 20000;
+
+export const setCapstoneBodyWordsAtLeastMin = 0;
+export const setCapstoneBodyWordsAtLeastMax = 100000;
+
+export const setCapstoneBodyWordsAtMostMin = 0;
+export const setCapstoneBodyWordsAtMostMax = 100000;
+
+export const setCapstoneBodyMaxScoreMax = 1000;
+
+
+
+export const SetCapstoneBody = zod.object({
+  "title": zod.string().max(setCapstoneBodyTitleMax),
+  "brief": zod.string().max(setCapstoneBodyBriefMax),
+  "wordsAtLeast": zod.int().min(setCapstoneBodyWordsAtLeastMin).max(setCapstoneBodyWordsAtLeastMax),
+  "wordsAtMost": zod.int().min(setCapstoneBodyWordsAtMostMin).max(setCapstoneBodyWordsAtMostMax),
+  "maxScore": zod.int().min(1).max(setCapstoneBodyMaxScoreMax),
+  "dueAt": zod.coerce.date().nullish()
+})
+
+export const SetCapstoneResponse = zod.object({
+  "id": zod.int(),
+  "programId": zod.int(),
+  "title": zod.string(),
+  "brief": zod.string(),
+  "wordsAtLeast": zod.int(),
+  "wordsAtMost": zod.int(),
+  "maxScore": zod.int(),
+  "dueAt": zod.coerce.date().nullish(),
+  "draft": zod.boolean(),
+  "postedAt": zod.coerce.date().nullish()
+})
+
+
+/**
+ * @summary Put the capstone in front of the cohort
+ */
+export const PublishCapstoneParams = zod.object({
+  "programId": zod.coerce.number().int()
+})
+
+export const PublishCapstoneResponse = zod.object({
+  "id": zod.int(),
+  "programId": zod.int(),
+  "title": zod.string(),
+  "brief": zod.string(),
+  "wordsAtLeast": zod.int(),
+  "wordsAtMost": zod.int(),
+  "maxScore": zod.int(),
+  "dueAt": zod.coerce.date().nullish(),
+  "draft": zod.boolean(),
+  "postedAt": zod.coerce.date().nullish()
+})
+
+
+/**
+ * @summary One learner's piece, in full
+ */
+export const ReadCapstoneSubmissionParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const ReadCapstoneSubmissionResponse = zod.object({
+  "id": zod.int(),
+  "attempt": zod.int(),
+  "status": zod.enum(['draft', 'submitted', 'approved', 'returned']),
+  "body": zod.string(),
+  "words": zod.int(),
+  "filename": zod.string().nullish(),
+  "sizeBytes": zod.int().nullish(),
+  "downloadPath": zod.string().nullish(),
+  "submittedAt": zod.coerce.date().nullish(),
+  "late": zod.boolean(),
+  "score": zod.int().nullish(),
+  "reviewNote": zod.string(),
+  "reviewedAt": zod.coerce.date().nullish()
+}).and(zod.object({
+  "learnerName": zod.string(),
+  "learnerEmail": zod.string(),
+  "maxScore": zod.int(),
+  "capstoneTitle": zod.string(),
+  "earlier": zod.array(zod.object({
+  "id": zod.int(),
+  "attempt": zod.int(),
+  "status": zod.enum(['draft', 'submitted', 'approved', 'returned']),
+  "body": zod.string(),
+  "words": zod.int(),
+  "filename": zod.string().nullish(),
+  "sizeBytes": zod.int().nullish(),
+  "downloadPath": zod.string().nullish(),
+  "submittedAt": zod.coerce.date().nullish(),
+  "late": zod.boolean(),
+  "score": zod.int().nullish(),
+  "reviewNote": zod.string(),
+  "reviewedAt": zod.coerce.date().nullish()
+}))
+}))
+
+
+/**
+ * @summary Approve the piece, or send it back with a reason
+ */
+export const ReviewCapstoneParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const reviewCapstoneBodyScoreMin = 0;
+export const reviewCapstoneBodyScoreMax = 1000;
+
+export const reviewCapstoneBodyNoteMax = 20000;
+
+
+
+export const ReviewCapstoneBody = zod.object({
+  "decision": zod.enum(['approve', 'return']),
+  "score": zod.int().min(reviewCapstoneBodyScoreMin).max(reviewCapstoneBodyScoreMax).optional(),
+  "note": zod.string().max(reviewCapstoneBodyNoteMax).optional()
+})
+
+export const ReviewCapstoneResponse = zod.object({
+  "id": zod.int(),
+  "attempt": zod.int(),
+  "status": zod.enum(['draft', 'submitted', 'approved', 'returned']),
+  "body": zod.string(),
+  "words": zod.int(),
+  "filename": zod.string().nullish(),
+  "sizeBytes": zod.int().nullish(),
+  "downloadPath": zod.string().nullish(),
+  "submittedAt": zod.coerce.date().nullish(),
+  "late": zod.boolean(),
+  "score": zod.int().nullish(),
+  "reviewNote": zod.string(),
+  "reviewedAt": zod.coerce.date().nullish()
+})
+
+

@@ -35,6 +35,13 @@ import type {
   BeginStudioExercise,
   BulkInviteBody,
   BulkInviteResult,
+  Capstone,
+  CapstoneAttempt,
+  CapstoneBoard,
+  CapstoneBriefInput,
+  CapstoneDraftInput,
+  CapstoneReviewInput,
+  CapstoneSubmissionDetail,
   Certificate,
   ClassMeeting,
   CohortDiscussion,
@@ -104,12 +111,14 @@ import type {
   ModuleUnlockRevoke,
   ModuleWork,
   MoreQuestionsInput,
+  MyCapstone,
   MyFeedback,
   MyGroupSession,
   MyStudioExercise,
   NotFoundResponse,
   PartnershipEnquiryInput,
   PartnershipEnquiryProblems,
+  PendingCertificate,
   PinInput,
   PlainMessage,
   PlanGroupSession,
@@ -11624,5 +11633,742 @@ export const useDeleteFormQuestion = <TError = ErrorType<ApiMessage>,
         TContext
       > => {
       return useMutation(getDeleteFormQuestionMutationOptions(options));
+    }
+
+export const getListPendingCertificatesUrl = () => {
+
+
+
+
+  return `/api/my/certificates/pending`
+}
+
+/**
+ * @summary Programmes where the work is done but something still holds the certificate
+ */
+export const listPendingCertificates = async ( options?: Parameters<typeof customFetch>[1]): Promise<PendingCertificate[]> => {
+
+  return customFetch<PendingCertificate[]>(getListPendingCertificatesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListPendingCertificatesQueryKey = () => {
+    return [
+    `/api/my/certificates/pending`
+    ] as const;
+    }
+
+
+export const getListPendingCertificatesQueryOptions = <TData = Awaited<ReturnType<typeof listPendingCertificates>>, TError = ErrorType<ApiMessage>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listPendingCertificates>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListPendingCertificatesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listPendingCertificates>>> = ({ signal }) => listPendingCertificates({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listPendingCertificates>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListPendingCertificatesQueryResult = NonNullable<Awaited<ReturnType<typeof listPendingCertificates>>>
+export type ListPendingCertificatesQueryError = ErrorType<ApiMessage>
+
+
+/**
+ * @summary Programmes where the work is done but something still holds the certificate
+ */
+
+export function useListPendingCertificates<TData = Awaited<ReturnType<typeof listPendingCertificates>>, TError = ErrorType<ApiMessage>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listPendingCertificates>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListPendingCertificatesQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetMyCapstoneUrl = (programId: number,) => {
+
+
+
+
+  return `/api/programs/${programId}/capstone`
+}
+
+/**
+ * @summary The capstone brief, and where this learner stands on it
+ */
+export const getMyCapstone = async (programId: number, options?: Parameters<typeof customFetch>[1]): Promise<MyCapstone> => {
+
+  return customFetch<MyCapstone>(getGetMyCapstoneUrl(programId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMyCapstoneQueryKey = (programId: number,) => {
+    return [
+    `/api/programs/${programId}/capstone`
+    ] as const;
+    }
+
+
+export const getGetMyCapstoneQueryOptions = <TData = Awaited<ReturnType<typeof getMyCapstone>>, TError = ErrorType<ApiMessage>>(programId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMyCapstone>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMyCapstoneQueryKey(programId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMyCapstone>>> = ({ signal }) => getMyCapstone(programId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: programId !== null && programId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMyCapstone>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetMyCapstoneQueryResult = NonNullable<Awaited<ReturnType<typeof getMyCapstone>>>
+export type GetMyCapstoneQueryError = ErrorType<ApiMessage>
+
+
+/**
+ * @summary The capstone brief, and where this learner stands on it
+ */
+
+export function useGetMyCapstone<TData = Awaited<ReturnType<typeof getMyCapstone>>, TError = ErrorType<ApiMessage>>(
+ programId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMyCapstone>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetMyCapstoneQueryOptions(programId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getSaveCapstoneDraftUrl = (programId: number,) => {
+
+
+
+
+  return `/api/programs/${programId}/capstone/draft`
+}
+
+/**
+ * @summary Save the piece as it stands, without sending it
+ */
+export const saveCapstoneDraft = async (programId: number,
+    capstoneDraftInput: CapstoneDraftInput, options?: Parameters<typeof customFetch>[1]): Promise<CapstoneAttempt> => {
+
+  return customFetch<CapstoneAttempt>(getSaveCapstoneDraftUrl(programId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(capstoneDraftInput)
+  }
+);}
+
+
+
+
+
+export const getSaveCapstoneDraftMutationOptions = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveCapstoneDraft>>, TError,{programId: number;data: BodyType<CapstoneDraftInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof saveCapstoneDraft>>, TError,{programId: number;data: BodyType<CapstoneDraftInput>}, TContext> => {
+
+const mutationKey = ['saveCapstoneDraft'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof saveCapstoneDraft>>, {programId: number;data: BodyType<CapstoneDraftInput>}> = (props) => {
+          const {programId,data} = props ?? {};
+
+          return  saveCapstoneDraft(programId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SaveCapstoneDraftMutationResult = NonNullable<Awaited<ReturnType<typeof saveCapstoneDraft>>>
+    export type SaveCapstoneDraftMutationBody = BodyType<CapstoneDraftInput>
+    export type SaveCapstoneDraftMutationError = ErrorType<ApiMessage>
+
+    /**
+ * @summary Save the piece as it stands, without sending it
+ */
+export const useSaveCapstoneDraft = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveCapstoneDraft>>, TError,{programId: number;data: BodyType<CapstoneDraftInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof saveCapstoneDraft>>,
+        TError,
+        {programId: number;data: BodyType<CapstoneDraftInput>},
+        TContext
+      > => {
+      return useMutation(getSaveCapstoneDraftMutationOptions(options));
+    }
+
+export const getRemoveCapstoneFileUrl = (programId: number,) => {
+
+
+
+
+  return `/api/programs/${programId}/capstone/draft/file`
+}
+
+/**
+ * @summary Take the attached document off the draft
+ */
+export const removeCapstoneFile = async (programId: number, options?: Parameters<typeof customFetch>[1]): Promise<CapstoneAttempt> => {
+
+  return customFetch<CapstoneAttempt>(getRemoveCapstoneFileUrl(programId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getRemoveCapstoneFileMutationOptions = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof removeCapstoneFile>>, TError,{programId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof removeCapstoneFile>>, TError,{programId: number}, TContext> => {
+
+const mutationKey = ['removeCapstoneFile'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof removeCapstoneFile>>, {programId: number}> = (props) => {
+          const {programId} = props ?? {};
+
+          return  removeCapstoneFile(programId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RemoveCapstoneFileMutationResult = NonNullable<Awaited<ReturnType<typeof removeCapstoneFile>>>
+
+    export type RemoveCapstoneFileMutationError = ErrorType<ApiMessage>
+
+    /**
+ * @summary Take the attached document off the draft
+ */
+export const useRemoveCapstoneFile = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof removeCapstoneFile>>, TError,{programId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof removeCapstoneFile>>,
+        TError,
+        {programId: number},
+        TContext
+      > => {
+      return useMutation(getRemoveCapstoneFileMutationOptions(options));
+    }
+
+export const getSubmitCapstoneUrl = (programId: number,) => {
+
+
+
+
+  return `/api/programs/${programId}/capstone/submit`
+}
+
+/**
+ * @summary Send the piece to be read
+ */
+export const submitCapstone = async (programId: number, options?: Parameters<typeof customFetch>[1]): Promise<CapstoneAttempt> => {
+
+  return customFetch<CapstoneAttempt>(getSubmitCapstoneUrl(programId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getSubmitCapstoneMutationOptions = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitCapstone>>, TError,{programId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof submitCapstone>>, TError,{programId: number}, TContext> => {
+
+const mutationKey = ['submitCapstone'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof submitCapstone>>, {programId: number}> = (props) => {
+          const {programId} = props ?? {};
+
+          return  submitCapstone(programId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SubmitCapstoneMutationResult = NonNullable<Awaited<ReturnType<typeof submitCapstone>>>
+
+    export type SubmitCapstoneMutationError = ErrorType<ApiMessage>
+
+    /**
+ * @summary Send the piece to be read
+ */
+export const useSubmitCapstone = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitCapstone>>, TError,{programId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof submitCapstone>>,
+        TError,
+        {programId: number},
+        TContext
+      > => {
+      return useMutation(getSubmitCapstoneMutationOptions(options));
+    }
+
+export const getGetCapstoneBoardUrl = (programId: number,) => {
+
+
+
+
+  return `/api/admin/programs/${programId}/capstone`
+}
+
+/**
+ * @summary The capstone and every learner's standing on it
+ */
+export const getCapstoneBoard = async (programId: number, options?: Parameters<typeof customFetch>[1]): Promise<CapstoneBoard> => {
+
+  return customFetch<CapstoneBoard>(getGetCapstoneBoardUrl(programId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetCapstoneBoardQueryKey = (programId: number,) => {
+    return [
+    `/api/admin/programs/${programId}/capstone`
+    ] as const;
+    }
+
+
+export const getGetCapstoneBoardQueryOptions = <TData = Awaited<ReturnType<typeof getCapstoneBoard>>, TError = ErrorType<ApiMessage>>(programId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCapstoneBoard>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetCapstoneBoardQueryKey(programId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getCapstoneBoard>>> = ({ signal }) => getCapstoneBoard(programId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: programId !== null && programId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getCapstoneBoard>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetCapstoneBoardQueryResult = NonNullable<Awaited<ReturnType<typeof getCapstoneBoard>>>
+export type GetCapstoneBoardQueryError = ErrorType<ApiMessage>
+
+
+/**
+ * @summary The capstone and every learner's standing on it
+ */
+
+export function useGetCapstoneBoard<TData = Awaited<ReturnType<typeof getCapstoneBoard>>, TError = ErrorType<ApiMessage>>(
+ programId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCapstoneBoard>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetCapstoneBoardQueryOptions(programId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getSetCapstoneUrl = (programId: number,) => {
+
+
+
+
+  return `/api/admin/programs/${programId}/capstone`
+}
+
+/**
+ * @summary Write or rewrite the capstone brief
+ */
+export const setCapstone = async (programId: number,
+    capstoneBriefInput: CapstoneBriefInput, options?: Parameters<typeof customFetch>[1]): Promise<Capstone> => {
+
+  return customFetch<Capstone>(getSetCapstoneUrl(programId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(capstoneBriefInput)
+  }
+);}
+
+
+
+
+
+export const getSetCapstoneMutationOptions = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setCapstone>>, TError,{programId: number;data: BodyType<CapstoneBriefInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof setCapstone>>, TError,{programId: number;data: BodyType<CapstoneBriefInput>}, TContext> => {
+
+const mutationKey = ['setCapstone'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof setCapstone>>, {programId: number;data: BodyType<CapstoneBriefInput>}> = (props) => {
+          const {programId,data} = props ?? {};
+
+          return  setCapstone(programId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SetCapstoneMutationResult = NonNullable<Awaited<ReturnType<typeof setCapstone>>>
+    export type SetCapstoneMutationBody = BodyType<CapstoneBriefInput>
+    export type SetCapstoneMutationError = ErrorType<ApiMessage>
+
+    /**
+ * @summary Write or rewrite the capstone brief
+ */
+export const useSetCapstone = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setCapstone>>, TError,{programId: number;data: BodyType<CapstoneBriefInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof setCapstone>>,
+        TError,
+        {programId: number;data: BodyType<CapstoneBriefInput>},
+        TContext
+      > => {
+      return useMutation(getSetCapstoneMutationOptions(options));
+    }
+
+export const getPublishCapstoneUrl = (programId: number,) => {
+
+
+
+
+  return `/api/admin/programs/${programId}/capstone/publish`
+}
+
+/**
+ * @summary Put the capstone in front of the cohort
+ */
+export const publishCapstone = async (programId: number, options?: Parameters<typeof customFetch>[1]): Promise<Capstone> => {
+
+  return customFetch<Capstone>(getPublishCapstoneUrl(programId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getPublishCapstoneMutationOptions = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof publishCapstone>>, TError,{programId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof publishCapstone>>, TError,{programId: number}, TContext> => {
+
+const mutationKey = ['publishCapstone'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof publishCapstone>>, {programId: number}> = (props) => {
+          const {programId} = props ?? {};
+
+          return  publishCapstone(programId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PublishCapstoneMutationResult = NonNullable<Awaited<ReturnType<typeof publishCapstone>>>
+
+    export type PublishCapstoneMutationError = ErrorType<ApiMessage>
+
+    /**
+ * @summary Put the capstone in front of the cohort
+ */
+export const usePublishCapstone = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof publishCapstone>>, TError,{programId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof publishCapstone>>,
+        TError,
+        {programId: number},
+        TContext
+      > => {
+      return useMutation(getPublishCapstoneMutationOptions(options));
+    }
+
+export const getReadCapstoneSubmissionUrl = (id: number,) => {
+
+
+
+
+  return `/api/admin/capstone/submissions/${id}`
+}
+
+/**
+ * @summary One learner's piece, in full
+ */
+export const readCapstoneSubmission = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<CapstoneSubmissionDetail> => {
+
+  return customFetch<CapstoneSubmissionDetail>(getReadCapstoneSubmissionUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getReadCapstoneSubmissionQueryKey = (id: number,) => {
+    return [
+    `/api/admin/capstone/submissions/${id}`
+    ] as const;
+    }
+
+
+export const getReadCapstoneSubmissionQueryOptions = <TData = Awaited<ReturnType<typeof readCapstoneSubmission>>, TError = ErrorType<ApiMessage>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof readCapstoneSubmission>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getReadCapstoneSubmissionQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof readCapstoneSubmission>>> = ({ signal }) => readCapstoneSubmission(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof readCapstoneSubmission>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ReadCapstoneSubmissionQueryResult = NonNullable<Awaited<ReturnType<typeof readCapstoneSubmission>>>
+export type ReadCapstoneSubmissionQueryError = ErrorType<ApiMessage>
+
+
+/**
+ * @summary One learner's piece, in full
+ */
+
+export function useReadCapstoneSubmission<TData = Awaited<ReturnType<typeof readCapstoneSubmission>>, TError = ErrorType<ApiMessage>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof readCapstoneSubmission>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getReadCapstoneSubmissionQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getReviewCapstoneUrl = (id: number,) => {
+
+
+
+
+  return `/api/admin/capstone/submissions/${id}/review`
+}
+
+/**
+ * @summary Approve the piece, or send it back with a reason
+ */
+export const reviewCapstone = async (id: number,
+    capstoneReviewInput: CapstoneReviewInput, options?: Parameters<typeof customFetch>[1]): Promise<CapstoneAttempt> => {
+
+  return customFetch<CapstoneAttempt>(getReviewCapstoneUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(capstoneReviewInput)
+  }
+);}
+
+
+
+
+
+export const getReviewCapstoneMutationOptions = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reviewCapstone>>, TError,{id: number;data: BodyType<CapstoneReviewInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof reviewCapstone>>, TError,{id: number;data: BodyType<CapstoneReviewInput>}, TContext> => {
+
+const mutationKey = ['reviewCapstone'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof reviewCapstone>>, {id: number;data: BodyType<CapstoneReviewInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  reviewCapstone(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ReviewCapstoneMutationResult = NonNullable<Awaited<ReturnType<typeof reviewCapstone>>>
+    export type ReviewCapstoneMutationBody = BodyType<CapstoneReviewInput>
+    export type ReviewCapstoneMutationError = ErrorType<ApiMessage>
+
+    /**
+ * @summary Approve the piece, or send it back with a reason
+ */
+export const useReviewCapstone = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reviewCapstone>>, TError,{id: number;data: BodyType<CapstoneReviewInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof reviewCapstone>>,
+        TError,
+        {id: number;data: BodyType<CapstoneReviewInput>},
+        TContext
+      > => {
+      return useMutation(getReviewCapstoneMutationOptions(options));
     }
 

@@ -22,6 +22,7 @@ import LiveSessions from '@/pages/LiveSessions';
 import Classroom from '@/pages/Classroom';
 import Recordings from '@/pages/Recordings';
 import Certificates from '@/pages/Certificates';
+import CapstonePage from '@/pages/CapstonePage';
 import About from '@/pages/About';
 import Partnerships from '@/pages/Partnerships';
 import Privacy from '@/pages/Privacy';
@@ -293,6 +294,9 @@ function Router() {
         </Route>
         <Route path="/recordings">
           <Protected><AppLayout><Recordings /></AppLayout></Protected>
+        </Route>
+        <Route path="/programs/:programId/capstone">
+          <AppLayout><CapstonePage /></AppLayout>
         </Route>
         <Route path="/certificates">
           <Protected><AppLayout><Certificates /></AppLayout></Protected>
