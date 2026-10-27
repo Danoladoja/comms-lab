@@ -235,6 +235,15 @@ type Outstanding = {
   surveyOutstanding: boolean;
   capstoneOutstanding: boolean;
   capstoneStatus: string | null;
+  /**
+   * A published capstone exists and this learner's is approved.
+   *
+   * Distinct from `!capstoneOutstanding`, which is also true of a programme
+   * that has no capstone at all. The certificate prints a line about the
+   * capstone, and printing it where there was none would be a lie on a
+   * document whose whole purpose is to be believed.
+   */
+  capstoneApproved: boolean;
 };
 
 /**
@@ -260,7 +269,9 @@ type Outstanding = {
 async function whatIsOutstanding(userId: number, programIds: number[]): Promise<Map<number, Outstanding>> {
   const out = new Map<number, Outstanding>();
   for (const id of programIds) {
-    out.set(id, { surveyOutstanding: false, capstoneOutstanding: false, capstoneStatus: null });
+    out.set(id, {
+      surveyOutstanding: false, capstoneOutstanding: false, capstoneStatus: null, capstoneApproved: false,
+    });
   }
   if (programIds.length === 0) return out;
 
@@ -322,9 +333,9 @@ async function whatIsOutstanding(userId: number, programIds: number[]): Promise<
     }
 
     for (const c of capstones) {
-      if (approved.has(c.id)) continue;
       const o = out.get(c.programId);
       if (!o) continue;
+      if (approved.has(c.id)) { o.capstoneApproved = true; continue; }
       o.capstoneOutstanding = true;
       o.capstoneStatus = newest.get(c.id)?.status ?? null;
     }
@@ -392,6 +403,7 @@ router.get("/my/certificates", async (req, res) => {
         portfolioPublic: enrollment.portfolioPublic,
         modulesCompleted: entries.length,
         reviewsWritten: entries.reduce((sum, e) => sum + e.reviewsGiven, 0),
+        capstoneApproved: outstanding.get(p.id)?.capstoneApproved ?? false,
       }];
     }),
   );
@@ -571,6 +583,13 @@ router.get("/certificates/:certificateId/verify", async (req, res) => {
     }));
   }
 
+  /*
+    Whether the capstone was approved, so the public sheet says the same thing
+    the learner's own does. The mark itself stays out: a programme's graduates
+    did not agree to have their grade published to anyone holding a link.
+  */
+  const publicOutstanding = await whatIsOutstanding(enrollment.userId, [enrollment.programId]);
+
   res.json({
     programTitle: program.title,
     learnerName: learner.name,
@@ -581,6 +600,7 @@ router.get("/certificates/:certificateId/verify", async (req, res) => {
     portfolioPublic: enrollment.portfolioPublic,
     modulesCompleted: entries.length,
     reviewsWritten: entries.reduce((sum, e) => sum + e.reviewsGiven, 0),
+    capstoneApproved: publicOutstanding.get(enrollment.programId)?.capstoneApproved ?? false,
     works,
   });
 });

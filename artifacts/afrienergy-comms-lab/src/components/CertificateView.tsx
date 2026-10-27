@@ -1,8 +1,76 @@
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 import type { Certificate, PublicCertificate } from '@workspace/api-client-react';
 
+const basePath = import.meta.env.BASE_URL.replace(/\/$/, '');
+
+/**
+ * One line of text, shrunk until it fits the width it was given.
+ *
+ * Two things on this sheet are written by somebody else and cannot be sized in
+ * advance: the learner's name, and the signatories'. Names here run from three
+ * characters to well over thirty, and the signing face is fetched from Google
+ * — so on any network that blocks or delays it, the browser substitutes a
+ * fallback that is nearly twice as wide. The first version of this measured
+ * nothing and simply stepped the size down by character count, and the two
+ * signatures ran straight through each other the moment the fallback rendered.
+ *
+ * So the width is measured rather than guessed, and measured again once the
+ * fonts have actually arrived and whenever the sheet is resized. Nothing is
+ * ever clipped and nothing ever collides, whichever font wins.
+ */
+function FitLine({ width, style, children }: { width: string; style: CSSProperties; children: ReactNode }) {
+  const box = useRef<HTMLSpanElement>(null);
+  const line = useRef<HTMLSpanElement>(null);
+  const [scale, setScale] = useState(1);
+
+  const measure = useCallback(() => {
+    const b = box.current;
+    const l = line.current;
+    if (!b || !l) return;
+    const avail = b.clientWidth;
+    const needed = l.scrollWidth;
+    if (!avail || !needed) return;
+    setScale(needed > avail ? avail / needed : 1);
+  }, []);
+
+  useLayoutEffect(measure);
+
+  useEffect(() => {
+    // Fonts land after the first paint, and the fallback is a different width.
+    const fonts = (document as Document & { fonts?: FontFaceSet }).fonts;
+    if (fonts?.ready) void fonts.ready.then(measure).catch(() => {});
+
+    if (typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(measure);
+    if (box.current) ro.observe(box.current);
+    return () => ro.disconnect();
+  }, [measure]);
+
+  return (
+    <span ref={box} style={{ ...style, width, display: 'block', whiteSpace: 'nowrap' }}>
+      <span
+        ref={line}
+        style={{ display: 'inline-block', transform: `scale(${scale})`, transformOrigin: 'left center' }}
+      >
+        {children}
+      </span>
+    </span>
+  );
+}
+
+/**
+ * The month the programme was finished, in the certificate's own voice.
+ *
+ * A day number is noise on a document somebody hangs on a wall, and it dates
+ * the sheet far more precisely than anybody needs. Month and year is what a
+ * qualification is usually dated by.
+ */
 export function formatCertDate(iso: string | null) {
-  if (!iso) return 'Date to be confirmed';
-  return new Date(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' });
+  if (!iso) return 'DATE TO BE CONFIRMED';
+  return new Date(iso)
+    .toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })
+    .toUpperCase();
 }
 
 /**
@@ -13,47 +81,218 @@ export function formatCertDate(iso: string | null) {
 export type CertificateLike = Pick<
   Certificate & PublicCertificate,
   'programTitle' | 'learnerName' | 'completedAt' | 'certificateId' | 'modulesCompleted' | 'reviewsWritten'
->;
+> & { capstoneApproved?: boolean };
 
-/** Read-only render of a certificate (A4 landscape-ish), shared by the learner and public verification pages. */
+/**
+ * The sheet is drawn at 1200 × 848 and scales to whatever it is put in.
+ *
+ * Every measurement below is the number from the approved design, divided by
+ * twelve: the sheet is a container, so 100cqw is its width, which makes one
+ * design pixel one twelfth of a cqw at any size. Keeping the design's own
+ * numbers in the source means the next change to the artwork can be copied
+ * across as written, rather than translated and mistranslated.
+ */
+const u = (px: number) => `${(px / 12).toFixed(4)}cqw`;
+
+const INK = '#FBEFE6';
+const MUTED = '#F6D8C6';
+const GROUND = '#A8421F';
+const LETTER = '#B95733';
+
+/**
+ * ANANSE COMMS LAB down the margin, scattered and cropped by the edge of the
+ * sheet. The last two sit below the bottom edge on purpose: the word runs off
+ * the page rather than stopping politely inside it.
+ */
+const MARGIN_LETTERS: { ch: string; left: number; top: number; size: number; rot: number }[] = [
+  { ch: 'A', left: -16, top: -56, size: 128, rot: -9 },
+  { ch: 'N', left: 107, top: 16, size: 104, rot: 7 },
+  { ch: 'A', left: -7, top: 108, size: 118, rot: 4 },
+  { ch: 'N', left: 113, top: 202, size: 96, rot: -12 },
+  { ch: 'S', left: 0, top: 276, size: 126, rot: 10 },
+  { ch: 'E', left: 121, top: 378, size: 100, rot: -5 },
+  { ch: 'C', left: -12, top: 459, size: 112, rot: -8 },
+  { ch: 'O', left: 111, top: 543, size: 96, rot: 13 },
+  { ch: 'M', left: 2, top: 617, size: 120, rot: 5 },
+  { ch: 'M', left: 128, top: 715, size: 98, rot: -10 },
+  { ch: 'S', left: -9, top: 776, size: 110, rot: 8 },
+  { ch: 'L', left: 113, top: 868, size: 102, rot: -6 },
+  { ch: 'A', left: 8, top: 917, size: 116, rot: 11 },
+];
+
+/**
+ * Who signs it.
+ *
+ * The two blocks are set well apart and given their own width, because the
+ * names are very different lengths and a signature is written to fit its
+ * space rather than scaled to match its neighbour. The slight tilt is
+ * deliberate: a signature sitting perfectly level reads as type.
+ */
+const SIGNATORIES: { name: string; title: string; left: number; width: number; size: number; rot: number }[] = [
+  { name: 'Abiodun Salako', title: 'CO-FOUNDER', left: 650, width: 225, size: 40, rot: -2 },
+  { name: 'Rosemary Akpo-Ga Emmanuel', title: 'LEARNING MANAGER', left: 905, width: 255, size: 32, rot: 1.5 },
+];
+
+/**
+ * What this learner actually did, rather than the word "completed".
+ *
+ * Assembled from what is true of them: a cohort that wrote no critiques does
+ * not get a clause claiming any, and a programme with no capstone does not get
+ * one claiming a capstone. Built rather than written out, because every
+ * combination of the clauses has to read as English.
+ */
+function whatTheyDid(cert: CertificateLike): string {
+  const parts: string[] = [
+    `${cert.modulesCompleted} module${cert.modulesCompleted === 1 ? '' : 's'}`,
+  ];
+  if (cert.reviewsWritten > 0) {
+    parts.push(`${cert.reviewsWritten} peer critique${cert.reviewsWritten === 1 ? '' : 's'} written`);
+  }
+  if (cert.capstoneApproved) parts.push('a capstone read and approved by the Lab');
+
+  return parts.length === 1
+    ? parts[0]
+    : `${parts.slice(0, -1).join(', ')}, and ${parts[parts.length - 1]}`;
+}
+
+/** Read-only render of a certificate, shared by the learner and public pages. */
 export default function CertificateView({ cert }: { cert: CertificateLike }) {
   return (
-    <div className="w-full max-w-[960px] mx-auto aspect-[1.414] bg-[#F4F0E8] text-[#07111E] rounded-lg shadow-2xl p-8 md:p-14 relative overflow-hidden flex flex-col justify-between print:shadow-none print:rounded-none">
-      <div className="absolute top-0 left-0 w-28 h-28 border-t-8 border-l-8 border-[#F97316] rounded-tl-lg" />
-      <div className="absolute bottom-0 right-0 w-28 h-28 border-b-8 border-r-8 border-[#F97316] rounded-br-lg" />
+    <div
+      className="w-full max-w-[1200px] mx-auto shadow-2xl print:shadow-none"
+      style={{
+        containerType: 'inline-size',
+        aspectRatio: '1200 / 848',
+        background: GROUND,
+        color: INK,
+        fontFamily: "Archivo, 'Helvetica Neue', Arial, sans-serif",
+        position: 'relative',
+        overflow: 'hidden',
+      }}
+      data-print-root
+    >
+      {MARGIN_LETTERS.map((l, i) => (
+        <span
+          key={i}
+          aria-hidden
+          style={{
+            position: 'absolute',
+            left: u(l.left),
+            top: u(l.top),
+            fontSize: u(l.size),
+            fontWeight: 800,
+            lineHeight: 0.8,
+            color: LETTER,
+            transform: `rotate(${l.rot}deg)`,
+            userSelect: 'none',
+          }}
+        >
+          {l.ch}
+        </span>
+      ))}
 
-      <div className="text-center space-y-3 relative z-10">
-        <p className="font-display font-bold text-xl tracking-tight">Ananse Comms Lab</p>
-        <h1 className="text-3xl md:text-5xl font-display font-bold text-[#C2410C] uppercase tracking-widest">Certificate of Completion</h1>
-        <p className="text-[#5B6470] uppercase tracking-widest text-xs">This is to certify that</p>
-      </div>
+      <img
+        src={`${basePath}/logo-white.png`}
+        alt="Ananse Comms Lab"
+        style={{ position: 'absolute', right: u(62), top: u(57), height: u(133), width: u(327), display: 'block' }}
+      />
 
-      <div className="text-center relative z-10 py-4">
-        <div className="text-4xl md:text-6xl font-display font-bold border-b-2 border-[#07111E]/20 inline-block px-10 pb-3 mb-5">
-          {cert.learnerName}
-        </div>
-        <p className="text-[#5B6470]">produced and critiqued the coursework of</p>
-        <h2 className="text-xl md:text-2xl font-bold mt-3">{cert.programTitle}</h2>
-        {/* What the learner actually did carries more weight than "completed". */}
-        <p className="text-[11px] md:text-xs uppercase tracking-[0.2em] text-[#5B6470] mt-3">
-          {cert.modulesCompleted} module{cert.modulesCompleted === 1 ? '' : 's'}
-          {cert.reviewsWritten > 0 && <> · {cert.reviewsWritten} peer critique{cert.reviewsWritten === 1 ? '' : 's'} written</>}
-        </p>
-      </div>
+      <h1 style={{
+        position: 'absolute', left: u(211), top: u(227), margin: 0,
+        fontSize: u(80), fontWeight: 800, letterSpacing: '-0.015em', lineHeight: 0.98, color: INK,
+      }}>
+        CERTIFICATE
+      </h1>
 
-      <div className="flex justify-between items-end relative z-10 pt-6">
-        <div className="text-center">
-          <div className="text-sm border-b border-[#07111E]/30 pb-1.5 px-6 mb-1.5 font-semibold">{formatCertDate(cert.completedAt as unknown as string | null)}</div>
-          <p className="text-[10px] uppercase tracking-wider text-[#5B6470] font-bold">Date of completion</p>
+      <p style={{
+        position: 'absolute', left: u(211), top: u(321), width: u(535), margin: 0,
+        fontSize: u(20), letterSpacing: '0.12em', color: MUTED,
+      }}>
+        OF SUCCESSFUL PROGRAM COMPLETION
+      </p>
+
+      <div style={{ position: 'absolute', left: u(211), top: u(360), width: u(535), height: u(2), background: INK }} />
+
+      <p style={{
+        position: 'absolute', left: u(211), top: u(416), width: u(820), margin: 0,
+        fontSize: u(15), letterSpacing: '0.1em', color: MUTED,
+      }}>
+        THIS CERTIFICATE IS PRESENTED TO
+      </p>
+
+      <FitLine
+        width={u(600)}
+        style={{
+          position: 'absolute', left: u(211), top: u(445),
+          fontSize: u(48), fontWeight: 700, letterSpacing: '-0.01em', color: INK,
+        }}
+      >
+        {cert.learnerName}
+      </FitLine>
+
+      <p style={{
+        position: 'absolute', left: u(211), top: u(517), width: u(820), margin: 0,
+        fontSize: u(16), letterSpacing: '0.09em', color: MUTED,
+      }}>
+        {formatCertDate(cert.completedAt as unknown as string | null)}
+      </p>
+
+      <div style={{ position: 'absolute', left: u(211), top: u(580), width: u(380), height: u(1), background: INK }} />
+
+      <p style={{
+        position: 'absolute', left: u(211), top: u(614), width: u(390), margin: 0,
+        fontSize: u(15), lineHeight: 1.55, color: MUTED,
+      }}>
+        For completing{' '}
+        <span style={{ color: INK, fontWeight: 600 }}>{cert.programTitle}</span>
+        {' — '}{whatTheyDid(cert)}.
+      </p>
+
+      {SIGNATORIES.map((s) => (
+        <div key={s.name}>
+          <span style={{
+            position: 'absolute', left: u(s.left), top: u(597),
+            transform: `rotate(${s.rot}deg)`, transformOrigin: 'left bottom',
+          }}>
+            <FitLine
+              width={u(s.width)}
+              style={{
+                fontFamily: "'Mrs Saint Delafield', 'Snell Roundhand', cursive",
+                fontSize: u(s.size), lineHeight: 1, color: INK,
+              }}
+            >
+              {s.name}
+            </FitLine>
+          </span>
+          <FitLine
+            width={u(s.width)}
+            style={{
+              position: 'absolute', left: u(s.left + 6), top: u(644),
+              fontSize: u(15), fontWeight: 700, color: INK,
+            }}
+          >
+            {s.name}
+          </FitLine>
+          <p style={{
+            position: 'absolute', left: u(s.left + 6), top: u(665), width: u(s.width), margin: 0,
+            fontSize: u(13), letterSpacing: '0.05em', color: MUTED,
+          }}>
+            {s.title}
+          </p>
         </div>
-        <div className="w-20 h-20 rounded-full border-4 border-[#F97316] flex items-center justify-center bg-white shadow-sm">
-          <span className="text-[9px] font-bold uppercase tracking-widest text-[#C2410C] text-center leading-tight">Comms<br />Lab<br />Verified</span>
-        </div>
-        <div className="text-center">
-          <div className="text-sm border-b border-[#07111E]/30 pb-1.5 px-6 mb-1.5 font-mono">{cert.certificateId}</div>
-          <p className="text-[10px] uppercase tracking-wider text-[#5B6470] font-bold">Certificate ID</p>
-        </div>
-      </div>
+      ))}
+
+      {/*
+        The code, and where to check it. Without this the sheet cannot be
+        verified by anybody it is shown to, which is the one thing a
+        certificate from a young school has to be able to do.
+      */}
+      <p style={{
+        position: 'absolute', left: u(211), top: u(762), margin: 0,
+        fontSize: u(12), letterSpacing: '0.06em', color: MUTED,
+      }}>
+        {cert.certificateId} &nbsp;·&nbsp; verify at energycommslab.africa/verify
+      </p>
     </div>
   );
 }

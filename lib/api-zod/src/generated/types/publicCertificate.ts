@@ -16,5 +16,6 @@ export interface PublicCertificate {
   portfolioPublic: boolean;
   modulesCompleted: number;
   reviewsWritten: number;
+  capstoneApproved?: boolean;
   works: PortfolioWork[];
 }

@@ -28,6 +28,25 @@ const mocks = vi.hoisted(() => {
       body: "body",
       submittedAt: "submittedAt",
     },
+    /*
+      The two requirements that sit outside module completion.
+
+      The public verification route reads these now, because the sheet it feeds
+      says whether a capstone was approved. A table missing from this mock does
+      not fail as a missing table: the route reads a column off `undefined`,
+      throws, and the request falls through to the page handler — so the test
+      sees HTML where it expected JSON and reports a parse error rather than
+      the real fault. That has now cost an afternoon twice.
+    */
+    programFormsTable: { id: "id", programId: "programId", stage: "stage", draft: "draft" },
+    formResponsesTable: { userId: "userId", formId: "formId" },
+    capstonesTable: { id: "id", programId: "programId", draft: "draft" },
+    capstoneSubmissionsTable: {
+      capstoneId: "capstoneId",
+      userId: "userId",
+      status: "status",
+      attempt: "attempt",
+    },
   };
 
   let queryResults: unknown[][] = [];

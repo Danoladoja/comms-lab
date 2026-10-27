@@ -5074,6 +5074,10 @@ components:
         portfolioPublic: { type: boolean }
         modulesCompleted: { type: integer }
         reviewsWritten: { type: integer }
+        # Whether a published capstone was read and approved. False on a
+        # programme that has no capstone, so the sheet never claims one that
+        # did not exist.
+        capstoneApproved: { type: boolean }
     PublicCertificate:
       type: object
       required: [programTitle, learnerName, completedAt, certificateId, portfolioPublic, modulesCompleted, reviewsWritten, works]
@@ -5085,6 +5089,10 @@ components:
         portfolioPublic: { type: boolean }
         modulesCompleted: { type: integer }
         reviewsWritten: { type: integer }
+        # Whether a published capstone was read and approved. False on a
+        # programme that has no capstone, so the sheet never claims one that
+        # did not exist.
+        capstoneApproved: { type: boolean }
         # Only populated when the learner has opted their portfolio public.
         works:
           type: array

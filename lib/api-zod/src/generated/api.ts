@@ -1389,7 +1389,8 @@ export const ListMyCertificatesResponseItem = zod.object({
   "certificateId": zod.string(),
   "portfolioPublic": zod.boolean(),
   "modulesCompleted": zod.int(),
-  "reviewsWritten": zod.int()
+  "reviewsWritten": zod.int(),
+  "capstoneApproved": zod.boolean().optional()
 })
 export const ListMyCertificatesResponse = zod.array(ListMyCertificatesResponseItem)
 
@@ -1409,6 +1410,7 @@ export const VerifyCertificateResponse = zod.object({
   "portfolioPublic": zod.boolean(),
   "modulesCompleted": zod.int(),
   "reviewsWritten": zod.int(),
+  "capstoneApproved": zod.boolean().optional(),
   "works": zod.array(zod.object({
   "title": zod.string(),
   "body": zod.string(),
@@ -1436,7 +1438,8 @@ export const SetPortfolioVisibilityResponse = zod.object({
   "certificateId": zod.string(),
   "portfolioPublic": zod.boolean(),
   "modulesCompleted": zod.int(),
-  "reviewsWritten": zod.int()
+  "reviewsWritten": zod.int(),
+  "capstoneApproved": zod.boolean().optional()
 })
 
 
