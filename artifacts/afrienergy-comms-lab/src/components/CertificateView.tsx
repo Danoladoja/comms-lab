@@ -94,10 +94,12 @@ export type CertificateLike = Pick<
  */
 const u = (px: number) => `${(px / 12).toFixed(4)}cqw`;
 
-const INK = '#FBEFE6';
-const MUTED = '#F6D8C6';
-const GROUND = '#A8421F';
-const LETTER = '#B95733';
+const INK = '#1E3A2B';
+const MUTED = '#5A6B5F';
+const GROUND = '#F4F0E8';
+const LETTER = '#E3DCCD';
+const NAME = '#9C4521';
+const RULE = '#C9C0AE';
 
 /**
  * ANANSE COMMS LAB down the margin, scattered and cropped by the edge of the
@@ -192,9 +194,14 @@ export default function CertificateView({ cert }: { cert: CertificateLike }) {
       ))}
 
       <img
-        src={`${basePath}/logo-white.png`}
+        src={`${basePath}/logo.png`}
         alt="Ananse Comms Lab"
-        style={{ position: 'absolute', right: u(62), top: u(57), height: u(133), width: u(327), display: 'block' }}
+        /*
+          The mark is 456 × 160, so at this height it is 379 wide. It was set
+          to 327, which squeezed the wordmark by a sixth — visible on the
+          letterforms once the sheet is printed at any size.
+        */
+        style={{ position: 'absolute', right: u(62), top: u(57), height: u(133), width: u(379), display: 'block' }}
       />
 
       <h1 style={{
@@ -211,7 +218,7 @@ export default function CertificateView({ cert }: { cert: CertificateLike }) {
         OF SUCCESSFUL PROGRAM COMPLETION
       </p>
 
-      <div style={{ position: 'absolute', left: u(211), top: u(360), width: u(535), height: u(2), background: INK }} />
+      <div style={{ position: 'absolute', left: u(211), top: u(360), width: u(535), height: u(2), background: RULE }} />
 
       <p style={{
         position: 'absolute', left: u(211), top: u(416), width: u(820), margin: 0,
@@ -224,7 +231,7 @@ export default function CertificateView({ cert }: { cert: CertificateLike }) {
         width={u(600)}
         style={{
           position: 'absolute', left: u(211), top: u(445),
-          fontSize: u(48), fontWeight: 700, letterSpacing: '-0.01em', color: INK,
+          fontSize: u(48), fontWeight: 700, letterSpacing: '-0.01em', color: NAME,
         }}
       >
         {cert.learnerName}
@@ -237,7 +244,7 @@ export default function CertificateView({ cert }: { cert: CertificateLike }) {
         {formatCertDate(cert.completedAt as unknown as string | null)}
       </p>
 
-      <div style={{ position: 'absolute', left: u(211), top: u(580), width: u(380), height: u(1), background: INK }} />
+      <div style={{ position: 'absolute', left: u(211), top: u(580), width: u(380), height: u(1), background: RULE }} />
 
       <p style={{
         position: 'absolute', left: u(211), top: u(614), width: u(390), margin: 0,
