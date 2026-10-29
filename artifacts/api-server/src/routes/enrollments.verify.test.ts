@@ -138,7 +138,7 @@ describe("GET /certificates/:certificateId/verify", () => {
         status: "enrolled",
       }],
       [{ title: "Energy Reporting" }],
-      [{ name: "Amina Diallo" }],
+      [{ name: "Amina Diallo", email: "amina@example.com" }],
       [{ programId: 3, lastEnd: "2026-08-20T12:00:00.000Z" }],
     ]);
     mocks.progressForUser.mockResolvedValue(completedProgress);
@@ -228,7 +228,7 @@ describe("GET /certificates/:certificateId/verify", () => {
         status: "completed",
       }],
       [{ title: "Energy Reporting" }],
-      [{ name: "Amina Diallo" }],
+      [{ name: "Amina Diallo", email: "amina@example.com" }],
       [{ programId: 3, lastEnd: "2026-08-20T12:00:00.000Z" }],
       [{
         title: "Write a dispatch",
@@ -247,6 +247,34 @@ describe("GET /certificates/:certificateId/verify", () => {
       body: "A concise submitted dispatch.",
       submittedAt: "2026-08-19T09:00:00.000Z",
     }]);
+  });
+
+  it("returns 404 when the Lab has no name to print, rather than publishing an address", async () => {
+    /*
+      Clerk does not ask for a first or last name, so sign-in writes the email
+      address into the name column as a stand-in. This page was publishing it —
+      a graduate's inbox, on a sheet anybody with the link could read. The
+      learner's own page withholds the certificate until they give a name, so
+      this one has to agree.
+    */
+    mocks.setQueryResults([
+      [{
+        userId: 7,
+        programId: 3,
+        portfolioPublic: false,
+        certificateCode: CODE,
+        status: "completed",
+      }],
+      [{ title: "Energy Reporting" }],
+      [{ name: "amina@example.com", email: "amina@example.com" }],
+      [{ programId: 3, lastEnd: "2026-08-20T12:00:00.000Z" }],
+    ]);
+    mocks.progressForUser.mockResolvedValue(completedProgress);
+
+    const { response, body } = await verify(CODE);
+
+    expect(response.status).toBe(404);
+    expect(body).toEqual({ error: "Certificate not found" });
   });
 
   it("returns 404 when the certificate owner no longer exists", async () => {

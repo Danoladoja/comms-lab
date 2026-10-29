@@ -143,6 +143,7 @@ export * from './latePassResult';
 export * from './latePassStatus';
 export * from './latePassStatusOpens';
 export * from './latePassStatusState';
+export * from './learnerNameInput';
 export * from './learnerRecord';
 export * from './learnerRecordAccountsItem';
 export * from './learnerRecordAccountsItemEnrolmentsItem';

@@ -5,6 +5,7 @@ import {
 } from "@workspace/db";
 import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
 import {
+  certificateName,
   effectiveRole,
   generateCertificateCode,
   invitableRoleFromPublicMetadata,
@@ -39,7 +40,12 @@ async function loadUserRow(req: Request): Promise<User | null> {
     // unreachable. Repair it now rather than leaving the person a nameless
     // learner forever — an invited facilitator would otherwise never get their
     // role or their classes, and an admin could not even identify them.
-    const user = existing[0].email === "" ? await repairUser(existing[0]) : existing[0];
+    let user = existing[0].email === "" ? await repairUser(existing[0]) : existing[0];
+    // Somebody who signed up without a name, and has since added one in their
+    // account. Picked up here rather than only at first sight, because the row
+    // was written once and never looked at again — so a learner who corrected
+    // their name stayed an email address on their certificate forever.
+    if (!certificateName(user)) user = await fillInMissingName(user);
     userCache.set(req, user);
     return user;
   }
@@ -219,6 +225,10 @@ async function fetchProfile(clerkUserId: string): Promise<Profile | null> {
     const email = primary?.emailAddress ?? "";
     return {
       email,
+      // Clerk does not require a first or last name, so this falls back to the
+      // address — an admin reading a register needs something to read. It is
+      // never printed as a name: see `certificateName` in the domain, which
+      // every sheet asks before printing one.
       name: [cu.firstName, cu.lastName].filter(Boolean).join(" ") || email,
       emailVerified: primary?.verification?.status === "verified",
       // SECURITY: publicMetadata only, and only the roles an invitation is
@@ -262,6 +272,44 @@ async function repairUser(user: User): Promise<User> {
   if (profile.emailVerified) await claimInvitation(repaired, profile.email);
   logger.info({ userId: user.id }, "Repaired a user row provisioned during a Clerk outage");
   return repaired;
+}
+
+/**
+ * When this row was last asked about, so a Lab full of learners who have no
+ * name anywhere does not mean a Clerk call on every page view.
+ *
+ * In memory on purpose: it is a rate limit, not a record. A restart losing it
+ * costs one extra Clerk call per person and nothing else.
+ */
+const nameAskedAt = new Map<string, number>();
+const ASK_CLERK_AGAIN_AFTER_MS = 10 * 60 * 1000;
+
+/**
+ * Fetch a name from Clerk for a row that has none the Lab can print.
+ *
+ * Only ever fills a gap. A name a learner typed into the Lab is left exactly
+ * as they typed it — Clerk's copy is a starting point, not the authority, and
+ * overwriting from it would undo the correction they made to get their own
+ * certificate right.
+ */
+async function fillInMissingName(user: User): Promise<User> {
+  const lastAsked = nameAskedAt.get(user.clerkUserId) ?? 0;
+  if (Date.now() - lastAsked < ASK_CLERK_AGAIN_AFTER_MS) return user;
+  // Bounded rather than left to grow for the life of the process.
+  if (nameAskedAt.size > 5000) nameAskedAt.clear();
+  nameAskedAt.set(user.clerkUserId, Date.now());
+
+  const profile = await fetchProfile(user.clerkUserId);
+  const found = certificateName({ name: profile?.name, email: profile?.email ?? user.email });
+  if (!found) return user;
+
+  const [updated] = await db
+    .update(usersTable)
+    .set({ name: found })
+    .where(eq(usersTable.id, user.id))
+    .returning();
+  logger.info({ userId: user.id }, "Filled in a name Clerk had and the Lab did not");
+  return updated ?? user;
 }
 
 export async function requireAuth(req: Request, res: Response, next: NextFunction) {

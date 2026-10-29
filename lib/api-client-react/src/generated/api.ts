@@ -96,6 +96,7 @@ import type {
   LateEnrolmentResult,
   LatePassClaim,
   LatePassResult,
+  LearnerNameInput,
   LearnerRecord,
   ListAllEnrollmentsParams,
   LiveSession,
@@ -384,6 +385,77 @@ export function useGetMe<TData = Awaited<ReturnType<typeof getMe>>, TError = Err
 
 
 
+
+export const getSetMyNameUrl = () => {
+
+
+
+
+  return `/api/me/name`
+}
+
+/**
+ * @summary Set the name to print on my certificates
+ */
+export const setMyName = async (learnerNameInput: LearnerNameInput, options?: Parameters<typeof customFetch>[1]): Promise<User> => {
+
+  return customFetch<User>(getSetMyNameUrl(),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(learnerNameInput)
+  }
+);}
+
+
+
+
+
+export const getSetMyNameMutationOptions = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setMyName>>, TError,{data: BodyType<LearnerNameInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof setMyName>>, TError,{data: BodyType<LearnerNameInput>}, TContext> => {
+
+const mutationKey = ['setMyName'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof setMyName>>, {data: BodyType<LearnerNameInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  setMyName(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SetMyNameMutationResult = NonNullable<Awaited<ReturnType<typeof setMyName>>>
+    export type SetMyNameMutationBody = BodyType<LearnerNameInput>
+    export type SetMyNameMutationError = ErrorType<ApiMessage>
+
+    /**
+ * @summary Set the name to print on my certificates
+ */
+export const useSetMyName = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setMyName>>, TError,{data: BodyType<LearnerNameInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof setMyName>>,
+        TError,
+        {data: BodyType<LearnerNameInput>},
+        TContext
+      > => {
+      return useMutation(getSetMyNameMutationOptions(options));
+    }
 
 export const getListProgramsUrl = () => {
 

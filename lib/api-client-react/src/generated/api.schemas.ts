@@ -334,7 +334,16 @@ export interface User {
   clerkUserId: string;
   email: string;
   name: string;
+  printableName?: string;
   role: UserRole;
+}
+
+export interface LearnerNameInput {
+  /**
+     * @minLength 1
+     * @maxLength 80
+     */
+  name: string;
 }
 
 export interface JoinResult {
@@ -2379,6 +2388,7 @@ export interface PendingCertificate {
   surveyOutstanding: boolean;
   /** @nullable */
   capstoneStatus?: string | null;
+  nameOutstanding?: boolean;
 }
 
 export type MyStudioExerciseState = typeof MyStudioExerciseState[keyof typeof MyStudioExerciseState];

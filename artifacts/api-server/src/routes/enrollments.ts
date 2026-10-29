@@ -18,6 +18,7 @@ import {
   maySeeTaughtCohort,
   normaliseMeetUrl,
   certificateHeldBy,
+  certificateName,
 } from "@workspace/domain";
 import { SetPortfolioVisibilityBody } from "@workspace/api-zod";
 import { getCurrentUser } from "../lib/auth";
@@ -362,11 +363,22 @@ router.get("/my/certificates", async (req, res) => {
     return;
   }
 
+  /*
+    The name the sheet will carry. Null when the Lab does not actually know it
+    — Clerk does not ask for one at sign-up, and the address it leaves behind
+    was being printed in the middle of the certificate. A sheet with no name is
+    withheld here and appears in the pending list instead, next to a box to
+    type one into. It is a hold, not a silence.
+  */
+  const printableName = certificateName(user);
+
   const outstanding = await whatIsOutstanding(user.id, byWork);
-  const completedProgramIds = byWork.filter((id) => {
-    const o = outstanding.get(id);
-    return !o || (!o.surveyOutstanding && !o.capstoneOutstanding);
-  });
+  const completedProgramIds = printableName === null
+    ? []
+    : byWork.filter((id) => {
+      const o = outstanding.get(id);
+      return !o || (!o.surveyOutstanding && !o.capstoneOutstanding);
+    });
   if (completedProgramIds.length === 0) {
     res.json([]);
     return;
@@ -397,7 +409,7 @@ router.get("/my/certificates", async (req, res) => {
       return [{
         programId: p.id,
         programTitle: p.title,
-        learnerName: user.name,
+        learnerName: printableName,
         completedAt: lastEnds.get(p.id) ? new Date(lastEnds.get(p.id)!).toISOString() : null,
         certificateId: enrollment.certificateCode,
         portfolioPublic: enrollment.portfolioPublic,
@@ -427,8 +439,11 @@ router.get("/my/certificates/pending", async (req, res) => {
   const byWork = completedProgramIdsFrom(progress);
   if (byWork.length === 0) { res.json([]); return; }
 
+  const nameOutstanding = certificateName(user) === null;
+
   const outstanding = await whatIsOutstanding(user.id, byWork);
   const held = byWork.filter((id) => {
+    if (nameOutstanding) return true;
     const o = outstanding.get(id);
     return Boolean(o && (o.surveyOutstanding || o.capstoneOutstanding));
   });
@@ -440,22 +455,30 @@ router.get("/my/certificates/pending", async (req, res) => {
     .where(inArray(programsTable.id, held));
 
   res.json(programs.flatMap((p) => {
+    /*
+      A programme can be held by the name alone, in which case `whatIsOutstanding`
+      has nothing to say about it. Returning early on a missing entry, as this
+      did, would drop it from the list — and a learner with every box ticked but
+      no name would be shown an empty page again, which is the fault this route
+      was written to end.
+    */
     const o = outstanding.get(p.id);
-    if (!o) return [];
     const waitingOn = certificateHeldBy({
       workDone: true,
-      surveyOutstanding: o.surveyOutstanding,
-      capstoneOutstanding: o.capstoneOutstanding,
-      capstoneStatus: o.capstoneStatus,
+      surveyOutstanding: o?.surveyOutstanding ?? false,
+      capstoneOutstanding: o?.capstoneOutstanding ?? false,
+      capstoneStatus: o?.capstoneStatus ?? null,
+      nameMissing: nameOutstanding,
     });
     if (!waitingOn) return [];
     return [{
       programId: p.id,
       programTitle: p.title,
       waitingOn,
-      capstoneOutstanding: o.capstoneOutstanding,
-      surveyOutstanding: o.surveyOutstanding,
-      capstoneStatus: o.capstoneStatus,
+      capstoneOutstanding: o?.capstoneOutstanding ?? false,
+      surveyOutstanding: o?.surveyOutstanding ?? false,
+      capstoneStatus: o?.capstoneStatus ?? null,
+      nameOutstanding,
     }];
   }));
 });
@@ -499,7 +522,7 @@ router.patch("/my/certificates/:programId/portfolio", async (req, res) => {
   res.json({
     programId,
     programTitle: program?.title ?? "",
-    learnerName: user.name,
+    learnerName: certificateName(user) ?? "",
     completedAt: lastEnds.get(programId) ? new Date(lastEnds.get(programId)!).toISOString() : null,
     certificateId: updated.certificateCode,
     portfolioPublic: updated.portfolioPublic,
@@ -548,12 +571,29 @@ router.get("/certificates/:certificateId/verify", async (req, res) => {
 
   const [programRows, learnerRows, lastEnds] = await Promise.all([
     db.select({ title: programsTable.title }).from(programsTable).where(eq(programsTable.id, enrollment.programId)),
-    db.select({ name: usersTable.name }).from(usersTable).where(eq(usersTable.id, enrollment.userId)),
+    // The address as well as the name, because telling one from the other is
+    // how this page avoids publishing somebody's inbox as their name.
+    db
+      .select({ name: usersTable.name, email: usersTable.email })
+      .from(usersTable)
+      .where(eq(usersTable.id, enrollment.userId)),
     lastEndByProgram([enrollment.programId]),
   ]);
   const program = programRows[0];
   const learner = learnerRows[0];
   if (!program || !learner) {
+    res.status(404).json({ error: "Certificate not found" });
+    return;
+  }
+
+  /*
+    A certificate the Lab has not issued cannot be verified. The learner's own
+    page withholds it while there is no name to print, so the public page has
+    to agree — otherwise a shared link would render a sheet made out to an
+    email address that the graduate was never shown and could not correct.
+  */
+  const verifiedName = certificateName(learner);
+  if (!verifiedName) {
     res.status(404).json({ error: "Certificate not found" });
     return;
   }
@@ -592,7 +632,7 @@ router.get("/certificates/:certificateId/verify", async (req, res) => {
 
   res.json({
     programTitle: program.title,
-    learnerName: learner.name,
+    learnerName: verifiedName,
     completedAt: lastEnds.get(enrollment.programId)
       ? new Date(lastEnds.get(enrollment.programId)!).toISOString()
       : null,

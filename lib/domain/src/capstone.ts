@@ -237,6 +237,13 @@ export type CertificateFacts = {
   capstoneOutstanding: boolean;
   /** What the learner's capstone is doing, when one is outstanding. */
   capstoneStatus: string | null;
+  /**
+   * The Lab does not know the name to print. See `learnerName.ts`: Clerk does
+   * not ask for one, so this is common rather than exotic, and it has to be a
+   * hold like the others — issuing the sheet anyway is how it came to carry an
+   * email address.
+   */
+  nameMissing?: boolean;
 };
 
 /**
@@ -263,6 +270,9 @@ export function certificateHeldBy(f: CertificateFacts): string | null {
     );
   }
   if (f.surveyOutstanding) waits.push("the closing survey");
+  // Last in the list, because it is the one the learner can clear in ten
+  // seconds, and a sentence reads better ending on the easy thing.
+  if (f.nameMissing) waits.push("the name you would like printed on it");
   if (waits.length === 0) return null;
 
   const list = waits.length === 1 ? waits[0] : waits.join(", and ");

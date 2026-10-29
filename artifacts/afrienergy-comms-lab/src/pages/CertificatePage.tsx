@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { Link, useParams } from 'wouter';
-import { useListMyCertificates } from '@workspace/api-client-react';
+import { useListMyCertificates, useListPendingCertificates } from '@workspace/api-client-react';
 import { Button } from '@/components/ui/button';
 import { Download, Home, Award, Link2, Check, Linkedin } from 'lucide-react';
 import CertificateView from '@/components/CertificateView';
+import NameOnYourCertificate from '@/components/NameOnYourCertificate';
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, '');
 
@@ -16,7 +17,15 @@ export default function CertificatePage() {
   const params = useParams<{ id: string }>();
   const programId = Number(params.id);
   const { data: certificates = [], isLoading } = useListMyCertificates();
+  /*
+    Why it is not here, when it is not here. Arriving at this page from a
+    bookmark and being told to go and finish the modules — when every module is
+    finished and the hold is a survey, a capstone or a missing name — is the
+    same fault the pending route was written to end, and this page still had it.
+  */
+  const { data: pending = [] } = useListPendingCertificates();
   const cert = certificates.find(c => c.programId === programId);
+  const held = pending.find(p => p.programId === programId);
   const [copied, setCopied] = useState(false);
 
   if (isLoading) {
@@ -27,12 +36,22 @@ export default function CertificatePage() {
     return (
       <div className="min-h-screen bg-[#07111E] text-[#F4F0E8] flex flex-col items-center justify-center text-center px-4">
         <Award className="w-10 h-10 text-[#F4F0E8]/40 mb-3" />
-        <h1 className="text-2xl font-display font-bold mb-2">Certificate not available</h1>
+        <h1 className="text-2xl font-display font-bold mb-2">
+          {held ? 'Nearly there' : 'Certificate not available'}
+        </h1>
         <p className="text-sm text-[#F4F0E8]/70 mb-6 max-w-md">
-          This certificate is issued once every module of the program is completed. Keep going, you are closer than you think.
+          {held?.waitingOn
+            ?? 'This certificate is issued once every module of the program is completed. Keep going, you are closer than you think.'}
         </p>
+        {held?.nameOutstanding && (
+          <div className="text-left w-full max-w-xl mb-6 [&_.text-muted-foreground]:text-[#F4F0E8]/70">
+            <NameOnYourCertificate />
+          </div>
+        )}
         <Button asChild variant="outline" className="bg-transparent border-white/20 text-[#F4F0E8] hover:bg-white/10">
-          <Link href="/dashboard"><Home className="w-4 h-4 mr-2" />Back to dashboard</Link>
+          <Link href={held ? '/certificates' : '/dashboard'}>
+            <Home className="w-4 h-4 mr-2" />{held ? 'My certificates' : 'Back to dashboard'}
+          </Link>
         </Button>
       </div>
     );

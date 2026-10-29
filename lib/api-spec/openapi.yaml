@@ -52,6 +52,36 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiMessage"
+  /me/name:
+    put:
+      operationId: setMyName
+      tags: [me]
+      summary: Set the name to print on my certificates
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LearnerNameInput"
+      responses:
+        "200":
+          description: Updated user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "400":
+          description: Not a usable name
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "401":
+          description: Not signed in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
   /programs:
     get:
       operationId: listPrograms
@@ -5050,7 +5080,15 @@ components:
         clerkUserId: { type: string }
         email: { type: string }
         name: { type: string }
+        # The name a certificate can carry, or "" when the Lab does not know
+        # it. `name` above may still be the email address Clerk left behind.
+        printableName: { type: string }
         role: { type: string, enum: [learner, instructor, admin, superadmin] }
+    LearnerNameInput:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 80 }
     JoinResult:
       type: object
       required: [sessionId, joinedAt, countedAsOnTime]
@@ -7107,6 +7145,10 @@ components:
         capstoneOutstanding: { type: boolean }
         surveyOutstanding: { type: boolean }
         capstoneStatus: { type: ["string", "null"] }
+        # The Lab has no name it can print. Not per-programme — it is the same
+        # answer for every one of them — but it belongs here because it holds
+        # the certificate up exactly like the other two.
+        nameOutstanding: { type: boolean }
     MyStudioExercise:
       type: object
       required: [hasInvitation]

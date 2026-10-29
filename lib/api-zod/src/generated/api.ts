@@ -25,6 +25,28 @@ export const GetMeResponse = zod.object({
   "clerkUserId": zod.string(),
   "email": zod.string(),
   "name": zod.string(),
+  "printableName": zod.string().optional(),
+  "role": zod.enum(['learner', 'instructor', 'admin', 'superadmin'])
+})
+
+
+/**
+ * @summary Set the name to print on my certificates
+ */
+export const setMyNameBodyNameMax = 80;
+
+
+
+export const SetMyNameBody = zod.object({
+  "name": zod.string().min(1).max(setMyNameBodyNameMax)
+})
+
+export const SetMyNameResponse = zod.object({
+  "id": zod.int(),
+  "clerkUserId": zod.string(),
+  "email": zod.string(),
+  "name": zod.string(),
+  "printableName": zod.string().optional(),
   "role": zod.enum(['learner', 'instructor', 'admin', 'superadmin'])
 })
 
@@ -1605,6 +1627,7 @@ export const ListUsersResponseItem = zod.object({
   "clerkUserId": zod.string(),
   "email": zod.string(),
   "name": zod.string(),
+  "printableName": zod.string().optional(),
   "role": zod.enum(['learner', 'instructor', 'admin', 'superadmin'])
 })
 export const ListUsersResponse = zod.array(ListUsersResponseItem)
@@ -1904,6 +1927,7 @@ export const UpdateUserRoleResponse = zod.object({
   "clerkUserId": zod.string(),
   "email": zod.string(),
   "name": zod.string(),
+  "printableName": zod.string().optional(),
   "role": zod.enum(['learner', 'instructor', 'admin', 'superadmin'])
 })
 
@@ -5401,7 +5425,8 @@ export const ListPendingCertificatesResponseItem = zod.object({
   "waitingOn": zod.string(),
   "capstoneOutstanding": zod.boolean(),
   "surveyOutstanding": zod.boolean(),
-  "capstoneStatus": zod.string().nullish()
+  "capstoneStatus": zod.string().nullish(),
+  "nameOutstanding": zod.boolean().optional()
 })
 export const ListPendingCertificatesResponse = zod.array(ListPendingCertificatesResponseItem)
 

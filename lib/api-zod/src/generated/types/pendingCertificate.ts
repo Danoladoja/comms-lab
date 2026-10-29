@@ -14,4 +14,5 @@ export interface PendingCertificate {
   surveyOutstanding: boolean;
   /** @nullable */
   capstoneStatus?: string | null;
+  nameOutstanding?: boolean;
 }

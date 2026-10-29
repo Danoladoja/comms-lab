@@ -3,6 +3,7 @@ import { useListMyCertificates, useListPendingCertificates } from '@workspace/ap
 import { Award, ArrowRight, Clock, FileText } from 'lucide-react';
 import { Link as WLink } from 'wouter';
 import { CouldNotLoad } from '@/components/CouldNotLoad';
+import NameOnYourCertificate from '@/components/NameOnYourCertificate';
 
 function formatDate(iso: string | null) {
   if (!iso) return 'Date to be confirmed';
@@ -39,6 +40,14 @@ export default function Certificates() {
           You earn a certificate when you complete every module of a program: attend live, pass the quizzes, and submit the assignments.
         </p>
       </div>
+
+      {/*
+        Above the lists rather than inside the pending card, because the name
+        is not per-programme and because somebody still working through their
+        first module should be able to set it now rather than discover the
+        question on the day they finish.
+      */}
+      <NameOnYourCertificate />
 
       {isLoading ? (
         <div className="grid md:grid-cols-2 gap-6 max-w-3xl">
@@ -100,6 +109,11 @@ export default function Certificates() {
                           <FileText className="w-4 h-4" aria-hidden />
                           {p.capstoneStatus === 'returned' ? 'Rework your capstone' : 'Write your capstone'}
                         </WLink>
+                      )}
+                      {p.nameOutstanding && (
+                        <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-muted-foreground">
+                          <ArrowRight className="w-4 h-4" aria-hidden /> Add your name at the top of this page
+                        </span>
                       )}
                       {p.surveyOutstanding && (
                         <WLink
