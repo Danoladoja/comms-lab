@@ -94,12 +94,40 @@ export type CertificateLike = Pick<
  */
 const u = (px: number) => `${(px / 12).toFixed(4)}cqw`;
 
-const INK = '#1E3A2B';
-const MUTED = '#5A6B5F';
-const GROUND = '#F4F0E8';
-const LETTER = '#E3DCCD';
-const NAME = '#9C4521';
-const RULE = '#C9C0AE';
+/**
+ * The two finishes, as colour and nothing else.
+ *
+ * Every measurement, every word and every mark on the sheet is shared; only
+ * these six values change. Kept as a pair of tables rather than two components
+ * so that a change to the layout can never land on one finish and miss the
+ * other — which is how a Lab ends up quietly issuing two different documents.
+ *
+ * `logo` matters more than it looks: the white wordmark disappears on cream
+ * and the full-colour one disappears on clay, so the sheet carries the right
+ * one rather than the same one twice.
+ */
+const FINISHES = {
+  clay: {
+    ink: '#FBEFE6',
+    muted: '#F6D8C6',
+    ground: '#A8421F',
+    letter: '#B95733',
+    name: '#FBEFE6',
+    rule: '#FBEFE6',
+    logo: 'logo-white.png',
+  },
+  cream: {
+    ink: '#1E3A2B',
+    muted: '#5A6B5F',
+    ground: '#F4F0E8',
+    letter: '#E3DCCD',
+    name: '#9C4521',
+    rule: '#C9C0AE',
+    logo: 'logo.png',
+  },
+} as const;
+
+export type CertificateFinishName = keyof typeof FINISHES;
 
 /**
  * ANANSE COMMS LAB down the margin, scattered and cropped by the edge of the
@@ -158,7 +186,14 @@ function whatTheyDid(cert: CertificateLike): string {
 }
 
 /** Read-only render of a certificate, shared by the learner and public pages. */
-export default function CertificateView({ cert }: { cert: CertificateLike }) {
+export default function CertificateView(
+  { cert, finish = 'clay' }: { cert: CertificateLike; finish?: CertificateFinishName },
+) {
+  // Unknown values fall back rather than rendering a sheet with no colours at
+  // all: this is read from a database column a learner may never have set.
+  const { ink: INK, muted: MUTED, ground: GROUND, letter: LETTER, name: NAME, rule: RULE, logo: LOGO } =
+    FINISHES[finish] ?? FINISHES.clay;
+
   return (
     <div
       className="w-full max-w-[1200px] mx-auto shadow-2xl print:shadow-none"
@@ -194,7 +229,7 @@ export default function CertificateView({ cert }: { cert: CertificateLike }) {
       ))}
 
       <img
-        src={`${basePath}/logo.png`}
+        src={`${basePath}/${LOGO}`}
         alt="Ananse Comms Lab"
         /*
           The mark is 456 × 160, so at this height it is 379 wide. It was set

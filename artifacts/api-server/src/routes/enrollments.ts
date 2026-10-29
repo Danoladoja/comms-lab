@@ -19,6 +19,7 @@ import {
   normaliseMeetUrl,
   certificateHeldBy,
   certificateName,
+  certificateFinishOrDefault,
 } from "@workspace/domain";
 import { SetPortfolioVisibilityBody } from "@workspace/api-zod";
 import { getCurrentUser } from "../lib/auth";
@@ -416,6 +417,9 @@ router.get("/my/certificates", async (req, res) => {
         modulesCompleted: entries.length,
         reviewsWritten: entries.reduce((sum, e) => sum + e.reviewsGiven, 0),
         capstoneApproved: outstanding.get(p.id)?.capstoneApproved ?? false,
+        // Null when they have not chosen yet: the page shows both finishes and
+        // withholds the download until they do.
+        finish: user.certificateFinish,
       }];
     }),
   );
@@ -574,7 +578,11 @@ router.get("/certificates/:certificateId/verify", async (req, res) => {
     // The address as well as the name, because telling one from the other is
     // how this page avoids publishing somebody's inbox as their name.
     db
-      .select({ name: usersTable.name, email: usersTable.email })
+      .select({
+        name: usersTable.name,
+        email: usersTable.email,
+        certificateFinish: usersTable.certificateFinish,
+      })
       .from(usersTable)
       .where(eq(usersTable.id, enrollment.userId)),
     lastEndByProgram([enrollment.programId]),
@@ -641,6 +649,13 @@ router.get("/certificates/:certificateId/verify", async (req, res) => {
     modulesCompleted: entries.length,
     reviewsWritten: entries.reduce((sum, e) => sum + e.reviewsGiven, 0),
     capstoneApproved: publicOutstanding.get(enrollment.programId)?.capstoneApproved ?? false,
+    /*
+      Always a real finish here. A stranger checking a certificate is not the
+      person who gets to choose its colour, and refusing to render a sheet
+      somebody earned because of an unanswered question about its colour would
+      be absurd — so an unchosen one falls back rather than blanking the page.
+    */
+    finish: certificateFinishOrDefault(learner.certificateFinish),
     works,
   });
 });

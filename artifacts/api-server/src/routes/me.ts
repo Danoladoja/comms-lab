@@ -1,10 +1,10 @@
 import { Router, type IRouter } from "express";
 import { db, usersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
-import { certificateName, learnerNameProblem } from "@workspace/domain";
+import { certificateName, isCertificateFinish, learnerNameProblem } from "@workspace/domain";
 // The runtime validator Orval derives from the operation, not the component
 // type of the same shape — the component only produces a TypeScript interface.
-import { SetMyNameBody } from "@workspace/api-zod";
+import { SetMyCertificateFinishBody, SetMyNameBody } from "@workspace/api-zod";
 import { currentRole, getCurrentUser } from "../lib/auth";
 
 const router: IRouter = Router();
@@ -28,6 +28,8 @@ router.get("/me", async (req, res) => {
       having to work out for itself whether the one it holds is real.
     */
     printableName: certificateName(user) ?? "",
+    // Null until they have opened a certificate and chosen a finish.
+    certificateFinish: user.certificateFinish,
     // The effective role, not the stored one. A super admin was being sent
     // their database row, and every gate in the browser compares against
     // "admin" — so an appointed super admin was locked out of the console they
@@ -82,6 +84,50 @@ router.put("/me/name", async (req, res) => {
     email: updated.email,
     name: updated.name,
     printableName: certificateName(updated) ?? "",
+    certificateFinish: updated.certificateFinish,
+    role: (await currentRole(req)) ?? updated.role,
+  });
+});
+
+/**
+ * Which of the two sheets my certificates are printed on.
+ *
+ * Writing this is also the Lab's record that the learner opened their own
+ * certificate and looked at it: the page shows both finishes with their real
+ * name and programme on them, and will not offer a download until one of them
+ * has been chosen. That is the point of the step, and the reason the column
+ * starts null rather than defaulted.
+ */
+router.put("/me/certificate-finish", async (req, res) => {
+  const user = await getCurrentUser(req);
+  if (!user) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+
+  const parsed = SetMyCertificateFinishBody.safeParse(req.body);
+  if (!parsed.success || !isCertificateFinish(parsed.data.finish)) {
+    res.status(400).json({ error: "Choose one of the finishes the Lab issues" });
+    return;
+  }
+
+  const [updated] = await db
+    .update(usersTable)
+    .set({ certificateFinish: parsed.data.finish })
+    .where(eq(usersTable.id, user.id))
+    .returning();
+  if (!updated) {
+    res.status(404).json({ error: "No such account" });
+    return;
+  }
+
+  res.json({
+    id: updated.id,
+    clerkUserId: updated.clerkUserId,
+    email: updated.email,
+    name: updated.name,
+    printableName: certificateName(updated) ?? "",
+    certificateFinish: updated.certificateFinish,
     role: (await currentRole(req)) ?? updated.role,
   });
 });

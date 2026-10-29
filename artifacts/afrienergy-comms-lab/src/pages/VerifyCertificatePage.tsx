@@ -3,6 +3,7 @@ import { useVerifyCertificate, getVerifyCertificateQueryKey } from '@workspace/a
 import { Button } from '@/components/ui/button';
 import { BadgeCheck, ShieldX, Home, FileText, MessagesSquare } from 'lucide-react';
 import CertificateView, { formatCertDate } from '@/components/CertificateView';
+import { isCertificateFinish } from '@workspace/domain';
 
 /**
  * Public, read-only verification. No sign-in.
@@ -53,7 +54,12 @@ export default function VerifyCertificatePage() {
           </div>
         </div>
 
-        <CertificateView cert={cert} />
+        {/*
+          The finish the learner chose. The server never sends null here — a
+          stranger checking a certificate is not the person who picks its
+          colour — but the fallback is spelt out rather than assumed.
+        */}
+        <CertificateView cert={cert} finish={isCertificateFinish(cert.finish) ? cert.finish : 'clay'} />
 
         <div className="flex flex-wrap justify-center gap-x-8 gap-y-2 mt-8 text-sm text-[#F4F0E8]/80">
           <span className="inline-flex items-center gap-2">

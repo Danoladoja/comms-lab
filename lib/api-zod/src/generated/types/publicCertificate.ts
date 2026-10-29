@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { PortfolioWork } from './portfolioWork';
+import type { PublicCertificateFinish } from './publicCertificateFinish';
 
 export interface PublicCertificate {
   programTitle: string;
@@ -17,5 +18,6 @@ export interface PublicCertificate {
   modulesCompleted: number;
   reviewsWritten: number;
   capstoneApproved?: boolean;
+  finish?: PublicCertificateFinish;
   works: PortfolioWork[];
 }

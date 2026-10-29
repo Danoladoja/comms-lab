@@ -82,6 +82,36 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiMessage"
+  /me/certificate-finish:
+    put:
+      operationId: setMyCertificateFinish
+      tags: [me]
+      summary: Choose which finish my certificates are printed on
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CertificateFinishInput"
+      responses:
+        "200":
+          description: Updated user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "400":
+          description: Not a finish the Lab issues
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "401":
+          description: Not signed in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
   /programs:
     get:
       operationId: listPrograms
@@ -5083,12 +5113,21 @@ components:
         # The name a certificate can carry, or "" when the Lab does not know
         # it. `name` above may still be the email address Clerk left behind.
         printableName: { type: string }
+        # Which sheet their certificates print on. Null until they have opened
+        # one, checked the details and chosen — it is the record that somebody
+        # actually looked, so it is deliberately not defaulted.
+        certificateFinish: { type: ["string", "null"], enum: [clay, cream, null] }
         role: { type: string, enum: [learner, instructor, admin, superadmin] }
     LearnerNameInput:
       type: object
       required: [name]
       properties:
         name: { type: string, minLength: 1, maxLength: 80 }
+    CertificateFinishInput:
+      type: object
+      required: [finish]
+      properties:
+        finish: { type: string, enum: [clay, cream] }
     JoinResult:
       type: object
       required: [sessionId, joinedAt, countedAsOnTime]
@@ -5116,6 +5155,10 @@ components:
         # programme that has no capstone, so the sheet never claims one that
         # did not exist.
         capstoneApproved: { type: boolean }
+        # Null until the learner has opened this certificate and chosen. The
+        # page shows the two finishes side by side rather than a download
+        # while it is null, which is how the Lab knows they looked.
+        finish: { type: ["string", "null"], enum: [clay, cream, null] }
     PublicCertificate:
       type: object
       required: [programTitle, learnerName, completedAt, certificateId, portfolioPublic, modulesCompleted, reviewsWritten, works]
@@ -5131,6 +5174,9 @@ components:
         # programme that has no capstone, so the sheet never claims one that
         # did not exist.
         capstoneApproved: { type: boolean }
+        # Always one of the two here, never null: a stranger checking a
+        # certificate is not the person who gets to choose its colour.
+        finish: { type: string, enum: [clay, cream] }
         # Only populated when the learner has opted their portfolio public.
         works:
           type: array

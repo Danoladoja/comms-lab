@@ -26,6 +26,7 @@ export const GetMeResponse = zod.object({
   "email": zod.string(),
   "name": zod.string(),
   "printableName": zod.string().optional(),
+  "certificateFinish": zod.union([zod.literal('clay'),zod.literal('cream'),zod.literal(null)]).nullish(),
   "role": zod.enum(['learner', 'instructor', 'admin', 'superadmin'])
 })
 
@@ -47,6 +48,25 @@ export const SetMyNameResponse = zod.object({
   "email": zod.string(),
   "name": zod.string(),
   "printableName": zod.string().optional(),
+  "certificateFinish": zod.union([zod.literal('clay'),zod.literal('cream'),zod.literal(null)]).nullish(),
+  "role": zod.enum(['learner', 'instructor', 'admin', 'superadmin'])
+})
+
+
+/**
+ * @summary Choose which finish my certificates are printed on
+ */
+export const SetMyCertificateFinishBody = zod.object({
+  "finish": zod.enum(['clay', 'cream'])
+})
+
+export const SetMyCertificateFinishResponse = zod.object({
+  "id": zod.int(),
+  "clerkUserId": zod.string(),
+  "email": zod.string(),
+  "name": zod.string(),
+  "printableName": zod.string().optional(),
+  "certificateFinish": zod.union([zod.literal('clay'),zod.literal('cream'),zod.literal(null)]).nullish(),
   "role": zod.enum(['learner', 'instructor', 'admin', 'superadmin'])
 })
 
@@ -1412,7 +1432,8 @@ export const ListMyCertificatesResponseItem = zod.object({
   "portfolioPublic": zod.boolean(),
   "modulesCompleted": zod.int(),
   "reviewsWritten": zod.int(),
-  "capstoneApproved": zod.boolean().optional()
+  "capstoneApproved": zod.boolean().optional(),
+  "finish": zod.union([zod.literal('clay'),zod.literal('cream'),zod.literal(null)]).nullish()
 })
 export const ListMyCertificatesResponse = zod.array(ListMyCertificatesResponseItem)
 
@@ -1433,6 +1454,7 @@ export const VerifyCertificateResponse = zod.object({
   "modulesCompleted": zod.int(),
   "reviewsWritten": zod.int(),
   "capstoneApproved": zod.boolean().optional(),
+  "finish": zod.enum(['clay', 'cream']).optional(),
   "works": zod.array(zod.object({
   "title": zod.string(),
   "body": zod.string(),
@@ -1461,7 +1483,8 @@ export const SetPortfolioVisibilityResponse = zod.object({
   "portfolioPublic": zod.boolean(),
   "modulesCompleted": zod.int(),
   "reviewsWritten": zod.int(),
-  "capstoneApproved": zod.boolean().optional()
+  "capstoneApproved": zod.boolean().optional(),
+  "finish": zod.union([zod.literal('clay'),zod.literal('cream'),zod.literal(null)]).nullish()
 })
 
 
@@ -1628,6 +1651,7 @@ export const ListUsersResponseItem = zod.object({
   "email": zod.string(),
   "name": zod.string(),
   "printableName": zod.string().optional(),
+  "certificateFinish": zod.union([zod.literal('clay'),zod.literal('cream'),zod.literal(null)]).nullish(),
   "role": zod.enum(['learner', 'instructor', 'admin', 'superadmin'])
 })
 export const ListUsersResponse = zod.array(ListUsersResponseItem)
@@ -1928,6 +1952,7 @@ export const UpdateUserRoleResponse = zod.object({
   "email": zod.string(),
   "name": zod.string(),
   "printableName": zod.string().optional(),
+  "certificateFinish": zod.union([zod.literal('clay'),zod.literal('cream'),zod.literal(null)]).nullish(),
   "role": zod.enum(['learner', 'instructor', 'admin', 'superadmin'])
 })
 

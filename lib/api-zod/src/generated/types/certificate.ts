@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { CertificateFinish } from './certificateFinish';
 
 export interface Certificate {
   programId: number;
@@ -17,4 +18,6 @@ export interface Certificate {
   modulesCompleted: number;
   reviewsWritten: number;
   capstoneApproved?: boolean;
+  /** @nullable */
+  finish?: CertificateFinish;
 }

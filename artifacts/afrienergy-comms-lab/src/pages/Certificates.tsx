@@ -75,8 +75,14 @@ export default function Certificates() {
               </div>
               <h2 className="font-display font-bold mb-1">{c.programTitle}</h2>
               <p className="text-xs text-muted-foreground mb-4">Completed {formatDate(c.completedAt as unknown as string | null)} · {c.certificateId}</p>
+              {/*
+                A certificate nobody has opened yet says so, rather than
+                reading identically to one that has been checked and chosen —
+                the whole point of the step is that it gets taken.
+              */}
               <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-primary">
-                View certificate<ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
+                {c.finish ? 'View certificate' : 'Check it and pick a finish'}
+                <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
               </span>
             </Link>
           ))}

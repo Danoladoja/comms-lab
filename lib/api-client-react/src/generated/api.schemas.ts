@@ -319,6 +319,17 @@ export interface ApiMessage {
   helpUrl?: string | null;
 }
 
+/**
+ * @nullable
+ */
+export type UserCertificateFinish = typeof UserCertificateFinish[keyof typeof UserCertificateFinish] | null;
+
+
+export const UserCertificateFinish = {
+  clay: 'clay',
+  cream: 'cream',
+} as const;
+
 export type UserRole = typeof UserRole[keyof typeof UserRole];
 
 
@@ -335,6 +346,8 @@ export interface User {
   email: string;
   name: string;
   printableName?: string;
+  /** @nullable */
+  certificateFinish?: UserCertificateFinish;
   role: UserRole;
 }
 
@@ -346,6 +359,18 @@ export interface LearnerNameInput {
   name: string;
 }
 
+export type CertificateFinishInputFinish = typeof CertificateFinishInputFinish[keyof typeof CertificateFinishInputFinish];
+
+
+export const CertificateFinishInputFinish = {
+  clay: 'clay',
+  cream: 'cream',
+} as const;
+
+export interface CertificateFinishInput {
+  finish: CertificateFinishInputFinish;
+}
+
 export interface JoinResult {
   sessionId: number;
   joinedAt: string;
@@ -353,6 +378,17 @@ export interface JoinResult {
   joinUrl?: string | null;
   countedAsOnTime: boolean;
 }
+
+/**
+ * @nullable
+ */
+export type CertificateFinish = typeof CertificateFinish[keyof typeof CertificateFinish] | null;
+
+
+export const CertificateFinish = {
+  clay: 'clay',
+  cream: 'cream',
+} as const;
 
 export interface Certificate {
   programId: number;
@@ -365,7 +401,17 @@ export interface Certificate {
   modulesCompleted: number;
   reviewsWritten: number;
   capstoneApproved?: boolean;
+  /** @nullable */
+  finish?: CertificateFinish;
 }
+
+export type PublicCertificateFinish = typeof PublicCertificateFinish[keyof typeof PublicCertificateFinish];
+
+
+export const PublicCertificateFinish = {
+  clay: 'clay',
+  cream: 'cream',
+} as const;
 
 export interface PortfolioWork {
   title: string;
@@ -383,6 +429,7 @@ export interface PublicCertificate {
   modulesCompleted: number;
   reviewsWritten: number;
   capstoneApproved?: boolean;
+  finish?: PublicCertificateFinish;
   works: PortfolioWork[];
 }
 

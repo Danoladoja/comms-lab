@@ -65,3 +65,35 @@ export function learnerNameProblem(value: string): string | null {
   if (!/\p{L}/u.test(name)) return "A name needs at least one letter in it.";
   return null;
 }
+
+/* ------------------------------------------------------------------ *
+ * Which sheet it is printed on
+ * ------------------------------------------------------------------ */
+
+/**
+ * The two finishes the Lab issues: the deep rust sheet and the cream one.
+ *
+ * Both carry the same layout, the same marks and the same words — only the
+ * ground and the ink change — so a certificate is never more or less of a
+ * certificate for being one or the other.
+ */
+export const CERTIFICATE_FINISHES = ["clay", "cream"] as const;
+export type CertificateFinish = (typeof CERTIFICATE_FINISHES)[number];
+
+export function isCertificateFinish(value: unknown): value is CertificateFinish {
+  return typeof value === "string" && (CERTIFICATE_FINISHES as readonly string[]).includes(value);
+}
+
+/**
+ * What to print when nobody has chosen.
+ *
+ * A learner cannot download their certificate without opening it and choosing,
+ * so inside the Lab this is never reached. The public verification page is a
+ * different matter: it is read by employers and editors who are not the
+ * learner, and refusing to render a sheet somebody earned because of an
+ * unanswered question about its colour would be absurd. So it falls back here,
+ * once, visibly, rather than each caller inventing its own answer.
+ */
+export function certificateFinishOrDefault(value: unknown): CertificateFinish {
+  return isCertificateFinish(value) ? value : "clay";
+}

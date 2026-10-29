@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { MAX_LEARNER_NAME, certificateName, learnerNameProblem } from "./learnerName";
+import {
+  CERTIFICATE_FINISHES,
+  MAX_LEARNER_NAME,
+  certificateFinishOrDefault,
+  certificateName,
+  isCertificateFinish,
+  learnerNameProblem,
+} from "./learnerName";
 
 describe("certificateName", () => {
   it("prints a real name", () => {
@@ -77,5 +84,27 @@ describe("learnerNameProblem", () => {
       expect(learnerNameProblem(name)).toBeNull();
       expect(certificateName({ name, email: "someone@example.com" })).toBe(name);
     }
+  });
+});
+
+describe("certificate finishes", () => {
+  it("knows the two it issues", () => {
+    expect([...CERTIFICATE_FINISHES]).toEqual(["clay", "cream"]);
+  });
+
+  it("accepts only those two", () => {
+    expect(isCertificateFinish("clay")).toBe(true);
+    expect(isCertificateFinish("cream")).toBe(true);
+    for (const junk of ["CLAY", "navy", "", null, undefined, 3, {}]) {
+      expect(isCertificateFinish(junk)).toBe(false);
+    }
+  });
+
+  it("falls back to clay for anything it does not recognise", () => {
+    expect(certificateFinishOrDefault("cream")).toBe("cream");
+    expect(certificateFinishOrDefault("clay")).toBe("clay");
+    // Null is the ordinary case: nobody has chosen yet.
+    expect(certificateFinishOrDefault(null)).toBe("clay");
+    expect(certificateFinishOrDefault("chartreuse")).toBe("clay");
   });
 });

@@ -22,8 +22,17 @@ import { Check, Pencil, UserRound } from 'lucide-react';
  * Shown open when there is nothing to print, and collapsed to a line of text
  * with a "change" link when there is, because somebody whose name is already
  * right should not be asked about it on every visit.
+ *
+ * `tone` exists because this sits on two very different grounds: the ordinary
+ * page, and the near-black sheet of the certificate screens. Inheriting the
+ * page's muted grey onto that one leaves the sentence all but unreadable, and
+ * a colour override written at each call site is a thing that gets forgotten
+ * the third time somebody drops this component somewhere new.
  */
-export default function NameOnYourCertificate() {
+export default function NameOnYourCertificate({ tone = 'page' }: { tone?: 'page' | 'dark' }) {
+  const dark = tone === 'dark';
+  const quiet = dark ? 'text-[#F4F0E8]/70' : 'text-muted-foreground';
+  const loud = dark ? 'text-[#F4F0E8]' : 'text-foreground';
   const { user: me, isLoading } = useCurrentUser();
   const queryClient = useQueryClient();
   const printable = me?.printableName ?? '';
@@ -58,15 +67,15 @@ export default function NameOnYourCertificate() {
   // Not asked for and not needed: there is a name, and the box is shut.
   if (printable && !open) {
     return (
-      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground mb-8">
+      <div className={`flex flex-wrap items-center gap-x-2 gap-y-1 text-sm mb-8 ${quiet}`}>
         <UserRound className="w-4 h-4 shrink-0" aria-hidden />
         <span>
-          Certificates are made out to <span className="font-semibold text-foreground">{printable}</span>.
+          Certificates are made out to <span className={`font-semibold ${loud}`}>{printable}</span>.
         </span>
         <button
           type="button"
           onClick={() => { setValue(printable); setOpen(true); }}
-          className="inline-flex items-center gap-1 font-semibold text-primary hover:underline"
+          className={`inline-flex items-center gap-1 font-semibold hover:underline ${dark ? 'text-[#F97316]' : 'text-primary'}`}
         >
           <Pencil className="w-3.5 h-3.5" aria-hidden />Change
         </button>

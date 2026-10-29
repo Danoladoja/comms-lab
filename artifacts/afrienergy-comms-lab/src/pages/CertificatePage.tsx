@@ -5,6 +5,8 @@ import { Button } from '@/components/ui/button';
 import { Download, Home, Award, Link2, Check, Linkedin } from 'lucide-react';
 import CertificateView from '@/components/CertificateView';
 import NameOnYourCertificate from '@/components/NameOnYourCertificate';
+import ChooseYourCertificate from '@/components/ChooseYourCertificate';
+import { isCertificateFinish } from '@workspace/domain';
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, '');
 
@@ -44,8 +46,8 @@ export default function CertificatePage() {
             ?? 'This certificate is issued once every module of the program is completed. Keep going, you are closer than you think.'}
         </p>
         {held?.nameOutstanding && (
-          <div className="text-left w-full max-w-xl mb-6 [&_.text-muted-foreground]:text-[#F4F0E8]/70">
-            <NameOnYourCertificate />
+          <div className="text-left w-full max-w-xl mb-6">
+            <NameOnYourCertificate tone="dark" />
           </div>
         )}
         <Button asChild variant="outline" className="bg-transparent border-white/20 text-[#F4F0E8] hover:bg-white/10">
@@ -53,6 +55,28 @@ export default function CertificatePage() {
             <Home className="w-4 h-4 mr-2" />{held ? 'My certificates' : 'Back to dashboard'}
           </Link>
         </Button>
+      </div>
+    );
+  }
+
+  /*
+    Nobody has opened this certificate and chosen a sheet yet, so that is what
+    this page is: both finishes with their real details on, and no download
+    until one is pressed. A learner who never looks at their own certificate
+    before sending it to an editor is the person this step exists for.
+  */
+  if (!isCertificateFinish(cert.finish)) {
+    return (
+      <div className="min-h-screen bg-[#07111E] py-10 px-4">
+        <div className="container mx-auto max-w-5xl">
+          <Button variant="ghost" asChild className="text-[#F4F0E8]/70 hover:text-white hover:bg-white/10 mb-6">
+            <Link href="/certificates"><Home className="w-4 h-4 mr-2" />My certificates</Link>
+          </Button>
+          <div className="mb-6">
+            <NameOnYourCertificate tone="dark" />
+          </div>
+          <ChooseYourCertificate cert={cert} />
+        </div>
       </div>
     );
   }
@@ -102,7 +126,7 @@ export default function CertificatePage() {
           </div>
         </div>
 
-        <CertificateView cert={cert} />
+        <CertificateView cert={cert} finish={cert.finish} />
 
         <p className="text-center text-xs text-[#F4F0E8]/50 mt-6 print:hidden">
           Anyone with your public link can verify this certificate — no sign-in needed.

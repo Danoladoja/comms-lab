@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { UserCertificateFinish } from './userCertificateFinish';
 import type { UserRole } from './userRole';
 
 export interface User {
@@ -13,5 +14,7 @@ export interface User {
   email: string;
   name: string;
   printableName?: string;
+  /** @nullable */
+  certificateFinish?: UserCertificateFinish;
   role: UserRole;
 }

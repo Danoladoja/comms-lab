@@ -43,6 +43,7 @@ import type {
   CapstoneReviewInput,
   CapstoneSubmissionDetail,
   Certificate,
+  CertificateFinishInput,
   ClassMeeting,
   CohortDiscussion,
   CohortMessage,
@@ -455,6 +456,77 @@ export const useSetMyName = <TError = ErrorType<ApiMessage>,
         TContext
       > => {
       return useMutation(getSetMyNameMutationOptions(options));
+    }
+
+export const getSetMyCertificateFinishUrl = () => {
+
+
+
+
+  return `/api/me/certificate-finish`
+}
+
+/**
+ * @summary Choose which finish my certificates are printed on
+ */
+export const setMyCertificateFinish = async (certificateFinishInput: CertificateFinishInput, options?: Parameters<typeof customFetch>[1]): Promise<User> => {
+
+  return customFetch<User>(getSetMyCertificateFinishUrl(),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(certificateFinishInput)
+  }
+);}
+
+
+
+
+
+export const getSetMyCertificateFinishMutationOptions = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setMyCertificateFinish>>, TError,{data: BodyType<CertificateFinishInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof setMyCertificateFinish>>, TError,{data: BodyType<CertificateFinishInput>}, TContext> => {
+
+const mutationKey = ['setMyCertificateFinish'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof setMyCertificateFinish>>, {data: BodyType<CertificateFinishInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  setMyCertificateFinish(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SetMyCertificateFinishMutationResult = NonNullable<Awaited<ReturnType<typeof setMyCertificateFinish>>>
+    export type SetMyCertificateFinishMutationBody = BodyType<CertificateFinishInput>
+    export type SetMyCertificateFinishMutationError = ErrorType<ApiMessage>
+
+    /**
+ * @summary Choose which finish my certificates are printed on
+ */
+export const useSetMyCertificateFinish = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setMyCertificateFinish>>, TError,{data: BodyType<CertificateFinishInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof setMyCertificateFinish>>,
+        TError,
+        {data: BodyType<CertificateFinishInput>},
+        TContext
+      > => {
+      return useMutation(getSetMyCertificateFinishMutationOptions(options));
     }
 
 export const getListProgramsUrl = () => {
